@@ -3,6 +3,7 @@
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -51,7 +52,8 @@ test('deactivated users cannot log in with a password', function () {
 test('a deactivated user with a live session is logged out on the next request', function () {
     $this->actingAs(User::factory()->deactivated()->create())
         ->get(route('home'))
-        ->assertRedirect(route('login'));
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('status');
 
     $this->assertGuest();
 });
@@ -77,4 +79,17 @@ test('purge also deletes the avatar file', function () {
     $this->artisan('bookflix:purge-deactivated-accounts')->assertSuccessful();
 
     Storage::assertMissing('avatars/1/a.jpg');
+});
+
+test('logging in rehashes a password hashed with fewer rounds', function () {
+    $user = User::factory()->create();
+    $oldHash = $user->password;
+
+    config(['hashing.bcrypt.rounds' => 5]);
+    Hash::forgetDrivers();
+
+    $this->post(route('login.store'), ['email' => $user->email, 'password' => 'password']);
+
+    $this->assertAuthenticated();
+    expect($user->fresh()->password)->not->toBe($oldHash);
 });
