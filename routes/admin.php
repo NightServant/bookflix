@@ -11,4 +11,5 @@ Route::middleware(['auth', 'verified', 'can:access-admin'])
         Route::livewire('media', 'pages::admin.media.index')->name('media.index');
         Route::livewire('media/{media}', 'pages::admin.media.edit')->name('media.edit');
         Route::livewire('duplicates', 'pages::admin.duplicates.index')->name('duplicates');
+        Route::livewire('users', 'pages::admin.users.index')->name('users');
     });
