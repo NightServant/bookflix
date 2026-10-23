@@ -99,7 +99,14 @@ code,name,description,parent_code
 970,North American History,,900
 980,South American History,,900
 990,Pacific & Polar History,,900
+811,American Poetry,Poems and verse written in the United States.,810
+812,American Drama,Plays and scripts written in the United States.,810
 813,American Fiction,Novels and stories written in the United States.,810
+814,American Essays,Essays and personal prose written in the United States.,810
+815,American Speeches,Speeches and oratory from the United States.,810
+816,American Letters,Collected letters and correspondence from the United States.,810
+817,American Humor & Satire,Comic writing and satire from the United States.,810
+818,American Miscellaneous Writings,Other American literary writing that fits no section above.,810
 823,English Fiction,Novels and stories from England and the wider British tradition.,820
 833,German Fiction,Novels and stories written in German.,830
 843,French Fiction,Novels and stories written in French.,840

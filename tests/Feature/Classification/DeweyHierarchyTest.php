@@ -41,6 +41,12 @@ test('seeding twice does not duplicate classes', function () {
     expect(DeweyClass::count())->toBe($count);
 });
 
+test('810 has exactly 811 to 818 as children, in order', function () {
+    $h = app(DeweyHierarchy::class);
+    expect($h->children($h->findByCode('810'))->pluck('code')->all())
+        ->toBe(['811', '812', '813', '814', '815', '816', '817', '818']);
+});
+
 test('the comics subtree exists under 740', function () {
     expect(DeweyClass::firstWhere('code', '741.55')->path)->toBe('700/740/741.5/741.55');
 });
