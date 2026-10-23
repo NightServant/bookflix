@@ -129,7 +129,7 @@ Runtime rules:
 | D-14 | Ratings stored as integers 1–10 and shown as 5 stars with half stars | §39 | Allows half stars without decimals | adopt |
 | D-15 | Interaction weights and hybrid weights stored as `model_versions` rows (`name = interaction-weights` / `hybrid-weights`), seeded from `config/bookflix.php` | §29 | Configurable and versioned, never hard-coded, and learnable later | adopt |
 | D-16 | Motion for animation; CSS for hover and focus | (user) | Using CSS where it's enough keeps the JS small; Motion handles the rest | adopt |
-| D-17 | Optionally self-host Inter (OFL-1.1) ahead of the OS fonts in the stack | §51 | Netflix Sans can't ship; Helvetica Neue exists only on Apple devices and has no 900 weight | optional (default: spec stack) |
+| D-17 | Optionally self-host Inter (OFL-1.1) ahead of the OS fonts in the stack | §51 | Netflix Sans can't ship; Helvetica Neue exists only on Apple devices and has no 900 weight | rejected for code; Inter is Figma-only |
 | D-19 | `media.merged_into_id` (nullable self FK) records a merge; the loser is soft-deleted and its slug resolves to the winner (301) | §10, §42 | A9 promised reversible merges and slug redirects but A6 had no column for them | adopt |
 | D-20 | ISBN-13s are stored as `media_external_ids` rows under a synthetic `external_sources` key `isbn` | §5, §9 | Reuses the unique `(source, external_id)` constraint for exact-match dedup; no new column or table | adopt |
 | D-21 | Dedup: a same-family match that is not auto-merge-eligible (including title similarity ≥ 0.90 without a shared creator or year within ±1) and has similarity ≥ 0.75 becomes a `duplicate_candidates` row | §42, §43 | A9's bands left ≥ 0.90 without a creator or year match undefined; false merges are costlier than review work (R8) | adopt |
@@ -1683,5 +1683,6 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 2026-10-23 | D-28 spec interpretations (ε-greedy, opted-out recs, comics codes, admin users, extra ML job names) | adopt as written in A10/A12/A8/Phase 2.10. Rationale: spec silent. | user (via lead session) |
 | 2026-10-23 | Phase 1 done (PR #4) | Part D marked done; navigation in `config('bookflix.navigation')`, `FILESYSTEM_DISK=local`, `flysystem-s3`/Nightwatch deferred to deploy, ML docs off by default | user |
 | 2026-10-23 | D-13 reaffirmed | Phone bottom nav stays Home, Discover, Search, Library, Profile. Phase 1's placeholder bar (Home, Library, Option 1, Option 2, Settings) is replaced as Phases 4, 5 and 10 add their items to `config('bookflix.navigation')`; each phase must also mark which items show on the phone bar. | user |
+| 2026-10-23 | D-17 font | Code keeps the spec's font stack (`'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif`); Inter is used only in the Figma design system, because Figma couldn't load Helvetica Neue. Design QA (F7) ignores font-rendering differences. | user |
 | — | D-1 … D-18, Q1 … Q17, A4 approvals | pending | — |
 | — | Figma file keys: Bookflix · Design System / Prototypes / Architecture & Flows | pending (F0) | — |
