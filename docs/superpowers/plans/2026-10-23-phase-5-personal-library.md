@@ -596,7 +596,7 @@ test('preferences can be edited later from settings and the morph map resolves',
     expect($user->preferences()->first()->preferable)->toBeInstanceOf(Genre::class)->and(DB::table('user_preferences')->value('preferable_type'))->toBe('genre');
 });
 ```
-(Adding the middleware requires retargeting existing Phase 1 tests that expect `home` → 200 for fresh users: set `onboarded_at` in `UserFactory` default state's profile via an `onboarded()` helper, or make `User::factory()` create the profile with `onboarded_at` now and a `->notOnboarded()` state — decide in this task and update `HomeTest`, `AuthenticationTest`, etc.)
+(Decided: new users must complete onboarding, so `EnsureOnboarded` stays. `UserFactory` creates users with a profile whose `onboarded_at` is set by default, so existing Phase 1 tests that expect `home` → 200 keep passing without edits; add a `->notOnboarded()` state used by the onboarding tests above. Verify the factory's current shape in the Phase 1 code first.)
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** `php artisan test --compact` (the whole suite, since the middleware touches earlier tests) → PASS. **Step 5: Commit** — `git commit -m "feat: onboarding flow and user preferences"`
 
 ---
