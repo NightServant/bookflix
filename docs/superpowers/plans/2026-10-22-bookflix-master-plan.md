@@ -1682,5 +1682,6 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 2026-10-23 | D-27 / Q13 spec not in repo | adopt: no copy; absolute path references. Rationale: public repo. | user |
 | 2026-10-23 | D-28 spec interpretations (ε-greedy, opted-out recs, comics codes, admin users, extra ML job names) | adopt as written in A10/A12/A8/Phase 2.10. Rationale: spec silent. | user (via lead session) |
 | 2026-10-23 | Phase 1 done (PR #4) | Part D marked done; navigation in `config('bookflix.navigation')`, `FILESYSTEM_DISK=local`, `flysystem-s3`/Nightwatch deferred to deploy, ML docs off by default | user |
+| 2026-10-23 | D-13 reaffirmed | Phone bottom nav stays Home, Discover, Search, Library, Profile. Phase 1's placeholder bar (Home, Library, Option 1, Option 2, Settings) is replaced as Phases 4, 5 and 10 add their items to `config('bookflix.navigation')`; each phase must also mark which items show on the phone bar. | user |
 | — | D-1 … D-18, Q1 … Q17, A4 approvals | pending | — |
 | — | Figma file keys: Bookflix · Design System / Prototypes / Architecture & Flows | pending (F0) | — |
