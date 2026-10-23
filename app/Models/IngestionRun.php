@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property int $id
@@ -61,5 +62,16 @@ class IngestionRun extends Model
     public function externalSource(): BelongsTo
     {
         return $this->belongsTo(ExternalSource::class);
+    }
+
+    /**
+     * Add one to a counter in a single statement, so concurrent workers never lose an increment.
+     */
+    public function bump(string $key): void
+    {
+        DB::update(
+            'update ingestion_runs set counts = jsonb_set(counts, array[?::text], to_jsonb(coalesce((counts ->> ?::text)::int, 0) + 1)) where id = ?',
+            [$key, $key, $this->id],
+        );
     }
 }
