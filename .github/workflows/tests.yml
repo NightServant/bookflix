@@ -20,6 +20,7 @@ jobs:
       DB_PASSWORD: postgres
       DB_DATABASE: bookflix_test
 
+    # No Redis service: tests run on the sync queue and array cache. Add one only if a test touches the real connection.
     services:
       postgres:
         image: pgvector/pgvector:pg17

@@ -1,0 +1,107 @@
+{
+  "id": 30002,
+  "idMal": 2,
+  "title": {
+    "romaji": "Berserk",
+    "english": "Berserk",
+    "native": "ベルセルク"
+  },
+  "synonyms": [
+    "بيرسيرك",
+    "Beruseruku"
+  ],
+  "description": "His name is Guts, the Black Swordsman, a feared warrior spoken of only in whispers. Bearer of a gigantic sword, an iron hand, and the scars of countless battles and tortures, his flesh is also indelibly marked with The Brand, an unholy symbol that draws the forces of darkness to him and dooms him",
+  "format": "MANGA",
+  "status": "RELEASING",
+  "countryOfOrigin": "JP",
+  "isAdult": false,
+  "startDate": {
+    "year": 1989,
+    "month": 8,
+    "day": 25
+  },
+  "chapters": null,
+  "genres": [
+    "Action",
+    "Adventure",
+    "Drama",
+    "Fantasy"
+  ],
+  "tags": [
+    {
+      "name": "Tragedy",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Seinen",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Revenge",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Male Protagonist",
+      "isMediaSpoiler": false
+    }
+  ],
+  "coverImage": {
+    "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx30002-Cul4OeN7bYtn.jpg",
+    "large": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx30002-Cul4OeN7bYtn.jpg"
+  },
+  "siteUrl": "https://anilist.co/manga/30002",
+  "updatedAt": 1792720810,
+  "staff": {
+    "edges": [
+      {
+        "role": "Story & Art (vols 1-41)",
+        "node": {
+          "name": {
+            "full": "Kentarou Miura"
+          }
+        }
+      },
+      {
+        "role": "Story & Art (vols 41- )",
+        "node": {
+          "name": {
+            "full": "Studio Gaga"
+          }
+        }
+      },
+      {
+        "role": "Supervisor (vols 41- )",
+        "node": {
+          "name": {
+            "full": "Kouji Mori"
+          }
+        }
+      }
+    ]
+  },
+  "characters": {
+    "edges": [
+      {
+        "node": {
+          "name": {
+            "full": "Guts"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Casca"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Griffith"
+          }
+        }
+      }
+    ]
+  }
+}
