@@ -2,6 +2,7 @@
 
 namespace App\Concerns;
 
+use App\Enums\ReadingLength;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
@@ -46,6 +47,22 @@ trait ProfileValidationRules
             $userId === null
                 ? Rule::unique(User::class)
                 : Rule::unique(User::class)->ignore($userId),
+        ];
+    }
+
+    /**
+     * Get the validation rules used to validate the reading profile.
+     *
+     * @return array<string, array<int, ValidationRule|array<mixed>|string>>
+     */
+    protected function readingProfileRules(): array
+    {
+        return [
+            'bio' => ['nullable', 'string', 'max:1000'],
+            'preferredLanguages' => ['array'],
+            'preferredLanguages.*' => [Rule::in(config('bookflix.languages'))],
+            'readingLength' => [Rule::enum(ReadingLength::class)],
+            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.config('bookflix.avatar_max_kb')],
         ];
     }
 }
