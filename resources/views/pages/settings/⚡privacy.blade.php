@@ -1,0 +1,76 @@
+<?php
+
+use App\Enums\Visibility;
+use Flux\Flux;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Title;
+use Livewire\Component;
+
+new #[Title('Privacy settings')] class extends Component {
+    public string $profileVisibility = 'private';
+    public string $libraryVisibility = 'private';
+    public bool $personalizationEnabled = true;
+
+    /**
+     * Mount the component.
+     */
+    public function mount(): void
+    {
+        $profile = Auth::user()->profile;
+
+        $this->profileVisibility = $profile->profile_visibility->value;
+        $this->libraryVisibility = $profile->library_visibility->value;
+        $this->personalizationEnabled = $profile->personalization_enabled;
+    }
+
+    /**
+     * Update the privacy settings for the currently authenticated user.
+     */
+    public function updatePrivacy(): void
+    {
+        $validated = $this->validate([
+            'profileVisibility' => [Rule::enum(Visibility::class)],
+            'libraryVisibility' => [Rule::enum(Visibility::class)],
+            'personalizationEnabled' => ['boolean'],
+        ]);
+
+        Auth::user()->profile()->updateOrCreate([], [
+            'profile_visibility' => $validated['profileVisibility'],
+            'library_visibility' => $validated['libraryVisibility'],
+            'personalization_enabled' => $validated['personalizationEnabled'],
+        ]);
+
+        Flux::toast(variant: 'success', text: __('Privacy settings updated.'));
+    }
+}; ?>
+
+<section class="w-full">
+    @include('partials.settings-heading')
+
+    <flux:heading level="2" class="sr-only">{{ __('Privacy settings') }}</flux:heading>
+
+    <x-pages::settings.layout :heading="__('Privacy')" :subheading="__('Control who sees your profile and library')">
+        <form wire:submit="updatePrivacy" class="my-6 w-full space-y-6">
+            <flux:radio.group wire:model="profileVisibility" :label="__('Profile visibility')">
+                <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your profile.')" />
+                <flux:radio value="public" :label="__('Public')" :description="__('Anyone can see your profile.')" />
+            </flux:radio.group>
+
+            <flux:radio.group wire:model="libraryVisibility" :label="__('Library visibility')">
+                <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your library.')" />
+                <flux:radio value="public" :label="__('Public')" :description="__('Anyone can see your library.')" />
+            </flux:radio.group>
+
+            <flux:switch
+                wire:model="personalizationEnabled"
+                :label="__('Personalization')"
+                :description="__('Use your activity to recommend books. Turn off to stop recording it.')"
+            />
+
+            <flux:button variant="primary" type="submit" data-test="update-privacy-button">
+                {{ __('Save') }}
+            </flux:button>
+        </form>
+    </x-pages::settings.layout>
+</section>

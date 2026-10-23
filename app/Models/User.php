@@ -79,6 +79,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * Whether interactions may be recorded and used for personalization.
+     */
+    public function personalizationEnabled(): bool
+    {
+        return $this->profile->personalization_enabled;
+    }
+
+    /**
      * Get the user's initials
      */
     public function initials(): string
