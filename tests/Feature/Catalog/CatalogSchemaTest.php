@@ -18,6 +18,8 @@ test('media types are seeded with family and reading mode', function () {
     expect(MediaType::count())->toBe(10)
         ->and(MediaType::firstWhere('slug', 'manga')->family)->toBe(MediaFamily::SequentialArt)
         ->and(MediaType::firstWhere('slug', 'manga')->reading_mode)->toBe(ReadingMode::Paged)
+        ->and(MediaType::firstWhere('slug', 'manhwa')->reading_mode)->toBe(ReadingMode::VerticalScroll)
+        ->and(MediaType::firstWhere('slug', 'manhua')->reading_mode)->toBe(ReadingMode::VerticalScroll)
         ->and(MediaType::firstWhere('slug', 'webcomic')->reading_mode)->toBe(ReadingMode::VerticalScroll)
         ->and(MediaType::firstWhere('slug', 'visual-novel')->family)->toBe(MediaFamily::Interactive)
         ->and(MediaType::firstWhere('slug', 'novel')->reading_mode)->toBe(ReadingMode::Reflowable);
