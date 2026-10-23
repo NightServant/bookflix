@@ -5,6 +5,7 @@ namespace App\Ml;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Http;
 
 class MlClient
@@ -41,6 +42,10 @@ class MlClient
         return Http::baseUrl((string) config('services.ml.url'))
             ->withToken((string) config('services.ml.token'))
             ->timeout((int) config('services.ml.timeout'))
-            ->acceptJson();
+            ->acceptJson()
+            ->when(
+                Context::get('request_id'),
+                fn (PendingRequest $request, string $id) => $request->withHeaders(['X-Request-Id' => $id]),
+            );
     }
 }
