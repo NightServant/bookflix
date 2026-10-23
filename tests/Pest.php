@@ -6,12 +6,17 @@ use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
 use App\Classification\ClassificationCandidate;
 use App\Enums\ClassificationMethod;
+use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
+use App\Enums\ReviewStatus;
 use App\Models\DeweyClass;
 use App\Models\ExternalSource;
+use App\Models\Media;
+use App\Models\MediaDeweyClass;
 use App\Models\MediaType;
 use Database\Seeders\MediaTypeSeeder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -143,4 +148,20 @@ function cand(string $code, float $confidence, ClassificationMethod $method = Cl
 function dewey(string $code): DeweyClass
 {
     return DeweyClass::where('code', $code)->firstOrFail();
+}
+
+/**
+ * Give each media an accepted primary class with this code; seed `DeweySeeder` first.
+ *
+ * @param  Media|Collection<int, Media>  $media
+ */
+function classified(Media|Collection $media, string $code): void
+{
+    foreach (Collection::wrap($media) as $item) {
+        MediaDeweyClass::factory()->for($item)->create([
+            'dewey_class_id' => dewey($code)->id,
+            'classification_type' => ClassificationType::Primary,
+            'review_status' => ReviewStatus::Accepted,
+        ]);
+    }
 }
