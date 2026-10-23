@@ -47,6 +47,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the account has been deactivated.
+     */
+    public function deactivated(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'deactivated_at' => now(),
+        ]);
+    }
+
+    /**
      * Indicate that the user is an administrator.
      */
     public function admin(): static

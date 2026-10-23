@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -29,6 +30,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property bool $is_admin
+ * @property Carbon|null $deactivated_at
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -60,6 +62,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'deactivated_at' => 'datetime',
         ];
     }
 
@@ -77,6 +80,21 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'library_visibility' => Visibility::Private,
             'personalization_enabled' => true,
         ]);
+    }
+
+    public function isDeactivated(): bool
+    {
+        return $this->deactivated_at !== null;
+    }
+
+    /**
+     * Limit the query to accounts that have not been deactivated.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeActive(Builder $query): void
+    {
+        $query->whereNull('deactivated_at');
     }
 
     /**
