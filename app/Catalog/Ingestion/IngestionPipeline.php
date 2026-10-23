@@ -82,7 +82,7 @@ class IngestionPipeline
             $this->recordIsbns($media, $incoming, $hash);
             $this->attachRelations($media, $incoming, $source->key);
             $this->enricher->apply($media, $incoming, $source->key);
-            $this->refreshSearchText($media);
+            $media->refreshSearchText();
             $this->deduplicator->recordCandidates($media, $candidates);
 
             return $outcome;
@@ -174,27 +174,5 @@ class IngestionPipeline
     private function slug(string $name): string
     {
         return Str::slug($name) ?: md5(Str::lower($name));
-    }
-
-    /**
-     * Phase 4 search reads this: every name that can find the media, lowercased.
-     */
-    private function refreshSearchText(Media $media): void
-    {
-        $media->load(['creators', 'series', 'genres', 'themes', 'tags', 'characters', 'publishers']);
-
-        $terms = array_merge(
-            [$media->title],
-            $media->alternative_titles,
-            $media->creators->pluck('name')->all(),
-            $media->series->pluck('title')->all(),
-            $media->genres->pluck('name')->all(),
-            $media->themes->pluck('name')->all(),
-            $media->tags->pluck('name')->all(),
-            $media->characters->pluck('name')->all(),
-            $media->publishers->pluck('name')->all(),
-        );
-
-        $media->update(['search_text' => Str::lower(implode(' ', array_unique(array_filter($terms))))]);
     }
 }

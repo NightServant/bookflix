@@ -12,11 +12,12 @@ use App\Models\IngestionRun;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Bus\Batch;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Bus;
 
-class SyncProvider implements ShouldQueue
+class SyncProvider implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -26,11 +27,21 @@ class SyncProvider implements ShouldQueue
      */
     public int $maxExceptions = 5;
 
+    /**
+     * A queued or running sync for a provider blocks another one; the lock expires with the retry window, so a crashed worker cannot block it forever.
+     */
+    public int $uniqueFor = 7200;
+
     public function __construct(
         public string $providerKey,
         public IngestionMode $mode = IngestionMode::Incremental,
     ) {
         $this->onQueue('ingestion');
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->providerKey;
     }
 
     public function retryUntil(): DateTimeInterface

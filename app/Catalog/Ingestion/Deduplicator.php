@@ -3,6 +3,7 @@
 namespace App\Catalog\Ingestion;
 
 use App\Catalog\Data\NormalizedMedia;
+use App\Enums\DuplicateStatus;
 use App\Models\DuplicateCandidate;
 use App\Models\Media;
 use App\Models\MediaExternalId;
@@ -71,12 +72,13 @@ class Deduplicator
     }
 
     /**
-     * Fold the loser into the winner: external ids, pivot rows and relations move over, then the loser is soft deleted
-     * and points at the winner so its URL can still resolve.
+     * Fold the loser into the winner: external ids, pivot rows and relations move over, the winner's search text is rebuilt,
+     * every pending review candidate that involves the loser is closed as merged, then the loser is soft deleted and points
+     * at the winner so its URL can still resolve (media already merged into the loser follow along).
      */
-    public function merge(Media $winner, Media $loser): void
+    public function merge(Media $winner, Media $loser, ?int $resolvedBy = null): void
     {
-        DB::transaction(function () use ($winner, $loser): void {
+        DB::transaction(function () use ($winner, $loser, $resolvedBy): void {
             $loser->externalIds()->update(['media_id' => $winner->id]);
 
             foreach (self::PIVOTS as $table) {
@@ -90,8 +92,17 @@ class Deduplicator
 
             $this->moveRelations($winner, $loser);
 
+            Media::withTrashed()->where('merged_into_id', $loser->id)->update(['merged_into_id' => $winner->id]);
+
+            // ponytail: a pending pair of the loser with a third media is closed too, not repointed at the winner; the next sync re-proposes it if it still matches.
+            DuplicateCandidate::query()
+                ->where('status', DuplicateStatus::Pending)
+                ->where(fn ($query) => $query->where('media_id', $loser->id)->orWhere('duplicate_media_id', $loser->id))
+                ->update(['status' => DuplicateStatus::Merged, 'resolved_by' => $resolvedBy]);
+
             $loser->update(['merged_into_id' => $winner->id]);
             $loser->delete();
+            $winner->refreshSearchText();
         });
     }
 

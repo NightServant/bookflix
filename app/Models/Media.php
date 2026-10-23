@@ -129,6 +129,43 @@ class Media extends Model
     }
 
     /**
+     * The media a public slug points at: the media itself, or the winner when the slug was merged away.
+     * Null for an unknown slug or one that was plainly deleted (a merge target that was deleted too counts as gone).
+     */
+    public static function resolveSlug(string $slug): ?self
+    {
+        $media = static::withTrashed()->where('slug', $slug)->first();
+
+        if ($media?->merged_into_id !== null) {
+            return static::find($media->merged_into_id);
+        }
+
+        return $media?->trashed() ? null : $media;
+    }
+
+    /**
+     * Phase 4 search reads this: every name that can find the media, lowercased.
+     */
+    public function refreshSearchText(): void
+    {
+        $this->load(['creators', 'series', 'genres', 'themes', 'tags', 'characters', 'publishers']);
+
+        $terms = array_merge(
+            [$this->title],
+            $this->alternative_titles,
+            $this->creators->pluck('name')->all(),
+            $this->series->pluck('title')->all(),
+            $this->genres->pluck('name')->all(),
+            $this->themes->pluck('name')->all(),
+            $this->tags->pluck('name')->all(),
+            $this->characters->pluck('name')->all(),
+            $this->publishers->pluck('name')->all(),
+        );
+
+        $this->update(['search_text' => Str::lower(implode(' ', array_unique(array_filter($terms))))]);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

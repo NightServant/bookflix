@@ -1,12 +1,14 @@
 <?php
 
 use App\Catalog\Ingestion\Deduplicator;
+use App\Enums\DuplicateStatus;
 use App\Models\Creator;
 use App\Models\DuplicateCandidate;
 use App\Models\ExternalSource;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\MediaExternalId;
+use App\Models\User;
 use Illuminate\Support\Facades\Schema;
 
 test('the same work from two providers resolves to one media with two external ids', function () {
@@ -93,4 +95,41 @@ test('merge moves external ids pivots and relations and soft deletes the loser',
         ->and($winner->relations()->count())->toBe(0)
         ->and($loser->fresh()->trashed())->toBeTrue()
         ->and($loser->fresh()->merged_into_id)->toBe($winner->id);
+});
+
+test('merge rebuilds the winner search text and closes every pending candidate of the loser', function () {
+    [$winner, $loser, $other] = Media::factory()->count(3)->create();
+    $loser->creators()->attach(Creator::factory()->create(['name' => 'Naoki Urasawa']), ['role' => 'author', 'position' => 1]);
+    $pair = DuplicateCandidate::factory()->create(['media_id' => $winner->id, 'duplicate_media_id' => $loser->id]);
+    $third = DuplicateCandidate::factory()->create(['media_id' => $other->id, 'duplicate_media_id' => $loser->id]);
+    $unrelated = DuplicateCandidate::factory()->create(['media_id' => $winner->id, 'duplicate_media_id' => $other->id]);
+    $dismissed = DuplicateCandidate::factory()->create(['media_id' => $loser->id, 'duplicate_media_id' => $other->id, 'status' => DuplicateStatus::Dismissed]);
+
+    app(Deduplicator::class)->merge($winner, $loser, resolvedBy: User::factory()->create()->id);
+
+    expect($winner->fresh()->search_text)->toContain('naoki urasawa')
+        ->and($pair->fresh()->status)->toBe(DuplicateStatus::Merged)
+        ->and($pair->fresh()->resolved_by)->not->toBeNull()
+        ->and($third->fresh()->status)->toBe(DuplicateStatus::Merged)
+        ->and($unrelated->fresh()->status)->toBe(DuplicateStatus::Pending)
+        ->and($dismissed->fresh()->status)->toBe(DuplicateStatus::Dismissed);
+});
+
+test('slugs merged into a media that is merged again follow to the final winner', function () {
+    [$final, $middle, $first] = Media::factory()->count(3)->create();
+
+    app(Deduplicator::class)->merge($middle, $first);
+    app(Deduplicator::class)->merge($final, $middle);
+
+    expect(Media::resolveSlug($first->slug)?->is($final))->toBeTrue()
+        ->and(Media::resolveSlug($middle->slug)?->is($final))->toBeTrue()
+        ->and(Media::resolveSlug($final->slug)?->is($final))->toBeTrue()
+        ->and(Media::resolveSlug('nope'))->toBeNull();
+});
+
+test('a plainly deleted slug resolves to nothing', function () {
+    $media = Media::factory()->create();
+    $media->delete();
+
+    expect(Media::resolveSlug($media->slug))->toBeNull();
 });

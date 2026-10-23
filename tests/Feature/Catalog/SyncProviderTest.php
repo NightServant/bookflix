@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Testing\Fakes\BatchFake;
 
@@ -218,4 +219,21 @@ test('the sync command runs the fetch and rejects unknown providers', function (
     expect(IngestionRun::first()->mode)->toBe(IngestionMode::Full);
 
     $this->artisan('bookflix:sync nope')->expectsOutputToContain('Unknown provider')->assertFailed();
+});
+
+test('a provider never has two syncs queued or running at once', function () {
+    Queue::fake();
+
+    SyncProvider::dispatch('anilist');
+    SyncProvider::dispatch('anilist');
+    SyncProvider::dispatch('openlibrary');
+
+    Queue::assertPushed(SyncProvider::class, 2);
+    expect((new SyncProvider('anilist'))->uniqueId())->toBe('anilist');
+});
+
+test('redis retry_after outlasts the longest horizon supervisor timeout', function () {
+    $longest = collect(config('horizon.defaults'))->max('timeout');
+
+    expect(config('queue.connections.redis.retry_after'))->toBeGreaterThan($longest);
 });
