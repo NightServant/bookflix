@@ -12,4 +12,5 @@
 @fonts
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
+<script>window.localStorage.setItem('flux.appearance', 'dark')</script>
 @fluxAppearance
