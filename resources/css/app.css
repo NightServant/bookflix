@@ -9,30 +9,87 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif;
 
+    --color-canvas: #000000;
+    --color-surface-deep: #161616;
+    --color-surface-card: #232323;
+    --color-surface-input: #2d2d2d;
+    --color-ink: #ffffff;
+    --color-ink-muted: #808080;
+    --color-ink-subtle: #b3b3b3;
+    --color-hairline: #414141;
+    --color-border-input: #6d6d6e;
+    --color-brand: #e50914;
+    --color-brand-hover: #c11119;
+    --color-link: #448ef4;
+    --color-accent-electric: #4061e7;
+    --color-success: #46d369;
+    --color-featured-from: #192247;
+    --color-featured-via: #461518;
+    --color-featured-to: #6f181d;
+
+    /* Flux reads zinc + accent; map them onto Bookflix surfaces */
     --color-zinc-50: #fafafa;
-    --color-zinc-100: #f5f5f5;
-    --color-zinc-200: #e5e5e5;
-    --color-zinc-300: #d4d4d4;
-    --color-zinc-400: #a3a3a3;
-    --color-zinc-500: #737373;
-    --color-zinc-600: #525252;
-    --color-zinc-700: #404040;
-    --color-zinc-800: #262626;
-    --color-zinc-900: #171717;
-    --color-zinc-950: #0a0a0a;
+    --color-zinc-100: #e5e5e5;
+    --color-zinc-200: #dcdcdc;
+    --color-zinc-300: #d2d2d2;
+    --color-zinc-400: #b3b3b3;
+    --color-zinc-500: #808080;
+    --color-zinc-600: #414141;
+    --color-zinc-700: #2d2d2d;
+    --color-zinc-800: #232323;
+    --color-zinc-900: #161616;
+    --color-zinc-950: #000000;
+    --color-accent: var(--color-brand);
+    --color-accent-content: var(--color-ink); /* red is never small text */
+    --color-accent-foreground: var(--color-ink);
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
-    --color-accent-foreground: var(--color-white);
+    --text-hero: 3.5rem;
+    --text-hero--font-weight: 900;
+    --text-hero--line-height: 1.1;
+    --text-section: 1.5rem;
+    --text-section--font-weight: 500;
+    --text-cta: 1.5rem;
+    --text-cta--font-weight: 500;
+    --text-lead: 1.25rem;
+    --text-lead--font-weight: 500;
+    --text-body: 1rem;
+    --text-meta: 0.875rem;
+    --text-legal: 0.8125rem;
+
+    --radius-control: 4px;
+    --radius-card: 8px;
+    --radius-brand: 16px;
+    --spacing-gutter: 1rem;
+    --breakpoint-desktop: 90rem;
+
+    /* no drop shadows */
+    --shadow-*: initial;
+    --inset-shadow-*: initial;
+    --drop-shadow-*: initial;
+
+    --motion-fast: 150ms;
+    --motion-base: 250ms;
+    --motion-slow: 400ms;
+    --ease-out-bookflix: cubic-bezier(0.2, 0, 0, 1);
 }
 
-@layer theme {
-    .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+@media (width >= 48rem) {
+    :root {
+        --spacing-gutter: 2rem;
+    }
+}
+
+@media (width >= 64rem) {
+    :root {
+        --spacing-gutter: 4rem;
+    }
+}
+
+@media (width >= 90rem) {
+    :root {
+        --spacing-gutter: 148px;
     }
 }
 
@@ -43,7 +100,7 @@
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
+        border-color: var(--color-hairline);
     }
 }
 
