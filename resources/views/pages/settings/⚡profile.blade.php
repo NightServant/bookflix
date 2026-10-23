@@ -5,15 +5,27 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new #[Title('Profile settings')] class extends Component {
-    use ProfileValidationRules;
+    use ProfileValidationRules, WithFileUploads;
 
     public string $name = '';
     public string $email = '';
+
+    public string $bio = '';
+
+    /** @var list<string> */
+    public array $preferredLanguages = [];
+
+    public string $readingLength = 'any';
+
+    public $avatar = null;
 
     /**
      * Mount the component.
@@ -22,6 +34,11 @@ new #[Title('Profile settings')] class extends Component {
     {
         $this->name = Auth::user()->name;
         $this->email = Auth::user()->email;
+
+        $profile = Auth::user()->profile;
+        $this->bio = $profile->bio ?? '';
+        $this->preferredLanguages = $profile->preferred_languages;
+        $this->readingLength = $profile->reading_length->value;
     }
 
     /**
@@ -42,6 +59,44 @@ new #[Title('Profile settings')] class extends Component {
         $user->save();
 
         Flux::toast(variant: 'success', text: __('Profile updated.'));
+    }
+
+    /**
+     * Update the reading profile (bio, languages, reading length, avatar).
+     *
+     * ponytail: avatar is stored as uploaded, no resizing; add an image library if avatar bandwidth becomes a problem.
+     */
+    public function updateReadingProfile(): void
+    {
+        $validated = $this->validate($this->readingProfileRules());
+
+        $user = Auth::user();
+        $disk = Storage::disk(config('filesystems.default'));
+        $previousAvatarPath = $user->profile->avatar_path;
+
+        $data = [
+            'bio' => $validated['bio'] ?: null,
+            'preferred_languages' => array_values($validated['preferredLanguages']),
+            'reading_length' => $validated['readingLength'],
+        ];
+
+        if ($this->avatar) {
+            $data['avatar_path'] = $this->avatar->storeAs(
+                "avatars/{$user->id}",
+                Str::ulid().'.'.$this->avatar->extension(),
+                config('filesystems.default'),
+            );
+        }
+
+        $user->profile()->updateOrCreate([], $data);
+
+        if ($this->avatar && $previousAvatarPath) {
+            $disk->delete($previousAvatarPath);
+        }
+
+        $this->reset('avatar');
+
+        Flux::toast(variant: 'success', text: __('Reading profile updated.'));
     }
 
     /**
@@ -115,6 +170,38 @@ new #[Title('Profile settings')] class extends Component {
                 </div>
 
             </div>
+        </form>
+
+        <flux:separator class="my-8" />
+
+        <form wire:submit="updateReadingProfile" class="my-6 w-full space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Reading profile') }}</flux:heading>
+                <flux:subheading>{{ __('Tell us how you like to read') }}</flux:subheading>
+            </div>
+
+            <flux:input wire:model="avatar" :label="__('Avatar')" type="file" accept="image/jpeg,image/png,image/webp" />
+
+            <flux:textarea wire:model="bio" :label="__('Bio')" rows="3" maxlength="1000" />
+
+            <flux:checkbox.group wire:model="preferredLanguages" :label="__('Preferred languages')">
+                @foreach (config('bookflix.languages') as $code)
+                    <flux:checkbox
+                        :value="$code"
+                        :label="class_exists(Locale::class) ? ucfirst(Locale::getDisplayLanguage($code, app()->getLocale())) : strtoupper($code)"
+                    />
+                @endforeach
+            </flux:checkbox.group>
+
+            <flux:radio.group wire:model="readingLength" :label="__('Preferred reading length')">
+                @foreach (App\Enums\ReadingLength::cases() as $length)
+                    <flux:radio :value="$length->value" :label="__(ucfirst($length->value))" />
+                @endforeach
+            </flux:radio.group>
+
+            <flux:button variant="primary" type="submit" data-test="update-reading-profile-button">
+                {{ __('Save') }}
+            </flux:button>
         </form>
 
         @if ($this->showDeleteUser)
