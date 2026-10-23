@@ -65,3 +65,15 @@ test('avatar must be a jpg, png or webp under 2 MB', function (UploadedFile $fil
     'pdf' => fn () => UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf'),
     'too big' => fn () => UploadedFile::fake()->image('big.jpg')->size(3000),
 ]);
+
+test('the uploaded avatar is shown on the profile page', function () {
+    $this->actingAs($user = User::factory()->create());
+
+    Livewire::test('pages::settings.profile')
+        ->set('avatar', UploadedFile::fake()->image('a.jpg', 400, 400))
+        ->call('updateReadingProfile');
+
+    $url = $user->refresh()->avatarUrl();
+
+    $this->get(route('profile.edit'))->assertSee($url, false);
+});

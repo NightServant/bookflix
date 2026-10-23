@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
@@ -84,6 +85,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function personalizationEnabled(): bool
     {
         return $this->profile->personalization_enabled;
+    }
+
+    /**
+     * Public URL of the uploaded avatar, or null when none was uploaded.
+     */
+    public function avatarUrl(): ?string
+    {
+        $path = $this->profile->avatar_path;
+
+        return $path ? Storage::url($path) : null;
     }
 
     /**

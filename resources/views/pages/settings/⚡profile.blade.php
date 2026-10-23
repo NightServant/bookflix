@@ -180,7 +180,18 @@ new #[Title('Profile settings')] class extends Component {
                 <flux:subheading>{{ __('Tell us how you like to read') }}</flux:subheading>
             </div>
 
-            <flux:input wire:model="avatar" :label="__('Avatar')" type="file" accept="image/jpeg,image/png,image/webp" />
+            <div class="flex items-center gap-4">
+                <flux:avatar
+                    size="lg"
+                    :name="auth()->user()->name"
+                    :initials="auth()->user()->initials()"
+                    :src="$avatar?->isPreviewable() ? $avatar->temporaryUrl() : auth()->user()->avatarUrl()"
+                />
+
+                <div class="flex-1">
+                    <flux:input wire:model="avatar" :label="__('Avatar')" type="file" accept="image/jpeg,image/png,image/webp" />
+                </div>
+            </div>
 
             <flux:textarea wire:model="bio" :label="__('Bio')" rows="3" maxlength="1000" />
 
