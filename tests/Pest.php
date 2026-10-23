@@ -2,7 +2,11 @@
 
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
+use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Ingestion\IngestionPipeline;
 use App\Enums\CreatorRole;
+use App\Enums\ImportOutcome;
+use App\Models\ExternalSource;
 use App\Models\MediaType;
 use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -82,7 +86,7 @@ function providerFixture(string $path): array
  * @param  list<string>  $isbns
  * @param  array<string, string>  $crossIds
  */
-function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test'): NormalizedMedia
+function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test', ?string $description = null): NormalizedMedia
 {
     if (isset(MediaTypeSeeder::TYPES[$type])) {
         MediaType::firstOrCreate(['slug' => $type], MediaTypeSeeder::TYPES[$type]);
@@ -94,7 +98,24 @@ function normalized(string $title, string $type = 'novel', ?int $year = null, ar
         creators: array_map(fn (string $name) => new NormalizedCreator($name, CreatorRole::Author), $creators),
         isbns: $isbns,
         crossIds: $crossIds,
+        description: $description,
         publicationYear: $year,
         sourceUrl: "https://{$provider}.test/".rawurlencode($title),
     );
+}
+
+/**
+ * Import a recorded provider payload through the pipeline, with `mutate` deep-merged over it first. Creates the media types and the provider's source row when missing.
+ *
+ * @param  array<string, mixed>  $mutate
+ */
+function importFixture(string $provider, string $fixture, array $mutate = []): ImportOutcome
+{
+    app(MediaTypeSeeder::class)->run();
+    ExternalSource::where('key', $provider)->exists() || ExternalSource::factory()->create(['key' => $provider]);
+
+    $payload = array_replace_recursive(providerFixture("{$provider}/{$fixture}.json"), $mutate);
+    $record = new ProviderRecord($provider, (string) ($payload['id'] ?? ''), $payload, $payload['siteUrl'] ?? null, now()->toImmutable());
+
+    return app(IngestionPipeline::class)->import($record, app(config("bookflix.providers.{$provider}.class")));
 }
