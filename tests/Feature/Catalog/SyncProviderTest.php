@@ -85,7 +85,7 @@ function newestUpdate(array $media): CarbonImmutable
     return CarbonImmutable::createFromTimestampUTC(max(array_column($media, 'updatedAt')));
 }
 
-test('a sync runs page by page, imports each page inline and moves the cursor to the newest update', function () {
+test('a sync runs page by page, imports each page inline and moves the cursor to its start minus the overlap', function () {
     $first = anilistMedia();
     $second = anilistMedia(30004);
     Http::fake(['graphql.anilist.co' => Http::sequence()->push(anilistPage($first, hasNext: true))->push(anilistPage($second))]);
@@ -97,7 +97,8 @@ test('a sync runs page by page, imports each page inline and moves the cursor to
         ->and($run->pages)->toBe(2)->and($run->page_token)->toBeNull()
         ->and($run->counts)->toMatchArray(['fetched' => 6, 'created' => 6, 'skipped' => 0, 'failed' => 0])
         ->and(Media::count())->toBe(6)
-        ->and(anilistSource()->sync_cursor)->toEqual(['since' => newestUpdate($second)->toIso8601String()])
+        ->and($run->max_updated_at->equalTo(newestUpdate($second)))->toBeTrue()
+        ->and(anilistSource()->sync_cursor)->toEqual(['since' => $run->started_at->subMinutes(5)->toIso8601String()])
         ->and(anilistSource()->last_synced_at)->not->toBeNull();
     Http::assertSentCount(2);
     Http::assertSent(fn ($request) => $request['variables']['page'] === 2);
@@ -105,6 +106,7 @@ test('a sync runs page by page, imports each page inline and moves the cursor to
 
 test('a sync stops at max_pages_per_run and the next run resumes at the stored page', function () {
     config(['bookflix.providers.anilist.max_pages_per_run' => 1]);
+    $this->travelTo(CarbonImmutable::parse('2026-10-23 10:00:00', 'UTC'));
     $first = anilistMedia();
     $second = anilistMedia(30004);
     Http::fake(['graphql.anilist.co' => Http::sequence()->push(anilistPage($first, hasNext: true))->push(anilistPage($second))]);
@@ -114,14 +116,48 @@ test('a sync stops at max_pages_per_run and the next run resumes at the stored p
     $cut = IngestionRun::sole();
     expect($cut->pages)->toBe(1)->and($cut->page_token)->toBe('2')->and(Media::count())->toBe(3)
         ->and($cut->max_updated_at->equalTo(newestUpdate($first)))->toBeTrue()
-        ->and(anilistSource()->sync_cursor)->toEqual(['since' => null, 'resume' => ['mode' => 'incremental', 'page_token' => '2', 'max_updated_at' => newestUpdate($first)->toIso8601String()]]);
+        ->and(anilistSource()->sync_cursor)->toEqual(['since' => null, 'resume' => ['mode' => 'incremental', 'page_token' => '2', 'max_updated_at' => newestUpdate($first)->toIso8601String(), 'walk_started_at' => '2026-10-23T10:00:00+00:00']]);
 
+    $this->travel(10)->minutes();
     (new SyncProvider('anilist'))->handle();
 
     expect(IngestionRun::count())->toBe(2)->and(Media::count())->toBe(6)
-        ->and(anilistSource()->sync_cursor)->toEqual(['since' => newestUpdate($second)->toIso8601String()]);
+        ->and(IngestionRun::latest('id')->first()->walk_started_at->toIso8601String())->toBe('2026-10-23T10:00:00+00:00')
+        ->and(anilistSource()->sync_cursor)->toEqual(['since' => '2026-10-23T09:55:00+00:00']);
     Http::assertSentCount(2);
     Http::assertSent(fn ($request) => $request['variables']['page'] === 2);
+});
+
+test('a record updated between the run start and its end is fetched again by the next run', function () {
+    $this->travelTo($start = CarbonImmutable::parse('2026-10-23 10:00:00', 'UTC'));
+    $stale = [...anilistMedia()[0], 'updatedAt' => $start->subMinutes(10)->getTimestamp()];
+    $late = [...anilistMedia(30004)[0], 'updatedAt' => $start->addMinutes(3)->getTimestamp()];
+    // The first record was edited at minute 2, after the walk read it but before the walk read a record stamped minute 3:
+    // a cursor that followed the newest update (minute 3) would skip it on the next run.
+    $edited = [...$stale, 'description' => 'Edited', 'updatedAt' => $start->addMinutes(2)->getTimestamp()];
+    $old = [...anilistMedia(30007)[0], 'updatedAt' => $start->subHour()->getTimestamp()];
+    $reads = 0;
+    Http::fake(['graphql.anilist.co' => function () use (&$reads, $stale, $late, $edited, $old, $start) {
+        if (++$reads === 2) {
+            $this->travelTo($start->addMinutes(4));
+        }
+
+        return Http::response(match ($reads) {
+            1 => anilistPage([$stale], hasNext: true),
+            2 => anilistPage([$late]),
+            default => anilistPage([$late, $edited, $old]),
+        });
+    }]);
+
+    (new SyncProvider('anilist'))->handle();
+
+    expect(anilistSource()->sync_cursor)->toEqual(['since' => '2026-10-23T09:55:00+00:00'])
+        ->and(IngestionRun::sole()->max_updated_at->getTimestamp())->toBe($late['updatedAt']);
+
+    (new SyncProvider('anilist'))->handle();
+
+    expect(IngestionRun::latest('id')->first()->counts)->toMatchArray(['fetched' => 2, 'updated' => 1, 'skipped' => 1, 'failed' => 0])
+        ->and(Media::where('description', 'Edited')->count())->toBe(1);
 });
 
 test('a full sync ignores the stored cursor and resume point', function () {
@@ -155,7 +191,7 @@ test('records that fail leave a partial run, keep their ids, and the cursor stil
     $run = IngestionRun::sole();
     expect($run->status)->toBe(IngestionStatus::Partial)->and($run->error)->toContain('1 of 3')
         ->and($run->counts)->toMatchArray(['fetched' => 3, 'created' => 2, 'failed' => 1, 'failed_ids' => [['id' => '30002', 'error' => 'boom']]])
-        ->and(anilistSource()->sync_cursor['since'])->toBe(newestUpdate(anilistMedia())->toIso8601String());
+        ->and(anilistSource()->sync_cursor['since'])->toBe($run->started_at->subMinutes(5)->toIso8601String());
 });
 
 test('only the first 100 failed ids are kept', function () {
@@ -223,7 +259,7 @@ test('a page job that gives up closes its run as failed and a finished run is le
 
     expect($stuck->fresh()->status)->toBe(IngestionStatus::Failed)->and($stuck->fresh()->error)->toContain('attempted too many times')->and($stuck->fresh()->finished_at)->not->toBeNull()
         ->and($done->fresh()->status)->toBe(IngestionStatus::Succeeded)->and($done->fresh()->error)->toBeNull()
-        ->and(anilistSource()->sync_cursor['resume'])->toEqual(['mode' => 'incremental', 'page_token' => '4', 'max_updated_at' => '2026-10-20T10:00:00+00:00']);
+        ->and(anilistSource()->sync_cursor['resume'])->toEqual(['mode' => 'incremental', 'page_token' => '4', 'max_updated_at' => '2026-10-20T10:00:00+00:00', 'walk_started_at' => $stuck->started_at->toIso8601String()]);
 });
 
 test('the next sync continues a failed run from the page it stopped at', function () {

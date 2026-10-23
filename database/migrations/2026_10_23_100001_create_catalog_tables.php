@@ -176,6 +176,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('pages')->default(0);
             $table->text('page_token')->nullable();
             $table->timestamp('max_updated_at')->nullable();
+            $table->timestamp('walk_started_at')->nullable();
             $table->text('error')->nullable();
             $table->timestamps();
             $table->index(['external_source_id', 'started_at']);

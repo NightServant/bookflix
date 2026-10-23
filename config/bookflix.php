@@ -105,6 +105,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Sync Cursor
+    |--------------------------------------------------------------------------
+    |
+    | A finished sync moves a provider's cursor to the moment its walk began,
+    | minus this many minutes, so a record updated while the walk was running is
+    | read again by the next one. Imports are idempotent, so the overlap is harmless.
+    |
+    */
+
+    'sync' => [
+        'cursor_overlap_minutes' => 5,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Duplicate Detection
     |--------------------------------------------------------------------------
     |

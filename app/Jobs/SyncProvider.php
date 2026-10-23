@@ -81,6 +81,7 @@ class SyncProvider implements ShouldBeUnique, ShouldQueue
             'started_at' => now(),
             'page_token' => $resume['page_token'] ?? null,
             'max_updated_at' => $resume['max_updated_at'] ?? null,
+            'walk_started_at' => $resume['walk_started_at'] ?? now(),
         ]);
 
         try {
