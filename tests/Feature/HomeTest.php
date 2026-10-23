@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Livewire\Livewire;
 
 test('guests see the landing page', function () {
     $this->get(route('landing'))->assertOk()->assertSee('Bookflix');
@@ -21,4 +22,9 @@ test('authenticated users can visit home', function () {
         ->get(route('home'))
         ->assertOk()
         ->assertSeeInOrder(['Home', 'Profile']);
+});
+
+test('home empty state links to the reading profile', function () {
+    Livewire::test('pages::home.index')
+        ->assertSeeHtml('href="'.route('profile.edit').'"');
 });
