@@ -112,7 +112,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     {
         $path = $this->profile->avatar_path;
 
-        return $path ? Storage::url($path) : null;
+        return $path ? Storage::disk(config('bookflix.avatar_disk'))->url($path) : null;
     }
 
     /**

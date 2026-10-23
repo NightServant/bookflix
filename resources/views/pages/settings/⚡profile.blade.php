@@ -71,7 +71,7 @@ new #[Title('Profile settings')] class extends Component {
         $validated = $this->validate($this->readingProfileRules());
 
         $user = Auth::user();
-        $disk = Storage::disk(config('filesystems.default'));
+        $disk = Storage::disk(config('bookflix.avatar_disk'));
         $previousAvatarPath = $user->profile->avatar_path;
 
         $data = [
@@ -84,11 +84,11 @@ new #[Title('Profile settings')] class extends Component {
             $data['avatar_path'] = $this->avatar->storeAs(
                 "avatars/{$user->id}",
                 Str::ulid().'.'.$this->avatar->extension(),
-                config('filesystems.default'),
+                config('bookflix.avatar_disk'),
             );
         }
 
-        $user->profile()->updateOrCreate([], $data);
+        $user->setRelation('profile', $user->profile()->updateOrCreate([], $data));
 
         if ($this->avatar && $previousAvatarPath) {
             $disk->delete($previousAvatarPath);
@@ -164,7 +164,7 @@ new #[Title('Profile settings')] class extends Component {
 
             <div class="flex items-center gap-4">
                 <div class="flex items-center justify-end">
-                    <flux:button variant="primary" type="submit" class="w-full" data-test="update-profile-button">
+                    <flux:button variant="filled" type="submit" class="w-full" data-test="update-profile-button">
                         {{ __('Save') }}
                     </flux:button>
                 </div>
@@ -210,7 +210,7 @@ new #[Title('Profile settings')] class extends Component {
                 @endforeach
             </flux:radio.group>
 
-            <flux:button variant="primary" type="submit" data-test="update-reading-profile-button">
+            <flux:button variant="filled" type="submit" data-test="update-reading-profile-button">
                 {{ __('Save') }}
             </flux:button>
         </form>

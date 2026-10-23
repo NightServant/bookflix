@@ -4,7 +4,7 @@ use App\Models\User;
 use Livewire\Livewire;
 
 test('guests see the landing page', function () {
-    $this->get(route('landing'))->assertOk()->assertSee('Bookflix');
+    $this->get(route('landing'))->assertOk()->assertSee('Your Library. Every Story.');
 });
 
 test('authenticated users are sent from the landing page to home', function () {
@@ -18,10 +18,11 @@ test('guests are redirected to login from home', function () {
 });
 
 test('authenticated users can visit home', function () {
-    $this->actingAs(User::factory()->create())
-        ->get(route('home'))
-        ->assertOk()
-        ->assertSeeInOrder(['Home', 'Profile']);
+    $response = $this->actingAs(User::factory()->create())->get(route('home'))->assertOk();
+
+    foreach (primaryNavs($response->getContent()) as $nav) {
+        expect($nav)->toContain('href="'.route('home').'"', 'href="'.route('profile.edit').'"');
+    }
 });
 
 test('home empty state links to the reading profile', function () {

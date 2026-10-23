@@ -46,7 +46,15 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * The desktop header navbar and the mobile bottom nav markup of a rendered page.
+ *
+ * @return array{header: string, bottom: string}
+ */
+function primaryNavs(string $html): array
 {
-    // ..
+    preg_match('#<nav[^>]*data-flux-navbar>.*?</nav>#s', $html, $header);
+    preg_match('#<nav aria-label="Primary".*?</nav>#s', $html, $bottom);
+
+    return ['header' => $header[0] ?? '', 'bottom' => $bottom[0] ?? ''];
 }
