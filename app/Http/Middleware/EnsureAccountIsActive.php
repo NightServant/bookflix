@@ -19,7 +19,7 @@ class EnsureAccountIsActive
         if ($request->user()?->isDeactivated()) {
             ($this->logout)();
 
-            return redirect()->route('login');
+            return redirect()->route('login')->with('status', __('This account has been deactivated.'));
         }
 
         return $next($request);
