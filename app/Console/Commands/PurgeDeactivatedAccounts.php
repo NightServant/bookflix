@@ -25,7 +25,7 @@ class PurgeDeactivatedAccounts extends Command
             ->lazyById()
             ->each(function (User $user) use (&$purged) {
                 if ($user->profile->avatar_path) {
-                    Storage::delete($user->profile->avatar_path);
+                    Storage::disk(config('bookflix.avatar_disk'))->delete($user->profile->avatar_path);
                 }
 
                 $user->delete();

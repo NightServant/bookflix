@@ -3,7 +3,14 @@ from fastapi import APIRouter, Depends, FastAPI
 from app.auth import require_token
 from app.settings import get_settings
 
-app = FastAPI(title="Bookflix ML")
+_docs = get_settings().ml_enable_docs
+
+app = FastAPI(
+    title="Bookflix ML",
+    docs_url="/docs" if _docs else None,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
+)
 
 v1 = APIRouter(prefix="/v1", dependencies=[Depends(require_token)])
 

@@ -17,7 +17,7 @@ class MlClient
     {
         try {
             return $this->request()->get('/health')->successful();
-        } catch (ConnectionException) {
+        } catch (ConnectionException|MlServiceUnavailable) {
             return false;
         }
     }
@@ -37,10 +37,19 @@ class MlClient
         }
     }
 
+    /**
+     * @throws MlServiceUnavailable
+     */
     private function request(): PendingRequest
     {
+        $token = (string) config('services.ml.token');
+
+        if ($token === '') {
+            throw new MlServiceUnavailable('The ML service token is not configured.');
+        }
+
         return Http::baseUrl((string) config('services.ml.url'))
-            ->withToken((string) config('services.ml.token'))
+            ->withToken($token)
             ->timeout((int) config('services.ml.timeout'))
             ->acceptJson()
             ->when(

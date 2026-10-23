@@ -8,12 +8,11 @@
             <x-app-logo href="{{ route('home') }}" wire:navigate />
 
             <flux:navbar class="-mb-px ms-6 max-lg:hidden">
-                <flux:navbar.item icon="home" :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
-                    {{ __('Home') }}
-                </flux:navbar.item>
-                <flux:navbar.item icon="user" :href="route('profile.edit')" :current="request()->routeIs('profile.edit', 'security.edit')" wire:navigate>
-                    {{ __('Profile') }}
-                </flux:navbar.item>
+                @foreach (config('bookflix.navigation') as $item)
+                    <flux:navbar.item :icon="$item['icon']" :href="route($item['route'])" :current="request()->routeIs(...$item['active'])" wire:navigate>
+                        {{ __($item['label']) }}
+                    </flux:navbar.item>
+                @endforeach
             </flux:navbar>
 
             <flux:spacer />

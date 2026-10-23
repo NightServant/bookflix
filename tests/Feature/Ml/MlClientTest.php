@@ -25,3 +25,12 @@ test('models throws when the service is unavailable', function () {
 
     expect(fn () => app(MlClient::class)->models())->toThrow(MlServiceUnavailable::class);
 });
+
+test('an empty token is refused without calling the service', function () {
+    config(['services.ml.token' => '']);
+    Http::fake();
+
+    expect(app(MlClient::class)->health())->toBeFalse()
+        ->and(fn () => app(MlClient::class)->models())->toThrow(MlServiceUnavailable::class);
+    Http::assertNothingSent();
+});

@@ -15,8 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->appendToGroup('web', AssignRequestId::class);
-        $middleware->appendToGroup('web', SetSecurityHeaders::class);
+        $middleware->append(AssignRequestId::class);
+        $middleware->append(SetSecurityHeaders::class);
         $middleware->appendToGroup('web', EnsureAccountIsActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

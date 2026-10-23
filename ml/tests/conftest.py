@@ -4,7 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-os.environ["ML_SERVICE_TOKEN"] = "test-token"
+TOKEN = "test-token-0123456789-0123456789-abcdef"
+os.environ["ML_SERVICE_TOKEN"] = TOKEN
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -21,7 +22,7 @@ def client() -> TestClient:
 
 @pytest.fixture
 def auth_headers() -> dict[str, str]:
-    return {"Authorization": "Bearer test-token"}
+    return {"Authorization": f"Bearer {TOKEN}"}
 
 
 @pytest.fixture

@@ -1,12 +1,16 @@
 <?php
 
 use App\Enums\ReadingLength;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
-beforeEach(fn () => Storage::fake(config('filesystems.default')));
+beforeEach(function () {
+    Storage::fake(config('filesystems.default'));
+    Storage::fake(config('bookflix.avatar_disk'));
+});
 
 test('reading profile can be updated', function () {
     $this->actingAs($user = User::factory()->create());
@@ -44,7 +48,7 @@ test('bio is limited to 1000 characters', function () {
 
 test('a new avatar replaces the previous file', function () {
     $this->actingAs($user = User::factory()->create());
-    $disk = Storage::disk(config('filesystems.default'));
+    $disk = Storage::disk(config('bookflix.avatar_disk'));
 
     Livewire::test('pages::settings.profile')->set('avatar', UploadedFile::fake()->image('a.jpg', 400, 400))->call('updateReadingProfile');
     $first = $user->refresh()->profile->avatar_path;
@@ -66,14 +70,48 @@ test('avatar must be a jpg, png or webp under 2 MB', function (UploadedFile $fil
     'too big' => fn () => UploadedFile::fake()->image('big.jpg')->size(3000),
 ]);
 
-test('the uploaded avatar is shown on the profile page', function () {
+test('the uploaded avatar is shown in the profile component', function () {
     $this->actingAs($user = User::factory()->create());
 
-    Livewire::test('pages::settings.profile')
+    $component = Livewire::test('pages::settings.profile')
         ->set('avatar', UploadedFile::fake()->image('a.jpg', 400, 400))
         ->call('updateReadingProfile');
 
-    $url = $user->refresh()->avatarUrl();
+    $component->assertSeeHtml(User::find($user->id)->avatarUrl());
+});
 
-    $this->get(route('profile.edit'))->assertSee($url, false);
+test('the avatar shown is refreshed after every save', function () {
+    $this->actingAs($user = User::factory()->create());
+    $component = Livewire::test('pages::settings.profile');
+
+    $component->set('avatar', UploadedFile::fake()->image('a.jpg', 400, 400))->call('updateReadingProfile');
+    $first = User::find($user->id)->avatarUrl();
+
+    $component->set('avatar', UploadedFile::fake()->image('b.jpg', 400, 400))->call('updateReadingProfile');
+    $second = User::find($user->id)->avatarUrl();
+
+    expect($second)->not->toBe($first);
+    $component->assertSeeHtml($second)->assertDontSeeHtml($first);
+});
+
+/**
+ * Livewire swaps in a throwaway disk while testing, so assert the disk it resolves to outside tests.
+ */
+test('livewire temporary uploads resolve to a private disk, never the avatar disk', function () {
+    $disk = config('livewire.temporary_file_upload.disk') ?: config('filesystems.default');
+
+    expect($disk)->not->toBe(config('bookflix.avatar_disk'))
+        ->and(config("filesystems.disks.{$disk}.visibility"))->not->toBe('public')
+        ->and(config("filesystems.disks.{$disk}.url"))->toBeNull();
+});
+
+test('the avatar url comes from the configured avatar disk', function () {
+    config([
+        'filesystems.disks.cdn' => ['driver' => 'local', 'root' => storage_path('framework/testing/disks/cdn'), 'url' => 'https://cdn.test'],
+        'bookflix.avatar_disk' => 'cdn',
+    ]);
+    $user = User::factory()->create();
+    Profile::factory()->for($user)->create(['avatar_path' => 'avatars/1/a.jpg']);
+
+    expect($user->avatarUrl())->toBe('https://cdn.test/avatars/1/a.jpg');
 });

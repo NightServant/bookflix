@@ -71,14 +71,14 @@ test('purge deletes only accounts past the retention window', function () {
 });
 
 test('purge also deletes the avatar file', function () {
-    Storage::fake(config('filesystems.default'));
+    $disk = Storage::fake(config('bookflix.avatar_disk'));
     $user = User::factory()->create(['deactivated_at' => now()->subDays(31)]);
     Profile::factory()->for($user)->create(['avatar_path' => 'avatars/1/a.jpg']);
-    Storage::put('avatars/1/a.jpg', 'x');
+    $disk->put('avatars/1/a.jpg', 'x');
 
     $this->artisan('bookflix:purge-deactivated-accounts')->assertSuccessful();
 
-    Storage::assertMissing('avatars/1/a.jpg');
+    $disk->assertMissing('avatars/1/a.jpg');
 });
 
 test('logging in rehashes a password hashed with fewer rounds', function () {
