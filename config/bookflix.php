@@ -1,5 +1,8 @@
 <?php
 
+use App\Catalog\Providers\AniList\AniListProvider;
+use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
+
 return [
 
     /*
@@ -76,15 +79,34 @@ return [
     'providers' => [
 
         'openlibrary' => [
+            'class' => OpenLibraryProvider::class,
             'enabled' => (bool) env('BOOKFLIX_OPENLIBRARY_ENABLED', false),
             'rate_per_minute' => 100,
         ],
 
         'anilist' => [
+            'class' => AniListProvider::class,
             'enabled' => (bool) env('BOOKFLIX_ANILIST_ENABLED', false),
             'rate_per_minute' => 30,
         ],
 
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Duplicate Detection
+    |--------------------------------------------------------------------------
+    |
+    | Title similarity (pg_trgm) at or above `auto_title_similarity` merges
+    | automatically when a creator is shared and the years are within
+    | `year_window`. From `review_min_similarity` up, an admin reviews the pair.
+    |
+    */
+
+    'dedup' => [
+        'auto_title_similarity' => 0.90,
+        'review_min_similarity' => 0.75,
+        'year_window' => 1,
     ],
 
 ];

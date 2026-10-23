@@ -1,5 +1,10 @@
 <?php
 
+use App\Catalog\Data\NormalizedCreator;
+use App\Catalog\Data\NormalizedMedia;
+use App\Enums\CreatorRole;
+use App\Models\MediaType;
+use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -67,4 +72,29 @@ function primaryNavs(string $html): array
 function providerFixture(string $path): array
 {
     return json_decode(file_get_contents(__DIR__."/Fixtures/providers/{$path}"), true, flags: JSON_THROW_ON_ERROR);
+}
+
+/**
+ * A NormalizedMedia with sensible defaults. The default `novel` type shares a family with the media factory's default type.
+ * `provider` only labels the source URL.
+ *
+ * @param  list<string>  $creators
+ * @param  list<string>  $isbns
+ * @param  array<string, string>  $crossIds
+ */
+function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test'): NormalizedMedia
+{
+    if (isset(MediaTypeSeeder::TYPES[$type])) {
+        MediaType::firstOrCreate(['slug' => $type], MediaTypeSeeder::TYPES[$type]);
+    }
+
+    return new NormalizedMedia(
+        title: $title,
+        mediaTypeSlug: $type,
+        creators: array_map(fn (string $name) => new NormalizedCreator($name, CreatorRole::Author), $creators),
+        isbns: $isbns,
+        crossIds: $crossIds,
+        publicationYear: $year,
+        sourceUrl: "https://{$provider}.test/".rawurlencode($title),
+    );
 }

@@ -182,6 +182,7 @@ return new class extends Migration
             $table->enum('status', ['pending', 'merged', 'dismissed'])->default('pending')->index();
             $table->foreignId('resolved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
+            $table->unique(['media_id', 'duplicate_media_id']);
         });
     }
 
