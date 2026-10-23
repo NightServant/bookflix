@@ -1,0 +1,75 @@
+{
+  "entries": [
+    {
+      "key": "/books/OL20171394M",
+      "title": "Dune",
+      "publishers": [
+        "Putnam"
+      ],
+      "publish_date": "1965",
+      "dewey_decimal_class": [
+        "813/.54"
+      ],
+      "languages": [
+        {
+          "key": "/languages/eng"
+        }
+      ],
+      "number_of_pages": 517
+    },
+    {
+      "key": "/books/OL7525230M",
+      "title": "Dune",
+      "publishers": [
+        "Ace Books"
+      ],
+      "publish_date": "September 1990",
+      "isbn_13": [
+        "9780441172719"
+      ],
+      "languages": [
+        {
+          "key": "/languages/eng"
+        }
+      ],
+      "number_of_pages": 535
+    },
+    {
+      "key": "/books/OL17952222M",
+      "title": "Dune",
+      "publishers": [
+        "Ace Books"
+      ],
+      "publish_date": "2005",
+      "dewey_decimal_class": [
+        "813/.54"
+      ],
+      "languages": [
+        {
+          "key": "/languages/eng"
+        }
+      ],
+      "number_of_pages": 528
+    },
+    {
+      "key": "/books/OL38630050M",
+      "title": "Dune",
+      "publishers": [
+        "Debolsillo"
+      ],
+      "publish_date": "Jul 15, 2020",
+      "isbn_13": [
+        "9789877254112"
+      ],
+      "dewey_decimal_class": [
+        "813"
+      ],
+      "languages": [
+        {
+          "key": "/languages/spa"
+        }
+      ],
+      "number_of_pages": 784
+    }
+  ]
+}

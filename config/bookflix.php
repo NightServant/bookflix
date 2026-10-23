@@ -61,4 +61,30 @@ return [
 
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Metadata Providers
+    |--------------------------------------------------------------------------
+    |
+    | Providers stay disabled until their terms are reviewed. The user agent
+    | identifies the project, never a person, on every provider request.
+    |
+    */
+
+    'provider_user_agent' => env('BOOKFLIX_PROVIDER_USER_AGENT', 'Bookflix/0.1 (+https://github.com/NightServant/bookflix)'),
+
+    'providers' => [
+
+        'openlibrary' => [
+            'enabled' => (bool) env('BOOKFLIX_OPENLIBRARY_ENABLED', false),
+            'rate_per_minute' => 100,
+        ],
+
+        'anilist' => [
+            'enabled' => (bool) env('BOOKFLIX_ANILIST_ENABLED', false),
+            'rate_per_minute' => 30,
+        ],
+
+    ],
+
 ];

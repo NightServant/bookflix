@@ -58,3 +58,13 @@ function primaryNavs(string $html): array
 
     return ['header' => $header[0] ?? '', 'bottom' => $bottom[0] ?? ''];
 }
+
+/**
+ * A provider fixture recorded from the real API (Pest already owns `fixture()`, which returns a path), e.g. `openlibrary/work-dune.json`.
+ *
+ * @return array<string, mixed>
+ */
+function providerFixture(string $path): array
+{
+    return json_decode(file_get_contents(__DIR__."/Fixtures/providers/{$path}"), true, flags: JSON_THROW_ON_ERROR);
+}
