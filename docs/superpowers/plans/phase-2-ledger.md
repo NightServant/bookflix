@@ -34,6 +34,25 @@ Plan: `2026-10-23-phase-2-catalog-ingestion.md`. It's on PR #3's branch, and unt
 
 | C2+F3+F4, 2.8, 2.10 | `c547cc3`, `fe20b3a`, `5ed3f6a` | DONE: 193 tests pass. C2: the merge rebuilds `search_text`, resolves candidates and repoints chains. F3: `retry_after` 180. F4: `ShouldBeUnique` per provider | Incident: dev DB `bookflix` wiped by `migrate:fresh --env=testing` (no `.env.testing`) |
 
+- **Whole-branch review (Opus): MERGE AFTER FIXES.** No critical findings.
+  - I1: the rate limit was on the I/O-free import job; the fetch was one unthrottled, unresumable job, so the first sync loops on 429s and timeouts.
+  - I2: a single permanently failing record froze the cursor.
+  - I3: runs got stuck in `running`, and every retry added a row.
+  - M1: no row locks in merge or import.
+  - M2: merge closed third-party pairs nobody had reviewed.
+  - M3: the creator guard was untested.
+  - M4: provider URLs and HTML weren't sanitized.
+  - M5: two sources of truth for `enabled`.
+  - M6: provider authority flipped on merge.
+  - All go to one fix wave.
+- R10. I1 redesign: `MetadataProvider::page()` returns a `ProviderPage`. `FetchProviderPage` jobs, one per page, are rate-limited and resumable through the run's `page_token`, import inline, and are capped by `max_pages_per_run` (default 20). This changes the A7 contract, so the Phase 2b adapters must implement `page()`. Cost: the master plan's A7 text is out of date until it's updated.
+- R11. The cursor advances when a run's pages finish, even if some records fail (`partial`), and the failed IDs are kept in `counts.failed_ids`. Cost: a record that fails permanently is only retried when its provider updates it.
+- The fix wave is `8cde07e`; 227 tests pass.
+  - I1 as built: `SyncProvider` dispatches `FetchProviderPage`, the run resumes from its `page_token`, and `ImportMediaRecord` and `changedSince()` are deleted.
+  - Added: stale runs (idle for 3h) are marked failed; the `SanitizesProviderData` trait.
+  - Open Library pages hold 10 changes, at 2 page jobs per minute. Re-check against Open Library's etiquette before enabling it.
+- Follow-up: the cursor moves to `run.started_at − overlap` instead of the newest `updatedAt` seen, closing the gap where a record updated mid-walk was missed.
+- Dev DB repair (controller): migrations edited in place left the dev catalog tables stale. Fixed by dropping only the catalog tables (in `down()` order, minus the column drop), deleting their 2 migration rows, re-migrating, and re-seeding `MediaTypeSeeder` and `ExternalSourceSeeder`. `users` is intact. Lesson: `migrate:rollback --path` only acts on the latest batch; and never pipe artisan into `tail`, because it hides the exit code.
 - R7. "Reversible merge" = master plan A9's definition: the loser is soft-deleted (kept) and its slug 301s to the winner. There's no unmerge action or move log (spec §43 asks only for "merging duplicates"). Cost if wrong: a bad merge needs a manual DB fix.
 - R8. **Hard rule for every future brief: never run `migrate:fresh`/`db:wipe`/`migrate:refresh` or `--env=testing` artisan commands. Tests reset `bookflix_test` through `RefreshDatabase`; the dev DB `bookflix` is never reset.** Cost of the incident: local dev data lost (seed only); the user must re-register and re-run `bookflix:grant-admin`.
 - R9. Exit criterion "10k+ stories synced" is replaced by a small live smoke sync at deploy time. A 10k live sync would hammer free public APIs and the nearly full disk. Cost: real-world volume behavior is unproven until then.
