@@ -38,5 +38,16 @@ Plan: `2026-10-22-bookflix-master-plan.md` Part D (lines 831–1490). Branch: `p
 - R7. The Task 1.8 `docker build` check is skipped because the disk has only about 3.1 GB free; the service is verified with a local `uv run uvicorn` + `curl` instead. Cost if wrong: Dockerfile errors surface at the first deploy.
 - Tasks 1.8 (`9d7e5f3`) and 1.9 (`a37c438`): DONE. 71 Pest tests and 5 pytest tests pass; ruff, mypy (strict) and PHPStan are clean; uvicorn smoke check OK; `docker build` skipped (R7). Accepted: `AssignRequestId` and `SetSecurityHeaders` are appended before `EnsureAccountIsActive`, so the deactivation redirect also carries the request ID and the security headers (test added). mypy covers `tests/`; `ml/.gitignore` added; uv `[dependency-groups]`.
 - Deferred minor: the Starlette deprecation warning about the test-client HTTP library. Revisit when the FastAPI deps get upgraded.
+- **Whole-branch review (Opus): MERGE AFTER FIXES.**
+  - C1, critical: Livewire temp uploads went to the public disk because `FILESYSTEM_DISK=public`, which let any user host a script on the app's origin (XSS, then account takeover).
+  - I1: an empty ML token was accepted, and the ML API docs were public.
+  - I2: the profile showed stale data after save.
+  - Minor: M1 duplicated nav list; M2 orphans; M3 security headers missing from guest and 404 responses; M4 red on focus rings and Save buttons; M5 avatar disk named three ways; M6 weak assertions; M8 port clash.
+  - All sent to one fix-wave implementer.
+  - Deferred, M7: make `ml` a required check once the PR's first run exists. Production also needs a temp-upload disk shared across servers (S3) when there's more than one app server.
+- The fix wave is `63c503f`. 86 Pest tests and 12 pytest tests pass, and each fix's test was shown to fail when that fix is reverted.
+  - Deviation, accepted: Livewire swaps to the `tmp-for-tests` disk during tests, so the C1 test asserts the resolved temp disk is private and isn't the avatar disk.
+  - The controller checked the real config: default `local`, Livewire temp `local` (private), avatar `public`.
+  - Deferred minor: `.env.example` has `ML_SERVICE_TOKEN=change-me`, which the service rejects because it's under 32 characters. Developers set a real token.
 - Q5 stands: no reactivation path, and the copy tells users about the 30-day deletion.
 - Accepted deviations from 1.2/1.3: the sidebar layout is deleted; the base border is now `--color-hairline`; body classes are `bg-canvas text-ink`; extra `dashboard` retargets in `passkey-verify` and `⚡profile`.
