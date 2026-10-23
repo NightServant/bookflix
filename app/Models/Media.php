@@ -3,14 +3,18 @@
 namespace App\Models;
 
 use App\Enums\AgeRating;
+use App\Enums\ClassificationType;
 use App\Enums\PublicationStatus;
+use App\Enums\ReviewStatus;
 use Database\Factories\MediaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -269,5 +273,41 @@ class Media extends Model
         return $this->belongsToMany(Media::class, 'media_relations', 'media_id', 'related_media_id')
             ->withPivot('relation')
             ->withTimestamps();
+    }
+
+    /**
+     * @return HasMany<MediaDeweyClass, $this>
+     */
+    public function deweyClasses(): HasMany
+    {
+        return $this->hasMany(MediaDeweyClass::class);
+    }
+
+    /**
+     * The live primary class: any primary that has not been rejected.
+     *
+     * @return HasOne<MediaDeweyClass, $this>
+     */
+    public function primaryDewey(): HasOne
+    {
+        return $this->hasOne(MediaDeweyClass::class)
+            ->where('classification_type', ClassificationType::Primary)
+            ->where('review_status', '!=', ReviewStatus::Rejected);
+    }
+
+    /**
+     * Media with a class the public may see, optionally one inside the given class's subtree.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopePublicDewey(Builder $query, ?DeweyClass $class = null): void
+    {
+        $query->whereHas('deweyClasses', function (Builder $rows) use ($class): void {
+            $rows->public();
+
+            if ($class !== null) {
+                $rows->whereIn('dewey_class_id', DeweyClass::subtree($class)->select('id'));
+            }
+        });
     }
 }

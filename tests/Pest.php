@@ -4,8 +4,11 @@ use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
+use App\Classification\ClassificationCandidate;
+use App\Enums\ClassificationMethod;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
+use App\Models\DeweyClass;
 use App\Models\ExternalSource;
 use App\Models\MediaType;
 use Database\Seeders\MediaTypeSeeder;
@@ -118,4 +121,26 @@ function importFixture(string $provider, string $fixture, array $mutate = []): I
     $record = new ProviderRecord($provider, (string) ($payload['id'] ?? ''), $payload, $payload['siteUrl'] ?? null, now()->toImmutable());
 
     return app(IngestionPipeline::class)->import($record, app(config("bookflix.providers.{$provider}.class")));
+}
+
+/**
+ * A classification candidate for a code; the source follows the method the way production sources do.
+ */
+function cand(string $code, float $confidence, ClassificationMethod $method = ClassificationMethod::Automatic): ClassificationCandidate
+{
+    $source = match ($method) {
+        ClassificationMethod::Manual => 'admin',
+        ClassificationMethod::External => 'open_library',
+        ClassificationMethod::Automatic => 'rules',
+    };
+
+    return new ClassificationCandidate($code, $confidence, $method, $source);
+}
+
+/**
+ * A seeded Dewey-inspired class by code; seed `DeweySeeder` first.
+ */
+function dewey(string $code): DeweyClass
+{
+    return DeweyClass::where('code', $code)->firstOrFail();
 }
