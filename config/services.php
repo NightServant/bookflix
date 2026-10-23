@@ -28,6 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'ml' => [
+        'url' => env('ML_SERVICE_URL'),
+        'token' => env('ML_SERVICE_TOKEN'),
+        'timeout' => (int) env('ML_SERVICE_TIMEOUT', 5),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
