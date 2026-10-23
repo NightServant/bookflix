@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CoverPolicy;
 use Database\Factories\ExternalSourceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -65,6 +66,16 @@ class ExternalSource extends Model
             'sync_cursor' => 'array',
             'last_synced_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The sources an admin manages. The synthetic `isbn` source only carries ISBN ids for matching, so it is never listed or enabled.
+     *
+     * @param  Builder<ExternalSource>  $query
+     */
+    public function scopeProviders(Builder $query): void
+    {
+        $query->where('key', '!=', 'isbn');
     }
 
     /**

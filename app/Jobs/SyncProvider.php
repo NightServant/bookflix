@@ -2,24 +2,24 @@
 
 namespace App\Jobs;
 
-use App\Catalog\Data\ProviderRecord;
-use App\Catalog\Providers\ProviderUnavailable;
-use App\Catalog\Providers\RateLimitedByProvider;
 use App\Enums\IngestionMode;
 use App\Enums\IngestionStatus;
 use App\Models\ExternalSource;
 use App\Models\IngestionRun;
-use Carbon\CarbonImmutable;
 use DateTimeInterface;
-use Illuminate\Bus\Batch;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Bus;
+use Throwable;
 
 class SyncProvider implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
+
+    /**
+     * Hours without progress after which a run still marked running is taken to be dead. Longer than the two-hour retry window of a page.
+     */
+    private const STALE_AFTER_HOURS = 3;
 
     /**
      * Rate-limit releases still count as attempts, so a `$tries` cap would fail a sync that only waited its turn.
@@ -58,83 +58,47 @@ class SyncProvider implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Fetch the changed records and queue one import per record. A failed fetch ends the run before anything is imported;
-     * a provider outage is retried by the next scheduled sync, a 429 by releasing this job. Otherwise the batch finalizes the run.
+     * Open the run and hand it to the first page job; the pages do the fetching and importing. A run still in flight for this provider
+     * (the schedule can outpace a long sync) is left alone, and a failed or cut-short one is continued from the page it stopped at,
+     * unless a full sync was asked for. A failure to hand over closes the run it opened and is reported, not retried, so a retry never opens a second row.
      */
     public function handle(): void
     {
         $source = ExternalSource::where('key', $this->providerKey)->firstOrFail();
-        $run = IngestionRun::create(['external_source_id' => $source->id, 'mode' => $this->mode, 'started_at' => now()]);
+
+        IngestionRun::where('external_source_id', $source->id)->where('status', IngestionStatus::Running)
+            ->where('updated_at', '<', now()->subHours(self::STALE_AFTER_HOURS))
+            ->each(fn (IngestionRun $stale) => $stale->fail('The run stopped making progress.'));
+
+        if (IngestionRun::where('external_source_id', $source->id)->where('status', IngestionStatus::Running)->exists()) {
+            return;
+        }
+
+        $resume = $this->mode === IngestionMode::Full ? null : ($source->sync_cursor['resume'] ?? null);
+        $run = IngestionRun::create([
+            'external_source_id' => $source->id,
+            'mode' => $resume ? IngestionMode::from($resume['mode']) : $this->mode,
+            'started_at' => now(),
+            'page_token' => $resume['page_token'] ?? null,
+            'max_updated_at' => $resume['max_updated_at'] ?? null,
+        ]);
 
         try {
-            // ponytail: the whole fetch is held in memory and batched at once, chunk the stream when --full runs get big.
-            $imports = app(config("bookflix.providers.{$this->providerKey}.class"))
-                ->changedSince($this->mode === IngestionMode::Full ? null : $this->since($source))
-                ->map(fn (ProviderRecord $record): ImportMediaRecord => new ImportMediaRecord($record, $this->providerKey, $run->id))
-                ->all();
-        } catch (RateLimitedByProvider $exception) {
-            $this->markFailed($run, $exception->getMessage());
-            $this->release($exception->retryAfter);
-
-            return;
-        } catch (ProviderUnavailable $exception) {
-            $this->markFailed($run, $exception->getMessage());
-
-            return;
+            FetchProviderPage::dispatch($run->id, $run->page_token);
+        } catch (Throwable $exception) {
+            report($exception);
+            $run->fail($exception->getMessage());
         }
-
-        IngestionRun::whereKey($run->id)->update(['counts->fetched' => count($imports)]);
-
-        if ($imports === []) {
-            self::finalize($run->id, 0, 0);
-
-            return;
-        }
-
-        $runId = $run->id;
-
-        Bus::batch($imports)
-            ->name("sync:{$this->providerKey}")
-            ->onQueue('ingestion')
-            ->allowFailures()
-            ->finally(static fn (Batch $batch) => self::finalize($runId, $batch->totalJobs, $batch->failedJobs))
-            ->dispatch();
     }
 
     /**
-     * Close the run once every import has run: all fine is succeeded, some failed is partial, all failed is failed.
-     * Only a succeeded run moves the sync cursor, so the next sync re-reads whatever this one missed.
+     * The job gave up (retries spent or killed): close whatever run it opened before any page recorded progress.
+     * A run that already fetched a page belongs to a live page job, which closes it itself.
      */
-    public static function finalize(int $runId, int $total, int $failed): void
+    public function failed(Throwable $exception): void
     {
-        $run = IngestionRun::with('externalSource')->findOrFail($runId);
-
-        $status = match (true) {
-            $failed === 0 => IngestionStatus::Succeeded,
-            $failed >= $total => IngestionStatus::Failed,
-            default => IngestionStatus::Partial,
-        };
-
-        $run->update([
-            'status' => $status,
-            'finished_at' => now(),
-            'error' => $failed > 0 ? "{$failed} of {$total} records failed to import." : null,
-        ]);
-
-        if ($status === IngestionStatus::Succeeded) {
-            $run->externalSource->update(['sync_cursor' => ['since' => $run->started_at->toIso8601String()], 'last_synced_at' => now()]);
-        }
-    }
-
-    private function markFailed(IngestionRun $run, string $error): void
-    {
-        $run->update(['status' => IngestionStatus::Failed, 'finished_at' => now(), 'error' => $error]);
-    }
-
-    private function since(ExternalSource $source): ?CarbonImmutable
-    {
-        $since = $source->sync_cursor['since'] ?? null;
-
-        return is_string($since) ? CarbonImmutable::parse($since) : null;
+        IngestionRun::whereHas('externalSource', fn ($query) => $query->where('key', $this->providerKey))
+            ->where('status', IngestionStatus::Running)->where('pages', 0)
+            ->each(fn (IngestionRun $run) => $run->fail($exception->getMessage()));
     }
 }

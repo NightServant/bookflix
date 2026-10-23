@@ -4,23 +4,29 @@ namespace App\Catalog\Providers\OpenLibrary;
 
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
+use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\ProviderUnavailable;
 use App\Catalog\Providers\RateLimitedByProvider;
+use App\Catalog\Providers\SanitizesProviderData;
 use App\Catalog\Providers\SendsProviderRequests;
 use App\Enums\CreatorRole;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\LazyCollection;
 
 class OpenLibraryProvider implements MetadataProvider
 {
-    use SendsProviderRequests;
+    use SanitizesProviderData, SendsProviderRequests;
 
     private const BASE_URL = 'https://openlibrary.org';
 
-    private const PAGE_SIZE = 100;
+    /**
+     * Recent-changes entries per page job; a work costs its record, its editions and up to five authors in requests.
+     */
+    private const PAGE_SIZE = 10;
+
+    private const KINDS = ['add-book', 'edit-book'];
 
     private const EDITION_LIMIT = 100;
 
@@ -42,50 +48,55 @@ class OpenLibraryProvider implements MetadataProvider
     }
 
     /**
-     * Works touched by book additions and edits since the given moment, newest first.
+     * Works touched by book additions and edits since the given moment, newest first. The token is `kind:offset`
+     * into the recent-changes feed (additions, then edits); a page is one slice of it, kept small because every work costs
+     * several requests.
      * ponytail: a null cursor reads only the last week of changes; a bulk import needs the Open Library dumps.
      * Edits to a single edition (/books/...) do not map back to their work yet.
-     *
-     * @return LazyCollection<int, ProviderRecord>
      */
-    public function changedSince(?CarbonImmutable $since): LazyCollection
+    public function page(?CarbonImmutable $since, ?string $pageToken): ProviderPage
     {
         $since ??= CarbonImmutable::now()->subDays(7);
+        [$kind, $offset] = $this->position($pageToken);
 
-        return LazyCollection::make(function () use ($since) {
-            $seen = [];
+        $changes = $this->asArray($this->get("/recentchanges/{$kind}.json", ['limit' => self::PAGE_SIZE, 'offset' => $offset])->json());
+        $records = [];
+        $seen = [];
+        $newest = null;
+        $reachedCursor = false;
 
-            foreach (['add-book', 'edit-book'] as $kind) {
-                for ($offset = 0; ; $offset += self::PAGE_SIZE) {
-                    $changes = $this->get("/recentchanges/{$kind}.json", ['limit' => self::PAGE_SIZE, 'offset' => $offset])->json();
-                    $changes = is_array($changes) ? $changes : [];
+        foreach ($changes as $change) {
+            $timestamp = CarbonImmutable::parse($change['timestamp'] ?? 0, 'UTC');
 
-                    foreach ($changes as $change) {
-                        if (CarbonImmutable::parse($change['timestamp'] ?? 0, 'UTC')->lt($since)) {
-                            break 2;
-                        }
+            if ($timestamp->lt($since)) {
+                $reachedCursor = true;
+                break;
+            }
 
-                        foreach ($this->asArray($change['changes'] ?? null) as $touched) {
-                            $id = $this->workId($touched['key'] ?? null);
+            $newest = $newest === null || $timestamp->gt($newest) ? $timestamp : $newest;
 
-                            if ($id === null || isset($seen[$id])) {
-                                continue;
-                            }
+            foreach ($this->asArray($change['changes'] ?? null) as $touched) {
+                $id = $this->workId($touched['key'] ?? null);
 
-                            $seen[$id] = true;
+                if ($id === null || isset($seen[$id])) {
+                    continue;
+                }
 
-                            if ($record = $this->find($id)) {
-                                yield $record;
-                            }
-                        }
-                    }
+                $seen[$id] = true;
 
-                    if (count($changes) < self::PAGE_SIZE) {
-                        break;
-                    }
+                if ($record = $this->find($id)) {
+                    $records[] = $record;
                 }
             }
-        });
+        }
+
+        $next = match (true) {
+            ! $reachedCursor && count($changes) >= self::PAGE_SIZE => "{$kind}:".($offset + self::PAGE_SIZE),
+            $kind === self::KINDS[0] => self::KINDS[1].':0',
+            default => null,
+        };
+
+        return new ProviderPage($records, $next, $newest);
     }
 
     public function find(string $externalId): ?ProviderRecord
@@ -132,7 +143,7 @@ class OpenLibraryProvider implements MetadataProvider
         return new NormalizedMedia(
             title: $this->text($work['title'] ?? null),
             mediaTypeSlug: $this->mediaTypeSlug($subjects),
-            description: $this->description($work['description'] ?? null),
+            description: $this->plainText(is_array($work['description'] ?? null) ? ($work['description']['value'] ?? null) : ($work['description'] ?? null)),
             creators: array_map(
                 fn (string $name) => new NormalizedCreator($name, CreatorRole::Author),
                 array_values(array_filter($this->asArray($record->payload['authors'] ?? null), 'is_string')),
@@ -143,9 +154,9 @@ class OpenLibraryProvider implements MetadataProvider
             publicationYear: $years === [] ? null : min($years),
             language: self::LANGUAGES[basename($this->text($primary['languages'][0]['key'] ?? null))] ?? null,
             pageCount: is_int($primary['number_of_pages'] ?? null) && $primary['number_of_pages'] > 0 ? $primary['number_of_pages'] : null,
-            coverUrl: $this->coverUrl($work['covers'] ?? null),
+            coverUrl: $this->safeUrl($this->coverUrl($work['covers'] ?? null)),
             externalDeweyCode: $this->deweyCode($editions),
-            sourceUrl: $record->sourceUrl,
+            sourceUrl: $this->safeUrl($record->sourceUrl),
         );
     }
 
@@ -249,16 +260,19 @@ class OpenLibraryProvider implements MetadataProvider
         return null;
     }
 
-    private function description(mixed $description): ?string
-    {
-        $text = $this->text(is_array($description) ? ($description['value'] ?? null) : $description);
-
-        return $text === '' ? null : $text;
-    }
-
     private function year(mixed $date): ?int
     {
         return is_string($date) && preg_match('/\b(1\d{3}|20\d{2})\b/', $date, $match) ? (int) $match[1] : null;
+    }
+
+    /**
+     * @return array{0: string, 1: int}
+     */
+    private function position(?string $pageToken): array
+    {
+        [$kind, $offset] = array_pad(explode(':', (string) $pageToken, 2), 2, '0');
+
+        return in_array($kind, self::KINDS, true) ? [$kind, max(0, (int) $offset)] : [self::KINDS[0], 0];
     }
 
     private function workId(mixed $key): ?string

@@ -5,8 +5,8 @@ namespace App\Catalog\Ingestion;
 use App\Catalog\Data\NormalizedMedia;
 use App\Enums\AgeRating;
 use App\Enums\PublicationStatus;
+use App\Models\ExternalSource;
 use App\Models\Media;
-use Illuminate\Support\Facades\DB;
 
 class Enricher
 {
@@ -14,12 +14,14 @@ class Enricher
      * Fill a media's own columns from a provider record. The names double as the values admins can lock.
      *
      * Precedence (A9): an admin-locked field is never touched, then what is already stored beats a newer
-     * provider's value. The media's first provider is the exception: its re-syncs keep the record current,
-     * which also stops two providers overwriting each other on every sync.
+     * provider's value. The media's primary provider (`primary_external_source_id`, set when the record was created and
+     * kept through merges) is the exception: its re-syncs keep the record current, which also stops two providers
+     * overwriting each other on every sync. A media without one is claimed by the first provider that touches it.
      */
-    public function apply(Media $media, NormalizedMedia $incoming, string $provider): void
+    public function apply(Media $media, NormalizedMedia $incoming, ExternalSource $source): void
     {
-        $authoritative = $this->isFirstProvider($media, $provider);
+        $media->primary_external_source_id ??= $source->id;
+        $authoritative = $media->primary_external_source_id === $source->id;
 
         $values = [
             'title' => trim($incoming->title),
@@ -48,18 +50,6 @@ class Enricher
         }
 
         $media->save();
-    }
-
-    private function isFirstProvider(Media $media, string $provider): bool
-    {
-        $first = DB::table('media_external_ids')
-            ->join('external_sources', 'external_sources.id', '=', 'media_external_ids.external_source_id')
-            ->where('media_external_ids.media_id', $media->id)
-            ->where('external_sources.key', '!=', 'isbn')
-            ->orderBy('media_external_ids.id')
-            ->value('external_sources.key');
-
-        return $first === null || $first === $provider;
     }
 
     private function isEmpty(mixed $value): bool

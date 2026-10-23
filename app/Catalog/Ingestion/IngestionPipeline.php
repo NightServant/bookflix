@@ -33,7 +33,8 @@ class IngestionPipeline
 
     /**
      * Normalize, validate and store one provider record. Invalid records and unchanged payloads are skipped;
-     * the store step is one transaction, so a failure leaves nothing behind.
+     * the store step is one transaction, so a failure leaves nothing behind. The media it touches is locked and
+     * re-checked inside it: a match that was merged away meanwhile hands over to the winner.
      */
     public function import(ProviderRecord $record, MetadataProvider $provider): ImportOutcome
     {
@@ -53,17 +54,15 @@ class IngestionPipeline
 
         return DB::transaction(function () use ($record, $incoming, $source, $hash, $known): ImportOutcome {
             $candidates = collect();
+            $existing = $known ? Media::withTrashed()->find($known->media_id) : $this->deduplicator->match($incoming);
+            $media = $existing ? $this->deduplicator->lockLive($existing) : null;
 
-            if ($known) {
-                $media = Media::withTrashed()->findOrFail($known->media_id);
+            if ($known && ! $media) {
+                return ImportOutcome::Skipped;
+            }
 
-                if ($media->trashed()) {
-                    return ImportOutcome::Skipped;
-                }
-
-                $outcome = ImportOutcome::Updated;
-            } elseif ($media = $this->deduplicator->match($incoming)) {
-                $outcome = ImportOutcome::Merged;
+            if ($media) {
+                $outcome = $known ? ImportOutcome::Updated : ImportOutcome::Merged;
             } else {
                 $candidates = $this->deduplicator->candidates($incoming);
                 $outcome = ImportOutcome::Created;
@@ -71,17 +70,18 @@ class IngestionPipeline
                     'media_type_id' => MediaType::where('slug', $incoming->mediaTypeSlug)->value('id'),
                     'title' => trim($incoming->title),
                     'publication_year' => $incoming->publicationYear,
+                    'primary_external_source_id' => $source->id,
                 ]);
             }
 
             MediaExternalId::updateOrCreate(
                 ['external_source_id' => $source->id, 'external_id' => $record->externalId],
-                ['media_id' => $media->id, 'source_url' => $record->sourceUrl, 'payload_hash' => $hash, 'last_synced_at' => now()],
+                ['media_id' => $media->id, 'source_url' => $incoming->sourceUrl, 'payload_hash' => $hash, 'last_synced_at' => now()],
             );
 
             $this->recordIsbns($media, $incoming, $hash);
             $this->attachRelations($media, $incoming, $source->key);
-            $this->enricher->apply($media, $incoming, $source->key);
+            $this->enricher->apply($media, $incoming, $source);
             $media->refreshSearchText();
             $this->deduplicator->recordCandidates($media, $candidates);
 

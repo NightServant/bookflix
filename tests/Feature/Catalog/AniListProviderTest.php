@@ -29,11 +29,20 @@ test('staff roles map to creator roles and the MAL id becomes a cross id', funct
         ->and($media->alternativeTitles)->toContain('ベルセルク');
 });
 
-test('changedSince pages through the GraphQL feed until hasNextPage is false', function () {
+test('page reads one GraphQL page and hands back the next page token and the newest update', function () {
+    $media = providerFixture('anilist/page-1.json')['data']['Page']['media'];
     Http::fake(['graphql.anilist.co' => Http::sequence()->push(providerFixture('anilist/page-1.json'))->push(['data' => ['Page' => ['pageInfo' => ['hasNextPage' => false], 'media' => []]]])]);
-    expect(app(AniListProvider::class)->changedSince(null)->count())->toBeGreaterThan(0);
+
+    $first = app(AniListProvider::class)->page(null, null);
+    $last = app(AniListProvider::class)->page(null, $first->nextPageToken);
+
+    expect($first->records)->toHaveCount(3)->and($first->records[0])->toBeInstanceOf(ProviderRecord::class)
+        ->and($first->nextPageToken)->toBe('2')
+        ->and($first->maxUpdatedAt->getTimestamp())->toBe(max(array_column($media, 'updatedAt')))
+        ->and($last->records)->toBe([])->and($last->nextPageToken)->toBeNull()->and($last->maxUpdatedAt)->toBeNull();
     Http::assertSentCount(2);
-    Http::assertSent(fn ($r) => $r->hasHeader('User-Agent', config('bookflix.provider_user_agent')));
+    Http::assertSent(fn ($r) => $r['variables']['page'] === 1 && $r['variables']['sort'] === ['ID']);
+    Http::assertSent(fn ($r) => $r['variables']['page'] === 2 && $r->hasHeader('User-Agent', config('bookflix.provider_user_agent')));
 });
 
 test('a 429 surfaces as a RateLimitedByProvider exception carrying retry-after', function () {
@@ -48,12 +57,39 @@ test('a 5xx surfaces as ProviderUnavailable and a 404 as null', function () {
         ->and(app(AniListProvider::class)->find('1'))->toBeNull();
 });
 
-test('an incremental sync stops at the first record older than the cursor', function () {
+test('an incremental page stops at the first record older than the cursor and has no next page', function () {
     $page = providerFixture('anilist/page-1.json');
-    $newest = $page['data']['Page']['media'][0]['updatedAt'];
+    $newest = max(array_column($page['data']['Page']['media'], 'updatedAt'));
     Http::fake(['graphql.anilist.co' => Http::response($page)]);
 
-    $records = app(AniListProvider::class)->changedSince(now()->toImmutable()->setTimestamp($newest + 1));
+    $result = app(AniListProvider::class)->page(now()->toImmutable()->setTimestamp($newest + 1), null);
 
-    expect($records->count())->toBe(0);
+    expect($result->records)->toBe([])->and($result->nextPageToken)->toBeNull();
+    Http::assertSent(fn ($r) => $r['variables']['sort'] === ['UPDATED_AT_DESC']);
+});
+
+test('cover and source urls are kept only when https on an allowed host', function (?string $url, ?string $expected) {
+    $payload = [...providerFixture('anilist/manga-berserk.json'), 'coverImage' => ['extraLarge' => $url, 'large' => null], 'siteUrl' => $url];
+
+    $media = app(AniListProvider::class)->normalize(new ProviderRecord('anilist', '30002', $payload, $url, now()->toImmutable()));
+
+    expect($media->coverUrl)->toBe($expected)->and($media->sourceUrl)->toBe($expected);
+})->with([
+    'allowed cdn' => ['https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx30002.jpg', 'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx30002.jpg'],
+    'allowed site' => ['https://anilist.co/manga/30002', 'https://anilist.co/manga/30002'],
+    'plain http' => ['http://anilist.co/manga/30002', null],
+    'javascript' => ['javascript:alert(1)', null],
+    'data uri' => ['data:text/html;base64,PHNjcmlwdD4=', null],
+    'other host' => ['https://evil.example/x.jpg', null],
+    'lookalike host' => ['https://anilist.co.evil.example/x.jpg', null],
+    'userinfo trick' => ['https://anilist.co@evil.example/x.jpg', null],
+    'not a url' => ['  ', null],
+]);
+
+test('descriptions are decoded then stripped, so no markup survives', function () {
+    $payload = [...providerFixture('anilist/manga-berserk.json'), 'description' => 'Tom &amp; Jerry<br>next &lt;script&gt;alert(1)&lt;/script&gt;<b>bold</b> &lt;img src=x onerror=y&gt;'];
+
+    $media = app(AniListProvider::class)->normalize(new ProviderRecord('anilist', '30002', $payload, null, now()->toImmutable()));
+
+    expect($media->description)->toBe("Tom & Jerry\nnext alert(1)bold");
 });

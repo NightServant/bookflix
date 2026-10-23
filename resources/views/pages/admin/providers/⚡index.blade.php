@@ -22,7 +22,7 @@ new #[Title('Providers')] class extends Component {
     #[Computed]
     public function sources(): Collection
     {
-        return ExternalSource::orderBy('name')->get();
+        return ExternalSource::providers()->orderBy('name')->get();
     }
 
     /**
@@ -41,7 +41,7 @@ new #[Title('Providers')] class extends Component {
     {
         Gate::authorize('access-admin');
 
-        $source = ExternalSource::findOrFail($sourceId);
+        $source = ExternalSource::providers()->findOrFail($sourceId);
         $source->update(['enabled' => ! $source->enabled]);
 
         unset($this->sources);
@@ -54,7 +54,7 @@ new #[Title('Providers')] class extends Component {
     {
         Gate::authorize('access-admin');
 
-        $source = ExternalSource::where('key', $providerKey)->where('enabled', true)->first();
+        $source = ExternalSource::providers()->where('key', $providerKey)->where('enabled', true)->first();
 
         if ($source === null || config("bookflix.providers.{$providerKey}") === null) {
             Flux::toast(variant: 'danger', text: __('That provider is not enabled.'));
@@ -126,6 +126,16 @@ new #[Title('Providers')] class extends Component {
                         <flux:badge size="sm" :color="match ($run->status->value) { 'succeeded' => 'green', 'partial' => 'amber', 'failed' => 'red', default => 'zinc' }">{{ $run->status->value }}</flux:badge>
                         @if ($run->error)
                             <span class="ms-2 text-meta text-ink-muted">{{ $run->error }}</span>
+                        @endif
+                        @if (! empty($run->counts['failed_ids']))
+                            <details class="mt-1 text-meta text-ink-muted" data-test="failed-ids-{{ $run->id }}">
+                                <summary>{{ __('Failed ids (:count)', ['count' => count($run->counts['failed_ids'])]) }}</summary>
+                                <ul class="mt-1 space-y-0.5">
+                                    @foreach ($run->counts['failed_ids'] as $failed)
+                                        <li>{{ $failed['id'] }}: {{ $failed['error'] }}</li>
+                                    @endforeach
+                                </ul>
+                            </details>
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>{{ $run->started_at->diffForHumans() }}</flux:table.cell>

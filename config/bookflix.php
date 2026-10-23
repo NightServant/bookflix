@@ -69,8 +69,15 @@ return [
     | Metadata Providers
     |--------------------------------------------------------------------------
     |
-    | Providers stay disabled until their terms are reviewed. The user agent
-    | identifies the project, never a person, on every provider request.
+    | Providers stay disabled until their terms are reviewed. `enabled` here is
+    | only the value the seeder gives a new source; afterwards the
+    | `external_sources.enabled` column is the one source of truth. The user
+    | agent identifies the project, never a person, on every provider request.
+    |
+    | `rate_per_minute` counts page jobs, not HTTP requests: an AniList page is
+    | one request, an Open Library page is ten works at several requests each.
+    | `max_pages_per_run` bounds one sync; the next run resumes where it stopped.
+    | `allowed_hosts` are the only hosts whose https cover and source URLs are kept.
     |
     */
 
@@ -81,13 +88,17 @@ return [
         'openlibrary' => [
             'class' => OpenLibraryProvider::class,
             'enabled' => (bool) env('BOOKFLIX_OPENLIBRARY_ENABLED', false),
-            'rate_per_minute' => 100,
+            'rate_per_minute' => 2,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['openlibrary.org', 'covers.openlibrary.org'],
         ],
 
         'anilist' => [
             'class' => AniListProvider::class,
             'enabled' => (bool) env('BOOKFLIX_ANILIST_ENABLED', false),
             'rate_per_minute' => 30,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['anilist.co', 's4.anilist.co'],
         ],
 
     ],

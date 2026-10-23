@@ -43,6 +43,7 @@ use Illuminate\Support\Str;
  * @property string $search_text
  * @property list<string> $locked_fields
  * @property int|null $merged_into_id
+ * @property int|null $primary_external_source_id The provider whose re-syncs may overwrite this media; kept through merges.
  * @property Carbon|null $deleted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -73,6 +74,7 @@ use Illuminate\Support\Str;
     'search_text',
     'locked_fields',
     'merged_into_id',
+    'primary_external_source_id',
 ])]
 class Media extends Model
 {

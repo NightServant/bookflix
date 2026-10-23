@@ -148,6 +148,10 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        Schema::table('media', function (Blueprint $table) {
+            $table->foreignId('primary_external_source_id')->nullable()->constrained('external_sources')->nullOnDelete();
+        });
+
         Schema::create('media_external_ids', function (Blueprint $table) {
             $table->id();
             $table->foreignId('media_id')->index()->constrained('media')->cascadeOnDelete();
@@ -168,7 +172,10 @@ return new class extends Migration
             $table->enum('status', ['running', 'succeeded', 'partial', 'failed'])->default('running');
             $table->timestamp('started_at');
             $table->timestamp('finished_at')->nullable();
-            $table->jsonb('counts')->default('{"fetched":0,"created":0,"updated":0,"merged":0,"skipped":0,"failed":0}');
+            $table->jsonb('counts')->default('{"fetched":0,"created":0,"updated":0,"merged":0,"skipped":0,"failed":0,"failed_ids":[]}');
+            $table->unsignedSmallInteger('pages')->default(0);
+            $table->text('page_token')->nullable();
+            $table->timestamp('max_updated_at')->nullable();
             $table->text('error')->nullable();
             $table->timestamps();
             $table->index(['external_source_id', 'started_at']);
@@ -191,6 +198,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::table('media', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('primary_external_source_id');
+        });
+
         foreach (['duplicate_candidates', 'ingestion_runs', 'media_external_ids', 'external_sources'] as $table) {
             Schema::dropIfExists($table);
         }

@@ -97,11 +97,10 @@ test('merge moves external ids pivots and relations and soft deletes the loser',
         ->and($loser->fresh()->merged_into_id)->toBe($winner->id);
 });
 
-test('merge rebuilds the winner search text and closes every pending candidate of the loser', function () {
-    [$winner, $loser, $other] = Media::factory()->count(3)->create();
+test('merge rebuilds the winner search text and closes only the pair being merged', function () {
+    [$winner, $loser, $other, $fourth] = Media::factory()->count(4)->create();
     $loser->creators()->attach(Creator::factory()->create(['name' => 'Naoki Urasawa']), ['role' => 'author', 'position' => 1]);
     $pair = DuplicateCandidate::factory()->create(['media_id' => $winner->id, 'duplicate_media_id' => $loser->id]);
-    $third = DuplicateCandidate::factory()->create(['media_id' => $other->id, 'duplicate_media_id' => $loser->id]);
     $unrelated = DuplicateCandidate::factory()->create(['media_id' => $winner->id, 'duplicate_media_id' => $other->id]);
     $dismissed = DuplicateCandidate::factory()->create(['media_id' => $loser->id, 'duplicate_media_id' => $other->id, 'status' => DuplicateStatus::Dismissed]);
 
@@ -110,9 +109,76 @@ test('merge rebuilds the winner search text and closes every pending candidate o
     expect($winner->fresh()->search_text)->toContain('naoki urasawa')
         ->and($pair->fresh()->status)->toBe(DuplicateStatus::Merged)
         ->and($pair->fresh()->resolved_by)->not->toBeNull()
-        ->and($third->fresh()->status)->toBe(DuplicateStatus::Merged)
         ->and($unrelated->fresh()->status)->toBe(DuplicateStatus::Pending)
         ->and($dismissed->fresh()->status)->toBe(DuplicateStatus::Dismissed);
+});
+
+test('merge repoints the loser\'s unreviewed pairs at the winner and drops those the winner already has', function () {
+    [$winner, $loser, $other, $fourth] = Media::factory()->count(4)->create();
+    $moved = DuplicateCandidate::factory()->create(['media_id' => $loser->id, 'duplicate_media_id' => $fourth->id, 'score' => 0.8]);
+    $reversed = DuplicateCandidate::factory()->create(['media_id' => $other->id, 'duplicate_media_id' => $loser->id, 'score' => 0.77]);
+    $existing = DuplicateCandidate::factory()->create(['media_id' => $winner->id, 'duplicate_media_id' => $other->id, 'score' => 0.9]);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    expect($moved->fresh()->only(['media_id', 'duplicate_media_id', 'status']))->toBe(['media_id' => $winner->id, 'duplicate_media_id' => $fourth->id, 'status' => DuplicateStatus::Pending])
+        ->and($reversed->fresh())->toBeNull()
+        ->and($existing->fresh()->status)->toBe(DuplicateStatus::Pending)->and($existing->fresh()->score)->toBe(0.9)
+        ->and(DuplicateCandidate::where('status', DuplicateStatus::Pending)->where(fn ($query) => $query->where('media_id', $loser->id)->orWhere('duplicate_media_id', $loser->id))->count())->toBe(0)
+        ->and(DuplicateCandidate::count())->toBe(2);
+});
+
+test('merging into a winner that was merged away meanwhile lands on the live winner', function () {
+    [$live, $stale, $loser] = Media::factory()->count(3)->create();
+    $stale->update(['merged_into_id' => $live->id]);
+    $stale->delete();
+    $loser->genres()->attach(Genre::factory()->create());
+
+    app(Deduplicator::class)->merge($stale, $loser);
+
+    expect($loser->fresh()->merged_into_id)->toBe($live->id)->and($live->genres()->count())->toBe(1)->and($stale->fresh()->genres()->count())->toBe(0);
+});
+
+test('merging a loser that is already gone changes nothing and an outright removed winner is refused', function () {
+    [$winner, $loser, $removed] = Media::factory()->count(3)->create();
+    $loser->update(['merged_into_id' => $removed->id]);
+    $loser->delete();
+    $removed->delete();
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    expect($loser->fresh()->merged_into_id)->toBe($removed->id);
+
+    $other = Media::factory()->create();
+
+    expect(fn () => app(Deduplicator::class)->merge($removed, $other))->toThrow(RuntimeException::class)
+        ->and($other->fresh()->trashed())->toBeFalse();
+});
+
+test('merge keeps the winner\'s primary provider and only fills a missing one from the loser', function () {
+    [$anilist, $mangadex] = ExternalSource::factory()->count(2)->create();
+    [$winner, $loser, $bare, $bareLoser] = [
+        Media::factory()->create(['primary_external_source_id' => $anilist->id]),
+        Media::factory()->create(['primary_external_source_id' => $mangadex->id]),
+        Media::factory()->create(),
+        Media::factory()->create(['primary_external_source_id' => $mangadex->id]),
+    ];
+
+    app(Deduplicator::class)->merge($winner, $loser);
+    app(Deduplicator::class)->merge($bare, $bareLoser);
+
+    expect($winner->fresh()->primary_external_source_id)->toBe($anilist->id)->and($bare->fresh()->primary_external_source_id)->toBe($mangadex->id);
+});
+
+test('same family, a near-identical title and a year within a year but different creators is a review candidate, never an auto merge (M3)', function () {
+    $existing = Media::factory()->create(['title' => 'Monster Hunter', 'publication_year' => 2010]);
+    $existing->creators()->attach(Creator::factory()->create(['name' => 'Capcom Staff']), ['role' => 'author', 'position' => 0]);
+    $incoming = normalized(title: 'Monster Hunter', year: 2011, creators: ['Somebody Else']);
+
+    $candidates = app(Deduplicator::class)->candidates($incoming);
+
+    expect(app(Deduplicator::class)->match($incoming))->toBeNull()
+        ->and($candidates)->toHaveCount(1)->and($candidates->first()['media']->is($existing))->toBeTrue()->and($candidates->first()['score'])->toBeGreaterThanOrEqual(0.9);
 });
 
 test('slugs merged into a media that is merged again follow to the final winner', function () {

@@ -80,3 +80,26 @@ test('provider actions re-authorize on every call', function () {
     Queue::assertNothingPushed();
     expect($source->fresh()->enabled)->toBeTrue();
 });
+
+test('the synthetic isbn source is hidden and cannot be enabled', function () {
+    $isbn = ExternalSource::factory()->create(['key' => 'isbn', 'name' => 'ISBN', 'enabled' => false]);
+    ExternalSource::factory()->create(['key' => 'openlibrary', 'name' => 'Open Library']);
+    $this->actingAs(User::factory()->admin()->create());
+
+    $page = Livewire::test('pages::admin.providers.index')->assertSee('Open Library')->assertDontSee('data-test="sync-now-isbn"', false);
+    expect($page->instance()->sources->pluck('key')->all())->toBe(['openlibrary']);
+
+    $page->call('toggleEnabled', $isbn->id)->assertNotFound();
+
+    expect($isbn->fresh()->enabled)->toBeFalse();
+});
+
+test('a run lists the failed ids and why', function () {
+    IngestionRun::factory()->create([
+        'status' => IngestionStatus::Partial,
+        'counts' => ['fetched' => 2, 'created' => 1, 'updated' => 0, 'merged' => 0, 'skipped' => 0, 'failed' => 1, 'failed_ids' => [['id' => 'OL42W', 'error' => 'SQLSTATE value too long']]],
+    ]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.providers.index')->assertSee('Failed ids (1)')->assertSee('OL42W: SQLSTATE value too long');
+});

@@ -2,29 +2,28 @@
 
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
-use App\Catalog\Providers\AniList\AniListProvider;
-use App\Catalog\Providers\MetadataProvider;
-use App\Catalog\Providers\RateLimitedByProvider;
+use App\Catalog\Providers\ProviderUnavailable;
+use App\Enums\ImportOutcome;
 use App\Enums\IngestionMode;
 use App\Enums\IngestionStatus;
-use App\Jobs\ImportMediaRecord;
+use App\Jobs\FetchProviderPage;
 use App\Jobs\SyncProvider;
 use App\Models\ExternalSource;
 use App\Models\IngestionRun;
 use App\Models\Media;
-use App\Models\MediaExternalId;
+use Carbon\CarbonImmutable;
 use Database\Seeders\MediaTypeSeeder;
-use Illuminate\Bus\PendingBatch;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Queue\MaxAttemptsExceededException;
+use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Testing\Fakes\BatchFake;
 
 beforeEach(function () {
     app(MediaTypeSeeder::class)->run();
@@ -32,67 +31,254 @@ beforeEach(function () {
     RateLimiter::for('provider:anilist', fn () => Limit::none());
 });
 
-function providerRecord(): ProviderRecord
+function anilistSource(): ExternalSource
 {
-    return new ProviderRecord('anilist', '30002', providerFixture('anilist/manga-berserk.json'), null, now()->toImmutable());
+    return ExternalSource::firstWhere('key', 'anilist');
 }
 
-function ingestionRun(): IngestionRun
+function ingestionRun(array $attributes = []): IngestionRun
 {
     return IngestionRun::factory()->create([
-        'external_source_id' => ExternalSource::firstWhere('key', 'anilist')->id,
+        'external_source_id' => anilistSource()->id,
         'status' => IngestionStatus::Running,
+        ...$attributes,
     ]);
 }
 
-function fakeProviderThrowing(Throwable $exception): void
+/**
+ * The recorded AniList media (30001 to 30003). Another `$firstId` renumbers them and gives them unrelated titles and no staff,
+ * so a second batch never dedups into the first. `$blankTitle` ids come back with a blank title.
+ *
+ * @param  list<int>  $blankTitle
+ * @return list<array<string, mixed>>
+ */
+function anilistMedia(int $firstId = 30001, array $blankTitle = []): array
 {
-    $provider = Mockery::mock(MetadataProvider::class);
-    $provider->shouldReceive('key')->andReturn('anilist');
-    $provider->shouldReceive('normalize')->andThrow($exception);
-    app()->instance(AniListProvider::class, $provider);
+    return array_map(function (array $media, int $index) use ($firstId, $blankTitle): array {
+        $media['id'] = $firstId + $index;
+
+        if ($firstId !== 30001) {
+            $media['title'] = ['english' => ['Zebra Quest', 'Orchid Harbor', 'Granite Sky'][$index], 'romaji' => null, 'native' => null];
+            $media['staff'] = ['edges' => []];
+        }
+
+        return in_array($media['id'], $blankTitle, true) ? [...$media, 'title' => ['romaji' => ' ', 'english' => null, 'native' => null]] : $media;
+    }, providerFixture('anilist/page-1.json')['data']['Page']['media'], range(0, 2));
 }
 
 /**
- * Serve an AniList page of the recorded media (30001 to 30003); `blankTitle` ids come back with a blank title.
- *
- * @param  list<int>  $blankTitle
+ * @param  list<array<string, mixed>>  $media
+ * @return array<string, mixed>
  */
-function fakeAniListPage(array $blankTitle = []): void
+function anilistPage(array $media, bool $hasNext = false): array
 {
-    $media = array_map(
-        fn (array $media): array => in_array($media['id'], $blankTitle, true) ? [...$media, 'title' => ['romaji' => ' ', 'english' => null, 'native' => null]] : $media,
-        providerFixture('anilist/page-1.json')['data']['Page']['media'],
-    );
-
-    Http::fake(['graphql.anilist.co' => Http::response(['data' => ['Page' => ['pageInfo' => ['hasNextPage' => false], 'media' => $media]]])]);
+    return ['data' => ['Page' => ['pageInfo' => ['hasNextPage' => $hasNext], 'media' => $media]]];
 }
 
-test('a provider 429 releases the job with the retry-after delay', function () {
+function fakeAniListPage(array $blankTitle = []): void
+{
+    Http::fake(['graphql.anilist.co' => Http::response(anilistPage(anilistMedia(blankTitle: $blankTitle)))]);
+}
+
+function newestUpdate(array $media): CarbonImmutable
+{
+    return CarbonImmutable::createFromTimestampUTC(max(array_column($media, 'updatedAt')));
+}
+
+test('a sync runs page by page, imports each page inline and moves the cursor to the newest update', function () {
+    $first = anilistMedia();
+    $second = anilistMedia(30004);
+    Http::fake(['graphql.anilist.co' => Http::sequence()->push(anilistPage($first, hasNext: true))->push(anilistPage($second))]);
+
+    (new SyncProvider('anilist'))->handle();
+
+    $run = IngestionRun::sole();
+    expect($run->status)->toBe(IngestionStatus::Succeeded)->and($run->error)->toBeNull()->and($run->finished_at)->not->toBeNull()
+        ->and($run->pages)->toBe(2)->and($run->page_token)->toBeNull()
+        ->and($run->counts)->toMatchArray(['fetched' => 6, 'created' => 6, 'skipped' => 0, 'failed' => 0])
+        ->and(Media::count())->toBe(6)
+        ->and(anilistSource()->sync_cursor)->toEqual(['since' => newestUpdate($second)->toIso8601String()])
+        ->and(anilistSource()->last_synced_at)->not->toBeNull();
+    Http::assertSentCount(2);
+    Http::assertSent(fn ($request) => $request['variables']['page'] === 2);
+});
+
+test('a sync stops at max_pages_per_run and the next run resumes at the stored page', function () {
+    config(['bookflix.providers.anilist.max_pages_per_run' => 1]);
+    $first = anilistMedia();
+    $second = anilistMedia(30004);
+    Http::fake(['graphql.anilist.co' => Http::sequence()->push(anilistPage($first, hasNext: true))->push(anilistPage($second))]);
+
+    (new SyncProvider('anilist'))->handle();
+
+    $cut = IngestionRun::sole();
+    expect($cut->pages)->toBe(1)->and($cut->page_token)->toBe('2')->and(Media::count())->toBe(3)
+        ->and($cut->max_updated_at->equalTo(newestUpdate($first)))->toBeTrue()
+        ->and(anilistSource()->sync_cursor)->toEqual(['since' => null, 'resume' => ['mode' => 'incremental', 'page_token' => '2', 'max_updated_at' => newestUpdate($first)->toIso8601String()]]);
+
+    (new SyncProvider('anilist'))->handle();
+
+    expect(IngestionRun::count())->toBe(2)->and(Media::count())->toBe(6)
+        ->and(anilistSource()->sync_cursor)->toEqual(['since' => newestUpdate($second)->toIso8601String()]);
+    Http::assertSentCount(2);
+    Http::assertSent(fn ($request) => $request['variables']['page'] === 2);
+});
+
+test('a full sync ignores the stored cursor and resume point', function () {
+    anilistSource()->update(['sync_cursor' => ['since' => '2026-01-01T00:00:00+00:00', 'resume' => ['mode' => 'incremental', 'page_token' => '9', 'max_updated_at' => null]]]);
+    fakeAniListPage();
+
+    (new SyncProvider('anilist', IngestionMode::Full))->handle();
+
+    Http::assertSent(fn ($request) => $request['variables']['sort'] === ['ID'] && $request['variables']['page'] === 1);
+    expect(IngestionRun::sole()->mode)->toBe(IngestionMode::Full);
+});
+
+test('a malformed record is skipped and counted while the rest succeed', function () {
+    fakeAniListPage(blankTitle: [30002]);
+
+    (new SyncProvider('anilist'))->handle();
+
+    $run = IngestionRun::sole();
+    expect($run->status)->toBe(IngestionStatus::Succeeded)->and($run->counts)->toMatchArray(['fetched' => 3, 'created' => 2, 'skipped' => 1, 'failed' => 0])
+        ->and(Media::count())->toBe(2);
+});
+
+test('records that fail leave a partial run, keep their ids, and the cursor still advances', function () {
+    fakeAniListPage();
+    $this->mock(IngestionPipeline::class)->shouldReceive('import')->andReturnUsing(
+        fn (ProviderRecord $record) => $record->externalId === '30002' ? throw new RuntimeException('boom') : ImportOutcome::Created,
+    );
+
+    (new SyncProvider('anilist'))->handle();
+
+    $run = IngestionRun::sole();
+    expect($run->status)->toBe(IngestionStatus::Partial)->and($run->error)->toContain('1 of 3')
+        ->and($run->counts)->toMatchArray(['fetched' => 3, 'created' => 2, 'failed' => 1, 'failed_ids' => [['id' => '30002', 'error' => 'boom']]])
+        ->and(anilistSource()->sync_cursor['since'])->toBe(newestUpdate(anilistMedia())->toIso8601String());
+});
+
+test('only the first 100 failed ids are kept', function () {
+    $media = array_map(fn (int $id) => [...anilistMedia()[0], 'id' => $id], range(1, 105));
+    Http::fake(['graphql.anilist.co' => Http::response(anilistPage($media))]);
+    $this->mock(IngestionPipeline::class)->shouldReceive('import')->andThrow(new RuntimeException('boom'));
+
+    (new SyncProvider('anilist'))->handle();
+
+    $run = IngestionRun::sole();
+    expect($run->counts['failed'])->toBe(105)->and($run->counts['failed_ids'])->toHaveCount(100)->and($run->counts['failed_ids'][0])->toEqual(['id' => '1', 'error' => 'boom'])
+        ->and($run->status)->toBe(IngestionStatus::Failed);
+});
+
+test('a provider outage or timeout leaves one failed run, never a stuck one or a row per retry', function (Closure $fake) {
+    $existing = Media::factory()->create(['title' => 'Keep me']);
+    Http::fake($fake());
+
+    (new SyncProvider('anilist'))->handle();
+
+    $run = IngestionRun::sole();
+    expect($run->status)->toBe(IngestionStatus::Failed)->and($run->error)->not->toBeNull()->and($run->finished_at)->not->toBeNull()
+        ->and($existing->fresh()->title)->toBe('Keep me')->and(Media::count())->toBe(1)
+        ->and(anilistSource()->sync_cursor)->toBeNull();
+})->with([
+    '503' => [fn () => ['graphql.anilist.co' => Http::response(null, 503)]],
+    'timeout' => [fn () => ['graphql.anilist.co' => fn () => throw new ConnectionException('cURL error 28: timed out')]],
+]);
+
+test('an exception escaping a page job leaves the run running for the queue retry, which reuses it', function () {
     $run = ingestionRun();
-    $job = new ImportMediaRecord(providerRecord(), 'anilist', $run->id);
-    fakeProviderThrowing(new RateLimitedByProvider(retryAfter: 30));
+    Http::fake(['graphql.anilist.co' => Http::sequence()->push(null, 503)->push(anilistPage(anilistMedia()))]);
+    $job = new FetchProviderPage($run->id);
+
+    expect(fn () => $job->handle(app(IngestionPipeline::class)))->toThrow(ProviderUnavailable::class);
+    expect($run->fresh()->status)->toBe(IngestionStatus::Running);
+
+    $job->handle(app(IngestionPipeline::class));
+
+    expect(IngestionRun::count())->toBe(1)->and($run->fresh()->status)->toBe(IngestionStatus::Succeeded);
+});
+
+test('a provider 429 releases the page with the retry-after delay and keeps the same running run', function () {
+    $run = ingestionRun();
+    Http::fake(['graphql.anilist.co' => Http::sequence()->push(null, 429, ['Retry-After' => '45'])->push(anilistPage(anilistMedia()))]);
+    $job = new FetchProviderPage($run->id);
 
     $fake = $job->withFakeQueueInteractions();
     $job->handle(app(IngestionPipeline::class));
 
-    $fake->assertReleased(30);
-    expect($run->fresh()->counts)->toMatchArray(['created' => 0, 'skipped' => 0, 'failed' => 0]);
+    $fake->assertReleased(45);
+    expect(IngestionRun::count())->toBe(1)->and($run->fresh()->status)->toBe(IngestionStatus::Running)->and($run->fresh()->pages)->toBe(0);
+
+    $job->handle(app(IngestionPipeline::class));
+
+    expect(IngestionRun::count())->toBe(1)->and($run->fresh()->status)->toBe(IngestionStatus::Succeeded)->and(Media::count())->toBe(3);
 });
 
-test('a job backs off 10 60 300 seconds, is capped by exceptions and retried for two hours', function () {
-    $job = new ImportMediaRecord(providerRecord(), 'anilist');
+test('a page job that gives up closes its run as failed and a finished run is left alone', function () {
+    $stuck = ingestionRun(['page_token' => '4', 'max_updated_at' => '2026-10-20 10:00:00']);
+    $done = ingestionRun(['status' => IngestionStatus::Succeeded]);
+
+    (new FetchProviderPage($stuck->id, '4'))->failed(new MaxAttemptsExceededException('has been attempted too many times'));
+    (new FetchProviderPage($done->id))->failed(new RuntimeException('late'));
+
+    expect($stuck->fresh()->status)->toBe(IngestionStatus::Failed)->and($stuck->fresh()->error)->toContain('attempted too many times')->and($stuck->fresh()->finished_at)->not->toBeNull()
+        ->and($done->fresh()->status)->toBe(IngestionStatus::Succeeded)->and($done->fresh()->error)->toBeNull()
+        ->and(anilistSource()->sync_cursor['resume'])->toEqual(['mode' => 'incremental', 'page_token' => '4', 'max_updated_at' => '2026-10-20T10:00:00+00:00']);
+});
+
+test('the next sync continues a failed run from the page it stopped at', function () {
+    ingestionRun(['page_token' => '3'])->fail('worker died');
+    Http::fake(['graphql.anilist.co' => Http::response(anilistPage(anilistMedia()))]);
+
+    (new SyncProvider('anilist'))->handle();
+
+    expect(IngestionRun::count())->toBe(2)->and(IngestionRun::latest('id')->first()->status)->toBe(IngestionStatus::Succeeded);
+    Http::assertSent(fn ($request) => $request['variables']['page'] === 3);
+});
+
+test('a sync job that gives up closes the run it opened before any page, not a live one', function () {
+    $orphan = ingestionRun(['pages' => 0]);
+    $live = ingestionRun(['pages' => 2]);
+
+    (new SyncProvider('anilist'))->failed(new RuntimeException('killed'));
+
+    expect($orphan->fresh()->status)->toBe(IngestionStatus::Failed)->and($orphan->fresh()->error)->toBe('killed')->and($live->fresh()->status)->toBe(IngestionStatus::Running);
+});
+
+test('a sync leaves a run that is still in flight alone and reaps one that stopped making progress', function () {
+    $running = ingestionRun();
+    Http::fake();
+
+    (new SyncProvider('anilist'))->handle();
+
+    expect(IngestionRun::count())->toBe(1)->and($running->fresh()->status)->toBe(IngestionStatus::Running);
+    Http::assertNothingSent();
+
+    $this->travel(4)->hours();
+    fakeAniListPage();
+    (new SyncProvider('anilist'))->handle();
+
+    expect($running->fresh()->status)->toBe(IngestionStatus::Failed)->and(IngestionRun::count())->toBe(2)
+        ->and(IngestionRun::latest('id')->first()->status)->toBe(IngestionStatus::Succeeded);
+});
+
+test('a page job is rate limited per provider, backs off 10 60 300 seconds, is capped by exceptions and retried for two hours', function () {
+    $job = new FetchProviderPage(ingestionRun()->id);
     $sync = new SyncProvider('anilist');
 
-    expect($job->backoff())->toBe([10, 60, 300])->and($job->maxExceptions)->toBe(5)->and($job->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addHour()->getTimestamp())
+    expect($job->queue)->toBe('ingestion')->and($job->middleware())->toHaveCount(1)->and($job->middleware()[0])->toBeInstanceOf(RateLimited::class)
+        ->and($job->backoff())->toBe([10, 60, 300])->and($job->maxExceptions)->toBe(5)->and($job->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addHour()->getTimestamp())
         ->and($sync->backoff())->toBe([10, 60, 300])->and($sync->maxExceptions)->toBe(5)->and($sync->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addHour()->getTimestamp())
-        ->and(property_exists($job, 'tries'))->toBeFalse();
+        ->and(property_exists($job, 'tries'))->toBeFalse()
+        ->and(RateLimiter::limiter('provider:anilist'))->not->toBeNull();
 });
 
-test('a rate-limited release does not use up the job and never lands in failed jobs', function () {
+test('a rate-limited release does not use up the page job and never lands in failed jobs', function () {
     RateLimiter::for('provider:anilist', fn () => Limit::perMinute(1));
-    ImportMediaRecord::dispatch(new ProviderRecord('anilist', '1', [], null, now()->toImmutable()), 'anilist')->onConnection('database');
-    ImportMediaRecord::dispatch(providerRecord(), 'anilist')->onConnection('database');
+    fakeAniListPage();
+    $run = ingestionRun();
+    FetchProviderPage::dispatch($run->id)->onConnection('database');
+    FetchProviderPage::dispatch($run->id)->onConnection('database');
 
     $worker = app('queue.worker');
     $options = new WorkerOptions(maxTries: 1);
@@ -107,98 +293,7 @@ test('a rate-limited release does not use up the job and never lands in failed j
     expect(DB::table('failed_jobs')->count())->toBe(0)
         ->and(DB::table('jobs')->count())->toBe(1)
         ->and(DB::table('jobs')->value('attempts'))->toBe(3)
-        ->and(Media::count())->toBe(0);
-});
-
-test('a persistently failing provider marks the run failed and leaves existing media untouched', function () {
-    $existing = Media::factory()->create(['title' => 'Keep me']);
-    Http::fake(['graphql.anilist.co' => Http::response(null, 503)]);
-
-    (new SyncProvider('anilist'))->handle();
-
-    $run = IngestionRun::latest('id')->first();
-    expect($run->status)->toBe(IngestionStatus::Failed)->and($run->error)->not->toBeNull()->and($run->finished_at)->not->toBeNull()
-        ->and($existing->fresh()->title)->toBe('Keep me')
-        ->and(Media::count())->toBe(1)
-        ->and(DB::table('job_batches')->count())->toBe(0);
-});
-
-test('a provider 429 during the fetch fails the run and releases the sync with the retry-after delay', function () {
-    Http::fake(['graphql.anilist.co' => Http::response(null, 429, ['Retry-After' => '45'])]);
-    $job = new SyncProvider('anilist');
-
-    $fake = $job->withFakeQueueInteractions();
-    $job->handle();
-
-    $fake->assertReleased(45);
-    expect(IngestionRun::latest('id')->first()->status)->toBe(IngestionStatus::Failed);
-});
-
-test('a malformed record is skipped and counted while the rest succeed', function () {
-    fakeAniListPage(blankTitle: [30002]);
-
-    (new SyncProvider('anilist'))->handle();
-
-    $run = IngestionRun::latest('id')->first();
-    expect($run->status)->toBe(IngestionStatus::Succeeded)->and($run->error)->toBeNull()->and($run->finished_at)->not->toBeNull()
-        ->and($run->counts)->toMatchArray(['fetched' => 3, 'created' => 2, 'skipped' => 1, 'failed' => 0])
-        ->and(Media::count())->toBe(2)
-        ->and(ExternalSource::firstWhere('key', 'anilist')->sync_cursor['since'])->toBe($run->started_at->toIso8601String());
-});
-
-test('a retried job never duplicates rows', function () {
-    $job = new ImportMediaRecord(providerRecord(), 'anilist', ingestionRun()->id);
-    $job->handle(app(IngestionPipeline::class));
-    $job->handle(app(IngestionPipeline::class));
-
-    expect(Media::count())->toBe(1)->and(MediaExternalId::where('external_id', '30002')->count())->toBe(1)
-        ->and(IngestionRun::first()->counts)->toMatchArray(['created' => 1, 'skipped' => 1, 'failed' => 0]);
-});
-
-test('a job that gives up is counted as failed on its run', function () {
-    $run = ingestionRun();
-
-    (new ImportMediaRecord(providerRecord(), 'anilist', $run->id))->failed(new RuntimeException('boom'));
-    (new ImportMediaRecord(providerRecord(), 'anilist', $run->id))->failed(new RuntimeException('boom'));
-
-    expect($run->fresh()->counts['failed'])->toBe(2);
-});
-
-test('some records failing mid-run yields a partial run', function () {
-    Bus::fake();
-    fakeAniListPage();
-    (new SyncProvider('anilist'))->handle();
-
-    Bus::assertBatched(fn (PendingBatch $batch) => $batch->jobs->count() === 3);
-    $finally = Bus::dispatchedBatches()[0]->finallyCallbacks()[0];
-    $finally(new BatchFake('id', '', 3, 0, 1, ['x'], [], now()->toImmutable()));
-
-    $run = IngestionRun::latest('id')->first();
-    expect($run->status)->toBe(IngestionStatus::Partial)->and($run->error)->toContain('1 of 3')
-        ->and(ExternalSource::firstWhere('key', 'anilist')->sync_cursor)->toBeNull();
-});
-
-test('every record failing yields a failed run', function () {
-    SyncProvider::finalize(ingestionRun()->id, total: 3, failed: 3);
-
-    expect(IngestionRun::first()->status)->toBe(IngestionStatus::Failed);
-});
-
-test('the sync cursor advances only after a successful run', function () {
-    Http::fake(['graphql.anilist.co' => Http::response(null, 503)]);
-    (new SyncProvider('anilist'))->handle();
-
-    expect(ExternalSource::firstWhere('key', 'anilist')->sync_cursor)->toBeNull();
-});
-
-test('a full sync ignores the stored cursor', function () {
-    ExternalSource::firstWhere('key', 'anilist')->update(['sync_cursor' => ['since' => '2026-01-01T00:00:00+00:00']]);
-    fakeAniListPage();
-
-    (new SyncProvider('anilist', IngestionMode::Full))->handle();
-
-    Http::assertSent(fn ($request) => $request['variables']['sort'] === ['ID']);
-    expect(IngestionRun::first()->mode)->toBe(IngestionMode::Full);
+        ->and(Media::count())->toBe(3);
 });
 
 test('only enabled sources are scheduled', function () {
@@ -212,13 +307,25 @@ test('only enabled sources are scheduled', function () {
     expect($isDue())->toBeFalse();
 });
 
-test('the sync command runs the fetch and rejects unknown providers', function () {
+test('the sync command opens a run and rejects unknown providers', function () {
     fakeAniListPage();
 
     $this->artisan('bookflix:sync anilist --full')->expectsOutputToContain('3 record(s) fetched')->assertSuccessful();
-    expect(IngestionRun::first()->mode)->toBe(IngestionMode::Full);
+    expect(IngestionRun::sole()->mode)->toBe(IngestionMode::Full);
 
     $this->artisan('bookflix:sync nope')->expectsOutputToContain('Unknown provider')->assertFailed();
+});
+
+test('the sync command refuses a disabled source unless forced', function () {
+    anilistSource()->update(['enabled' => false]);
+    fakeAniListPage();
+
+    $this->artisan('bookflix:sync anilist')->expectsOutputToContain('disabled')->assertFailed();
+    expect(IngestionRun::count())->toBe(0);
+    Http::assertNothingSent();
+
+    $this->artisan('bookflix:sync anilist --force')->assertSuccessful();
+    expect(IngestionRun::count())->toBe(1);
 });
 
 test('a provider never has two syncs queued or running at once', function () {

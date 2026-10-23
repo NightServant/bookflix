@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\IngestionMode;
 use App\Enums\IngestionStatus;
+use Carbon\CarbonInterface;
 use Database\Factories\IngestionRunFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -19,12 +21,15 @@ use Illuminate\Support\Facades\DB;
  * @property IngestionStatus $status
  * @property Carbon $started_at
  * @property Carbon|null $finished_at
- * @property array{fetched: int, created: int, updated: int, merged: int, skipped: int, failed: int} $counts
+ * @property array{fetched: int, created: int, updated: int, merged: int, skipped: int, failed: int, failed_ids?: list<array{id: string, error: string}>} $counts
+ * @property int $pages
+ * @property string|null $page_token The next page to fetch, so a retry or the next run resumes there.
+ * @property Carbon|null $max_updated_at The newest provider-side update seen so far; it becomes the sync cursor.
  * @property string|null $error
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['external_source_id', 'mode', 'status', 'started_at', 'finished_at', 'counts', 'error'])]
+#[Fillable(['external_source_id', 'mode', 'status', 'started_at', 'finished_at', 'counts', 'pages', 'page_token', 'max_updated_at', 'error'])]
 class IngestionRun extends Model
 {
     /** @use HasFactory<IngestionRunFactory> */
@@ -37,7 +42,8 @@ class IngestionRun extends Model
      */
     protected $attributes = [
         'status' => 'running',
-        'counts' => '{"fetched":0,"created":0,"updated":0,"merged":0,"skipped":0,"failed":0}',
+        'counts' => '{"fetched":0,"created":0,"updated":0,"merged":0,"skipped":0,"failed":0,"failed_ids":[]}',
+        'pages' => 0,
     ];
 
     /**
@@ -52,6 +58,7 @@ class IngestionRun extends Model
             'status' => IngestionStatus::class,
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
+            'max_updated_at' => 'datetime',
             'counts' => 'array',
         ];
     }
@@ -65,13 +72,89 @@ class IngestionRun extends Model
     }
 
     /**
-     * Add one to a counter in a single statement, so concurrent workers never lose an increment.
+     * The most failed external ids kept per run, so a run that fails everything stays small.
      */
-    public function bump(string $key): void
+    public const MAX_FAILED_IDS = 100;
+
+    /**
+     * Fold one finished page into the run in one write, and remember where to go next.
+     *
+     * @param  array{fetched: int, created: int, updated: int, merged: int, skipped: int, failed: int}  $counts
+     * @param  list<array{id: string, error: string}>  $failedIds
+     */
+    public function recordPage(array $counts, array $failedIds, ?string $nextPageToken, ?CarbonInterface $maxUpdatedAt): void
     {
-        DB::update(
-            'update ingestion_runs set counts = jsonb_set(counts, array[?::text], to_jsonb(coalesce((counts ->> ?::text)::int, 0) + 1)) where id = ?',
-            [$key, $key, $this->id],
-        );
+        DB::transaction(function () use ($counts, $failedIds, $nextPageToken, $maxUpdatedAt): void {
+            $run = static::query()->lockForUpdate()->findOrFail($this->id);
+            $total = $run->counts;
+
+            foreach ($counts as $key => $amount) {
+                $total[$key] += $amount;
+            }
+
+            $total['failed_ids'] = array_slice([...($total['failed_ids'] ?? []), ...$failedIds], 0, self::MAX_FAILED_IDS);
+
+            $run->update([
+                'counts' => $total,
+                'pages' => $run->pages + 1,
+                'page_token' => $nextPageToken,
+                'max_updated_at' => $maxUpdatedAt && (! $run->max_updated_at || $maxUpdatedAt->gt($run->max_updated_at)) ? $maxUpdatedAt : $run->max_updated_at,
+            ]);
+        });
+
+        $this->refresh();
+    }
+
+    /**
+     * Close the run once its pages are done: all fine is succeeded, some failed is partial, all failed is failed.
+     * Record failures never freeze the sync: the cursor still moves to the newest update seen, and the failed ids stay in the counts.
+     * A run cut short by `max_pages_per_run` leaves its next page as the resume point instead, and the cursor stays.
+     */
+    public function finish(): void
+    {
+        $failed = $this->counts['failed'];
+        $total = $this->counts['fetched'];
+
+        $this->update([
+            'status' => match (true) {
+                $failed === 0 => IngestionStatus::Succeeded,
+                $failed >= $total => IngestionStatus::Failed,
+                default => IngestionStatus::Partial,
+            },
+            'finished_at' => now(),
+            'error' => $failed > 0 ? "{$failed} of {$total} records failed to import." : null,
+        ]);
+
+        $this->externalSource->update([
+            'sync_cursor' => $this->page_token !== null ? $this->resumeCursor() : ['since' => $this->max_updated_at?->toIso8601String() ?? $this->externalSource->sync_cursor['since'] ?? null],
+            'last_synced_at' => now(),
+        ]);
+    }
+
+    /**
+     * Close a run that is still running as failed, whatever went wrong, and keep its page as the resume point.
+     * A run that already finished is left as it is.
+     */
+    public function fail(string $error): void
+    {
+        $closed = static::query()->whereKey($this->id)->where('status', IngestionStatus::Running)
+            ->update(['status' => IngestionStatus::Failed, 'finished_at' => now(), 'error' => Str::limit($error, 1000, '...')]);
+
+        if ($closed > 0 && $this->refresh()->page_token !== null) {
+            $this->externalSource->update(['sync_cursor' => $this->resumeCursor()]);
+        }
+    }
+
+    /**
+     * The source cursor with this run's resume point: the finished cursor is kept, and the next run starts at the stored page.
+     *
+     * @return array{since: mixed, resume: array{mode: string, page_token: string|null, max_updated_at: string|null}}
+     */
+    private function resumeCursor(): array
+    {
+        return [
+            'since' => $this->externalSource->sync_cursor['since'] ?? null,
+            'resume' => ['mode' => $this->mode->value, 'page_token' => $this->page_token, 'max_updated_at' => $this->max_updated_at?->toIso8601String()],
+        ];
     }
 }

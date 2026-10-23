@@ -11,9 +11,12 @@ use App\Models\MediaType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class Deduplicator
 {
+    private const MAX_MERGE_HOPS = 20;
+
     /**
      * Pivot tables that follow a media row.
      *
@@ -72,13 +75,53 @@ class Deduplicator
     }
 
     /**
+     * Lock a media row and return the live media it stands for, or null when it was removed outright. A media that was
+     * merged away meanwhile hands over to its winner (followed through chains), so work aimed at a stale match lands on the survivor.
+     * Call inside a transaction; the returned row stays locked until it ends.
+     */
+    public function lockLive(Media $media): ?Media
+    {
+        $id = $media->id;
+
+        for ($hops = 0; $hops < self::MAX_MERGE_HOPS && $id !== null; $hops++) {
+            $row = Media::withTrashed()->lockForUpdate()->find($id);
+
+            if ($row === null || ! $row->trashed()) {
+                return $row;
+            }
+
+            $id = $row->merged_into_id;
+        }
+
+        return null;
+    }
+
+    /**
      * Fold the loser into the winner: external ids, pivot rows and relations move over, the winner's search text is rebuilt,
-     * every pending review candidate that involves the loser is closed as merged, then the loser is soft deleted and points
-     * at the winner so its URL can still resolve (media already merged into the loser follow along).
+     * the pair being merged is closed and every other pending pair of the loser is repointed at the winner, then the loser is
+     * soft deleted and points at the winner so its URL can still resolve (media already merged into the loser follow along).
+     *
+     * Both rows are locked and re-checked first: a loser that is already gone is a no-op, and a winner merged away meanwhile
+     * is replaced by the media it went into.
+     *
+     * @throws RuntimeException when the winner was removed outright
      */
     public function merge(Media $winner, Media $loser, ?int $resolvedBy = null): void
     {
         DB::transaction(function () use ($winner, $loser, $resolvedBy): void {
+            $locked = Media::withTrashed()->whereIn('id', [$winner->id, $loser->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $loser = $locked->get($loser->id);
+
+            if ($loser === null || $loser->trashed()) {
+                return;
+            }
+
+            $winner = $this->lockLive($winner) ?? throw new RuntimeException('The media to keep was removed.');
+
+            if ($winner->is($loser)) {
+                return;
+            }
+
             $loser->externalIds()->update(['media_id' => $winner->id]);
 
             foreach (self::PIVOTS as $table) {
@@ -91,19 +134,46 @@ class Deduplicator
             }
 
             $this->moveRelations($winner, $loser);
+            $this->movePendingCandidates($winner, $loser, $resolvedBy);
 
             Media::withTrashed()->where('merged_into_id', $loser->id)->update(['merged_into_id' => $winner->id]);
 
-            // ponytail: a pending pair of the loser with a third media is closed too, not repointed at the winner; the next sync re-proposes it if it still matches.
-            DuplicateCandidate::query()
-                ->where('status', DuplicateStatus::Pending)
-                ->where(fn ($query) => $query->where('media_id', $loser->id)->orWhere('duplicate_media_id', $loser->id))
-                ->update(['status' => DuplicateStatus::Merged, 'resolved_by' => $resolvedBy]);
-
+            $winner->primary_external_source_id ??= $loser->primary_external_source_id;
+            $winner->save();
             $loser->update(['merged_into_id' => $winner->id]);
             $loser->delete();
             $winner->refreshSearchText();
         });
+    }
+
+    /**
+     * The pair being merged is closed. Every other pending pair of the loser is still unreviewed, so it moves to the
+     * winner and stays pending; one the winner already has with that media is dropped, not doubled.
+     */
+    private function movePendingCandidates(Media $winner, Media $loser, ?int $resolvedBy): void
+    {
+        $pending = DuplicateCandidate::query()
+            ->where('status', DuplicateStatus::Pending)
+            ->where(fn ($query) => $query->where('media_id', $loser->id)->orWhere('duplicate_media_id', $loser->id))
+            ->get();
+
+        foreach ($pending as $pair) {
+            $other = $pair->media_id === $loser->id ? $pair->duplicate_media_id : $pair->media_id;
+
+            if ($other === $winner->id) {
+                $pair->update(['status' => DuplicateStatus::Merged, 'resolved_by' => $resolvedBy]);
+
+                continue;
+            }
+
+            $moved = ['media_id' => min($winner->id, $other), 'duplicate_media_id' => max($winner->id, $other)];
+
+            if (DuplicateCandidate::where($moved)->exists()) {
+                $pair->delete();
+            } else {
+                $pair->update($moved);
+            }
+        }
     }
 
     private function matchByExternalId(NormalizedMedia $incoming): ?Media

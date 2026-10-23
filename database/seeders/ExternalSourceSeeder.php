@@ -9,7 +9,8 @@ use Illuminate\Database\Seeder;
 class ExternalSourceSeeder extends Seeder
 {
     /**
-     * Run the database seeds. `enabled` follows config so a provider stays off until its terms are reviewed.
+     * Run the database seeds. Existing sources are left exactly as they are, so a re-seed never flips `enabled` back:
+     * the config value only sets a new source's starting state, and the column is the source of truth from then on.
      */
     public function run(): void
     {
@@ -27,7 +28,7 @@ class ExternalSourceSeeder extends Seeder
         ];
 
         foreach ($sources as $key => $attributes) {
-            ExternalSource::updateOrCreate(['key' => $key], $attributes + [
+            ExternalSource::firstOrCreate(['key' => $key], $attributes + [
                 'enabled' => (bool) config("bookflix.providers.{$key}.enabled"),
                 'cover_policy' => CoverPolicy::Hotlink,
                 'display_policy' => ['show_attribution' => true, 'link_back' => true],

@@ -4,21 +4,22 @@ namespace App\Catalog\Providers\AniList;
 
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
+use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\ProviderUnavailable;
 use App\Catalog\Providers\RateLimitedByProvider;
+use App\Catalog\Providers\SanitizesProviderData;
 use App\Catalog\Providers\SendsProviderRequests;
 use App\Enums\AgeRating;
 use App\Enums\CreatorRole;
 use App\Enums\PublicationStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\LazyCollection;
 
 class AniListProvider implements MetadataProvider
 {
-    use SendsProviderRequests;
+    use SanitizesProviderData, SendsProviderRequests;
 
     private const ENDPOINT = 'https://graphql.anilist.co';
 
@@ -50,30 +51,37 @@ class AniListProvider implements MetadataProvider
     }
 
     /**
-     * With a cursor, media newest-updated first until the cursor is passed; AniList has no updatedAt filter.
-     * Without one, the whole catalogue in id order.
-     *
-     * @return LazyCollection<int, ProviderRecord>
+     * One GraphQL page; the token is the next page number. With a cursor, media newest-updated first until the cursor
+     * is passed (AniList has no updatedAt filter), so the page that reaches it is the last. Without one, the whole
+     * catalogue in id order.
      */
-    public function changedSince(?CarbonImmutable $since): LazyCollection
+    public function page(?CarbonImmutable $since, ?string $pageToken): ProviderPage
     {
-        return LazyCollection::make(function () use ($since) {
-            $query = 'query ($page: Int, $sort: [MediaSort]) { Page(page: $page, perPage: '.self::PAGE_SIZE.') { pageInfo { hasNextPage } media(type: MANGA, sort: $sort) { '.self::FIELDS.' } } }';
-            $page = 1;
+        $page = max(1, (int) $pageToken);
+        $query = 'query ($page: Int, $sort: [MediaSort]) { Page(page: $page, perPage: '.self::PAGE_SIZE.') { pageInfo { hasNextPage } media(type: MANGA, sort: $sort) { '.self::FIELDS.' } } }';
+        $data = $this->post($query, ['page' => $page, 'sort' => [$since ? 'UPDATED_AT_DESC' : 'ID']])->json('data.Page');
+        $data = is_array($data) ? $data : [];
+        $records = [];
+        $newest = 0;
+        $reachedCursor = false;
 
-            do {
-                $data = $this->post($query, ['page' => $page++, 'sort' => [$since ? 'UPDATED_AT_DESC' : 'ID']])->json('data.Page');
-                $data = is_array($data) ? $data : [];
+        foreach (is_array($data['media'] ?? null) ? $data['media'] : [] as $media) {
+            $updatedAt = is_int($media['updatedAt'] ?? null) ? $media['updatedAt'] : 0;
 
-                foreach (is_array($data['media'] ?? null) ? $data['media'] : [] as $media) {
-                    if ($since && ($media['updatedAt'] ?? 0) < $since->getTimestamp()) {
-                        return;
-                    }
+            if ($since && $updatedAt < $since->getTimestamp()) {
+                $reachedCursor = true;
+                break;
+            }
 
-                    yield $this->record($media);
-                }
-            } while ($data['pageInfo']['hasNextPage'] ?? false);
-        });
+            $newest = max($newest, $updatedAt);
+            $records[] = $this->record($media);
+        }
+
+        return new ProviderPage(
+            records: $records,
+            nextPageToken: ! $reachedCursor && ($data['pageInfo']['hasNextPage'] ?? false) ? (string) ($page + 1) : null,
+            maxUpdatedAt: $newest > 0 ? CarbonImmutable::createFromTimestampUTC($newest) : null,
+        );
     }
 
     public function find(string $externalId): ?ProviderRecord
@@ -99,7 +107,7 @@ class AniListProvider implements MetadataProvider
             title: $title,
             mediaTypeSlug: $this->mediaTypeSlug($this->text($payload['format'] ?? null), $country),
             alternativeTitles: array_values(array_diff(array_unique(array_filter([...$titles, ...$this->strings($payload['synonyms'] ?? null)])), [$title])),
-            description: $this->description($payload['description'] ?? null),
+            description: $this->plainText(preg_replace('~<br\s*/?>~i', "\n", $this->text($payload['description'] ?? null))),
             creators: $this->creators($payload['staff']['edges'] ?? null),
             genres: $this->strings($payload['genres'] ?? null),
             tags: $this->tags($payload['tags'] ?? null),
@@ -112,8 +120,8 @@ class AniListProvider implements MetadataProvider
             ageRating: $isAdult ? AgeRating::Adult : AgeRating::Unknown,
             status: self::STATUSES[$this->text($payload['status'] ?? null)] ?? PublicationStatus::Unknown,
             chapterCount: is_int($payload['chapters'] ?? null) && $payload['chapters'] > 0 ? $payload['chapters'] : null,
-            coverUrl: $this->text($payload['coverImage']['extraLarge'] ?? $payload['coverImage']['large'] ?? null) ?: null,
-            sourceUrl: $record->sourceUrl,
+            coverUrl: $this->safeUrl($payload['coverImage']['extraLarge'] ?? $payload['coverImage']['large'] ?? null),
+            sourceUrl: $this->safeUrl($record->sourceUrl),
             isAdult: $isAdult,
         );
     }
@@ -231,13 +239,6 @@ class AniListProvider implements MetadataProvider
         return is_int($year) && is_int($month) && is_int($day) && checkdate($month, $day, $year)
             ? CarbonImmutable::create($year, $month, $day)->startOfDay()
             : null;
-    }
-
-    private function description(mixed $description): ?string
-    {
-        $text = is_string($description) ? trim(html_entity_decode(strip_tags(preg_replace('~<br\s*/?>~i', "\n", $description)))) : '';
-
-        return $text === '' ? null : $text;
     }
 
     /**
