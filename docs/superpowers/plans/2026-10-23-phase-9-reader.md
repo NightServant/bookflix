@@ -10,18 +10,19 @@
 
 **Tech Stack:** `foliate-js` (MIT), `pdfjs-dist` (Apache-2.0), PHP `ZipArchive`, `finfo`, `unar` (optional, CBR→CBZ), Laravel signed URLs, private S3/R2 disk, Pest browser tests.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §6, §37 (in-repo copy `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A6 `content_sources`/`reading_progress`, A9 (Gutenberg/Standard Ebooks), A16 (CSP, signed URLs), C3 (reader chrome), C6, Q11, R1, Part E Phase 9.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §6, §37. **Master plan:** A6 `content_sources`/`reading_progress`, A9 (Gutenberg/Standard Ebooks), A16 (CSP, signed URLs), C3 (reader chrome), C6, Q11, R1, Part E Phase 9.
 
 **Depends on:** Phase 5 (`LogProgress`, `ReadingProgress.locator/content_source_id`, library), Phase 2 (`content_sources` table already designed, `ingestion` queue, admin), Phase 4 (components, story page), Phase 1 (security headers middleware, `access-admin`).
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - **No copyrighted content is hosted or streamed without a verified `content_sources` row** (§6, R1). Verified = `verified_by` and `verified_at` set by an admin. `external_link` sources are links out, never streamed.
 - Access rules: `public_domain`/`licensed` → any authenticated, active user; `user_owned` → only `owner_user_id`; unverified → 403 for everyone (admins may *preview* from admin only); deactivated users → 403.
 - Files live on a **private** disk, only reachable through signed URLs expiring in ≤ 10 minutes, bound to the authenticated user; no public URLs, no directory listing, no path parameters from the client.
 - Public-domain sources come only from the official Project Gutenberg / Standard Ebooks catalog feeds or mirrors; **never scrape** pages. Record license text and rights holder on each source.
 - CSP (A16) is introduced in this phase: `default-src 'self'; script-src 'self' 'nonce-…'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'`. Livewire/Alpine inline scripts use per-request nonces. EPUB content renders in a sandboxed iframe without `allow-scripts`.
-- Uploads: MIME verified with `finfo` (not the client header or extension), size caps from config, stored under `content/{owner}/{ulid}` with the original name never used in paths.
+- Uploads: Livewire temporary uploads use a **private** disk (never public — a fixed Phase 1 XSS); MIME verified with `finfo` (not the client header or extension), size caps from config, stored under `content/{owner}/{ulid}` with the original name never used in paths.
 - Archives (CBZ/EPUB): guard against zip-slip (reject `..`, absolute paths, symlinks), zip bombs (max entries, max uncompressed size, max ratio), non-image entries ignored.
 - Reader UI follows C2 tokens, 44 px targets, visible focus, keyboard paging, `prefers-reduced-motion`, no red small text. Flux free + Phase 4 components.
 - Run `security-review` and `design:accessibility-review` on the branch.

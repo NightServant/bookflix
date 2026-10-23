@@ -10,12 +10,13 @@
 
 **Tech Stack:** `sentence-transformers` (CPU torch), `intfloat/multilingual-e5-small` (384 d, `query: ` / `passage: ` prefixes, D-11), scikit-learn, pgvector via `whereVectorSimilarTo`, Pest, pytest.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §18, §21, §25, §26, §47 (rule-based) (in-repo copy `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A8, A10, A11, A13, D-11, D-12, R6, R9, R11, Part E Phase 7.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §18, §21, §25, §26, §47 (rule-based). **Master plan:** A8, A10, A11, A13, D-11, D-12, R6, R9, R11, Part E Phase 7.
 
 **Depends on:** Phase 6 (`MlClient` jobs, `ml/` job runner + registry, `model_versions`, `ml_job_runs`, `RunMlJob`, `CandidateSource`, `HybridSearch`/`SearchLeg`/`Rrf`, `media_lsa_vectors`), Phase 3 (`ClassificationService`, `ClassifyMedia`, review queue), Phase 4 (search page).
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - Master-plan constraints apply (open-source only, Flux free, tests on Postgres, fixtures shared via `tests/Fixtures/ml-contracts/`, `Http::preventStrayRequests()`).
 - Embedding text: passages `"passage: " + title + description + genres + themes + tags + characters`; queries `"query: " + text`. 384 dims; vectors L2-normalized; cosine.
 - Semantic search timeout **300 ms**, query embeddings cached (key `q-embed:{model_version}:{sha1(normalized query)}`, 24 h), any failure → keyword-only results, never an exception.
@@ -84,7 +85,7 @@
 - Test: `tests/Unit/Discovery/RuleBasedQueryParserTest.php`, `tests/Feature/Discovery/NaturalLanguageSearchTest.php`
 
 **Interfaces:**
-- Produces (A7): `final readonly class QueryIntent { __construct(public array $mediaTypes = [], public array $genres = [], public array $themes = [], public array $deweyCodes = [], public ?string $lengthHint = null, public string $semanticText = '') }`; `interface QueryParser { public function parse(string $query): QueryIntent; }` (Phase 11 adds an LLM implementation behind it); `RuleBasedQueryParser` bound as default. Note: master plan A8 lists a Python `/v1/query/parse`; this plan keeps parsing in PHP (the vocabulary lives in Postgres) and does **not** add that endpoint — see report.
+- Produces (A7): `final readonly class QueryIntent { __construct(public array $mediaTypes = [], public array $genres = [], public array $themes = [], public array $deweyCodes = [], public ?string $lengthHint = null, public string $semanticText = '') }`; `interface QueryParser { public function parse(string $query): QueryIntent; }` (Phase 11 adds an LLM implementation behind it); `RuleBasedQueryParser` bound as default. Note: master plan A8 lists a Python `/v1/query/parse`; this plan keeps parsing in PHP (the vocabulary lives in Postgres) and does **not** add that endpoint (decision D-24).
 - Application rule: intent media types/genres/themes become SQL filters only when at least one result remains; otherwise they are dropped (progressive relaxation) and the chips show them as "suggested" instead of "applied". `semanticText` feeds the semantic leg; the original string feeds the keyword leg.
 
 - [ ] **Tests:**

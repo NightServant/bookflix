@@ -8,12 +8,13 @@
 
 **Tech Stack:** Laravel 13, Livewire 4 (`wire:sort`), Flux free, Pest on Postgres, queues (Redis/Horizon from Phase 2; `sync` in tests).
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §8, §33, §36, §38, §39 (ratings), §41, §44, §60 (in-repo: `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A6 "Library and signals" + `user_preferences`, A7 (`InteractionRecorder`), D-6, D-14, Part E Phase 5.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §8, §33, §36, §38, §39 (ratings), §41, §44, §60. **Master plan:** A6 "Library and signals" + `user_preferences`, A7 (`InteractionRecorder`), D-6, D-14, Part E Phase 5.
 
 **Depends on:** Phase 1 (`User::personalizationEnabled()`, `Visibility`, `profiles.onboarded_at`, `PurgeDeactivatedAccounts`, `access-admin`), Phase 2 (`Media`, `Deduplicator::merge`, `MediaType`, `Genre`), Phase 3 (`ClassShelves`), Phase 4 (`Shelf`, `HomeShelves`, component kit incl. `<x-rating-input>`, `<x-stepper>`, `<x-cover-tile>`, `<x-combobox>`, `search_queries`, `?sq=` result links, `stories.show` page).
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - Ratings are integers **1–10**, shown as 5 stars with half stars (D-14); `ratings.score` has a DB CHECK 1–10. `media.average_rating` stays on the 1–10 scale (decimal(4,2)); UI divides by 2.
 - Favorites are `user_library.favorited_at` (D-6): favoriting implies a library row (create `want_to_read` if absent).
 - Interactions: **no IP, no user agent**; `user_interactions` has no `updated_at`; opted-out users (`! $user->personalizationEnabled()`) generate **zero** rows; recorder is the only writer. Event names exactly (spec §44): `search, view, click, library_add, reading_start, reading_progress, reading_complete, favorite, rating, review, abandon, recommendation_click`.
@@ -162,7 +163,7 @@ test('visiting a story records view and a search click only for an opted in owne
 
 **Files:**
 - Create: `resources/views/pages/library/⚡index.blade.php`, `app/Policies`: Gate `view-library` in `AppServiceProvider`
-- Modify: `routes/web.php` (`Route::livewire('library', 'pages::library.index')->name('library')`), header nav + bottom-nav "Library"
+- Modify: `routes/web.php` (`Route::livewire('library', 'pages::library.index')->name('library')`), `config('bookflix.navigation')` (Library item, also in the bottom nav)
 - Test: `tests/Feature/Library/LibraryPageTest.php`
 
 **Interfaces:**
@@ -240,7 +241,7 @@ test('the library runs bounded queries', function () {
 
 **Files:**
 - Create: migration `2026_10_26_000003_create_collections_tables.php` (A6 `collections`, `collection_items` with `unique(collection_id, media_id)`, index `(collection_id, position)`), models `Collection`, `CollectionItem` + factories, `app/Policies/CollectionPolicy.php`, pages `collections/⚡index.blade.php` (list + create), `collections/⚡show.blade.php` (view/edit, add/remove items, reorder, visibility, editorial toggle for admins)
-- Modify: `routes/web.php` (`collections.index`, `collections.show` → `collections/{slug}`), nav ("Collections" is desktop-only per D-13; under Library on mobile), `<x-library-controls>` ("Add to collection" dropdown)
+- Modify: `routes/web.php` (`collections.index`, `collections.show` → `collections/{slug}`), `config('bookflix.navigation')` (Collections, desktop only per D-13; reachable under Library on mobile), `<x-library-controls>` ("Add to collection" dropdown)
 - Test: `tests/Feature/Library/CollectionsTest.php`
 
 **Interfaces:**
@@ -456,7 +457,7 @@ test('the component shows only the signed in users rating', function () {
 ### Task 5.6: History page
 
 **Files:**
-- Create: `resources/views/pages/history/⚡index.blade.php`; Modify: `routes/web.php` (`history`), nav desktop item (mobile: under Library)
+- Create: `resources/views/pages/history/⚡index.blade.php`; Modify: `routes/web.php` (`history`), `config('bookflix.navigation')` (History, desktop only; reachable under Library on mobile)
 - Test: `tests/Feature/Library/HistoryPageTest.php`
 
 **Interfaces:** consumes `ReadingSession`. Produces: paginated sessions newest first, grouped by day, each with title, percent range, formatted duration; header shows total time (`CarbonInterval::seconds($total)->cascade()->forHumans(short: true)`).
@@ -649,4 +650,4 @@ test('collection items for both media in one collection collapse to one', functi
 ## Self-review notes
 - Spec coverage: §36 (5.1–5.3), §38 (5.4, 5.6), §39 ratings (5.5), §41 (5.8), §44 (5.1), §60 export/minimization (5.7, 5.1), §33 onboarding (5.8).
 - Numbering follows the master plan references (5.1 recorder, 5.4/5.6 history, 5.5 ratings, 5.7 export, 5.8 onboarding); 5.9 is added.
-- Additions flagged in the report: `LibraryChanged` event (Phase 6 cache hook), `Gate view-library`, morph map, `EnsureOnboarded` middleware (touches Phase 1 tests), `DataExportReady` notification.
+- Additions recorded in master plan decisions D-19–D-28: `LibraryChanged` event (Phase 6 cache hook), `Gate view-library`, morph map, `EnsureOnboarded` middleware (touches Phase 1 tests), `DataExportReady` notification.

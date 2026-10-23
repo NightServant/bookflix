@@ -8,12 +8,13 @@
 
 **Tech Stack:** Laravel 13, Postgres (`varchar_pattern_ops` index), Livewire 4 + Flux free, Pest.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §11–§19, §49 (in-repo: `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A6 classification block, A7 services, A10, Part E Phase 3.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §11–§19, §49. **Master plan:** A6 classification block, A7 services, A10, Part E Phase 3.
 
 **Depends on:** Phase 1 (`access-admin`, `routes/admin.php`, `config/bookflix.php`), Phase 2 (`Media`, `IngestionPipeline`, `NormalizedMedia.externalDeweyCode`, `ImportMediaRecord`, queue `ingestion`).
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - The layer is **"Dewey-inspired"**, never "DDC" or "official" in UI copy, code comments shown to users, or docs (§11, R3). Class names are Bookflix's own wording, written in-house into the CSV.
 - Classification is **not genre**: never derive `genres` from Dewey or vice-versa (§14).
 - Automatic rows start `review_status = pending`; public site shows `accepted` + `pending` with `confidence >= config('bookflix.classification.public_min_confidence')` (0.80). `rejected` never shows (A10).
@@ -272,7 +273,7 @@ test('classify media persists pending rows with confidence and source', function
 
 **Files:**
 - Create: `app/Classification/DeweyCounts.php`, `resources/views/pages/explore/⚡index.blade.php`, `resources/views/pages/explore/⚡show.blade.php`, `resources/views/components/dewey-breadcrumb.blade.php`
-- Modify: `routes/web.php` (auth + verified group: `Route::livewire('explore', 'pages::explore.index')->name('explore.index')`, `Route::livewire('explore/{code}', 'pages::explore.show')->name('explore.show')->where('code', '[0-9]{3}(\.[0-9]+)?')`), no nav item (D-13: the desktop nav is the 7 fixed items and Explore is entered from Discover and Home in Phase 4; until then use the URL; a temporary link from `pages/admin/⚡index.blade.php` is not needed)
+- Modify: `routes/web.php` (auth + verified group: `Route::livewire('explore', 'pages::explore.index')->name('explore.index')`, `Route::livewire('explore/{code}', 'pages::explore.show')->name('explore.show')->where('code', '[0-9]{3}(\.[0-9]+)?')`), no nav item and no `config('bookflix.navigation')` change (D-13: the desktop nav is the 7 fixed items and Explore is entered from Discover and Home in Phase 4; until then use the URL; a temporary link from `pages/admin/⚡index.blade.php` is not needed)
 - Test: `tests/Feature/Classification/ExploreTest.php`
 
 **Interfaces:**
@@ -486,4 +487,4 @@ test('coverage reports the share of media with a public primary class', function
 
 ## Self-review notes
 - Spec coverage: §11–§13 (3.1–3.2), §14–§15 (3.3), §16 (3.4), §17 (3.5), §18 rules half (3.3; ML half is Phase 7.6), §19 (3.6), §49 service boundary (3.2/3.3).
-- Names match master plan A7 (`DeweyHierarchy`, `DeweyResolver`, `DeweyMapper`, `DeweyValidator`, `ClassificationService::{classify,assign,accept,reject,replace}`, `ClassificationCandidate`). Deviations (flagged in the report): `classify`/`apply` take an optional `?string $externalCode`; `741.52–741.59` are Bookflix-defined section codes.
+- Names match master plan A7 (`DeweyHierarchy`, `DeweyResolver`, `DeweyMapper`, `DeweyValidator`, `ClassificationService::{classify,assign,accept,reject,replace}`, `ClassificationCandidate`). Deviations (recorded in master plan decisions D-19–D-28): `classify`/`apply` take an optional `?string $externalCode`; `741.52–741.59` are Bookflix-defined section codes.

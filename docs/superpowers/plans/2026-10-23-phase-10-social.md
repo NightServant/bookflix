@@ -10,12 +10,13 @@
 
 **Tech Stack:** Laravel 13, Livewire 4, Flux free, `Str::markdown` with HTML stripped (EasyMDE optional, MIT), Pest, the Phase 7 summarizer.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §39 (reviews), §40, §43 (reviews/reports), §59, §60 (in-repo copy `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A6 Social (`reviews`, `reports`, `follows`), A12, A16, Q14, Part E Phase 10.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §39 (reviews), §40, §43 (reviews/reports), §59, §60. **Master plan:** A6 Social (`reviews`, `reports`, `follows`), A12, A16, Q14, Part E Phase 10.
 
 **Depends on:** Phase 1 (`Visibility`, `profiles`, `User::active()`, `access-admin`), Phase 5 (`Gate view-library`, collections visibility, `RateMedia`, `InteractionRecorder` incl. `review` event weight 4, morph map), Phase 6 (`CandidateSource`, `ReasonType`, `RecommendationServiceProvider`), Phase 7 (`MlClient::summarize`).
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - Private by default; public visibility is an explicit user choice per profile and per library. A private profile/library is invisible to everyone but the owner (and admins in moderation context only).
 - **Deactivated users are invisible**: profile, library, reviews, follows, activity, recommendations. Use `User::active()` / `isDeactivated()` in every query; never expose them via old URLs (404).
 - Reviews: Markdown input rendered with HTML stripped (`Str::markdown($text, ['html_input' => 'strip', 'allow_unsafe_links' => false])`); max 5 000 chars; `has_spoilers` hides the body behind a "Show spoilers" control; one review per user × story (`unique(user_id, media_id)`); soft-deleted by author; `status` `published|hidden`.
@@ -38,8 +39,8 @@
 ### Task 10.1: Public profiles and libraries
 
 **Files:**
-- Create: migration `add_handle_to_profiles_table` (`handle string(32) null unique`, lowercase `[a-z0-9_]`, **not in A6 — public URLs need a stable public identifier**, flagged), `app/Policies/ProfilePolicy.php` (Gate `view-profile` mirroring `view-library`), `resources/views/pages/profile/⚡show.blade.php` (route `profile.show` → `/u/{handle}`), `resources/views/pages/profile/⚡library.blade.php` (`/u/{handle}/library`), settings field for the handle in `settings/profile`
-- Modify: `routes/web.php`, nav "Profile" item (own profile), sitemap exclusion for private profiles
+- Create: migration `add_handle_to_profiles_table` (`handle string(32) null unique`, lowercase `[a-z0-9_]`, **not in A6 — public URLs need a stable public identifier**), `app/Policies/ProfilePolicy.php` (Gate `view-profile` mirroring `view-library`), `resources/views/pages/profile/⚡show.blade.php` (route `profile.show` → `/u/{handle}`), `resources/views/pages/profile/⚡library.blade.php` (`/u/{handle}/library`), settings field for the handle in `settings/profile`
+- Modify: `routes/web.php`, the existing Profile item in `config('bookflix.navigation')` pointing at the own public profile when a handle is set, sitemap exclusion for private profiles
 - Test: `tests/Feature/Social/{ProfileVisibilityTest,HandleTest}.php`
 
 **Interfaces:** `Gate::allows('view-profile', $owner)` = owner, or (`profile_visibility = public` and `! $owner->isDeactivated()`); library uses Phase 5's `view-library`. Public profile shows display name, avatar, bio, counts (followers/following of **active** users), favorite genres, recent public reviews, public collections; **never** email, preferences weights, interactions, progress or ratings unless the library is public (ratings then appear on the library page only).
@@ -96,7 +97,7 @@
 
 ### Task 10.7: Activity feed and social recommendation source (Review Focus #1, #2)
 
-**Files:** `app/Social/ActivityFeed.php`, `resources/views/pages/home/…` optional "Friends" shelf is **not** added; feed page `resources/views/pages/activity/⚡index.blade.php` (route `activity`), `app/Discovery/Recommendations/Sources/FollowedReadersSource.php`, `ReasonType::PopularWithFollowed` + template "Popular with readers you follow" (A6 enum gains a value — migration alters the check/enum, flagged), `RecommendationServiceProvider` tag
+**Files:** `app/Social/ActivityFeed.php`, `resources/views/pages/home/…` optional "Friends" shelf is **not** added; feed page `resources/views/pages/activity/⚡index.blade.php` (route `activity`), `app/Discovery/Recommendations/Sources/FollowedReadersSource.php`, `ReasonType::PopularWithFollowed` + template "Popular with readers you follow" (A6 enum gains a value — migration alters the check/enum), `RecommendationServiceProvider` tag
 **Interfaces:** `ActivityFeed::for(User $viewer, int $perPage = 20): LengthAwarePaginator` — events from users the viewer follows who are active **and** whose relevant visibility is public: finished a book (library `completed`), rated (library public only), published a non-spoiler review, created a public collection; derived from existing tables (no new table), ordered by timestamp desc, cursor-safe. `FollowedReadersSource` key `followed_readers`: stories completed or rated ≥ 8 by followed, active, **library-public** users, scored by distinct followers count, excluding the viewer's library; reason `PopularWithFollowed`, payload carries the count (never names).
 - [ ] **Tests:** `feed only includes followed active users with public visibility`; `owner switching library to private removes their items from others' feeds at once (no cache staleness)`; `spoiler review shown as "reviewed X (spoilers hidden)"`; `hidden reviews excluded`; `deactivated user excluded`; `no follows → empty state`; `pagination stable under inserts`; `source returns nothing for private libraries / opted-out viewers? — opted-out viewers still see it if they follow people (their own data isn't used); documented` ; `source excludes viewer's library, dismissed items`; `explanation never reveals who`; `query count bounded (≤ 8)`.
 - [ ] **Commit:** `feat: activity feed and followed readers source`
@@ -105,7 +106,7 @@
 
 ### Task 10.8 (lowest priority, optional): Per-story discussions
 
-**Files:** migrations `discussion_threads` (`media_id`, `user_id`, `title`, `status`, `locked_at`), `discussion_posts` (`thread_id`, `user_id`, `body`, `status`, `softDeletes`) — **not in A6** — models, policies, `pages/stories/⚡discussion.blade.php` (story tab), report integration (add `discussion_post` to the morph map)
+**Files:** migrations `discussion_threads` (`media_id`, `user_id`, `title`, `status`, `locked_at`), `discussion_posts` (`thread_id`, `user_id`, `body`, `status`, `softDeletes`) — (D-25) models, policies, `pages/stories/⚡discussion.blade.php` (story tab), report integration (add `discussion_post` to the morph map)
 **Interfaces:** same safety rules as reviews (`Markdown::safe`, rate limits, `User::active()`, hidden excluded); admins can lock threads; spoiler flag per post.
 - [ ] **Tests:** create/reply/edit/delete policies; XSS dataset reused; locked thread rejects replies; hidden/deactivated excluded; reportable; pagination; rate limit.
 - [ ] **Commit:** `feat: story discussions` — build only after 10.1–10.7 prove out; otherwise record "deferred" in the decision log.

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, FastAPI, scikit-learn, NumPy, SciPy, pandas, `implicit`, psycopg[binary], pgvector, joblib, boto3; pytest, ruff, mypy; Laravel 13, Pest on Postgres, Livewire 4.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §22–§24, §27–§29, §31–§35, §45, §63 (in-repo: `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A6 intelligence block, A7, A8, A11, A12, D-15, Part E Phase 6.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §22–§24, §27–§29, §31–§35, §45, §63. **Master plan:** A6 intelligence block, A7, A8, A11, A12, D-15, Part E Phase 6.
 
 > **Before starting:** `backend-architect` agent reviews A12 and this plan (master plan B4/B6). F4 personalized-home screens signed off (F6) before the UI part of 6.8.
 
@@ -16,6 +16,7 @@
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - Expensive ML never runs in a user request (§61). The request path reads Postgres + cache only; ML calls happen in queued jobs.
 - Implicit-feedback weights, in `model_versions` row `name = interaction-weights` (D-15): view 1 · click 1 · recommendation_click 1.5 · library_add 3 · reading_start 4 · reading_progress 0.5 per 10% (0.05 × percent-point `value`) · reading_complete 8 · favorite 6 · rating (score − 5.5) × 1.2 · review 4 · abandon −4 · search 0; decay half-life 90 days.
 - Hybrid weights (row `hybrid-weights`): content 0.30, collaborative 0.25, dewey 0.10, popularity 0.10, freshness 0.05, preference 0.15, novelty 0.05, context 0. Every feature normalized to [0, 1]; missing feature = 0; final score in [0, 1].
@@ -25,7 +26,7 @@
 - Python uses `DATABASE_URL` (direct Neon URL, not the pooler); batches commit in chunks.
 - Candidate promotion gate: promote only if NDCG@10 falls ≤ 2% (relative) and coverage does not fall vs the active version; no active version → promote.
 - Explanations: "Because you read {title}", "Similar themes to {title}", "Popular with readers who enjoyed {title}", "Matches your interest in {genre}". No reason / missing placeholder → no label.
-- Opted-out users get cold-start (non-personalized) shelves only and no `recommendations` rows (interpretation of §41/§60 — see report).
+- Opted-out users get cold-start (non-personalized) shelves only and no `recommendations` rows (D-28).
 - Shelf order and copy: master plan A12 table. Trending Now is the **only** gradient shelf. Home ≤ 25 queries.
 - Python quality gate per task: `cd ml && uv run ruff check . && uv run mypy . && uv run pytest`; PHP gate: `composer test`.
 
@@ -54,7 +55,7 @@ app/Listeners/ForgetHomeShelves.php   resources/views/pages/admin/models/⚡inde
 ### Task 6.0: Intelligence schema, model versions, ML job contracts
 
 **Files:**
-- Create: migrations `2026_11_02_000001_create_intelligence_tables.php` — A6 `model_versions` (unique `(name, version)`, raw partial unique `create unique index model_versions_one_active on model_versions (name) where status = 'active'`), `media_features`, `media_lsa_vectors` (`vector('vector', 200)`, `create index … using hnsw (vector vector_cosine_ops)`), `media_similarities` (PK `(media_id, method, similar_media_id)`, index `(media_id, method, score desc)`), `recommendations`, `recommendation_events` ; `2026_11_02_000002_create_media_popularity_view.php` (materialized view + `create unique index media_popularity_media_id on media_popularity (media_id)`); `2026_11_02_000003_create_ml_job_runs_table.php` (`name`, `run_id` string null, `status` enum(queued, running, succeeded, failed), `params` jsonb, `metrics` jsonb null, `error` text null, `started_at`, `finished_at` null — **not in A6**, see report)
+- Create: migrations `2026_11_02_000001_create_intelligence_tables.php` — A6 `model_versions` (unique `(name, version)`, raw partial unique `create unique index model_versions_one_active on model_versions (name) where status = 'active'`), `media_features`, `media_lsa_vectors` (`vector('vector', 200)`, `create index … using hnsw (vector vector_cosine_ops)`), `media_similarities` (PK `(media_id, method, similar_media_id)`, index `(media_id, method, score desc)`), `recommendations`, `recommendation_events` ; `2026_11_02_000002_create_media_popularity_view.php` (materialized view + `create unique index media_popularity_media_id on media_popularity (media_id)`); `2026_11_02_000003_create_ml_job_runs_table.php` (`name`, `run_id` string null, `status` enum(queued, running, succeeded, failed), `params` jsonb, `metrics` jsonb null, `error` text null, `started_at`, `finished_at` null — (D-25) master plan D-25/D-28)
 - Create: enums `ModelKind` (Lsa, Embedding, ItemCf, Als, Ltr, DeweyClassifier, HybridWeights, InteractionWeights → snake_case values), `ModelStatus` (Training, Candidate, Active, Retired), `ReasonType` (BecauseYouRead, SimilarThemes, PopularWithSimilarReaders, MatchesInterest, Trending, Editorial, NewRelease, Exploration), `RecommendationEventType` (Impression, Click, Dismiss, LibraryAdd); models `ModelVersion` (`scopeActive(Builder, string $name)`, `static activeFor(string $name): ?self`), `MediaSimilarity`, `Recommendation`, `RecommendationEvent`, `MlJobRun` + factories; `database/seeders/ModelVersionSeeder.php`; `config/bookflix.php` (`interaction_weights` and `hybrid_weights` arrays as in Global Constraints, `recommendations.{cache_minutes=10,cold_start_min_interactions=5,epsilon=0.10}`)
 - Modify: `app/Ml/MlClient.php` (`startJob`, `job`), `database/seeders/DatabaseSeeder.php`
 - Create fixtures: `tests/Fixtures/ml-contracts/{jobs-start.json,job-succeeded.json,job-failed.json}`
@@ -109,13 +110,13 @@ test('the columns the python service reads exist', function () {
 ```php
 // MlClientJobsTest
 test('start job posts params and returns the run id', function () {
-    config(['services.ml.url' => 'http://ml.test', 'services.ml.token' => 's']);
+    config(['services.ml.url' => 'http://ml.test', 'services.ml.token' => str_repeat('s', 32)]);
     Http::fake(['ml.test/v1/jobs/train-lsa' => Http::response(contract('jobs-start.json'), 202)]);
     expect(app(MlClient::class)->startJob('train-lsa', ['components' => 200]))->toBe(contract('jobs-start.json')['run_id']);
     Http::assertSent(fn ($r) => $r['params'] === ['components' => 200]);
 });
 test('job status maps the contract and non 2xx throws', function () {
-    config(['services.ml.url' => 'http://ml.test', 'services.ml.token' => 's']);
+    config(['services.ml.url' => 'http://ml.test', 'services.ml.token' => str_repeat('s', 32)]);
     Http::fake(['ml.test/v1/jobs/abc' => Http::response(contract('job-failed.json'))]);
     expect(app(MlClient::class)->job('abc')['status'])->toBe('failed');
     Http::fake(['ml.test/v1/jobs/*' => Http::response(null, 500)]);
@@ -749,4 +750,4 @@ def test_a_failing_evaluation_leaves_versions_untouched(db): ...
 
 ## Self-review notes
 - Spec coverage: §22–§24 (6.1), §27 (6.2), §28/§29 (6.4–6.5), §31/§32 (6.6), §33 cold start (6.8), §34 (6.7), §35 (6.8), §45 baseline (6.10), §63 versioning (6.0–6.2, 6.10).
-- Names match master plan A7/A12 (`CandidateSource`, `Candidate`, `HybridRanker::rank`, `RankingWeights`, `Diversifier::rerank`, `ShelfBuilder::forHome`, `RankedItem`). Additions flagged in the report: Task 6.0, `ml_job_runs`, `Candidate::$payload`, `CandidatePool`, `SeedItems`, `RecommendationLogger`, the "one slot in ten" reading of ε-greedy, opted-out users get cold-start only, Python `refresh-popularity` kept per A8.
+- Names match master plan A7/A12 (`CandidateSource`, `Candidate`, `HybridRanker::rank`, `RankingWeights`, `Diversifier::rerank`, `ShelfBuilder::forHome`, `RankedItem`). Additions recorded in master plan decisions D-19–D-28: Task 6.0, `ml_job_runs`, `Candidate::$payload`, `CandidatePool`, `SeedItems`, `RecommendationLogger`, the "one slot in ten" reading of ε-greedy, opted-out users get cold-start only, Python `refresh-popularity` kept per A8.

@@ -8,12 +8,13 @@
 
 **Tech Stack:** Laravel 13, Pest on Postgres, `laravel/horizon`, Livewire 4 + Flux free, `Http::fake` with recorded fixtures.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` (in-repo copy: `docs/superpowers/specs/bookflix-specification.md`) §5, §9, §10, §42, §43. **Master plan:** `docs/superpowers/plans/2026-10-22-bookflix-master-plan.md` (A6 catalog block, A7, A9, Part E Phase 2).
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §5, §9, §10, §42, §43. **Master plan:** `docs/superpowers/plans/2026-10-22-bookflix-master-plan.md` (A6 catalog block, A7, A9, Part E Phase 2).
 
 **Depends on Phase 1:** `User::factory()->admin()`, Gate `access-admin`, `routes/admin.php` (prefix `admin`, name `admin.`), `config/bookflix.php`, `Http::preventStrayRequests()` in Feature tests, `tests/Fixtures/`.
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 All master-plan Global Constraints apply (Flux free only, open-source additions only, single-file Livewire pages `resources/views/pages/<area>/⚡<name>.blade.php` + `Route::livewire(...)`, tests on Postgres, `php artisan make:* --no-interaction`, Pint after PHP edits, `search-docs` before using Horizon/rate-limiting/queue APIs).
 - Skip provider records with `isAdult = true` (Q15). Metadata only; never chapter images (MangaDex, 2b).
 - `media.locked_fields` fields are never overwritten by sync. Field precedence: admin-locked > existing > provider priority (A9).
@@ -32,7 +33,7 @@ All master-plan Global Constraints apply (Flux free only, open-source additions 
 ## File structure
 
 ```text
-app/Catalog/Data/{ProviderRecord,NormalizedMedia,NormalizedCreator,ImportOutcome}.php
+app/Catalog/Data/{ProviderRecord,NormalizedMedia,NormalizedCreator}.php
 app/Catalog/Providers/{MetadataProvider.php, OpenLibrary/OpenLibraryProvider.php, AniList/AniListProvider.php}
 app/Catalog/Ingestion/{IngestionPipeline,RecordValidator,TaxonomyMapper,Deduplicator,Enricher}.php
 app/Jobs/{SyncProvider,ImportMediaRecord}.php
@@ -261,7 +262,7 @@ test('a 429 surfaces as a RateLimitedByProvider exception carrying retry-after',
 
 **Interfaces:**
 - Consumes: `NormalizedMedia`, `Media`, `MediaExternalId`, `DuplicateCandidate`.
-- Produces (A7): `Deduplicator::match(NormalizedMedia $media): ?Media` and `Deduplicator::merge(Media $winner, Media $loser): void`; additionally `Deduplicator::candidates(NormalizedMedia $media): Collection<int, array{media: Media, score: float}>` (the 0.75–0.90 band) used by the pipeline to write `duplicate_candidates`. Title normalization: `unaccent` + lowercase + strip punctuation, trigram via `similarity()`.
+- Produces (A7): `Deduplicator::match(NormalizedMedia $media): ?Media` and `Deduplicator::merge(Media $winner, Media $loser): void`; additionally `Deduplicator::candidates(NormalizedMedia $media): Collection<int, array{media: Media, score: float}>` (every same-family match with title similarity ≥ 0.75 that did **not** qualify for auto-merge — this includes ≥ 0.90 without a shared creator or year within ±1, per decision D-21) used by the pipeline to write `duplicate_candidates`. Title normalization: `unaccent` + lowercase + strip punctuation, trigram via `similarity()`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -293,11 +294,12 @@ test('monster the manga and an unrelated novel called monster never merge', func
         ->and(app(Deduplicator::class)->candidates($novel))->toBeEmpty();
 });
 
-test('same title and creator but a different year beyond the window does not auto merge', function () {
+test('same title and creator but a different year beyond the window does not auto merge but becomes a review candidate (D-21)', function () {
     $existing = Media::factory()->create(['title' => 'Akira', 'publication_year' => 1982]);
     $existing->creators()->attach(Creator::factory()->create(['name' => 'Katsuhiro Otomo']), ['role' => 'author', 'position' => 0]);
 
     expect(app(Deduplicator::class)->match(normalized(title: 'Akira', year: 2001, creators: ['Katsuhiro Otomo'])))->toBeNull();
+    expect(app(Deduplicator::class)->candidates(normalized(title: 'Akira', year: 2001, creators: ['Katsuhiro Otomo'])))->toHaveCount(1);
 });
 
 test('similarity between 0.75 and 0.90 is returned as a review candidate', function () {
@@ -330,7 +332,7 @@ test('merge moves external ids pivots and relations and soft deletes the loser',
 ### Task 2.6: `IngestionPipeline`, validator, taxonomy mapper, enricher, `ImportMediaRecord` (Review Focus #3, #5)
 
 **Files:**
-- Create: `app/Catalog/Ingestion/{IngestionPipeline,RecordValidator,TaxonomyMapper,Enricher}.php`, `app/Catalog/Data/ImportOutcome.php` is the enum `app/Enums/ImportOutcome.php` (`Created`, `Updated`, `Merged`, `Skipped`), `app/Jobs/ImportMediaRecord.php`, `database/data/taxonomy/openlibrary.csv` + `anilist.csv` (`provider_term,kind,bookflix_slug`, kind ∈ genre|theme|tag)
+- Create: `app/Catalog/Ingestion/{IngestionPipeline,RecordValidator,TaxonomyMapper,Enricher}.php`, enum `app/Enums/ImportOutcome.php` (`Created`, `Updated`, `Merged`, `Skipped`), `app/Jobs/ImportMediaRecord.php`, `database/data/taxonomy/openlibrary.csv` + `anilist.csv` (`provider_term,kind,bookflix_slug`, kind ∈ genre|theme|tag)
 - Test: `tests/Feature/Catalog/IngestionPipelineTest.php`
 
 **Interfaces:**
@@ -560,6 +562,14 @@ test('dismissing a candidate keeps both records', function () {
 
 ---
 
+### Task 2.10: Admin users list (spec §43 "Users")
+
+**Files:** Create `resources/views/pages/admin/users/⚡index.blade.php`; Modify `routes/admin.php` (`admin.users`), admin index links; Test `tests/Feature/Admin/AdminUsersTest.php`
+**Interfaces:** read-only paginated list (25/page) with search by email/name, columns name, email, joined, verified, admin flag, status (active/deactivated with date); no edit/delete actions (grant admin stays the artisan command); `access-admin` only; never shows password/2FA data.
+- [ ] **Tests:** `non admins 403`; `admin sees active and deactivated users with the right status`; `search narrows by email and name`; `pagination at 25`; `no passwords, remember tokens or two-factor secrets in the HTML`; `query count bounded`. **Commit:** `feat: admin users list`
+
+---
+
 ### Task 2.9 (2b, parallelizable): MangaDex, Metron, VNDB, Taddy adapters
 
 **Files (one subagent per adapter, independent):** `app/Catalog/Providers/{MangaDex,Metron,Vndb,Taddy}/*Provider.php`, fixtures, `tests/Feature/Catalog/<Name>ProviderTest.php`; `config/bookflix.php` provider blocks; `.env.example` (`METRON_USERNAME`, `METRON_PASSWORD`, `VNDB_API_TOKEN`, `TADDY_API_KEY`, `TADDY_USER_ID`); `ExternalSourceSeeder` rows; scheduler lines (disabled by default).
@@ -584,4 +594,4 @@ Commit per adapter: `feat: <name> provider adapter`.
 
 ## Self-review notes
 - Spec coverage: §5 providers (2.3, 2.4, 2.9), §9 catalog fields (2.1), §10 series (2.1), §42 pipeline (2.6, 2.7), §43 admin media/merge/remove (2.8). Classify/NLP/embedding steps of §42 are deliberately deferred (Phases 3, 6, 7).
-- Names match master plan A6/A7/A9. Additions beyond A6, flagged in the report: `media.merged_into_id`; ISBNs stored as `media_external_ids` under synthetic source `isbn`.
+- Names match master plan A6/A7/A9. Additions beyond A6, recorded in master plan decisions D-19–D-28: `media.merged_into_id`; ISBNs stored as `media_external_ids` under synthetic source `isbn`.

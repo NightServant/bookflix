@@ -8,7 +8,7 @@
 
 **Tech Stack:** Laravel Scout (database engine), Postgres FTS + `pg_trgm` + `unaccent`, Livewire 4, Flux free, Alpine + `@alpinejs/ui`, Motion (free core), noUiSlider, Pest + `pest-plugin-browser`.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §20, §21 (keyword leg), §35/§52 (non-personal shelves), §46, §51 (in-repo copy: `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A13, C2/C5/C6, Part E Phase 4.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §20, §21 (keyword leg), §35/§52 (non-personal shelves), §46, §51. **Master plan:** A13, C2/C5/C6, Part E Phase 4.
 
 > **Refresh against the code at phase start for the UI parts:** Figma F4/F5 discovery screens must be signed off (F6) before the UI tasks (4.0b onward). Use `figma:figma-design-to-code` before any `get_design_context`.
 
@@ -16,11 +16,12 @@
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - Master-plan constraints apply: Flux **free** only; every added library is MIT/Apache-2.0/ISC/OFL; Motion free core, vanilla API, via Alpine directives; hover/focus by CSS transitions; all animation checks `prefers-reduced-motion`; only `transform`/`opacity` animate; third-party DOM inside `wire:ignore`; stable `wire:key`; init in Alpine `x-init`.
 - Tokens only (C2): no raw hex in Blade/CSS outside `resources/css/app.css`; red `#e50914` only for primary CTAs, active accents and the logo; **Trending Now is the only gradient shelf**; no shadows; radii 0/4/8/16; 44 px touch targets; visible focus ring; red/electric-blue never used as small text colour.
 - Animated wrappers: `x-motion-*` directives from `resources/js/motion.js`; motion constants mirror CSS custom properties (fast 150 / base 250 / slow 400 ms; spring stiffness 300, damping 30).
 - Copied markup (Pines/Basecoat/APG) keeps its MIT license header. Record each added library's license in master plan G2 when merging.
-- All new pages live in the `auth` + `verified` route group (the app has no guest pages besides landing/auth); queries must not depend on the user so a public home can be opened later.
+- All new pages live in the `auth` + `verified` route group (the app has no guest pages besides landing/auth). "Guest-safe" in this phase means the queries do not depend on the user, so a public home could be opened later; it does not mean guests can load the page (decision D-26).
 - Search legs apply filters in SQL **before** fusion. Dewey filtering uses `MediaDeweyClass::scopePublic` only.
 - `Model::preventLazyLoading(! app()->isProduction())` is on (add to `AppServiceProvider` in 4.0a if Phase 1 hasn't).
 - Dependencies awaiting approval (A4): `laravel/scout`, `motion`, `@alpinejs/ui`, `nouislider`, `pestphp/pest-plugin-browser` (+ Playwright). Confirm they were approved before Task 4.0a.
@@ -271,8 +272,8 @@ test('rejected or low confidence dewey rows do not satisfy a dewey filter', func
 ### Task 4.3: Search page, `search_queries` logging and click-through (Review Focus #3)
 
 **Files:**
-- Create: migration `2026_10_25_000002_create_search_queries_table.php` (A6 `search_queries`; **the table is created now** because A6 lists it under Phase 5 but task 4.3 needs it), `app/Models/SearchQuery.php` + factory, `resources/views/pages/search/⚡index.blade.php`, `app/Discovery/Search/SearchLogger.php`
-- Modify: `routes/web.php` (`Route::livewire('search', 'pages::search.index')->name('search')`), `layouts/app/header.blade.php` (Search nav item + `<x-command-palette>` trigger), `components/bottom-nav.blade.php` (Search item)
+- Create: migration `2026_10_25_000002_create_search_queries_table.php` (A6 `search_queries`, created in this phase per D-22), `app/Models/SearchQuery.php` + factory, `resources/views/pages/search/⚡index.blade.php`, `app/Discovery/Search/SearchLogger.php`
+- Modify: `routes/web.php` (`Route::livewire('search', 'pages::search.index')->name('search')`), `config/bookflix.php` `navigation` (add the Search item; it also appears in the bottom nav), `layouts/app/header.blade.php` (only the `<x-command-palette>` trigger)
 - Test: `tests/Feature/Discovery/SearchPageTest.php`
 
 **Interfaces:**
@@ -437,7 +438,7 @@ test('items without a position come last and an unknown series is 404', function
 ### Task 4.6: Discover page
 
 **Files:**
-- Create: `resources/views/pages/discover/⚡index.blade.php`; Modify: `routes/web.php` (`discover`), nav (header + bottom-nav Discover item)
+- Create: `resources/views/pages/discover/⚡index.blade.php`; Modify: `routes/web.php` (`discover`), `config('bookflix.navigation')` (add the Discover item)
 - Test: `tests/Feature/Discovery/DiscoverPageTest.php`
 
 **Interfaces:** consumes `HybridSearch::browse`, `MediaFamily`, `DeweyCounts`. Produces route `discover`; `#[Url] ?string $family` (prose|sequential_art|illustrated|interactive), `#[Url] ?string $type` (media type slug), `#[Url] ?string $genre`; sections: media-type tiles with counts, top genres, "Explore by subject" row linking to `explore.index`.
@@ -560,4 +561,4 @@ test('the command palette opens with the keyboard and closes with escape', funct
 
 ## Self-review notes
 - Spec coverage: §20 (4.1–4.2), §21 keyword/Dewey legs (4.1), §46 (4.3), §35/§52 non-personal shelves (4.7), §51 components (4.0b).
-- Deviations from the master plan, flagged in the report: `search_queries` created in Phase 4 (A6 lists it under Phase 5); `SearchLeg` interface + two legs; `immutable_unaccent` wrapper + accent-folded `search_text`; interim `Media::scopeTrending()` because `media_popularity` only exists in Phase 6; click-through is a `?sq=` URL parameter until Phase 5's `InteractionRecorder`.
+- Master plan decisions applied: D-22 (`search_queries` created in Phase 4), D-23 (interim trending), D-26; `SearchLeg` interface + two legs; `immutable_unaccent` wrapper + accent-folded `search_text`; interim `Media::scopeTrending()` because `media_popularity` only exists in Phase 6; click-through is a `?sq=` URL parameter until Phase 5's `InteractionRecorder`.

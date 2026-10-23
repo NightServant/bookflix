@@ -8,7 +8,7 @@
 
 **Tech Stack:** PHP 8.4 · Laravel 13.38 · Livewire 4.4 · Flux 2.21 (free edition) · Fortify 1.41 · Alpine 3.17 + `@alpinejs/ui` · Tailwind 4 · Motion (motion.dev, vanilla JS API) · Vite 8 · Pest 5.3 · Larastan 3.13 (level 7) · Pint · Neon Postgres + pgvector · Redis + Horizon (from Phase 2) · Laravel Scout (database engine, from Phase 4) · S3-compatible storage (R2/S3) · Python 3.12 · FastAPI · scikit-learn · NumPy · pandas · sentence-transformers · implicit · LightGBM (Phase 8) · uv · pytest · ruff · mypy · Figma (MCP) for design.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md`. Task 1.1 copies it to `docs/superpowers/specs/bookflix-specification.md` so executors can read it from inside the repo. Section references below (§N) point to it.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md`. The repo is public, so the spec is **not** copied into it (decision D-27); executors read it at that absolute local path. Section references below (§N) point to it.
 
 **Design reference:** Figma "Netflix Design System 2024 (Website ver.)": file key `vHWecJSYA5Afuwr0ntLzbA` (pages: UI Kit `0:1`, Screen Templates `212:22353`, Cover `3:77`).
 
@@ -44,6 +44,7 @@ Every task follows these. Values are copied from the spec or the repo.
 - Vectors use Laravel 13's built-in support, confirmed in `vendor/laravel/framework`: `Schema::ensureVectorExtensionExists()`, `$table->vector($column, $dimensions)` with HNSW `vector_cosine_ops` indexes, and `whereVectorSimilarTo($column, $vector, $minSimilarity = 0.6)`. No pgvector PHP package.
 - Use `php artisan make:* --no-interaction` to create files. Run `vendor/bin/pint --dirty --format agent` after PHP edits. Run `search-docs` (Boost) before relying on any Laravel-ecosystem API.
 - No new Composer/npm/Python dependencies and no new top-level folders unless approved. The list awaiting approval is in A4.
+- Primary navigation lives once in `config('bookflix.navigation')`; later phases add items there, not to the layouts. Red (Flux `primary`) is for CTAs only; Save buttons in settings/admin use `variant="filled"`. Livewire temporary uploads never use a public disk.
 - Design tokens (§51): red `#e50914` is **only** for primary CTAs, active-state accents and the logo mark. No drop shadows; depth comes from stepping through surfaces (canvas → deep → card → input). Radii are 0 / 4 / 8 / 16 px. Spacing is 2, 3, 8, 12, 16, 24, 64 px, with a 148 px desktop gutter.
 - The UI is dark only (D-4). Fonts: `'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif`. Netflix Sans is **never shipped or embedded** because it's proprietary.
 - No Netflix logos, wordmarks, posters, artwork or screen copies anywhere: code, Figma prototypes or demo data (§51 "not a license to reproduce Netflix's actual browse screens").
@@ -129,15 +130,25 @@ Runtime rules:
 | D-15 | Interaction weights and hybrid weights stored as `model_versions` rows (`name = interaction-weights` / `hybrid-weights`), seeded from `config/bookflix.php` | §29 | Configurable and versioned, never hard-coded, and learnable later | adopt |
 | D-16 | Motion for animation; CSS for hover and focus | (user) | Using CSS where it's enough keeps the JS small; Motion handles the rest | adopt |
 | D-17 | Optionally self-host Inter (OFL-1.1) ahead of the OS fonts in the stack | §51 | Netflix Sans can't ship; Helvetica Neue exists only on Apple devices and has no 900 weight | optional (default: spec stack) |
+| D-19 | `media.merged_into_id` (nullable self FK) records a merge; the loser is soft-deleted and its slug resolves to the winner (301) | §10, §42 | A9 promised reversible merges and slug redirects but A6 had no column for them | adopt |
+| D-20 | ISBN-13s are stored as `media_external_ids` rows under a synthetic `external_sources` key `isbn` | §5, §9 | Reuses the unique `(source, external_id)` constraint for exact-match dedup; no new column or table | adopt |
+| D-21 | Dedup: a same-family match that is not auto-merge-eligible (including title similarity ≥ 0.90 without a shared creator or year within ±1) and has similarity ≥ 0.75 becomes a `duplicate_candidates` row | §42, §43 | A9's bands left ≥ 0.90 without a creator or year match undefined; false merges are costlier than review work (R8) | adopt |
+| D-22 | `search_queries` is created in Phase 4 (task 4.3), not Phase 5. Search click-through is a `?sq={id}` URL parameter until Phase 5's `InteractionRecorder` turns it into a `click` interaction. | §46 | Task 4.3 logs queries before `user_interactions` exists | adopt |
+| D-23 | Phase 4 ships an interim `Media::scopeTrending()` (ratings_count, then recency); Phase 6 task 6.3 redefines it over `media_popularity` | §35 | The materialized view only exists in Phase 6 | adopt |
+| D-24 | Natural-language parsing is vocabulary-driven and lives in PHP (`QueryParser`); the Python `/v1/query/parse` endpoint is dropped from A8 | §47 | The vocabulary lives in Postgres; a Python endpoint would need the whole catalog vocabulary round-tripped | adopt |
+| D-25 | Tables and columns added beyond A6, each in the phase that needs it: `ml_job_runs` (6), `ltr_scores` (8), `ai_usage` (11), `profiles.handle` (10), `media_features.review_summary` (10), `media_features.ai_summary` + `ai_summary_model_version_id` (11), `creators.bio_summary`, `series.description_summary` (7); enum values `ReasonType::PopularWithFollowed` (10) and `ModelKind::Llm` (11); optional discussions tables (10, lowest priority) | various | Each backs a spec requirement A6 did not name a table or column for | adopt |
+| D-26 | All pages except landing/auth sit behind `auth` + `verified`. "Guest-safe" queries means user-independent, not publicly reachable. | §8 | Matches the starter kit and Phase 1 as built | adopt |
+| D-27 | The spec is not copied into the repo (public repo); plans reference its absolute local path | Q13 | Spec is private | adopt |
+| D-28 | Interpretations of spec ambiguities: ε-greedy exploration = one fixed slot in ten on "Recommended For You" plus a randomized pool for "Discover Something New"; opted-out users get cold-start shelves only and no `recommendations` rows; comics use Bookflix-defined section codes `741.52`–`741.59` under `741.5` (Q1); admin "Users" monitoring (§43) is a read-only list in Phase 2 (task 2.10); extra ML job names `embed-media`, `train-dewey-classifier`, `train-ltr`, `score-ltr` | §32, §41, §43, §60 | Spec leaves these open | adopt |
 | D-18 | Headless widgets come from `@alpinejs/ui` instead of being hand-built | (user: open source) | Alpine's own accessible implementations (combobox, tabs, dialog, popover, …); MIT; same version as Livewire's Alpine | adopt |
 
 ## A4. Dependency and folder approvals
 
 | Addition | Phase | Purpose | Notes |
 |---|---|---|---|
-| `league/flysystem-aws-s3-v3` | 1 | S3/R2 disk | Required by Laravel's `s3` driver |
+| `league/flysystem-aws-s3-v3` | deploy setup (deferred from Phase 1) | S3/R2 disk | Required by Laravel's `s3` driver. Until then `FILESYSTEM_DISK=local`; Python artifact storage uses its own boto3/`ARTIFACT_DIR` |
 | `pestphp/pest-plugin-browser` + `playwright` (npm, dev) | 1 (first browser test in 4) | Browser/E2E tests (D-5) | — |
-| `laravel/nightwatch` (optional) | 1 | Error tracking and monitoring (§58) | Alternatives: Sentry, or logs only (Q12) |
+| `laravel/nightwatch` (optional) | deploy setup (deferred) | Error tracking and monitoring (§58) | Alternatives: Sentry, or logs only (Q12) |
 | `laravel/horizon` | 2 | Queue monitoring (§4) | Needs Redis and the `phpredis` extension on hosts |
 | `laravel/scout` | 4 | Search abstraction (§4), `database` engine | Lets a future Meilisearch swap avoid app changes |
 | `motion` (npm) | 4 | Animation (D-16) | Pin the latest 12.x at install time. Free core only. |
@@ -208,13 +219,13 @@ Notation: `column type [null] [default]`. Every table has `timestamps` unless no
 
 **Identity and preferences (Phase 1; preferences in Phase 5)**
 - `users` (existing) + `is_admin bool default false`, `deactivated_at timestamp null`.
-- `profiles`: `user_id` unique · `avatar_path string null` · `bio text null` (≤ 1000) · `preferred_languages jsonb default []` (ISO 639-1) · `reading_length` enum(short, medium, long, any) default any · `profile_visibility` enum(private, public) default private · `library_visibility` same · `personalization_enabled bool default true` · `onboarded_at timestamp null`.
+- `profiles` (Phase 10 adds `handle string(32) null unique`, D-25): `user_id` unique · `avatar_path string null` · `bio text null` (≤ 1000) · `preferred_languages jsonb default []` (ISO 639-1) · `reading_length` enum(short, medium, long, any) default any · `profile_visibility` enum(private, public) default private · `library_visibility` same · `personalization_enabled bool default true` · `onboarded_at timestamp null`.
 - `user_preferences`: `user_id` · `morphs(preferable)` (Genre, Theme, MediaType, Creator) · `weight smallint default 1` · unique(`user_id`, `preferable_type`, `preferable_id`). Backs favorite genres, themes, media types and authors (§8, §41).
 
 **Catalog (Phase 2)**
 - `media_types`: `slug` unique · `name` · `family` enum(prose, sequential_art, illustrated, interactive) · `reading_mode` enum(reflowable, paged, vertical_scroll, interactive). Seeded with the 10 types from §2.
-- `media`: `slug` unique · `media_type_id` · `title` · `alternative_titles jsonb default []` · `description text null` · `cover_url text null` · `cover_path string null` · `published_on date null` · `publication_year smallint null` · `language string(8) null` · `country_of_origin char(2) null` · `volume_number string(16) null` · `chapter_number string(16) null` · `issue_number string(16) null` · `format string null` · `age_rating` enum(all, teen, mature, adult, unknown) · `content_warnings jsonb default []` · `status` enum(upcoming, ongoing, completed, hiatus, cancelled, unknown) · `page_count int null` · `chapter_count int null` · `average_rating decimal(4,2) null` · `ratings_count int default 0` · `search_text text` (denormalized: titles, creators, series, characters, genres, publisher, keywords) · `locked_fields jsonb default []` (fields an admin edited, which sync must not overwrite) · `softDeletes`.
-  Indexes: GIN trigram on `title`; a GIN full-text expression index that **matches the SQL Scout's database engine generates** (check with `toRawSql()` in the 4.1 test); btree indexes on `media_type_id`, `publication_year`, `status`.
+- `media`: `slug` unique · `media_type_id` · `title` · `alternative_titles jsonb default []` · `description text null` · `cover_url text null` · `cover_path string null` · `published_on date null` · `publication_year smallint null` · `language string(8) null` · `country_of_origin char(2) null` · `volume_number string(16) null` · `chapter_number string(16) null` · `issue_number string(16) null` · `format string null` · `age_rating` enum(all, teen, mature, adult, unknown) · `content_warnings jsonb default []` · `status` enum(upcoming, ongoing, completed, hiatus, cancelled, unknown) · `page_count int null` · `chapter_count int null` · `average_rating decimal(4,2) null` · `ratings_count int default 0` · `search_text text` (denormalized: titles, creators, series, characters, genres, publisher, keywords) · `locked_fields jsonb default []` (fields an admin edited, which sync must not overwrite) · `merged_into_id` bigint null FK → `media.id` (D-19) · `softDeletes`.
+  Indexes: GIN trigram on `title`; a GIN full-text index `media_search_fts` on `to_tsvector('simple', search_text)`, with `search_text` stored lowercase plus an accent-folded copy; GIN trigram indexes on `immutable_unaccent(lower(title))` and `immutable_unaccent(lower(alternative_titles::text))` (an immutable wrapper around `unaccent`). Task 4.1's `EXPLAIN` test proves the Scout query uses the FTS index; btree indexes on `media_type_id`, `publication_year`, `status`.
 - `creators`: `name` · `slug` unique · `alternative_names jsonb` · `bio text null`. `media_creators`: `media_id`, `creator_id`, `role` enum (D-1), `position smallint`; primary key (media, creator, role).
 - `publishers` (`name`, `slug`). `media_publishers`: `media_id`, `publisher_id`, `region string null`.
 - `series`: `title`, `slug`, `description`, `status`. `media_series`: `media_id`, `series_id`, `position decimal(8,2) null` (allows 1.5), `label string null`.
@@ -237,17 +248,19 @@ Notation: `column type [null] [default]`. Every table has `timestamps` unless no
 - `ratings`: primary key (`user_id`, `media_id`) · `score smallint` (CHECK 1–10).
 - `collections`: `user_id` · `name` · `slug` · `description null` · `visibility` enum · `is_editorial bool default false` (editorial collections for cold start, §33); unique(user, slug). `collection_items`: `collection_id`, `media_id`, `position int`, `note null`.
 - `user_interactions` (no updated_at): `id bigint identity` · `user_id` · `media_id null` · `event` enum (the 12 events in §44) · `value real null` · `context jsonb` {surface, shelf, position, recommendation_id, search_query_id} · `occurred_at`; indexes (user, occurred_at) and (media, event, occurred_at). `ponytail:` no partitioning; add monthly partitions past ~50M rows.
-- `search_queries`: `user_id null` · `session_hash char(64)` · `query` · `normalized` · `filters jsonb` · `intent jsonb null` · `results_count int` · `previous_query_id null` (refinement chains, §46) · `created_at`.
+- `search_queries` (**created in Phase 4**, D-22): `user_id null` · `session_hash char(64)` · `query` · `normalized` · `filters jsonb` · `intent jsonb null` · `results_count int` · `previous_query_id null` (refinement chains, §46) · `created_at`.
 
 **Intelligence (Phases 6–8; §22–§30, §63)**
-- `model_versions`: `name` · `version` · `kind` enum(lsa, embedding, item_cf, als, ltr, dewey_classifier, hybrid_weights, interaction_weights) · `status` enum(training, candidate, active, retired) · `trained_at null` · `dataset_ref text null` · `parameters jsonb` · `metrics jsonb` · `artifact_uri null`; unique(name, version); partial unique(name) WHERE status = 'active'.
-- `media_features`: primary key (media, model_version) · `top_terms jsonb` · `summary text null` · `computed_at`.
+- `model_versions`: `name` · `version` · `kind` enum(lsa, embedding, item_cf, als, ltr, dewey_classifier, hybrid_weights, interaction_weights, llm) · `status` enum(training, candidate, active, retired) · `trained_at null` · `dataset_ref text null` · `parameters jsonb` · `metrics jsonb` · `artifact_uri null`; unique(name, version); partial unique(name) WHERE status = 'active'.
+- `media_features`: primary key (media, model_version) · `top_terms jsonb` · `summary text null` · `computed_at` (Phase 10 adds `review_summary`, `review_summary_count`; Phase 11 adds `ai_summary`, `ai_summary_model_version_id`).
 - `media_lsa_vectors`: primary key (media, model_version) · `vector vector(200)`, HNSW index.
 - `media_embeddings`: primary key (media, model_version) · `embedding vector(384)`, HNSW index. A new model with different dimensions gets a new column or table through a migration.
 - `media_similarities`: `media_id` · `similar_media_id` · `method` enum(lsa, embedding, item_cf, als, dewey) · `score real` · `model_version_id`; primary key (media, method, similar); top 50 per method.
 - `media_popularity` (materialized view, refreshed hourly with `CONCURRENTLY`): media_id, interactions_7d, interactions_30d, trending_score, popularity_percentile.
-- `recommendations`: `user_id` · `media_id` · `shelf` · `score real` · `reason_type` enum(because_you_read, similar_themes, popular_with_similar_readers, matches_interest, trending, editorial, new_release, exploration) · `reason_media_id null` · `reason_payload jsonb` · `model_version_id` · `generated_at`. Stores what was shown, for explanations and evaluation.
+- `recommendations`: `user_id` · `media_id` · `shelf` · `score real` · `reason_type` enum(because_you_read, similar_themes, popular_with_similar_readers, matches_interest, trending, editorial, new_release, exploration, popular_with_followed) · `reason_media_id null` · `reason_payload jsonb` (always includes `features`, the eight ranker feature values, for Phase 8) · `model_version_id` · `generated_at`. Stores what was shown, for explanations and evaluation.
 - `recommendation_events`: `recommendation_id` · `event` enum(impression, click, dismiss, library_add) · `occurred_at`.
+
+**Added by phases (D-25):** `ml_job_runs` (Phase 6: name, run_id, status queued|running|succeeded|failed, params, metrics, error, started_at, finished_at) · `ltr_scores` (Phase 8: user_id, media_id, score, model_version_id, generated_at) · `ai_usage` (Phase 11: user_id null, feature, model, input/output/cached tokens) · `creators.bio_summary`, `series.description_summary` (Phase 7).
 
 **Social (Phase 10)**: `reviews` (user, media, body, has_spoilers, status enum(published, hidden), softDeletes, unique(user, media)) · `reports` (reporter, `morphs(reportable)`, reason, details, status enum(open, actioned, dismissed), handled_by, handled_at) · `follows` (follower_id, followed_id, primary key on both).
 
@@ -303,7 +316,7 @@ interface CandidateSource
 
 ## A8. Python service interfaces (§48; §56 item 8)
 
-All `/v1/*` routes require `Authorization: Bearer ${ML_SERVICE_TOKEN}` (checked with constant-time comparison). Laravel forwards `X-Request-Id`. JSON in and out. FastAPI publishes OpenAPI at `/openapi.json`. Contract fixtures live in `tests/Fixtures/ml-contracts/`.
+All `/v1/*` routes require `Authorization: Bearer ${ML_SERVICE_TOKEN}` (checked with constant-time comparison). Laravel forwards `X-Request-Id`. JSON in and out. FastAPI docs/OpenAPI endpoints are **off** unless `ML_ENABLE_DOCS=true`. `ML_SERVICE_TOKEN` must be at least 32 characters; `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when it is empty. (`/v1/query/parse` was dropped, D-24.) Contract fixtures live in `tests/Fixtures/ml-contracts/`.
 
 | Endpoint | Phase | Request | Response | Laravel caller |
 |---|---|---|---|---|
@@ -312,8 +325,7 @@ All `/v1/*` routes require `Authorization: Bearer ${ML_SERVICE_TOKEN}` (checked 
 | `POST /v1/summarize` | 7 | `{text, max_sentences=3}` | `{summary, sentence_indices, method:"lsa", model_version}` | `MlClient::summarize(string $text, int $maxSentences = 3): SummaryResult` |
 | `POST /v1/embed` | 7 | `{texts:[str], kind:"query"\|"passage"}` | `{model_version, dims, vectors:[[float]]}` | `MlClient::embed(array $texts, string $kind): EmbeddingResult` |
 | `POST /v1/classify/dewey` | 7 | `{media_id, text, genres, themes, subjects, external_code}` | `{candidates:[{code, confidence}], model_version}` | `MlClient::classifyDewey(Media $media): list<ClassificationCandidate>` |
-| `POST /v1/query/parse` | 7 | `{query}` | `{media_types, genres, themes, dewey_codes, length_hint, semantic_text}` | `MlClient::parseQuery(string $query): QueryIntent` |
-| `POST /v1/jobs/{name}` | 6 | `{params}`; name ∈ train-lsa, train-item-cf, train-als, build-similarities, refresh-popularity, evaluate | `{run_id}` (202) | `MlClient::startJob(string $name, array $params = []): string` |
+| `POST /v1/jobs/{name}` | 6 | `{params}`; name ∈ train-lsa, train-item-cf, train-als, build-similarities, refresh-popularity, evaluate, embed-media (7), train-dewey-classifier (7), train-ltr, score-ltr (8) | `{run_id}` (202) | `MlClient::startJob(string $name, array $params = []): string` |
 | `GET /v1/jobs/{run_id}` | 6 | — | `{status, started_at, finished_at, metrics, error}` | `MlClient::job(string $runId): array` |
 
 Batch jobs read interactions and catalog text **directly from Postgres** through `DB_DIRECT_URL` (not the pooler), write to `media_lsa_vectors`, `media_embeddings`, `media_similarities` and `model_versions`, and store artifacts (vectorizer, SVD, item-CF matrices; joblib) in S3 under `ml-artifacts/<name>/<version>/`. They only load artifacts they wrote themselves (pickle safety).
@@ -333,7 +345,7 @@ Scheduler → SyncProvider(job, per source) ──► adapter.changedSince(curso
    → IngestionRun counts / status; failures logged with request/run context (§58)
 ```
 
-Dedup bands: an exact match on provider ID, ISBN-13 or a provider cross-ID (AniList ↔ MAL ↔ MangaDex links) merges automatically. Otherwise, normalized-title trigram similarity ≥ 0.90 **plus** a shared creator **plus** a publication year within ±1 merges automatically. Similarity 0.75–0.90 creates a `duplicate_candidates` row for admin review. Merges are reversible (the loser is soft-deleted and its slug redirects).
+Dedup bands: an exact match on provider ID, ISBN-13 or a provider cross-ID (AniList ↔ MAL ↔ MangaDex links) merges automatically. Otherwise, normalized-title trigram similarity ≥ 0.90 **plus** a shared creator **plus** a publication year within ±1 merges automatically. Any other same-family match with similarity ≥ 0.75 (including ≥ 0.90 without the creator/year match) creates a `duplicate_candidates` row for admin review (D-21). Merges are reversible: the loser is soft-deleted with `merged_into_id` set and its slug 301-redirects (D-19). ISBN-13s are matched as `media_external_ids` under the `isbn` source (D-20).
 
 | Provider | Covers | Auth | Change detection | Phase |
 |---|---|---|---|---|
@@ -349,7 +361,7 @@ Before an adapter is enabled, record each provider's current rate limits, terms,
 
 ## A10. Dewey classification architecture (§11–§19, §49; §56 item 11)
 
-- **Hierarchy seed:** `database/data/dewey_classes.csv`, written in-house. It covers the 10 main classes, all 100 divisions, and the sections that matter for stories: 813, 823, 833, 843, 853, 863, 891.7, 895.1, 895.6, 895.7, and the 741.5 comics subtree by country (pending Q1). Class names are Bookflix's own wording, and the UI never says "DDC" (§11).
+- **Hierarchy seed:** `database/data/dewey_classes.csv`, written in-house. It covers the 10 main classes, all 100 divisions, and the sections that matter for stories: 813, 823, 833, 843, 853, 863, 891.7, 895.1, 895.6, 895.7, and the 741.5 comics subtree by country (Q1 default adopted: Bookflix-defined section codes 741.52 Japanese, 741.53 Korean, 741.54 Chinese, 741.55 American/English, 741.56 French/Belgian, 741.59 other). Class names are Bookflix's own wording, and the UI never says "DDC" (§11).
 - **Resolution order and confidence:**
   1. manual (admin) → 1.0
   2. external (provider DDC through `DeweyResolver`) → 0.95
@@ -394,7 +406,7 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 
 **Cold start (§33):** an onboarding step (5.8) collects media types, genres and at least 3 seed stories. With fewer than 5 strong interactions, shelves lean on popular, trending, editorial, new-release and preference-filtered popularity.
 
-**Exploration (§32):** ε-greedy with ε = 0.10 for the "Discover Something New" shelf and 1 slot in 10 on "Recommended For You", drawn from well-rated stories outside the user's top genres. Bandit methods only arrive in Phase 8, and only if the data justifies them.
+**Exploration (§32):** the ε = 0.10 budget is realized as one fixed slot in ten (positions 10, 20) on "Recommended For You" plus a randomized pool for the "Discover Something New" shelf, both drawn from well-rated stories outside the user's top genres (D-28). Opted-out users get cold-start shelves only and no `recommendations` rows. Bandit methods only arrive in Phase 8, and only if the data justifies them.
 
 **Explanations (§34):** each candidate carries `reason_type` + `reason_media_id`, rendered from copy templates: "Because you read {title}", "Similar themes to {title}", "Popular with readers who enjoyed {title}", "Matches your interest in {genre}".
 
@@ -419,7 +431,7 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 
 1. **Keyword/full-text leg:** Scout `database` engine with full-text over `search_text`, plus a `pg_trgm` similarity fallback on `title` and `alternative_titles` (`unaccent` on both sides).
 2. **Subject leg:** query terms matching Dewey class names or codes → subtree boost or filter.
-3. **Semantic leg (Phase 7):** query embedding → `whereVectorSimilarTo` on `media_embeddings` (active version).
+3. **Semantic leg (Phase 7):** (a `SearchLeg` implementation like the keyword and subject legs, Phase 4) query embedding → `whereVectorSimilarTo` on `media_embeddings` (active version).
 4. **Fusion:** RRF (D-12) → personalization boost (affinity × 0.1) → filters applied in SQL *before* fusion.
 5. **Natural-language intent (Phase 7, then LLM in Phase 11):** `QueryParser` builds media type, genre, theme, Dewey and length hints from the catalog vocabulary. "Dark fantasy manga with political intrigue" → `{media_types:[manga], genres:[fantasy], themes:[politics], semantic_text:"dark fantasy political intrigue"}`.
 6. **Analytics:** one `search_queries` row per search. Clicks are recorded in `user_interactions.context.search_query_id`. The admin page shows zero-result queries and refinement chains.
@@ -437,11 +449,11 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 | `SESSION_DRIVER` | app | `database` |
 | `CACHE_STORE`, `QUEUE_CONNECTION` | app | `database` → `redis` from Phase 2 |
 | `REDIS_URL` (or `REDIS_HOST`/`PORT`/`PASSWORD`), `REDIS_CLIENT=phpredis` | app | Phase 2 |
-| `FILESYSTEM_DISK` | app | `s3` in production, `public` locally |
+| `FILESYSTEM_DISK` | app | `local` (default). Avatars use `config('bookflix.avatar_disk')` (default `public`); Livewire temporary uploads never use a public disk. `s3` arrives with deploy setup. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `AWS_ENDPOINT`, `AWS_URL`, `AWS_USE_PATH_STYLE_ENDPOINT` | app + ml | R2: region `auto`, endpoint `https://<account>.r2.cloudflarestorage.com` |
 | `MAIL_MAILER` + `MAIL_*` | app | verification and reset emails |
 | `SCOUT_DRIVER` | app | `database` (Phase 4) |
-| `ML_SERVICE_URL`, `ML_SERVICE_TOKEN`, `ML_SERVICE_TIMEOUT` | app + ml | token ≥ 32 random bytes; timeout `5` |
+| `ML_SERVICE_URL`, `ML_SERVICE_TOKEN`, `ML_SERVICE_TIMEOUT`, `ML_ENABLE_DOCS` | app + ml | local URL `http://localhost:8001`; token ≥ 32 characters; timeout `5`; docs off unless `ML_ENABLE_DOCS=true` |
 | `BOOKFLIX_PROVIDER_USER_AGENT` | app | `Bookflix/1.0 (+contact email)`; required by Open Library and MangaDex etiquette |
 | `METRON_USERNAME`, `METRON_PASSWORD` | app | Phase 2b |
 | `VNDB_API_TOKEN` (optional), `TADDY_API_KEY`, `TADDY_USER_ID` | app | Phase 2b |
@@ -520,8 +532,8 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 | Q9 | MVP providers | Open Library + AniList |
 | Q10 | Cover images: hotlink or cache? | Hotlink provider-sanctioned URLs until each provider's terms are reviewed |
 | Q11 | CBR support (needs the non-free `unrar`) | Convert CBR to CBZ on upload with `unar` if available, otherwise CBZ only |
-| Q12 | Error tracking | Nightwatch |
-| Q13 | Copy the spec into the repo? | Yes, `docs/superpowers/specs/` |
+| Q12 | Error tracking | Nightwatch, deferred to deploy setup |
+| Q13 | Copy the spec into the repo? | **No** (public repo); plans cite the absolute local path (D-27) |
 | Q14 | Reviews in the MVP? | No, they come in Phase 10 per §54; ratings are in the MVP |
 | Q15 | Adult content | Skip provider records flagged adult at ingestion; show content warnings and age rating for the rest |
 | Q16 | Motion versus plain CSS for the shelf scroll | Native `scroll-snap`; Motion only for the arrow-button scroll easing; Embla only if that feels flat |
@@ -818,7 +830,9 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 
 ---
 
-# Part D — Phase 1: Foundation (ready to execute)
+# Part D — Phase 1: Foundation — ✅ DONE
+
+> **Status: implemented** in PR #4 (branch `phase-1-foundation`). The ledger of what was actually built, including deviations from the tasks below, is `docs/superpowers/plans/phase-1-ledger.md` (on that branch until merged). The tasks below are kept as written for reference; where they conflict with the ledger or with decisions D-26/D-27 (spec not copied; nav in `config('bookflix.navigation')`; `FILESYSTEM_DISK=local`), the ledger wins.
 
 **Phase goal:** the starter kit becomes Bookflix's foundation: Postgres + extensions, design tokens, app shell and navigation, admin access, extended profile, deactivation, privacy settings, the ML service skeleton, request context and security headers. All green in CI.
 
@@ -1498,6 +1512,7 @@ Each outline gives the goal, prerequisites, tables (A6), tasks (each a single TD
 7. **`SyncProvider` job, scheduler, rate limiting, retries, `ingestion_runs`.** **Review Focus #4** tests: 429 → released with backoff; 5xx until tries run out → run `failed`, existing media untouched; malformed payload → `skipped` +1; retries don't duplicate rows.
 8. **Admin: providers and sync runs, media edit (with field locking), duplicate review and merge, remove invalid record (soft delete).** Tests: a merge moves external IDs, pivots and relations, and the loser's slug redirects with a 301; non-admins get 403.
 9. **(2b, parallel) MangaDex, Metron, VNDB, Taddy adapters,** one task each with the task 3/4 test template.
+10. **Admin users list** (read-only; spec §43 "Users"). Tests: admins only; active/deactivated status; search; no secrets in HTML.
 **Exit:** 10k+ stories synced from 2 providers with no duplicates; runs visible in admin; Horizon green.
 
 ## Phase 3 — Dewey classification (§11–§19, §49)
@@ -1519,7 +1534,7 @@ Each outline gives the goal, prerequisites, tables (A6), tasks (each a single TD
 4. **Story detail page** (identity, format, classification, genre, themes, tags, series, related, content-warnings accordion, attribution, simple "similar" through SQL: same series, genre and Dewey). Tests: sections render; soft-deleted → 404; a merged slug → 301.
 5. **Series page with ordering.** Test: order 1, 1.5, 2.
 6. **Discover page** (by media type, genre, subject entry). Test: filters by family.
-7. **Home v1** (hero, Trending gradient shelf, New Releases, Explore by Subject) + components `cover-tile`, `shelf`, `hero`, `story-info`, `cta` + `motion.js` directives (C5). Tests: guest-safe queries; shelves render without N+1 (query count assertion); reduced motion respected (browser test).
+7. **Home v1** (hero, Trending gradient shelf via the interim `Media::scopeTrending()`, New Releases, Explore by Subject) + components `cover-tile`, `shelf`, `hero`, `story-info`, `cta` + `motion.js` directives (C5). Tests: user-independent queries (D-26); shelves render without N+1 (query count assertion); reduced motion respected (browser test).
 8. **Browser smoke tests + accessibility** (Pest browser): landing → login → home → search → detail at 1440 and 390.
 **Exit:** discovery works end to end; Lighthouse performance ≥ 90 on Home at 390.
 
@@ -1623,7 +1638,7 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 40 social | Phase 10 |
 | 41 personalization | 1.5, 1.7, 5.8 |
 | 42 ingestion | A9, Phase 2 |
-| 43 admin | 1.4, 2.8, 3.6, 6.9, 8.4, Phase 10 moderation |
+| 43 admin | 1.4, 2.8, 2.10, 3.6, 6.9, 8.4, Phase 10 moderation |
 | 44 analytics | A6 `user_interactions`, 5.1 |
 | 45 evaluation | A12, 6.10, Phase 8 |
 | 46 search analytics | A13, 4.3 |
@@ -1656,5 +1671,16 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 2026-10-22 | Bookflix · Design System file | Reference duplicated by the user; **file key pending** (share the URL) | user |
 | 2026-10-22 | Component sourcing | **Open-source libraries only** (MIT / Apache-2.0 / ISC / OFL); C6 list adopted (`@alpinejs/ui`, Motion, noUiSlider, foliate-js, pdf.js, Chart.js; Pines/Basecoat as markup references); paid suites dropped | user |
 | 2026-10-22 | Flux free's proprietary license (Q17) | **Keep Flux free as the base UI library; the open-source-only rule applies to everything added** | user |
+| 2026-10-23 | D-19 `merged_into_id` for reversible merges | adopt: column on `media`, loser soft-deleted, 301 from its slug. Rationale: A9 required redirects with no storage for them. | user (via lead session) |
+| 2026-10-23 | D-20 ISBN storage | adopt: synthetic `isbn` external source. Rationale: reuses the unique constraint, no new schema. | user (via lead session) |
+| 2026-10-23 | D-21 dedup gap (≥ 0.90 without creator/year) | adopt: review candidate, never auto-merge. Rationale: false merges cost more than review time (R8). | user (via lead session) |
+| 2026-10-23 | D-22 `search_queries` timing | adopt: created in Phase 4; click-through via `?sq=` until Phase 5. Rationale: task 4.3 needs it before `user_interactions` exists. | user (via lead session) |
+| 2026-10-23 | D-23 interim trending | adopt: `scopeTrending` by `ratings_count`/recency in Phase 4, redefined in 6.3. Rationale: `media_popularity` arrives in Phase 6. | user (via lead session) |
+| 2026-10-23 | D-24 `/v1/query/parse` | adopt: dropped; PHP `QueryParser`. Rationale: vocabulary lives in Postgres. | user (via lead session) |
+| 2026-10-23 | D-25 schema additions beyond A6 | adopt (list in A6 "Added by phases"). Rationale: each backs a spec requirement. | user (via lead session) |
+| 2026-10-23 | D-26 guest-safe meaning | adopt: user-independent queries, pages stay behind `auth` + `verified`. | user (via lead session) |
+| 2026-10-23 | D-27 / Q13 spec not in repo | adopt: no copy; absolute path references. Rationale: public repo. | user |
+| 2026-10-23 | D-28 spec interpretations (ε-greedy, opted-out recs, comics codes, admin users, extra ML job names) | adopt as written in A10/A12/A8/Phase 2.10. Rationale: spec silent. | user (via lead session) |
+| 2026-10-23 | Phase 1 done (PR #4) | Part D marked done; navigation in `config('bookflix.navigation')`, `FILESYSTEM_DISK=local`, `flysystem-s3`/Nightwatch deferred to deploy, ML docs off by default | user |
 | — | D-1 … D-18, Q1 … Q17, A4 approvals | pending | — |
 | — | Figma file keys: Bookflix · Design System / Prototypes / Architecture & Flows | pending (F0) | — |

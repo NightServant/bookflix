@@ -10,12 +10,13 @@
 
 **Tech Stack:** `implicit` (ALS), LightGBM (LambdaMART), pandas, scikit-learn metrics, Chart.js (MIT, admin charts only), Pest, pytest.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §27, §30, §31, §32, §45 (in-repo copy `docs/superpowers/specs/bookflix-specification.md`). **Master plan:** A4 (lightgbm, chart.js), A8, A12, Part E Phase 8.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md` §27, §30, §31, §32, §45. **Master plan:** A4 (lightgbm, chart.js), A8, A12, Part E Phase 8.
 
 **Depends on:** Phase 6 (`evaluate.py` + `should_promote`, `registry.promote`, `build-similarities`, `RunMlJob`, `RankingWeights`, `HybridRanker`, `ShelfBuilder`, `recommendations` incl. `reason_payload.features`, `recommendation_events`, `media_popularity`), Phase 7 (embedding similarities), Phase 5 (`user_interactions`).
 
 ## Global Constraints
 
+- **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
 - Master-plan constraints apply. New dependencies need approval first: `lightgbm` (A4), `chart.js` (A4, optional).
 - **Data gates are code, not comments:** ALS requires ≥ 5 000 eligible interactions and ≥ 200 users; LTR requires ≥ 50 000 labeled impressions (impressions with a recorded outcome window of 7 days); the bandit requires ≥ 1 000 impressions per shelf. Below a gate the job raises `NotEnoughData`, registers no version, and Laravel keeps the Phase 6 behaviour.
 - Same eligibility as Phase 6: deactivated and opted-out users never enter training (the Phase 6 `fetch_interactions` SQL is the only entry point; add the same predicate to the new impression export).
@@ -55,7 +56,7 @@
 
 **Files:**
 - Create (Python): `ml/bookflix_ml/{ltr,impressions}.py`, job `train-ltr` and job `score-ltr` (registered), `ml/tests/{test_ltr,test_impressions_db}.py`
-- Create (PHP): migration `create_ltr_scores_table` (`ltr_scores`: `user_id`, `media_id`, `score real`, `model_version_id`, `generated_at`; PK `(user_id, media_id)`; index `(user_id, score desc)` — **not in A6**, flagged), `app/Models/LtrScore.php`, `app/Console/Commands/LtrReadiness.php` (`bookflix:ltr-readiness` prints labeled-impression count vs the gate), `app/Discovery/Recommendations/LtrRanker.php`
+- Create (PHP): migration `create_ltr_scores_table` (`ltr_scores`: `user_id`, `media_id`, `score real`, `model_version_id`, `generated_at`; PK `(user_id, media_id)`; index `(user_id, score desc)` — (D-25) flagged), `app/Models/LtrScore.php`, `app/Console/Commands/LtrReadiness.php` (`bookflix:ltr-readiness` prints labeled-impression count vs the gate), `app/Discovery/Recommendations/LtrRanker.php`
 - Modify: `ShelfBuilder` (use `LtrRanker` for `recommended` when it has fresh scores), `routes/console.php` (weekly `train-ltr` → `evaluate`(`ltr`); nightly `score-ltr`), `HybridRanker` unchanged (fallback)
 - Test: `tests/Feature/Discovery/Recommendations/LtrRankerTest.php`
 
