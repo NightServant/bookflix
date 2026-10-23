@@ -1,0 +1,118 @@
+code,name,description,parent_code
+000,Knowledge & Computing,"General knowledge, information, computing and reference works.",
+100,Mind & Philosophy,"How people think: philosophy, psychology and ethics.",
+200,Faith & Belief,"Religions, sacred texts and spiritual traditions.",
+300,Society,"Politics, economics, law, education and the ways people live together.",
+400,Language,"Languages, linguistics and how words work.",
+500,Natural Sciences,"Mathematics, space, physics, chemistry and the living world.",
+600,Technology & Applied Arts,"Medicine, engineering, farming, business and the things people build.",
+700,Arts & Play,"Architecture, drawing, music, photography, sport and games.",
+800,Literature,"Fiction, poetry, drama and essays, grouped by language of origin.",
+900,History & Places,"History, travel, geography and life stories.",
+010,Book Lists & Catalogs,,000
+020,Libraries & Archives,,000
+030,Reference Works,,000
+040,Collected Miscellany,,000
+050,Magazines & Periodicals,,000
+060,Societies & Museums,,000
+070,News & Publishing,,000
+080,Quotations & Anthologies,,000
+090,Rare Books & Manuscripts,,000
+110,Big Questions & Metaphysics,,100
+120,Knowledge & Existence,,100
+130,Paranormal & Mind Mysteries,,100
+140,Philosophical Schools,,100
+150,Psychology,,100
+160,Logic & Reasoning,,100
+170,Ethics & Morals,,100
+180,Ancient & Eastern Thought,,100
+190,Modern Western Thought,,100
+210,Faith & Reason,,200
+220,Biblical Writings,,200
+230,Christian Thought,,200
+240,Christian Living,,200
+250,Church Life & Ministry,,200
+260,Church & Society,,200
+270,Christian History,,200
+280,Christian Denominations,,200
+290,World Religions & Myth,,200
+310,Statistics & Population Data,,300
+320,Politics & Government,,300
+330,Economics & Money,,300
+340,Law,,300
+350,Public Service & Military,,300
+360,Social Issues & Welfare,,300
+370,Education,,300
+380,"Trade, Transport & Communication",,300
+390,"Customs, Etiquette & Folklore",,300
+410,Linguistics,,400
+420,English Language,,400
+430,German & Related Languages,,400
+440,French & Related Languages,,400
+450,Italian & Romanian Languages,,400
+460,Spanish & Portuguese Languages,,400
+470,Latin & Italic Languages,,400
+480,Greek & Classical Languages,,400
+490,Other Languages,,400
+510,Mathematics,,500
+520,Space & Astronomy,,500
+530,Physics,,500
+540,Chemistry,,500
+550,Earth Sciences,,500
+560,Fossils & Prehistoric Life,,500
+570,Life Sciences,,500
+580,Plants,,500
+590,Animals,,500
+610,Medicine & Health,,600
+620,Engineering,,600
+630,Farming & Food Production,,600
+640,Home & Family Life,,600
+650,Business & Management,,600
+660,Chemical Industry,,600
+670,Manufacturing,,600
+680,Specialty Crafts & Trades,,600
+690,Building & Construction,,600
+710,Landscape & Urban Design,,700
+720,Architecture,,700
+730,Sculpture & Craft Objects,,700
+740,Drawing & Illustration,,700
+750,Painting,,700
+760,Printmaking,,700
+770,Photography,,700
+780,Music,,700
+790,"Sport, Games & Performance",,700
+810,American Literature,,800
+820,English & British Literature,,800
+830,German Literature,,800
+840,French Literature,,800
+850,Italian & Romanian Literature,,800
+860,Spanish & Portuguese Literature,,800
+870,Latin Literature,,800
+880,Greek Literature,,800
+890,Literature in Other Languages,,800
+910,Travel & Geography,,900
+920,Biography & Life Stories,,900
+930,Ancient World History,,900
+940,European History,,900
+950,Asian History,,900
+960,African History,,900
+970,North American History,,900
+980,South American History,,900
+990,Pacific & Polar History,,900
+813,American Fiction,Novels and stories written in the United States.,810
+823,English Fiction,Novels and stories from England and the wider British tradition.,820
+833,German Fiction,Novels and stories written in German.,830
+843,French Fiction,Novels and stories written in French.,840
+853,Italian Fiction,Novels and stories written in Italian.,850
+863,Spanish Fiction,Novels and stories written in Spanish.,860
+891.7,Russian Literature,"Fiction, poetry and drama written in Russian.",890
+895.1,Chinese Literature,"Fiction, poetry and drama written in Chinese.",890
+895.6,Japanese Literature,"Fiction, poetry and drama written in Japanese.",890
+895.7,Korean Literature,"Fiction, poetry and drama written in Korean.",890
+741.5,Comics & Graphic Works,"Comics, manga, manhwa, manhua and graphic novels, grouped by country of origin.",740
+741.52,Japanese Comics,Manga and other comics from Japan.,741.5
+741.53,Korean Comics,Manhwa and other comics from Korea.,741.5
+741.54,Chinese Comics,Manhua and other comics from China.,741.5
+741.55,American & English Comics,Comic books and graphic novels from the United States and Britain.,741.5
+741.56,French & Belgian Comics,Bandes dessinees and other comics from France and Belgium.,741.5
+741.59,Comics from Elsewhere,Comics from any other country.,741.5

@@ -135,4 +135,21 @@ return [
         'year_window' => 1,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Classification
+    |--------------------------------------------------------------------------
+    |
+    | Automatic classes below `min_confidence` are dropped. The public site shows
+    | accepted classes plus pending ones at or above `public_min_confidence`.
+    | A media keeps one primary class and at most `max_secondary` secondary ones.
+    |
+    */
+
+    'classification' => [
+        'public_min_confidence' => 0.80,
+        'min_confidence' => 0.50,
+        'max_secondary' => 3,
+    ],
+
 ];
