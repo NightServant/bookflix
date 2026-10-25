@@ -43,6 +43,22 @@ Plan: `2026-10-23-phase-3-dewey-classification.md`, on PR #3's branch. Executors
 - D1 code side is `e0b43ec`: CSV rows 811–818 (the CSV has 4 columns, and level and path are computed by the seeder); 295 tests pass; dev hierarchy re-seeded with `DeweySeeder` only.
 | 3.4+3.5 | `f4ccaab`, `048aff0` | DONE: 309 tests pass; Review Focus #1 enforced through `scopePublicPrimary` in counts, lists and shelves; Discover nav item added (D3) | Minor: D6's underline is applied only through `aria-current`; story tiles aren't linked until Phase 4 |
 
+| 3.6 | `daf270b` | DONE: 327 tests pass; atomic `replace` locks rows and the index backstops it; D5 "More" menu | Folded into the branch review |
+
+- **Whole-branch review (Opus): MERGE AFTER FIXES.**
+  - I1: `remove()` hard-deletes, so the next sync resurrects the class (Review Focus #4 across 3.3 and 3.6).
+  - M2: the secondary cap can be bypassed through accept and replace.
+  - M3: concurrent `ClassifyMedia` jobs hit the pair-unique index.
+  - M4: count-cache flush churn, and no flush on delete or merge.
+  - M5: merges drop classes and the merging provider's external code.
+  - M6: empty-page clamp.
+  - M7: an unlocked `$code` can cause a 500.
+  - M8: the modal and row buttons lack accessible names.
+  - M9: a weak count assertion.
+  - All go to one fix wave.
+- R5. External Dewey codes are persisted per provider (`media_external_ids.dewey_code`), so classify-all backfills and merges keep them. This is also the coverage exit-criterion enabler. Cost: one column.
+- R6. Remove means reject-with-audit (no hard delete). Cost: removed rows stay in the table, as rejected.
+- Exit criterion "≥80% coverage" can't be verified on an empty dev catalog. It gets verified after the first real sync at deploy, with `bookflix:classification-coverage`.
 - Accepted deviations from 3.4/3.5:
   - The `DeweyCounts` cache is flushed through a version key.
   - The breadcrumb is plain HTML, plus a shared `focus-ring` utility.
