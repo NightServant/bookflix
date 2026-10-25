@@ -1,6 +1,7 @@
 <?php
 
 use App\Classification\ClassificationService;
+use App\Classification\DeweyCounts;
 use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
 use App\Enums\ReviewStatus;
@@ -8,10 +9,12 @@ use App\Jobs\ClassifyMedia;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
+use App\Models\MediaExternalId;
 use App\Models\MediaType;
 use App\Models\Tag;
 use Database\Seeders\DeweySeeder;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(fn () => $this->seed(DeweySeeder::class));
 
@@ -188,4 +191,51 @@ test('classify media persists pending rows with confidence and source', function
 
 test('classify media skips a media that no longer exists', function () {
     expect(fn () => (new ClassifyMedia(999999))->handle(app(ClassificationService::class)))->not->toThrow(Throwable::class);
+});
+
+test('classification reads the dewey code of every external id of the media', function () {
+    $media = Media::factory()->novel()->create(['country_of_origin' => 'US']);
+    MediaExternalId::factory()->for($media)->create(['dewey_code' => '823.914']);
+    MediaExternalId::factory()->for($media)->create(['dewey_code' => null]);
+    MediaExternalId::factory()->for($media)->create(['dewey_code' => '843']);
+    $svc = app(ClassificationService::class);
+
+    $suggested = $svc->classify($media);
+    $svc->apply($media);
+
+    expect($suggested->take(2)->map(fn ($c) => [$c->code, $c->method])->all())->toBe([['823', ClassificationMethod::External], ['843', ClassificationMethod::External]])
+        ->and($media->primaryDewey->deweyClass->code)->toBe('823')
+        ->and($media->deweyClasses()->where('dewey_class_id', dewey('843')->id)->value('classification_type'))->toBe(ClassificationType::Secondary);
+});
+
+test('classify media is queued once per media while it waits', function () {
+    config(['queue.default' => 'database']);
+
+    ClassifyMedia::dispatch(7);
+    ClassifyMedia::dispatch(7);
+    ClassifyMedia::dispatch(8);
+
+    expect(DB::table('jobs')->count())->toBe(2);
+});
+
+test('a classify run flushes the cached counts once however many rows it writes', function () {
+    $counts = Mockery::spy(DeweyCounts::class);
+    app()->instance(DeweyCounts::class, $counts);
+    $media = Media::factory()->novel()->create(['country_of_origin' => 'US', 'description' => 'science engineering history cooking philosophy']);
+
+    (new ClassifyMedia($media->id))->handle(app(ClassificationService::class));
+
+    expect($media->deweyClasses()->count())->toBeGreaterThan(2);
+    $counts->shouldHaveReceived('flush')->once();
+});
+
+test('a classify run that writes nothing leaves the cached counts alone', function () {
+    $media = Media::factory()->novel()->create(['country_of_origin' => 'US']);
+    (new ClassifyMedia($media->id))->handle(app(ClassificationService::class));
+    $counts = Mockery::spy(DeweyCounts::class);
+    app()->instance(DeweyCounts::class, $counts);
+
+    (new ClassifyMedia($media->id))->handle(app(ClassificationService::class));
+
+    $counts->shouldNotHaveReceived('flush');
 });

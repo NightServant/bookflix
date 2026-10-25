@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Classification\DeweyCounts;
 use App\Enums\AgeRating;
 use App\Enums\ClassificationType;
 use App\Enums\PublicationStatus;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -107,6 +109,12 @@ class Media extends Model
                 $media->slug = static::uniqueSlug($media->title, $media->publication_year);
             }
         });
+
+        // A removed (merges included) or restored media enters or leaves every class count, so the cached counts are dropped once the change is committed.
+        $flushCounts = fn () => DB::afterCommit(fn () => app(DeweyCounts::class)->flush());
+
+        static::deleted($flushCounts);
+        static::restored($flushCounts);
     }
 
     /**
@@ -293,32 +301,6 @@ class Media extends Model
         return $this->hasOne(MediaDeweyClass::class)
             ->where('classification_type', ClassificationType::Primary)
             ->where('review_status', '!=', ReviewStatus::Rejected);
-    }
-
-    /**
-     * Media with a class the public may see, optionally one inside the given class's subtree.
-     *
-     * @param  Builder<Media>  $query
-     */
-    public function scopePublicDewey(Builder $query, ?DeweyClass $class = null): void
-    {
-        $query->whereHas('deweyClasses', function (Builder $rows) use ($class): void {
-            $rows->public();
-
-            if ($class !== null) {
-                $rows->whereIn('dewey_class_id', DeweyClass::subtree($class)->select('id'));
-            }
-        });
-    }
-
-    /**
-     * Media whose primary class the public may see.
-     *
-     * @param  Builder<Media>  $query
-     */
-    public function scopePubliclyClassified(Builder $query): void
-    {
-        $query->whereHas('deweyClasses', fn (Builder $rows) => $rows->publicPrimary());
     }
 
     /**

@@ -3,6 +3,7 @@
 use App\Jobs\ClassifyMedia;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
+use App\Models\MediaExternalId;
 use Database\Seeders\DeweySeeder;
 use Illuminate\Support\Facades\Bus;
 
@@ -47,4 +48,13 @@ test('coverage ignores hidden primaries and copes with an empty catalog', functi
     $media = Media::factory()->create();
     MediaDeweyClass::factory()->for($media)->create(['dewey_class_id' => dewey('813')->id, 'classification_type' => 'primary', 'confidence' => .6]);
     $this->artisan('bookflix:classification-coverage')->expectsOutputToContain('Coverage: 0.0% (0/1)')->assertSuccessful();
+});
+
+test('classify all backfills a media from the codes stored on its external ids', function () {
+    $media = Media::factory()->novel()->create(['country_of_origin' => 'US']);
+    MediaExternalId::factory()->for($media)->create(['dewey_code' => '823.914']);
+
+    $this->artisan('bookflix:classify-all')->assertSuccessful();
+
+    expect($media->primaryDewey->deweyClass->code)->toBe('823');
 });

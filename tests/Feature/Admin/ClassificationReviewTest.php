@@ -163,7 +163,10 @@ test('an admin can add a secondary class and remove a class', function () {
     expect($added->reviewed_by)->toBe($admin->id)->and($added->reviewed_at)->not->toBeNull()->and($added->review_status)->toBe(ReviewStatus::Accepted);
 
     $lw->call('remove', $added->id);
-    expect($m->deweyClasses()->count())->toBe(1);
+    expect($m->deweyClasses()->count())->toBe(2)
+        ->and($added->fresh()->review_status)->toBe(ReviewStatus::Rejected)
+        ->and($added->fresh()->reviewed_by)->toBe($admin->id)
+        ->and($added->fresh()->reviewed_at)->not->toBeNull();
 });
 
 test('a fourth secondary class is refused', function () {
@@ -173,9 +176,39 @@ test('a fourth secondary class is refused', function () {
     }
     $this->actingAs(User::factory()->admin()->create());
 
-    Livewire::test('pages::admin.classifications.index')->call('add', $m->id, '900', 'secondary');
+    Livewire::test('pages::admin.classifications.index')->call('add', $m->id, '900', 'secondary')->assertDispatched('toast-show');
 
     expect($m->deweyClasses()->count())->toBe(4);
+});
+
+test('the queue steps back to the last page when an action empties the current one', function () {
+    $media = classified(Media::factory()->count(26)->create(), '813', status: 'pending');
+    $last = MediaDeweyClass::where('media_id', $media->last()->id)->first();
+    $this->actingAs(User::factory()->admin()->create());
+
+    $page = Livewire::test('pages::admin.classifications.index')->call('gotoPage', 2)->assertSee($media->last()->title);
+    $page->call('reject', $last->id)->assertSet('paginators.page', 1)->assertSee($media->first()->title)->assertDontSee('Nothing to review here.');
+});
+
+test('every row button names the class and the story it acts on', function () {
+    classified(Media::factory()->create(['title' => 'Dune']), '813', status: 'pending');
+    $this->actingAs(User::factory()->admin()->create());
+
+    $html = $this->get(route('admin.classifications'))->assertOk()->getContent();
+
+    foreach (['Accept', 'Reject', 'Change'] as $action) {
+        expect($html)->toContain("aria-label=\"{$action} 813 American Fiction for Dune\"");
+    }
+
+    expect($html)->toContain('aria-label="More actions for 813 American Fiction on Dune"');
+});
+
+test('the class dialog is named by its heading', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    $this->get(route('admin.classifications'))->assertOk()
+        ->assertSee('aria-labelledby="class-editor-title"', false)
+        ->assertSeeHtml('id="class-editor-title"');
 });
 
 test('adding a second primary is refused', function () {

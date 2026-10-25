@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * @property int $media_id
  * @property int $external_source_id
  * @property string $external_id
+ * @property string|null $dewey_code The provider's own Dewey code for the media, normalized; read when classifying.
  * @property string|null $source_url
  * @property string $payload_hash
  * @property Carbon $imported_at
@@ -25,6 +26,7 @@ use Illuminate\Support\Carbon;
     'media_id',
     'external_source_id',
     'external_id',
+    'dewey_code',
     'source_url',
     'payload_hash',
     'imported_at',

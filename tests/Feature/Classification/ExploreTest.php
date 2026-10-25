@@ -4,15 +4,23 @@ use App\Classification\ClassificationService;
 use App\Classification\DeweyCounts;
 use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
+use App\Models\DeweyClass;
 use App\Models\Media;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
+use Livewire\Livewire;
 
 beforeEach(fn () => $this->seed(DeweySeeder::class));
 
 test('explore lists the ten classes with story counts', function () {
     classified(Media::factory()->count(2)->create(), '813');
-    $this->actingAs(User::factory()->create())->get(route('explore.index'))->assertOk()->assertSeeInOrder(['000', '100'])->assertSee('800')->assertSee('2');
+
+    $html = $this->actingAs(User::factory()->create())->get(route('explore.index'))->assertOk()->assertSeeInOrder(['000', '100'])->getContent();
+
+    expect($html)
+        ->toMatch('#href="[^"]*/explore/800"[^>]*>\s*<span[^>]*>800</span>\s*<span[^>]*>Literature</span>\s*<span[^>]*>2 stories</span>#')
+        ->toMatch('#href="[^"]*/explore/100"[^>]*>\s*<span[^>]*>100</span>\s*<span[^>]*>[^<]*</span>\s*<span[^>]*>0 stories</span>#');
 });
 
 test('drilling down 800 to 810 to 813 shows breadcrumbs and children', function () {
@@ -64,4 +72,37 @@ test('pages mark the current class and name each see-all link', function () {
 
     $this->get(route('explore.show', '813'))->assertSee('aria-current="page"', false)->assertSee('Dewey-inspired')->assertDontSee('DDC')->assertDontSee('Subsections');
     $this->get(route('explore.index'))->assertSee('aria-label="See all in Literature"', false);
+});
+
+test('deleting, restoring or merging a media refreshes the cached counts', function () {
+    $counts = app(DeweyCounts::class);
+    $media = classified(Media::factory()->create(), '813');
+    expect($counts->forClass(dewey('800')))->toBe(1);
+
+    $media->delete();
+    expect($counts->forClass(dewey('800')))->toBe(0);
+
+    $media->restore();
+    expect($counts->forClass(dewey('800')))->toBe(1);
+});
+
+test('a page past the end shows the last page instead of an empty one', function () {
+    classified(Media::factory()->count(25)->create(), '813');
+    $last = Media::orderBy('title')->orderBy('id')->get()->last();
+
+    $this->actingAs(User::factory()->create())->get(route('explore.show', ['code' => '813', 'page' => 5]))
+        ->assertOk()->assertSee($last->title)->assertDontSee('No stories here yet.');
+});
+
+test('the class code of an explore page cannot be changed from the browser', function () {
+    $page = Livewire::actingAs(User::factory()->create())->test('pages::explore.show', ['code' => '813']);
+
+    expect(fn () => $page->set('code', '800'))->toThrow(CannotUpdateLockedPropertyException::class);
+});
+
+test('a class that disappears after the page loaded is a 404', function () {
+    $page = Livewire::actingAs(User::factory()->create())->test('pages::explore.show', ['code' => '813']);
+    DeweyClass::where('code', '813')->delete();
+
+    $page->call('$refresh')->assertNotFound();
 });

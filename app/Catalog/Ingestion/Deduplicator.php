@@ -3,9 +3,12 @@
 namespace App\Catalog\Ingestion;
 
 use App\Catalog\Data\NormalizedMedia;
+use App\Enums\ClassificationType;
 use App\Enums\DuplicateStatus;
+use App\Enums\ReviewStatus;
 use App\Models\DuplicateCandidate;
 use App\Models\Media;
+use App\Models\MediaDeweyClass;
 use App\Models\MediaExternalId;
 use App\Models\MediaType;
 use Illuminate\Support\Collection;
@@ -97,7 +100,7 @@ class Deduplicator
     }
 
     /**
-     * Fold the loser into the winner: external ids, pivot rows and relations move over, the winner's search text is rebuilt,
+     * Fold the loser into the winner: external ids, Dewey classes, pivot rows and relations move over, the winner's search text is rebuilt,
      * the pair being merged is closed and every other pending pair of the loser is repointed at the winner, then the loser is
      * soft deleted and points at the winner so its URL can still resolve (media already merged into the loser follow along).
      *
@@ -134,6 +137,7 @@ class Deduplicator
             }
 
             $this->moveRelations($winner, $loser);
+            $this->moveClassifications($winner, $loser);
             $this->movePendingCandidates($winner, $loser, $resolvedBy);
 
             Media::withTrashed()->where('merged_into_id', $loser->id)->update(['merged_into_id' => $winner->id]);
@@ -144,6 +148,48 @@ class Deduplicator
             $loser->delete();
             $winner->refreshSearchText();
         });
+    }
+
+    /**
+     * The loser's classes follow it to the winner. The winner's row wins a clash on the same class, and the winner never ends up with a second live primary:
+     * the loser's primary becomes a secondary when the winner already has one, and any live row beyond the secondary limit is dropped.
+     * Rejected rows move as they are, so the decision to reject still holds.
+     */
+    private function moveClassifications(Media $winner, Media $loser): void
+    {
+        $kept = MediaDeweyClass::where('media_id', $winner->id)->get();
+        $live = fn (MediaDeweyClass $row): bool => $row->review_status !== ReviewStatus::Rejected;
+        $hasPrimary = $kept->contains(fn (MediaDeweyClass $row): bool => $live($row) && $row->classification_type === ClassificationType::Primary);
+        $secondaries = $kept->filter(fn (MediaDeweyClass $row): bool => $live($row) && $row->classification_type === ClassificationType::Secondary)->count();
+
+        $incoming = MediaDeweyClass::where('media_id', $loser->id)->orderBy('id')->get()
+            ->sortBy(fn (MediaDeweyClass $row): int => $row->classification_type === ClassificationType::Primary ? 0 : 1);
+
+        foreach ($incoming as $row) {
+            $type = $row->classification_type;
+            $isLive = $live($row);
+
+            if ($kept->contains('dewey_class_id', $row->dewey_class_id)) {
+                $row->delete();
+
+                continue;
+            }
+
+            if ($isLive && $type === ClassificationType::Primary && $hasPrimary) {
+                $type = ClassificationType::Secondary;
+            }
+
+            if ($isLive && $type === ClassificationType::Secondary && $secondaries >= config('bookflix.classification.max_secondary')) {
+                $row->delete();
+
+                continue;
+            }
+
+            $row->update(['media_id' => $winner->id, 'classification_type' => $type]);
+
+            $hasPrimary = $hasPrimary || ($isLive && $type === ClassificationType::Primary);
+            $secondaries += $isLive && $type === ClassificationType::Secondary ? 1 : 0;
+        }
     }
 
     /**

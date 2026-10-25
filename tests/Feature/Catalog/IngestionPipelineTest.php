@@ -8,12 +8,14 @@ use App\Catalog\Ingestion\IngestionPipeline;
 use App\Catalog\Ingestion\RecordValidator;
 use App\Catalog\Providers\MetadataProvider;
 use App\Enums\ImportOutcome;
+use App\Jobs\ClassifyMedia;
 use App\Models\Creator;
 use App\Models\DuplicateCandidate;
 use App\Models\ExternalSource;
 use App\Models\Media;
 use App\Models\MediaExternalId;
 use Database\Seeders\MediaTypeSeeder;
+use Illuminate\Support\Facades\Bus;
 
 test('importing creates media with creators genres and an external id', function () {
     $outcome = importFixture('anilist', 'manga-berserk');
@@ -192,4 +194,22 @@ test('a publisher name over 255 characters is skipped', function () {
     $fine = new NormalizedMedia(title: str_repeat('a', 255), mediaTypeSlug: 'novel', publishers: [str_repeat('p', 255)]);
 
     expect(app(RecordValidator::class)->validate($record, $long))->toBeFalse()->and(app(RecordValidator::class)->validate($record, $fine))->toBeTrue();
+});
+
+test('the dewey code of each provider is kept on its external id and a merged import is classified too', function () {
+    $existing = Media::factory()->manga()->create(['title' => 'Berserk', 'publication_year' => 1989]);
+    $existing->creators()->attach(Creator::factory()->create(['name' => 'Kentarou Miura']), ['role' => 'author', 'position' => 0]);
+    MediaExternalId::factory()->for($existing)->create(['external_source_id' => ExternalSource::factory()->create(['key' => 'anilist']), 'external_id' => '30002']);
+    ExternalSource::factory()->create(['key' => 'mangadex']);
+    Bus::fake([ClassifyMedia::class]);
+
+    $mangadex = Mockery::mock(MetadataProvider::class);
+    $mangadex->shouldReceive('key')->andReturn('mangadex');
+    $mangadex->shouldReceive('normalize')->andReturn(normalized(title: 'Berserk', type: 'manga', year: 1990, creators: ['Kentarou Miura'], provider: 'mangadex', deweyCode: '741.5'));
+
+    $outcome = app(IngestionPipeline::class)->import(new ProviderRecord('mangadex', 'abc', ['id' => 'abc'], null, now()->toImmutable()), $mangadex);
+
+    expect($outcome)->toBe(ImportOutcome::Merged)
+        ->and(MediaExternalId::where('external_id', 'abc')->sole()->dewey_code)->toBe('741.5');
+    Bus::assertDispatched(ClassifyMedia::class, fn (ClassifyMedia $job) => $job->mediaId === $existing->id);
 });

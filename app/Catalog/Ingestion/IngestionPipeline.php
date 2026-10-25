@@ -77,7 +77,7 @@ class IngestionPipeline
 
             MediaExternalId::updateOrCreate(
                 ['external_source_id' => $source->id, 'external_id' => $record->externalId],
-                ['media_id' => $media->id, 'source_url' => $incoming->sourceUrl, 'payload_hash' => $hash, 'last_synced_at' => now()],
+                ['media_id' => $media->id, 'dewey_code' => $incoming->externalDeweyCode, 'source_url' => $incoming->sourceUrl, 'payload_hash' => $hash, 'last_synced_at' => now()],
             );
 
             $this->recordIsbns($media, $incoming, $hash);
@@ -86,9 +86,7 @@ class IngestionPipeline
             $media->refreshSearchText();
             $this->deduplicator->recordCandidates($media, $candidates);
 
-            if ($outcome !== ImportOutcome::Merged) {
-                ClassifyMedia::dispatch($media->id, $incoming->externalDeweyCode)->afterCommit();
-            }
+            ClassifyMedia::dispatch($media->id)->afterCommit();
 
             return $outcome;
         });

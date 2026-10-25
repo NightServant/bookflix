@@ -6,6 +6,7 @@ use App\Models\Media;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -13,19 +14,18 @@ use Livewire\WithPagination;
 new #[Title('Explore the Library')] class extends Component {
     use WithPagination;
 
+    #[Locked]
     public string $code = '';
 
     public function mount(string $code): void
     {
         $this->code = $code;
-
-        abort_if($this->deweyClass === null, 404);
     }
 
     #[Computed]
-    public function deweyClass(): ?DeweyClass
+    public function deweyClass(): DeweyClass
     {
-        return app(DeweyHierarchy::class)->findByCode($this->code);
+        return app(DeweyHierarchy::class)->findByCode($this->code) ?? abort(404);
     }
 
     /**
@@ -47,7 +47,15 @@ new #[Title('Explore the Library')] class extends Component {
     #[Computed]
     public function stories(): LengthAwarePaginator
     {
-        return Media::query()->inDeweySubtree($this->deweyClass)->orderBy('title')->orderBy('id')->paginate(24);
+        $query = Media::query()->inDeweySubtree($this->deweyClass)->orderBy('title')->orderBy('id');
+        $stories = $query->paginate(24);
+
+        if ($stories->isEmpty() && $stories->currentPage() > 1) {
+            $this->setPage($stories->lastPage());
+            $stories = $query->paginate(24);
+        }
+
+        return $stories;
     }
 
     #[Computed]

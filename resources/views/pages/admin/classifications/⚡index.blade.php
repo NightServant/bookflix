@@ -3,6 +3,7 @@
 use App\Classification\ClassificationCandidate;
 use App\Classification\ClassificationService;
 use App\Classification\PrimaryClassificationExists;
+use App\Classification\SecondaryClassificationLimit;
 use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
 use App\Enums\ReviewStatus;
@@ -54,13 +55,21 @@ new #[Title('Classification review')] class extends Component {
     #[Computed]
     public function rows(): LengthAwarePaginator
     {
-        return MediaDeweyClass::query()
+        $query = MediaDeweyClass::query()
             ->where('review_status', ReviewStatus::tryFrom($this->status) ?? ReviewStatus::Pending)
             ->whereHas('media')
             ->with(['media.mediaType', 'media.creators', 'deweyClass'])
             ->orderBy('confidence')
-            ->orderBy('id')
-            ->paginate(25);
+            ->orderBy('id');
+
+        $rows = $query->paginate(25);
+
+        if ($rows->isEmpty() && $rows->currentPage() > 1) {
+            $this->setPage($rows->lastPage());
+            $rows = $query->paginate(25);
+        }
+
+        return $rows;
     }
 
     /**
@@ -126,19 +135,8 @@ new #[Title('Classification review')] class extends Component {
             return;
         }
 
-        $secondaries = $media->deweyClasses()->where('classification_type', ClassificationType::Secondary)->where('review_status', '!=', ReviewStatus::Rejected)->count();
-
-        if ($kind === ClassificationType::Secondary && $secondaries >= config('bookflix.classification.max_secondary')) {
-            Flux::toast(variant: 'danger', text: __('“:title” already has :max secondary classes. Remove one first.', ['title' => $media->title, 'max' => config('bookflix.classification.max_secondary')]));
-
-            return;
-        }
-
         $this->perform(
-            function () use ($media, $class, $kind): void {
-                $row = app(ClassificationService::class)->assign($media, $class, $kind, new ClassificationCandidate($class->code, 1.0, ClassificationMethod::Manual, 'admin'));
-                $row->update(['reviewed_by' => auth()->id(), 'reviewed_at' => now()]);
-            },
+            fn () => app(ClassificationService::class)->assign($media, $class, $kind, new ClassificationCandidate($class->code, 1.0, ClassificationMethod::Manual, 'admin'), auth()->user()),
             __('Added :class as a :type class of “:title”.', ['class' => $class->code, 'type' => $kind->value, 'title' => $media->title]),
         );
     }
@@ -221,6 +219,10 @@ new #[Title('Classification review')] class extends Component {
             Flux::toast(variant: 'danger', text: __('That story already has a primary class. Change or remove it first.'));
 
             return;
+        } catch (SecondaryClassificationLimit) {
+            Flux::toast(variant: 'danger', text: __('That story already has :max secondary classes. Remove one first.', ['max' => config('bookflix.classification.max_secondary')]));
+
+            return;
         }
 
         Flux::toast(variant: 'success', text: $success);
@@ -261,17 +263,18 @@ new #[Title('Classification review')] class extends Component {
                     @endif
                 </div>
 
+                @php($subject = $row->deweyClass->code.' '.$row->deweyClass->name)
                 <div class="mt-4 flex flex-wrap items-center gap-2 md:mt-0">
                     @if ($row->review_status !== ReviewStatus::Accepted)
-                        <flux:button variant="filled" size="sm" icon="check" class="focus-ring min-h-11 md:min-h-0" wire:click="accept({{ $row->id }})">{{ __('Accept') }}</flux:button>
+                        <flux:button variant="filled" size="sm" icon="check" class="focus-ring min-h-11 md:min-h-0" wire:click="accept({{ $row->id }})" :aria-label="__('Accept :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Accept') }}</flux:button>
                     @endif
                     @if ($row->review_status !== ReviewStatus::Rejected)
-                        <flux:button variant="filled" size="sm" icon="x-mark" class="focus-ring min-h-11 md:min-h-0" wire:click="reject({{ $row->id }})">{{ __('Reject') }}</flux:button>
+                        <flux:button variant="filled" size="sm" icon="x-mark" class="focus-ring min-h-11 md:min-h-0" wire:click="reject({{ $row->id }})" :aria-label="__('Reject :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Reject') }}</flux:button>
                     @endif
-                    <flux:button variant="filled" size="sm" icon="arrows-right-left" class="focus-ring min-h-11 md:min-h-0" wire:click="openChange({{ $row->id }})">{{ __('Change') }}</flux:button>
+                    <flux:button variant="filled" size="sm" icon="arrows-right-left" class="focus-ring min-h-11 md:min-h-0" wire:click="openChange({{ $row->id }})" :aria-label="__('Change :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Change') }}</flux:button>
 
                     <flux:dropdown position="bottom" align="end">
-                        <flux:button variant="filled" size="sm" icon:trailing="chevron-down" class="focus-ring min-h-11 md:min-h-0">{{ __('More') }}</flux:button>
+                        <flux:button variant="filled" size="sm" icon:trailing="chevron-down" class="focus-ring min-h-11 md:min-h-0" :aria-label="__('More actions for :class on :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('More') }}</flux:button>
 
                         <flux:menu>
                             <flux:menu.item icon="plus" class="focus-ring min-h-11 md:min-h-0" wire:click="openAdd({{ $row->media_id }})">{{ __('Add class') }}</flux:menu.item>
@@ -289,10 +292,10 @@ new #[Title('Classification review')] class extends Component {
         <flux:pagination :paginator="$this->rows" />
     </div>
 
-    <flux:modal name="class-editor" class="w-full max-w-lg">
+    <flux:modal name="class-editor" class="w-full max-w-lg" aria-labelledby="class-editor-title">
         <form wire:submit="save" class="space-y-6">
             <div>
-                <flux:heading size="lg">{{ $mode === 'add' ? __('Add a class') : __('Change class') }}</flux:heading>
+                <flux:heading size="lg" id="class-editor-title">{{ $mode === 'add' ? __('Add a class') : __('Change class') }}</flux:heading>
                 <flux:subheading>
                     {{ $mode === 'add' ? __('Give the story another class. It is accepted at once.') : __('Swap this class for another. The new class is accepted at once and the old one is rejected.') }}
                 </flux:subheading>
