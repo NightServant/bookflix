@@ -7,7 +7,7 @@
                     href="{{ route($item['route']) }}"
                     wire:navigate
                     @if ($isCurrent) aria-current="page" @endif
-                    class="flex flex-col items-center gap-1 py-3 text-meta {{ $isCurrent ? 'text-ink' : 'text-ink-muted' }}"
+                    class="focus-ring flex flex-col items-center gap-1 py-3 text-meta {{ $isCurrent ? 'text-ink' : 'text-ink-muted' }}"
                 >
                     <flux:icon :name="$item['icon']" class="size-6" />
                     <span>{{ __($item['label']) }}</span>

@@ -21,6 +21,7 @@ class ClassificationService
         private DeweyResolver $resolver,
         private DeweyMapper $mapper,
         private DeweyValidator $validator,
+        private DeweyCounts $counts,
     ) {}
 
     /**
@@ -33,7 +34,7 @@ class ClassificationService
     public function assign(Media $media, DeweyClass $class, ClassificationType $type, ClassificationCandidate $candidate): MediaDeweyClass
     {
         try {
-            return DB::transaction(function () use ($media, $class, $type, $candidate): MediaDeweyClass {
+            $row = DB::transaction(function () use ($media, $class, $type, $candidate): MediaDeweyClass {
                 $row = MediaDeweyClass::lockForUpdate()->firstOrNew(['media_id' => $media->id, 'dewey_class_id' => $class->id]);
                 $manual = $candidate->method === ClassificationMethod::Manual;
 
@@ -52,6 +53,10 @@ class ClassificationService
 
                 return $row;
             });
+
+            $this->counts->flush();
+
+            return $row;
         } catch (UniqueConstraintViolationException $e) {
             if (! str_contains($e->getMessage(), 'media_dewey_primary_unique')) {
                 throw $e;

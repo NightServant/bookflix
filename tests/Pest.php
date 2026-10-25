@@ -151,17 +151,21 @@ function dewey(string $code): DeweyClass
 }
 
 /**
- * Give each media an accepted primary class with this code; seed `DeweySeeder` first.
+ * Give each media a class with this code (an accepted primary by default); seed `DeweySeeder` first. Returns what it was given.
  *
  * @param  Media|Collection<int, Media>  $media
+ * @return ($media is Media ? Media : Collection<int, Media>)
  */
-function classified(Media|Collection $media, string $code): void
+function classified(Media|Collection $media, string $code, string $type = 'primary', string $status = 'accepted', float $confidence = 0.95): Media|Collection
 {
     foreach (Collection::wrap($media) as $item) {
         MediaDeweyClass::factory()->for($item)->create([
             'dewey_class_id' => dewey($code)->id,
-            'classification_type' => ClassificationType::Primary,
-            'review_status' => ReviewStatus::Accepted,
+            'classification_type' => ClassificationType::from($type),
+            'review_status' => ReviewStatus::from($status),
+            'confidence' => $confidence,
         ]);
     }
+
+    return $media;
 }

@@ -76,6 +76,16 @@ class MediaDeweyClass extends Model
     }
 
     /**
+     * A public row that is also the media's primary class: the only kind that places a story on a shelf or in a count.
+     *
+     * @param  Builder<MediaDeweyClass>  $query
+     */
+    public function scopePublicPrimary(Builder $query): void
+    {
+        $query->public()->where('classification_type', ClassificationType::Primary);
+    }
+
+    /**
      * @return BelongsTo<Media, $this>
      */
     public function media(): BelongsTo

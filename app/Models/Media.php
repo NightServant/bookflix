@@ -310,4 +310,24 @@ class Media extends Model
             }
         });
     }
+
+    /**
+     * Media whose primary class the public may see.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopePubliclyClassified(Builder $query): void
+    {
+        $query->whereHas('deweyClasses', fn (Builder $rows) => $rows->publicPrimary());
+    }
+
+    /**
+     * Media whose public primary class is the given class or one below it.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeInDeweySubtree(Builder $query, DeweyClass $class): void
+    {
+        $query->whereHas('deweyClasses', fn (Builder $rows) => $rows->publicPrimary()->whereIn('dewey_class_id', DeweyClass::subtree($class)->select('id')));
+    }
 }

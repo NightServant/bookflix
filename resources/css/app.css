@@ -104,6 +104,11 @@
     }
 }
 
+/* The keyboard focus ring every interactive element wears. */
+@utility focus-ring {
+    @apply outline-hidden focus-visible:ring-2 focus-visible:ring-accent-electric focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+}
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }
