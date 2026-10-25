@@ -34,6 +34,7 @@ test('pending below the public minimum and rejected are hidden everywhere', func
     $this->actingAs(User::factory()->create());
 
     $this->get(route('explore.show', '813'))->assertSee('Shown')->assertDontSee('Low')->assertDontSee('Nope');
+    $this->get(route('explore.index'))->assertSee('Shown')->assertDontSee('Low')->assertDontSee('Nope');
     expect(app(DeweyCounts::class)->forClass(dewey('813')))->toBe(1);
 });
 
@@ -57,9 +58,10 @@ test('assigning a class refreshes the cached counts', function () {
     expect($counts->forClass(dewey('800')))->toBe(1);
 });
 
-test('a section page marks the current class and keeps to the agreed wording', function () {
+test('pages mark the current class and name each see-all link', function () {
     classified(Media::factory()->create(), '813');
     $this->actingAs(User::factory()->create());
 
     $this->get(route('explore.show', '813'))->assertSee('aria-current="page"', false)->assertSee('Dewey-inspired')->assertDontSee('DDC')->assertDontSee('Subsections');
+    $this->get(route('explore.index'))->assertSee('aria-label="See all in Literature"', false);
 });
