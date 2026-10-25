@@ -11,6 +11,8 @@ use App\Enums\ReviewStatus;
 use App\Models\DeweyClass;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
+use App\Models\User;
+use Closure;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -33,37 +35,100 @@ class ClassificationService
      */
     public function assign(Media $media, DeweyClass $class, ClassificationType $type, ClassificationCandidate $candidate): MediaDeweyClass
     {
-        try {
-            $row = DB::transaction(function () use ($media, $class, $type, $candidate): MediaDeweyClass {
-                $row = MediaDeweyClass::lockForUpdate()->firstOrNew(['media_id' => $media->id, 'dewey_class_id' => $class->id]);
-                $manual = $candidate->method === ClassificationMethod::Manual;
+        $row = $this->refusingSecondPrimary($media->id, fn (): MediaDeweyClass => DB::transaction(function () use ($media, $class, $type, $candidate): MediaDeweyClass {
+            $row = MediaDeweyClass::lockForUpdate()->firstOrNew(['media_id' => $media->id, 'dewey_class_id' => $class->id]);
+            $manual = $candidate->method === ClassificationMethod::Manual;
 
-                if ($row->exists && ! $manual && $this->isDecided($row)) {
-                    return $row;
-                }
-
-                $row->fill([
-                    'classification_type' => $type,
-                    'confidence' => $candidate->confidence,
-                    'source' => $candidate->source,
-                    'classification_method' => $candidate->method,
-                    'model_version_id' => $candidate->modelVersionId,
-                    'review_status' => $manual ? ReviewStatus::Accepted : ReviewStatus::Pending,
-                ])->save();
-
+            if ($row->exists && ! $manual && $this->isDecided($row)) {
                 return $row;
-            });
-
-            $this->counts->flush();
-
-            return $row;
-        } catch (UniqueConstraintViolationException $e) {
-            if (! str_contains($e->getMessage(), 'media_dewey_primary_unique')) {
-                throw $e;
             }
 
-            throw new PrimaryClassificationExists("Media {$media->id} already has a primary class.", previous: $e);
-        }
+            $row->fill([
+                'classification_type' => $type,
+                'confidence' => $candidate->confidence,
+                'source' => $candidate->source,
+                'classification_method' => $candidate->method,
+                'model_version_id' => $candidate->modelVersionId,
+                'review_status' => $manual ? ReviewStatus::Accepted : ReviewStatus::Pending,
+            ])->save();
+
+            return $row;
+        }));
+
+        $this->counts->flush();
+
+        return $row;
+    }
+
+    /**
+     * Keep a pending (or rejected) row as it is, now confirmed by the reviewer. A rejected primary that comes back is refused when the media has a new live primary.
+     *
+     * @throws PrimaryClassificationExists
+     */
+    public function accept(MediaDeweyClass $row, User $reviewer): void
+    {
+        $this->review($row, ReviewStatus::Accepted, $reviewer);
+    }
+
+    /**
+     * Turn a row down: it stops counting and never shows publicly, and automatic runs do not bring it back.
+     */
+    public function reject(MediaDeweyClass $row, User $reviewer): void
+    {
+        $this->review($row, ReviewStatus::Rejected, $reviewer);
+    }
+
+    /**
+     * Swap a row for another class in one transaction. Every row of the media is locked first, the old row is rejected before the new one is written
+     * (the partial unique index would refuse two live primaries), and any failure rolls the whole swap back. The new row takes the old row's type and is a
+     * manual, fully confident, accepted decision; a row the media already had for that class is reused. The index is the backstop for two reviewers swapping at once:
+     * the loser's insert is refused and surfaces as PrimaryClassificationExists.
+     *
+     * @throws PrimaryClassificationExists
+     */
+    public function replace(MediaDeweyClass $row, DeweyClass $class, User $reviewer): MediaDeweyClass
+    {
+        $replacement = $this->refusingSecondPrimary($row->media_id, fn (): MediaDeweyClass => DB::transaction(function () use ($row, $class, $reviewer): MediaDeweyClass {
+            $rows = MediaDeweyClass::where('media_id', $row->media_id)->lockForUpdate()->get();
+            $old = $rows->firstOrFail('id', $row->id);
+            $target = $rows->firstWhere('dewey_class_id', $class->id) ?? new MediaDeweyClass(['media_id' => $row->media_id]);
+
+            if ($target->isNot($old) && $old->classification_type === ClassificationType::Secondary && $target->classification_type === ClassificationType::Primary && $target->review_status !== ReviewStatus::Rejected) {
+                throw new PrimaryClassificationExists("Media {$row->media_id} already has that class as its primary.");
+            }
+
+            if ($target->isNot($old)) {
+                $old->update(['review_status' => ReviewStatus::Rejected, 'reviewed_by' => $reviewer->id, 'reviewed_at' => now()]);
+            }
+
+            $target->fill([
+                'dewey_class_id' => $class->id,
+                'classification_type' => $old->classification_type,
+                'confidence' => 1.0,
+                'source' => 'admin',
+                'classification_method' => ClassificationMethod::Manual,
+                'model_version_id' => null,
+                'review_status' => ReviewStatus::Accepted,
+                'reviewed_by' => $reviewer->id,
+                'reviewed_at' => now(),
+            ])->save();
+
+            return $target;
+        }));
+
+        $this->counts->flush();
+
+        return $replacement;
+    }
+
+    /**
+     * Delete a row. A hard delete leaves nothing to stamp, so the reviewer is not recorded.
+     */
+    public function remove(MediaDeweyClass $row, User $reviewer): void
+    {
+        MediaDeweyClass::whereKey($row->id)->delete();
+
+        $this->counts->flush();
     }
 
     /**
@@ -115,6 +180,42 @@ class ClassificationService
             if (! $primary) {
                 $secondaryRoom--;
             }
+        }
+    }
+
+    /**
+     * @throws PrimaryClassificationExists
+     */
+    private function review(MediaDeweyClass $row, ReviewStatus $status, User $reviewer): void
+    {
+        $this->refusingSecondPrimary($row->media_id, fn () => DB::transaction(function () use ($row, $status, $reviewer): void {
+            MediaDeweyClass::where('media_id', $row->media_id)->lockForUpdate()->get()->firstOrFail('id', $row->id)
+                ->update(['review_status' => $status, 'reviewed_by' => $reviewer->id, 'reviewed_at' => now()]);
+        }));
+
+        $this->counts->flush();
+    }
+
+    /**
+     * Run a write, turning the database's refusal of a second live primary into PrimaryClassificationExists.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $write
+     * @return T
+     *
+     * @throws PrimaryClassificationExists
+     */
+    private function refusingSecondPrimary(int $mediaId, Closure $write): mixed
+    {
+        try {
+            return $write();
+        } catch (UniqueConstraintViolationException $e) {
+            if (! str_contains($e->getMessage(), 'media_dewey_primary_unique')) {
+                throw $e;
+            }
+
+            throw new PrimaryClassificationExists("Media {$mediaId} already has a primary class.", previous: $e);
         }
     }
 

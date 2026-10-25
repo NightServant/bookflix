@@ -13,6 +13,7 @@ new #[Title('Admin')] class extends Component {
         <li><a href="{{ route('admin.providers') }}" wire:navigate>{{ __('Providers and sync runs') }}</a></li>
         <li><a href="{{ route('admin.media.index') }}" wire:navigate>{{ __('Media') }}</a></li>
         <li><a href="{{ route('admin.duplicates') }}" wire:navigate>{{ __('Duplicate review') }}</a></li>
+        <li><a href="{{ route('admin.classifications') }}" wire:navigate>{{ __('Classification review') }}</a></li>
         <li><a href="{{ route('admin.users') }}" wire:navigate>{{ __('Users') }}</a></li>
     </ul>
 </section>
