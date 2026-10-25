@@ -1,5 +1,14 @@
 <?php
 
+use App\Catalog\Data\NormalizedCreator;
+use App\Catalog\Data\NormalizedMedia;
+use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Ingestion\IngestionPipeline;
+use App\Enums\CreatorRole;
+use App\Enums\ImportOutcome;
+use App\Models\ExternalSource;
+use App\Models\MediaType;
+use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -57,4 +66,56 @@ function primaryNavs(string $html): array
     preg_match('#<nav aria-label="Primary".*?</nav>#s', $html, $bottom);
 
     return ['header' => $header[0] ?? '', 'bottom' => $bottom[0] ?? ''];
+}
+
+/**
+ * A provider fixture recorded from the real API (Pest already owns `fixture()`, which returns a path), e.g. `openlibrary/work-dune.json`.
+ *
+ * @return array<string, mixed>
+ */
+function providerFixture(string $path): array
+{
+    return json_decode(file_get_contents(__DIR__."/Fixtures/providers/{$path}"), true, flags: JSON_THROW_ON_ERROR);
+}
+
+/**
+ * A NormalizedMedia with sensible defaults. The default `novel` type shares a family with the media factory's default type.
+ * `provider` only labels the source URL.
+ *
+ * @param  list<string>  $creators
+ * @param  list<string>  $isbns
+ * @param  array<string, string>  $crossIds
+ */
+function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test', ?string $description = null): NormalizedMedia
+{
+    if (isset(MediaTypeSeeder::TYPES[$type])) {
+        MediaType::firstOrCreate(['slug' => $type], MediaTypeSeeder::TYPES[$type]);
+    }
+
+    return new NormalizedMedia(
+        title: $title,
+        mediaTypeSlug: $type,
+        creators: array_map(fn (string $name) => new NormalizedCreator($name, CreatorRole::Author), $creators),
+        isbns: $isbns,
+        crossIds: $crossIds,
+        description: $description,
+        publicationYear: $year,
+        sourceUrl: "https://{$provider}.test/".rawurlencode($title),
+    );
+}
+
+/**
+ * Import a recorded provider payload through the pipeline, with `mutate` deep-merged over it first. Creates the media types and the provider's source row when missing.
+ *
+ * @param  array<string, mixed>  $mutate
+ */
+function importFixture(string $provider, string $fixture, array $mutate = []): ImportOutcome
+{
+    app(MediaTypeSeeder::class)->run();
+    ExternalSource::where('key', $provider)->exists() || ExternalSource::factory()->create(['key' => $provider]);
+
+    $payload = array_replace_recursive(providerFixture("{$provider}/{$fixture}.json"), $mutate);
+    $record = new ProviderRecord($provider, (string) ($payload['id'] ?? ''), $payload, $payload['siteUrl'] ?? null, now()->toImmutable());
+
+    return app(IngestionPipeline::class)->import($record, app(config("bookflix.providers.{$provider}.class")));
 }

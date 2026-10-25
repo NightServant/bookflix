@@ -1,0 +1,23 @@
+provider_term,kind,bookflix_slug
+Adventure,genre,adventure
+Adventure stories,genre,adventure
+Fantasy,genre,fantasy
+Fantasy fiction,genre,fantasy
+"Fiction, fantasy, general",genre,fantasy
+Horror,genre,horror
+Horror fiction,genre,horror
+Humor,genre,comedy
+Historical fiction,genre,historical
+Mystery,genre,mystery
+Mystery fiction,genre,mystery
+Detective and mystery stories,genre,mystery
+Romance,genre,romance
+Love stories,genre,romance
+Science fiction,genre,science-fiction
+"Fiction, science fiction, general",genre,science-fiction
+Thriller,genre,thriller
+Suspense fiction,genre,thriller
+Dystopias,theme,dystopia
+Coming of age,theme,coming-of-age
+Politics and government,theme,politics
+War,theme,war

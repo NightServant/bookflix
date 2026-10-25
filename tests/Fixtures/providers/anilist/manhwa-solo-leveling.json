@@ -1,0 +1,106 @@
+{
+  "id": 105398,
+  "idMal": 121496,
+  "title": {
+    "romaji": "Na Honjaman Level Up",
+    "english": "Solo Leveling",
+    "native": "나 혼자만 레벨업"
+  },
+  "synonyms": [
+    "I Level Up Alone",
+    "Only I Level Up"
+  ],
+  "description": "In a world where awakened beings called “Hunters” must battle deadly monsters to protect humanity, Seong Jin-U, nicknamed “the weakest hunter of all mankind,” finds himself in a constant struggle for survival. One day, after a brutal encounter in an overpowered dungeon wipes out his party and",
+  "format": "MANGA",
+  "status": "FINISHED",
+  "countryOfOrigin": "KR",
+  "isAdult": false,
+  "startDate": {
+    "year": 2018,
+    "month": 3,
+    "day": 4
+  },
+  "chapters": 201,
+  "genres": [
+    "Action",
+    "Adventure",
+    "Fantasy"
+  ],
+  "tags": [
+    {
+      "name": "Dungeon",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Male Protagonist",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Super Power",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "War",
+      "isMediaSpoiler": true
+    }
+  ],
+  "coverImage": {
+    "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx105398-b673Vt5ZSuz3.jpg",
+    "large": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx105398-b673Vt5ZSuz3.jpg"
+  },
+  "siteUrl": "https://anilist.co/manga/105398",
+  "updatedAt": 1792720837,
+  "staff": {
+    "edges": [
+      {
+        "role": "Story (chs 1-92)",
+        "node": {
+          "name": {
+            "full": "So-Ryeong Gi"
+          }
+        }
+      },
+      {
+        "role": "Story (chs 93-201)",
+        "node": {
+          "name": {
+            "full": "Hyeon-Gun"
+          }
+        }
+      },
+      {
+        "role": "Art (chs 1-179)",
+        "node": {
+          "name": {
+            "full": "Seong-Rak Jang"
+          }
+        }
+      }
+    ]
+  },
+  "characters": {
+    "edges": [
+      {
+        "node": {
+          "name": {
+            "full": "Jin-U Seong"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Chi-Yul Song"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Ju-Hui Lee"
+          }
+        }
+      }
+    ]
+  }
+}
