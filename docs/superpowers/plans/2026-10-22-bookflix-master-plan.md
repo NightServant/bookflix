@@ -613,6 +613,7 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 | Figma MCP | connected; `whoami`: Full seat, education plan | use as in Part C |
 | Laravel Boost MCP | project `.mcp.json` | use as in B2 |
 | Notion | connected | optional: mirror the roadmap and decision log |
+| **TypeUI** (Claude plugin `typeui@bergside`; hosted MCP `https://mcp.typeui.sh/mcp`, one-time user sign-in) | available, needs sign-in | **Design-inspiration resource only** for the Figma and UI steps (F2-F4, C7). It never overrides the Bookflix tokens, D-17 font stack or any decision in this plan; anything it suggests is re-expressed in C2 tokens and Flux/open-source components |
 | Linear / Asana / Atlassian | need `/mcp` authorization | optional task tracking |
 | GitHub (`gh`) | CLI | PRs, CI |
 | Vercel plugin, Next.js/React skills, Supabase MCP | installed | **don't use**: the spec replaced Next.js and Supabase, and Vercel functions' size limits don't fit a torch-based ML service |
@@ -712,8 +713,8 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 | Icon button (add, favorite, rate) | Buttons → Media Control (circle) | `<flux:button icon="…" square>` | default, active, focus |
 | Cover tile | MoviePreview cards (16:9) **re-proportioned to 2:3 portrait** | `<x-cover-tile>` | S/M/L · default/hover/focus · with progress · media-type badge |
 | Story preview (hover expand) | MoviePreview patterns | `<x-story-preview>` (Alpine + Motion spring) | collapsed / expanded |
-| Shelf | Account Home rails | `<x-shelf>` (CSS scroll-snap + Alpine arrows) | plain (`surface/deep`) / featured (gradient) |
-| Hero | HeroBanners + TitlePreview | `<x-hero>` | L / M / S |
+| Shelf | Account Home rails | `<x-shelf>` (CSS scroll-snap + Alpine arrows; optional "See all" `href`, C7 #5) | plain (`surface/deep`) / featured (gradient) |
+| Hero | HeroBanners + TitlePreview | `<x-hero>` (C7 #1: numbered slides `01 / 05`, prev/next/pause, crossfade) | L / M / S, with/without slide controls |
 | Story info row | Icons&Labels → MovieInfo | `<x-story-info>` | media type · year · length · age rating · Dewey code |
 | Accordion | ContentBlocks → FAQ (Default/Hover/Open) | `<x-accordion>` = native `<details>` | closed / hover / open |
 | Top nav (desktop) | ContentBlocks → Header / HeaderLinear-gradient | `<flux:navbar>` in `layouts/app/header` | default / scrolled (flush black) |
@@ -724,6 +725,7 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 | Avatar | UserProfileAvatar S/L | `<flux:avatar>` / `<flux:profile>` | — |
 | Sign-in card | InputFields → SignIn Email + Password | auth pages | — |
 | Reader chrome | VideoPlayer → Next Episode → **Next Chapter**, Playback Speed → **Reading settings**, Subtitles → **Display panel** | Phase 9 | — |
+| New from C7: Search panel (#2), Quick links row (#3), View toggle grid/list + filter chips (#7), Path card with count (#12), Stat row (#11), Feature card (#5) | InputFields, Buttons, ContentBlocks (restyled) | `<x-search-panel>`, `<x-quick-links>`, `<x-view-toggle>`, `<x-path-card>`, `<x-stat-row>`, `flux:card` | default / hover / focus / empty |
 | New: Dewey class tile + breadcrumb, Rating input (stars as a radio group), Reading progress, Reason label, Filter chip, Onboarding pick card, Empty state, Toast, Modal, Pagination | — | `flux:breadcrumbs`, `flux:radio`, `flux:progress`, `flux:badge`, `flux:checkbox`, `flux:card`, `flux:toast`, `flux:modal`, `flux:pagination` | — |
 | New, open-source (C6): Command palette (⌘K search), Combobox (multi-select genres/themes/languages), Tabs, Range filter, Filter sheet, Stepper (onboarding), Story preview | `@alpinejs/ui` behavior + Pines/Basecoat markup, restyled; noUiSlider for ranges | `<x-command-palette>`, `<x-combobox>`, `<x-tabs>`, `<x-range-filter>`, `<flux:modal variant="flyout">`, `<x-stepper>` | default / open / focus / empty / loading |
 
@@ -735,10 +737,10 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 |---|---|
 | 1 | Landing, Sign in, Register, Forgot/Reset, Verify email, Home shell (empty state), Settings: Profile (reading profile, avatar), Security, Privacy, Deactivate modal, Admin shell |
 | 2 | Admin: Providers & sync runs, Media edit (lock fields), Duplicate review / merge |
-| 3 | Explore the Library (classes → divisions → sections → stories), Classification shelves, Admin classification review queue |
-| 4 | Home v1, Discover, Search + filters (desktop sidebar / mobile sheet), zero results, Story detail (content warnings accordion, series, related, similar), Series page |
+| 3 | Explore the Library (Choose-your-path class cards with counts, C7 #12; classes → divisions → sections → stories), Classification shelves, Admin classification review queue |
+| 4 | Home v1 (numbered hero slider, C7 #1; search panel #2; quick links #3), Discover (browse tiles #6, quick links), Search + filters (desktop sidebar / mobile sheet), zero results, Story detail (content warnings accordion, series, related, similar), Series page |
 | 5 | Onboarding (types → genres → 3 stories), Library (status filters, sort, shelves), Collections (list/detail/edit), History, Rating control, Progress logging |
-| 6 | Personalized Home (10 shelves, reason labels), "Why this?" explanation popover |
+| 6 | Personalized Home (10 shelves, reason labels, per-shelf "See all", themed editorial banner), "Why this?" explanation popover |
 | 7 | Natural-language search (intent chips), semantic results explanation |
 | 8 | Admin model versions and metrics |
 | 9 | Reader: EPUB, PDF, manga pager (LTR/RTL), webtoon vertical scroll, reading settings |
@@ -827,6 +829,37 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 - Copied markup, or a thin wrapper around an approved library, becomes a Bookflix Blade component in `resources/views/components/`. It uses only C2 tokens and has a matching Figma F3 component. Keep license headers in copied code, and record each library's license in G2.
 - Accessibility acceptance: the component follows its WAI-ARIA APG pattern (roles, keyboard, focus return), shows a visible focus ring, has 44 px touch targets, and respects reduced motion. A Pest browser test for the component proves it.
 - Livewire safety: stable `wire:key`; third-party DOM inside `wire:ignore`; initialization in Alpine `x-init` so it survives `wire:navigate`.
+
+---
+
+## C7. Visual inspiration and interaction patterns
+
+Researched 2026-10-25 by fetching each site and summarizing layout, typography, navigation, motion and signature moments (summaries only, nothing copied). **Unreadable:** `nypl.org` (empty response, likely JS-rendered or blocking) and `cinematypography.com` (title only); neither contributed a pattern. `nextjs-animated-slider` is a placeholder demo whose motion details were not visible; its numbered-slide hero pattern is the part adopted.
+
+**Fixed constraints for every pattern:** dark-only C2 tokens; red only for CTAs, active accents and the logo mark; no shadows; Flux free plus open-source additions only (`@alpinejs/ui`, Motion vanilla, Embla if needed, CSS); code keeps the spec's font stack (D-17), so expressive type comes from the existing 7 text tokens through scale, weight, tracking and layout, never new fonts; WCAG AA, visible focus (`accent-electric`), `prefers-reduced-motion` respected; no site's brand assets, imagery or exact layouts are reused. Recurring type recipe, built from existing tokens: an **eyebrow** (`text-legal`, uppercase, `tracking-widest`, `text-ink-subtle`) over a **title** (`text-hero` or `text-section`), with numbered labels (`01`) in `text-meta` tabular figures.
+
+**The Bookflix brand mark now exists** (PR #8): a red rounded square with a white "B" made of a book spine and stacked books, plus a white title-case wordmark. Use it only as supplied; the red mark is the one non-CTA red allowed besides active accents.
+
+| # | Source site | Pattern | Where in Bookflix | How to build it here | Priority |
+|---|---|---|---|---|---|
+| 1 | nextjs-animated-slider | Full-width hero with numbered slides (`01 / 05`), large title, uppercase eyebrow, one CTA, crossfade between slides | Phase 4.7 Home hero; `<x-hero>` | Slides are the top trending/editorial stories (cover art as `object-cover`, dark scrim via token surfaces, no shadow); counter in tabular `text-meta`; prev/next `<button>`s and pause control; `x-motion-crossfade` (`motion/slow`), autoplay off by default and never under reduced motion; arrow keys and `aria-live="polite"` slide announcement | MVP |
+| 2 | SPL | Search-first panel ("What would you like to find?") above the content, plus a catalogue entry point | Phase 4.3 Search, 4.6 Discover, Home top; new `<x-search-panel>` | A large `flux:input` bound to the same Livewire search with the `<x-combobox>` suggestions and a "Browse the catalogue" secondary CTA to Discover; ⌘K command palette stays | MVP |
+| 3 | SPL | "Common tasks" shortcut row | Phase 4.6 Discover, Home empty state; `<x-quick-links>` | 4-6 `flux:card` links (Continue reading, New releases, Browse by subject, My collections, Surprise me), icons from Heroicons/Lucide, equal-height row, 44 px targets | MVP |
+| 4 | SPL | Staff Picks as themed lists (seasonal, awareness weeks) | Phase 5.3 editorial collections, Phase 6.4 `EditorialSource`, Home shelf "Picked by our editors" | Editorial collections get `theme_label` (reuse the collection `name`/`description`) and a banner row on Discover; the shelf eyebrow shows the theme; no new table | MVP |
+| 5 | YPRL | Per-shelf "See more" link and stacked feature cards (headline, blurb, button) | Phase 4.0b `<x-shelf>`, 4.7 Home, 4.6 Discover | `<x-shelf>` gets an optional `href` rendered as a "See all" text link in the header, to a pre-filtered Search or the collection; feature cards are `flux:card` blocks with eyebrow + title + CTA | MVP |
+| 6 | YPRL | "Browse the Catalogue" as an explicit card leading into filtered browsing | Phase 4.6 Discover, Phase 3.4 Explore | Discover leads with browse-by media type, genre, subject tiles; each tile shows a live count (reuse `DeweyCounts`) | MVP |
+| 7 | forms.world | Filter chips above a grid plus Grid/List toggle | Phase 4.3 Search results, 5.2 Library, 4.6 Discover; new `<x-view-toggle>` | Chip row of active filters (removable) above results; `<x-view-toggle>` is a two-option `@alpinejs/ui` radio group (icon buttons, `aria-label`s); the choice persists in the URL (`#[Url] view`) and `localStorage` as a convenience; list view = compact row with cover, title, creators, type, year | MVP |
+| 8 | forms.world | Preview on hover/focus with an expandable viewer | Phase 4.0b `<x-story-preview>` | Existing spring-expand popover (Motion `x-motion-expand`); add a "Quick view" modal (`flux:modal`) for touch devices instead of hover | MVP |
+| 9 | ethanandtom | Numbered index (`[01]`), breadcrumb trail and sequential "next" links | Phase 4.5 Series page, 4.4 Story detail; `<x-dewey-breadcrumb>` | Series volumes listed with bracketed index numbers in tabular figures; story page shows breadcrumb (Dewey path), then "Previous / Next in series" links; keyboard-reachable | MVP |
+| 10 | theperformancelab | Numbered process steps (`001-004`) with bold uppercase headings | Phase 5.8 onboarding `<x-stepper>`, landing "How it works" | Stepper labels `01 Types`, `02 Genres`, `03 Stories`; landing section of three numbered cards; headings use the eyebrow + `text-section` recipe | MVP |
+| 11 | theperformancelab | Stats row (large numbers with small labels) | Phase 5.6 History header, Phase 10 profile, landing (catalogue counts); new `<x-stat-row>` | 3-4 `text-hero`-scale numbers over `text-legal` uppercase labels on `surface-card`; values come from real queries (total reading time, completed, ratings), never invented marketing numbers | MVP (History) / later (landing, profile) |
+| 12 | ciphermuseum | "Choose your path" entry cards with counts and an "exhibits / halls" framing | Phase 3.4 Explore index; new `<x-path-card>` | The 10 Dewey-inspired classes as large path cards (code, name, story count, "Enter" affordance), a hero stat line ("N stories across 10 classes"); the "halls" metaphor stays copy-only, never "DDC" | MVP |
+| 13 | ciphermuseum | Live interactive playground and three-act story section | Landing page | "Try a search" demo on the landing page (anonymous, read-only, over editorial collection items only) and a three-step story block; no personalization, no logging | later |
+| 14 | SPL | Skip link and accessible mega-menu with clear grouping | Layouts (Phase 1 already has the skip link), nav config | Keep the skip link; if a mega-menu is ever needed use `@alpinejs/ui` disclosure/menu; Bookflix's nav stays a flat list | MVP (verify only) |
+| 15 | ethanandtom, forms.world | Media controls with live progress percentage and timecode | Phase 9 reader chrome; Phase 5.4 progress on cover tiles | Reader toolbar shows `% read` and estimated time left in tabular `text-meta`; tile progress bars show the same figure to screen readers (`aria-valuenow`) | later (reader) |
+| 16 | theperformancelab | Parallax or layered hero imagery (inferred, not confirmed) | Phase 4.7 hero | Optional: Motion `scroll()` moves the cover layer by a few px with `transform` only; skipped entirely under reduced motion; drop it if it hurts performance | later |
+
+**Not adopted:** live clock and decorative marquee elements (no purpose in a library), uppercase-everything headings (hurts readability; limited to eyebrows), any imagery or brand asset from the studied sites.
 
 ---
 
@@ -1684,5 +1717,6 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 2026-10-23 | Phase 1 done (PR #4) | Part D marked done; navigation in `config('bookflix.navigation')`, `FILESYSTEM_DISK=local`, `flysystem-s3`/Nightwatch deferred to deploy, ML docs off by default | user |
 | 2026-10-23 | D-13 reaffirmed | Phone bottom nav stays Home, Discover, Search, Library, Profile. Phase 1's placeholder bar (Home, Library, Option 1, Option 2, Settings) is replaced as Phases 4, 5 and 10 add their items to `config('bookflix.navigation')`; each phase must also mark which items show on the phone bar. | user |
 | 2026-10-23 | D-17 font | Code keeps the spec's font stack (`'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif`); Inter is used only in the Figma design system, because Figma couldn't load Helvetica Neue. Design QA (F7) ignores font-rendering differences. | user |
+| 2026-10-25 | Design inspiration (C7) | 16 patterns adopted from SPL, YPRL, forms.world, ethanandtom, theperformancelab, ciphermuseum and the slider demo; NYPL and cinematypography unreadable; TypeUI added to Part B as inspiration-only; Bookflix logo (PR #8) recorded. Rationale: borrow interaction patterns within the fixed tokens/stack, no assets or layouts. | user (via lead session) |
 | — | D-1 … D-18, Q1 … Q17, A4 approvals | pending | — |
 | — | Figma file keys: Bookflix · Design System / Prototypes / Architecture & Flows | pending (F0) | — |

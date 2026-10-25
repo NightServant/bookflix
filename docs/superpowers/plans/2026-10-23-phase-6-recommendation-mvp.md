@@ -542,6 +542,8 @@ test('fromCandidate carries genre payload and the reason media title', function 
 
 ### Task 6.8: `ShelfBuilder`, personalized Home, caching, logging (Review Focus #1, #3)
 
+**C7 patterns (master plan C7):** C7 #4/#5 — each personalized shelf header may carry a "See all" `href` (Because You Read → search seeded with the source's genres; Trending → trending search); the editorial shelf shows its theme eyebrow. Test: `shelf headers expose see-all links only where a target exists`.
+
 **Files:**
 - Create: `app/Discovery/Recommendations/{CandidatePool,ShelfBuilder,RecommendationLogger}.php`, `app/Listeners/ForgetHomeShelves.php` (listens to `LibraryChanged`: `Cache::forget("home:shelves:{$user->id}")`), `app/Http/Controllers/…` none
 - Modify: `resources/views/pages/home/⚡index.blade.php` (renders `ShelfBuilder::forHome`, lazy per shelf; tile links add `?rec={recommendation_id}`; impression via `x-intersect`; "Not interested" menu → `dismiss`), `resources/views/pages/stories/⚡show.blade.php` (reads `?rec` → `recommendation_click` interaction + `RecommendationEvent` click), `⚡library-controls.blade.php` (a library add with `rec` in the session logs `library_add`), `app/Discovery/HomeShelves.php` (Phase 4's guest-safe list becomes the cold-start fallback inside `ShelfBuilder`)

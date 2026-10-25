@@ -161,6 +161,8 @@ test('visiting a story records view and a search click only for an opted in owne
 
 ### Task 5.2: Library page
 
+**C7 patterns (master plan C7):** C7 #7 — add `<x-view-toggle>` (grid/list, `#[Url] view`, alongside the existing `shelves` view) and removable filter chips; test `list view renders compact rows` and `view persists in the url`.
+
 **Files:**
 - Create: `resources/views/pages/library/⚡index.blade.php`, `app/Policies`: Gate `view-library` in `AppServiceProvider`
 - Modify: `routes/web.php` (`Route::livewire('library', 'pages::library.index')->name('library')`), `config('bookflix.navigation')` (Library item, also in the bottom nav)
@@ -238,6 +240,8 @@ test('the library runs bounded queries', function () {
 ---
 
 ### Task 5.3: Collections
+
+**C7 patterns (master plan C7):** C7 #4 — editorial collections show a theme eyebrow and appear as a themed banner row on Discover/Home; test `editorial collections surface on discover with their theme`.
 
 **Files:**
 - Create: migration `2026_10_26_000003_create_collections_tables.php` (A6 `collections`, `collection_items` with `unique(collection_id, media_id)`, index `(collection_id, position)`), models `Collection`, `CollectionItem` + factories, `app/Policies/CollectionPolicy.php`, pages `collections/⚡index.blade.php` (list + create), `collections/⚡show.blade.php` (view/edit, add/remove items, reorder, visibility, editorial toggle for admins)
@@ -456,6 +460,8 @@ test('the component shows only the signed in users rating', function () {
 
 ### Task 5.6: History page
 
+**C7 patterns (master plan C7):** C7 #11 — History header uses `<x-stat-row>` (total reading time, sessions this month, stories completed); test `stat values come from the user's own sessions only`.
+
 **Files:**
 - Create: `resources/views/pages/history/⚡index.blade.php`; Modify: `routes/web.php` (`history`), `config('bookflix.navigation')` (History, desktop only; reachable under Library on mobile)
 - Test: `tests/Feature/Library/HistoryPageTest.php`
@@ -547,6 +553,8 @@ test('the privacy page button queues the export and old exports are pruned', fun
 ---
 
 ### Task 5.8: Onboarding and preferences (§33, §41)
+
+**C7 patterns (master plan C7):** C7 #10 — `<x-stepper>` labels are numbered `01 Types`, `02 Genres`, `03 Stories` with the eyebrow + title recipe; test `the current step is announced with aria-current and its number`.
 
 **Files:**
 - Create: migration `2026_10_26_000006_create_user_preferences_table.php` (A6: `user_id`, `morphs(preferable)`, `weight smallint default 1`, `unique(user_id, preferable_type, preferable_id)`), `app/Models/UserPreference.php`, `resources/views/pages/onboarding/⚡index.blade.php` (3 steps with `<x-stepper>`), `resources/views/pages/settings/⚡preferences.blade.php`, `app/Http/Middleware/EnsureOnboarded.php`

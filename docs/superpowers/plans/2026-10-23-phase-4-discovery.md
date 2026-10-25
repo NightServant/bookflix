@@ -97,8 +97,8 @@ The kit starts here. After 4.0a lands, **one implementer subagent per component*
 | Component | Props / slots | Source (C6 gap map) | Component-specific assertion |
 |---|---|---|---|
 | `<x-cover-tile>` | `:media` (Media), `size` S\|M\|L, `:progress` ?int, `:reason` ?string | native + CSS hover scale 1.05 (`motion/fast`) | renders `<img loading="lazy" width height alt>`, links to `route('stories.show', slug)`, 2:3 aspect, media-type badge, progress bar only when given |
-| `<x-shelf>` | `title`, `:featured` bool, default slot of tiles | scroll-snap + Alpine arrows | arrows are `<button aria-label>`; `featured` adds the only allowed gradient (`from-featured-from via-featured-via to-featured-to`); `plain` uses `bg-surface-deep` |
-| `<x-hero>` | `:media`, `size` L\|M\|S, cta slot | Motion crossfade | one `<h1>`, CTA via `<x-cta>`, `x-motion-crossfade` present |
+| `<x-shelf>` | `title`, `:featured` bool, optional `href` for a "See all" link (C7 #5), default slot of tiles | scroll-snap + Alpine arrows | arrows are `<button aria-label>`; `featured` adds the only allowed gradient (`from-featured-from via-featured-via to-featured-to`); `plain` uses `bg-surface-deep` |
+| `<x-hero>` | `:slides` (list of Media) or `:media`, `size` L\|M\|S, `autoplay` (default false), cta slot (C7 #1) | Motion crossfade | one `<h1>` per active slide, counter `01 / 05` in tabular figures, prev/next/pause `<button aria-label>`, `aria-live="polite"`, `x-motion-crossfade`, no autoplay under reduced motion |
 | `<x-story-info>` | `:media` | native | order: type · year · length · age rating · Dewey code (public primary only); omits missing parts without stray separators |
 | `<x-cta>` | `href`/`wire:click`, label slot, `variant` primary\|secondary | `flux:button` | primary uses `variant="primary"`; 24 px label token (`text-cta`) |
 | `<x-accordion>` | `title`, `name` (optional group), slot | native `<details name>` + `x-collapse` | uses `<details>/<summary>`; group `name` makes siblings exclusive |
@@ -107,6 +107,11 @@ The kit starts here. After 4.0a lands, **one implementer subagent per component*
 | `<x-combobox>` | `:options`, `wire:model`, `multiple`, `placeholder` | `@alpinejs/ui` combobox | `role=combobox/listbox/option`, type-ahead filter, multiple chips, Escape closes, focus returns |
 | `<x-command-palette>` | opens on ⌘K / Ctrl-K | `@alpinejs/ui` dialog + combobox | focus trap, Escape closes, results from the same Livewire search |
 | `<x-range-filter>` | `min`, `max`, `wire:model.live` (two values) | noUiSlider inside `wire:ignore` | two handles with `aria-valuenow`, values synced to Livewire, destroyed/recreated safely on morph |
+| `<x-search-panel>` | `placeholder`, `wire:model` (C7 #2) | `flux:input` + `<x-combobox>` | label "What would you like to find?" is a real `<label>`; secondary CTA to Discover |
+| `<x-quick-links>` | `:links` (label, route, icon) (C7 #3) | `flux:card` links | 44 px targets, equal heights, keyboard order matches visual order |
+| `<x-view-toggle>` | `wire:model` grid\|list (C7 #7) | `@alpinejs/ui` radio group | two radios with labels, `aria-checked`, choice reflected in the URL |
+| `<x-path-card>` | `:class` (DeweyClass), `:count` (C7 #12) | `flux:card` | renders code, name, count; link to `explore.show` |
+| `<x-stat-row>` | `:stats` (label, value) (C7 #11) | Blade | values are plain text, tabular figures, labels uppercase eyebrow |
 | `<x-stepper>` | `:steps`, `:current` | Blade (Basecoat/Pines markup reference, license header kept) | `aria-current="step"` on the current step |
 | `<x-story-preview>` | `:media` | `@alpinejs/ui` popover + `x-anchor` + `x-motion-expand` | opens on hover/focus after 300 ms, closes on Escape/blur |
 | `<x-filter-sheet>` | slot | `flux:modal variant="flyout"` | mobile only (`lg:hidden` trigger), traps focus |
@@ -271,6 +276,8 @@ test('rejected or low confidence dewey rows do not satisfy a dewey filter', func
 
 ### Task 4.3: Search page, `search_queries` logging and click-through (Review Focus #3)
 
+**C7 patterns (master plan C7):** C7 #2/#7 — add `<x-search-panel>` at the top of the page and a removable filter-chip row plus `<x-view-toggle>` above results; add tests `the view toggle switches grid and list and is reflected in the url` and `active filters render as removable chips`.
+
 **Files:**
 - Create: migration `2026_10_25_000002_create_search_queries_table.php` (A6 `search_queries`, created in this phase per D-22), `app/Models/SearchQuery.php` + factory, `resources/views/pages/search/⚡index.blade.php`, `app/Discovery/Search/SearchLogger.php`
 - Modify: `routes/web.php` (`Route::livewire('search', 'pages::search.index')->name('search')`), `config/bookflix.php` `navigation` (add the Search item; it also appears in the bottom nav), `layouts/app/header.blade.php` (only the `<x-command-palette>` trigger)
@@ -345,6 +352,8 @@ test('guests are redirected to login', function () { $this->get(route('search'))
 
 ### Task 4.4: Story detail page and `SimilarMedia` (Review Focus #4)
 
+**C7 patterns (master plan C7):** C7 #9 — breadcrumb (Dewey path via `<x-dewey-breadcrumb>`) above the title and "Previous / Next in series" links; test `series neighbours link in both directions and are absent for the first/last or standalone story`.
+
 **Files:**
 - Create: `resources/views/pages/stories/⚡show.blade.php`, `app/Discovery/SimilarMedia.php`
 - Modify: `routes/web.php` (`Route::livewire('stories/{slug}', 'pages::stories.show')->name('stories.show')`)
@@ -408,6 +417,8 @@ test('the story page runs a bounded number of queries', function () {
 
 ### Task 4.5: Series page
 
+**C7 patterns (master plan C7):** C7 #9 — volumes listed with bracketed index numbers in tabular figures (`[01]`, `[01.5]`); keep the ordering tests unchanged.
+
 **Files:**
 - Create: `resources/views/pages/series/⚡show.blade.php`; Modify: `routes/web.php` (`series/{slug}` → `series.show`)
 - Test: `tests/Feature/Discovery/SeriesPageTest.php`
@@ -437,6 +448,8 @@ test('items without a position come last and an unknown series is 404', function
 
 ### Task 4.6: Discover page
 
+**C7 patterns (master plan C7):** C7 #2/#3/#6 — Discover opens with `<x-search-panel>`, then `<x-quick-links>` (Continue reading, New releases, Browse by subject, My collections), then browse tiles by media type, genre and subject with live counts; test `quick links point at existing routes` and `type tiles show counts`.
+
 **Files:**
 - Create: `resources/views/pages/discover/⚡index.blade.php`; Modify: `routes/web.php` (`discover`), `config('bookflix.navigation')` (add the Discover item)
 - Test: `tests/Feature/Discovery/DiscoverPageTest.php`
@@ -465,6 +478,8 @@ test('an invalid family is ignored', function () {
 ---
 
 ### Task 4.7: Home v1 (non-personal shelves)
+
+**C7 patterns (master plan C7):** C7 #1/#5/#16 — the hero is the numbered slider (`<x-hero :slides>` with the top 5 trending stories, autoplay off); each shelf header gets a "See all" `href`; optional layered-parallax is out of this phase's acceptance. Tests: `hero renders the counter and one h1`, `next control advances the slide (browser)`, `no autoplay and no transition under reduced motion (browser)`, `shelf headers link to filtered search`.
 
 **Files:**
 - Create: `app/Discovery/Shelf.php` (readonly: `string $key`, `string $title`, `Collection $items`, `bool $featured = false`, `?string $reasonLabel = null`), `app/Discovery/HomeShelves.php`

@@ -271,6 +271,8 @@ test('classify media persists pending rows with confidence and source', function
 
 ### Task 3.4: Explore pages with counts and breadcrumbs (Review Focus #1)
 
+**C7 patterns (master plan C7):** C7 #12 — the Explore index renders the 10 classes as `<x-path-card>`s (code, name, count) under a hero stat line `N stories across 10 classes`; test `path cards show counts and link to the class page` and `stat line counts only publicly classified stories`.
+
 **Files:**
 - Create: `app/Classification/DeweyCounts.php`, `resources/views/pages/explore/⚡index.blade.php`, `resources/views/pages/explore/⚡show.blade.php`, `resources/views/components/dewey-breadcrumb.blade.php`
 - Modify: `routes/web.php` (auth + verified group: `Route::livewire('explore', 'pages::explore.index')->name('explore.index')`, `Route::livewire('explore/{code}', 'pages::explore.show')->name('explore.show')->where('code', '[0-9]{3}(\.[0-9]+)?')`), no nav item and no `config('bookflix.navigation')` change (D-13: the desktop nav is the 7 fixed items and Explore is entered from Discover and Home in Phase 4; until then use the URL; a temporary link from `pages/admin/⚡index.blade.php` is not needed)
