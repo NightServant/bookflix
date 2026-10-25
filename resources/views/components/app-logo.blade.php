@@ -1,5 +1,4 @@
-<flux:brand :name="config('app.name', 'Laravel')" {{ $attributes }}>
-    <x-slot name="logo" class="flex aspect-square size-8 items-center justify-center rounded-md bg-accent-content text-accent-foreground">
-        <x-app-logo-icon class="size-5 fill-current text-white dark:text-black" />
-    </x-slot>
-</flux:brand>
+<a {{ $attributes->merge(['class' => 'inline-flex items-center gap-2 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-electric']) }}>
+    <x-app-logo-icon class="size-8 shrink-0" />
+    <span class="text-xl font-black tracking-tight text-ink">{{ config('app.name', 'Bookflix') }}</span>
+</a>
