@@ -43,6 +43,20 @@ class HybridSearch
     }
 
     /**
+     * No text, only filters (Discover): the most rated first, newest breaking ties.
+     *
+     * @return LengthAwarePaginator<int, Media>
+     */
+    public function browse(SearchFilters $filters, int $perPage = 24): LengthAwarePaginator
+    {
+        return $filters->apply(Media::query()->unmerged())
+            ->orderByDesc('media.ratings_count')
+            ->orderByRaw('media.published_on desc nulls last')
+            ->orderByDesc('media.id')
+            ->paginate($perPage);
+    }
+
+    /**
      * Trim, collapse whitespace and cap the length. Text with no letter or digit in it becomes empty.
      */
     private function normalize(string $query): string

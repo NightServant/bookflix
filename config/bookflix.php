@@ -138,6 +138,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Length Buckets
+    |--------------------------------------------------------------------------
+    |
+    | The length filter: up to `short` is short, up to `medium` is medium, more is
+    | long. A media with a page count is bucketed by pages, otherwise by chapters.
+    |
+    */
+
+    'length_buckets' => [
+        'pages' => ['short' => 200, 'medium' => 500],
+        'chapters' => ['short' => 30, 'medium' => 100],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Classification
     |--------------------------------------------------------------------------
     |
