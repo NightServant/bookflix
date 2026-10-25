@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Classification\DeweyCounts;
+use App\Discovery\Search\SearchTextBuilder;
 use App\Enums\AgeRating;
 use App\Enums\ClassificationType;
 use App\Enums\PublicationStatus;
@@ -21,6 +22,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Scout\Attributes\SearchUsingFullText;
+use Laravel\Scout\Searchable;
 
 /**
  * @property int $id
@@ -85,7 +88,7 @@ use Illuminate\Support\Str;
 class Media extends Model
 {
     /** @use HasFactory<MediaFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, Searchable, SoftDeletes;
 
     /**
      * The model's default attribute values.
@@ -158,25 +161,42 @@ class Media extends Model
     }
 
     /**
-     * Phase 4 search reads this: every name that can find the media, lowercased.
+     * Rebuild the lowercased, accent-folded names that search reads (see SearchTextBuilder), after the relations may have changed.
      */
     public function refreshSearchText(): void
     {
-        $this->load(['creators', 'series', 'genres', 'themes', 'tags', 'characters', 'publishers']);
+        $this->load(SearchTextBuilder::RELATIONS);
 
-        $terms = array_merge(
-            [$this->title],
-            $this->alternative_titles,
-            $this->creators->pluck('name')->all(),
-            $this->series->pluck('title')->all(),
-            $this->genres->pluck('name')->all(),
-            $this->themes->pluck('name')->all(),
-            $this->tags->pluck('name')->all(),
-            $this->characters->pluck('name')->all(),
-            $this->publishers->pluck('name')->all(),
-        );
+        $this->update(['search_text' => app(SearchTextBuilder::class)->build($this)]);
+    }
 
-        $this->update(['search_text' => Str::lower(implode(' ', array_unique(array_filter($terms))))]);
+    /**
+     * Scout's database engine searches the table itself, and only this column, through the `media_search_fts` index.
+     *
+     * @return array{search_text: string}
+     */
+    #[SearchUsingFullText(['search_text'], ['language' => 'simple'])]
+    public function toSearchableArray(): array
+    {
+        return ['search_text' => $this->search_text];
+    }
+
+    /**
+     * Merged and deleted media stay out of every index.
+     */
+    public function shouldBeSearchable(): bool
+    {
+        return ! $this->trashed() && $this->merged_into_id === null;
+    }
+
+    /**
+     * Media that is not a merge loser: the live, public catalogue (deleted media is already hidden by the soft-delete scope).
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeUnmerged(Builder $query): void
+    {
+        $query->whereNull('media.merged_into_id');
     }
 
     /**

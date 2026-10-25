@@ -5,6 +5,8 @@ use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
 use App\Classification\ClassificationCandidate;
+use App\Discovery\Search\HybridSearch;
+use App\Discovery\Search\SearchFilters;
 use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
@@ -18,6 +20,7 @@ use App\Models\MediaType;
 use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -169,4 +172,14 @@ function classified(Media|Collection $media, string $code, string $type = 'prima
     }
 
     return $media;
+}
+
+/**
+ * A hybrid search with no signed-in reader; filters default to none.
+ *
+ * @return LengthAwarePaginator<int, Media>
+ */
+function search(string $query, ?SearchFilters $filters = null): LengthAwarePaginator
+{
+    return app(HybridSearch::class)->search($query, $filters ?? new SearchFilters, null);
 }
