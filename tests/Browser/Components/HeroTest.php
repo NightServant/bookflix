@@ -131,7 +131,8 @@ test('on a desktop the cards sit beside the text over a full-bleed backdrop', fu
             const text = document.querySelector("article[data-slide=\"0\"]").getBoundingClientRect();
             const card = document.querySelector("[data-card]").getBoundingClientRect();
 
-            return Math.abs(backdrop.width - section.width) < 1 && Math.abs(backdrop.height - section.height) < 1 && card.left >= text.right;
+            // The backdrop is scaled up 10% so its blurred edges never show.
+            return backdrop.width >= section.width - 1 && backdrop.width <= section.width * 1.11 && backdrop.height >= section.height - 1 && backdrop.height <= section.height * 1.11 && card.left >= text.right;
         })()', true);
 });
 

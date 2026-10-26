@@ -16,7 +16,8 @@
 --}}
 @php
     $headingId = $id ?? 'shelf-'.Str::slug($title);
-    $arrow = 'focus-ring inline-flex size-11 items-center justify-center rounded-card bg-surface-input text-ink hover:bg-hairline disabled:cursor-default disabled:opacity-40 disabled:hover:bg-surface-input';
+    // Ghost buttons like the hero's: a bright icon in a 44px box, no fill; the dimmer one is disabled.
+    $arrow = 'focus-ring inline-flex size-11 items-center justify-center rounded-control text-ink hover:ring-1 hover:ring-ink/50 disabled:cursor-default disabled:text-ink-muted disabled:hover:ring-0';
 @endphp
 
 <section
@@ -49,7 +50,7 @@
                 >{{ __('See all') }}</a>
             @endif
 
-            <div x-show="canScroll" style="display: none" class="flex items-center gap-2">
+            <div x-show="canScroll" style="display: none" class="items-center max-sm:!hidden sm:flex">
                 <button type="button" x-ref="prev" @click="go(-1)" :disabled="atStart" aria-label="{{ __('Previous in :shelf', ['shelf' => $title]) }}" class="{{ $arrow }}">
                     <flux:icon name="chevron-left" class="size-5" />
                 </button>

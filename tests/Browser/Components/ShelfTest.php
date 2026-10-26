@@ -55,9 +55,12 @@ test('tiles reveal on load, and only the featured shelf wears the gradient', fun
         ->assertScript('getComputedStyle(document.querySelectorAll("section")[0]).backgroundImage', 'none');
 });
 
-test('arrows are 44px targets and a phone gets no horizontal page scroll', function () {
+test('arrows are 44px targets, and a phone swipes instead: no arrows, no horizontal page scroll', function () {
+    visit($this->path, ['viewport' => ['width' => 800, 'height' => 812]])->wait(1)
+        ->assertScript("(() => { const r = document.querySelector('{$this->next}').getBoundingClientRect(); return r.width >= 44 && r.height >= 44; })()", true);
+
     visit($this->path, ['viewport' => ['width' => 375, 'height' => 812]])->wait(1)
-        ->assertScript("(() => { const r = document.querySelector('{$this->next}').getBoundingClientRect(); return r.width >= 44 && r.height >= 44; })()", true)
+        ->assertScript("document.querySelector('{$this->next}').offsetParent === null", true)
         ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true)
         ->assertNoAccessibilityIssues();
 });

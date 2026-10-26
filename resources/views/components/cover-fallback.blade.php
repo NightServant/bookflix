@@ -13,7 +13,7 @@
         <span class="flex size-full items-center justify-center ps-[7cqw] text-[length:62cqw] font-black leading-none text-ink-muted">{{ mb_strtoupper(mb_substr(trim($title), 0, 1)) }}</span>
     @else
         <span class="flex size-full flex-col justify-between gap-[6cqw] p-[10cqw] ps-[17cqw]">
-            <span class="line-clamp-6 break-words text-[length:max(0.75rem,13cqw)] font-black leading-[1.05] tracking-tight text-ink">{{ $title }}</span>
+            <span class="line-clamp-6 hyphens-auto break-words text-[length:max(0.75rem,10.5cqw)] font-black leading-[1.05] tracking-tight text-ink">{{ $title }}</span>
             <span class="block h-px w-[24cqw] shrink-0 bg-ink-muted"></span>
         </span>
     @endif

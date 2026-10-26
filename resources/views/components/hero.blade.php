@@ -27,7 +27,8 @@
     };
 
     $cards = $items->map(fn ($slide) => ['id' => $slide->id, 'title' => $slide->title, 'cover' => $slide->cover_url])->all();
-    $control = 'focus-ring inline-flex size-11 items-center justify-center rounded-card bg-surface-input text-ink hover:bg-hairline';
+    // Ghost buttons: a bright icon in a 44px hit area, no fill. Hover draws a faint ring; they never get a solid background.
+    $control = 'focus-ring inline-flex size-11 items-center justify-center rounded-control text-ink hover:ring-1 hover:ring-ink/50 disabled:text-ink-muted';
 @endphp
 
 @if ($count > 0)
@@ -54,10 +55,11 @@
                         x-motion-crossfade="fade"
                         @if ($index > 0) style="display: none" @endif
                         @if ($index === 0) fetchpriority="high" @else loading="lazy" @endif
-                        class="absolute inset-0 size-full object-cover"
+                        class="absolute inset-0 size-full scale-110 object-cover blur-2xl"
                     >
                 @endif
             @endforeach
+            <div class="absolute inset-x-0 bottom-0 h-3/5 bg-linear-to-t from-canvas/90 via-canvas/50 to-transparent"></div>
             <div data-hero-scrim class="absolute inset-0 bg-linear-to-t from-canvas via-canvas/80 to-canvas/60 lg:bg-linear-to-r lg:via-canvas/60 lg:to-canvas/10"></div>
         </div>
 
@@ -78,7 +80,7 @@
                         @if ($index > 0) style="display: none" @endif
                     >
                         <p class="text-legal uppercase tracking-widest text-ink-subtle">{{ $eyebrow }}</p>
-                        <h1 class="mt-1 {{ $titleSize }} text-ink">
+                        <h1 class="mt-1 tracking-tight {{ $titleSize }} text-ink">
                             @foreach ($words as $word)<span class="-mb-[0.12em] inline-block overflow-hidden pb-[0.12em] align-bottom"><span data-word class="inline-block">{{ $word }}</span></span> @endforeach
                         </h1>
                         @if ($slide->description)
@@ -109,7 +111,7 @@
                                         class="group focus-ring block w-full rounded-card text-start"
                                     >
                                         <span class="block aspect-[2/3] overflow-hidden rounded-card bg-surface-card">
-                                            <span x-show="!card.cover" x-text="card.title" aria-hidden="true" class="line-clamp-5 block p-2 text-legal font-black leading-tight tracking-tight text-ink"></span>
+                                            <template x-if="!card.cover"><span x-text="card.title" aria-hidden="true" class="line-clamp-5 block p-2 text-legal font-black leading-tight tracking-tight text-ink"></span></template>
                                             <img
                                                 x-show="card.cover"
                                                 :src="card.cover"
@@ -127,21 +129,23 @@
                         </ul>
                     @endunless
 
-                    <div class="flex items-center gap-4">
-                        <div aria-hidden="true" class="h-0.5 w-16 bg-hairline sm:w-40">
+                    <div class="flex items-center gap-3">
+                        <div aria-hidden="true" class="h-0.5 w-16 bg-ink/50 sm:w-40">
                             <div
                                 class="h-full origin-left scale-x-(--progress) bg-ink motion-safe:transition-transform motion-safe:duration-(--motion-base) motion-safe:ease-out-bookflix"
                                 style="--progress: {{ round(1 / $count, 4) }}"
                                 :style="{ '--progress': (current + 1) / count }"
                             ></div>
                         </div>
-                        <p aria-hidden="true" class="tabular-nums"><span class="text-section text-ink" x-text="String(current + 1).padStart(2, '0')">01</span> <span class="text-meta text-ink-muted">/ {{ $total }}</span></p>
-                        <button type="button" @click="prev()" aria-label="{{ __('Previous slide') }}" class="{{ $control }}">
-                            <flux:icon name="chevron-left" class="size-5" />
-                        </button>
-                        <button type="button" @click="next()" data-hero-next aria-label="{{ __('Next slide') }}" class="{{ $control }}">
-                            <flux:icon name="chevron-right" class="size-5" />
-                        </button>
+                        <p aria-hidden="true" class="tabular-nums"><span class="text-lead text-ink" x-text="String(current + 1).padStart(2, '0')">01</span> <span class="text-meta text-ink-subtle">/ {{ $total }}</span></p>
+                        <div class="flex items-center">
+                            <button type="button" @click="prev()" aria-label="{{ __('Previous slide') }}" class="{{ $control }}">
+                                <flux:icon name="chevron-left" class="size-5" />
+                            </button>
+                            <button type="button" @click="next()" data-hero-next aria-label="{{ __('Next slide') }}" class="{{ $control }}">
+                                <flux:icon name="chevron-right" class="size-5" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             @endif

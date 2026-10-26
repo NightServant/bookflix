@@ -82,11 +82,21 @@ test('the cta slot replaces the two buttons', function () {
         ->and(htmlQuery($html, '//a[@href="/explore"]')->length)->toBe(2);
 });
 
-test('the counter is a large tabular 01 over the total, with a thin progress line', function () {
+test('the counter is a bright tabular 01 over a legible total, with a thin progress line on a visible track', function () {
     $html = renderHero();
 
-    expect(htmlQuery($html, '//p[contains(@class,"tabular-nums")][normalize-space()="01 / 05"]/span[contains(@class,"text-section")]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//*[@aria-hidden="true"]//div[contains(@class,"scale-x-(--progress)")]')->length)->toBe(1);
+    expect(htmlQuery($html, '//p[contains(@class,"tabular-nums")][normalize-space()="01 / 05"]/span[contains(@class,"text-lead")][contains(@class,"text-ink")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//p[contains(@class,"tabular-nums")]/span[contains(@class,"text-ink-subtle")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//p[contains(@class,"tabular-nums")]//span[contains(@class,"text-ink-muted")]')->length)->toBe(0)
+        ->and(htmlQuery($html, '//div[@aria-hidden="true"][contains(@class,"bg-ink/50")]/div[contains(@class,"scale-x-(--progress)")][contains(@class,"bg-ink")]')->length)->toBe(1);
+});
+
+test('prev and next are ghost buttons: a bright 20px icon in a 44px box with no fill', function () {
+    $html = renderHero();
+
+    foreach (['Previous slide', 'Next slide'] as $label) {
+        expect(htmlQuery($html, '//button[@aria-label="'.$label.'"][contains(@class,"text-ink")][contains(@class,"size-11")][contains(@class,"focus-ring")][contains(@class,"hover:ring-1")][not(contains(@class,"bg-"))]/*[contains(@class,"size-5")]')->length)->toBe(1);
+    }
 });
 
 test('prev and next are labelled 44px buttons, and there is no pause control or autoplay', function () {
