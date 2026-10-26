@@ -101,7 +101,7 @@
             @if ($count > 1)
                 <div class="flex min-w-0 flex-col gap-6 lg:items-end">
                     @unless ($compact)
-                        <ul aria-label="{{ __('Up next') }}" class="-mx-1 flex snap-x gap-3 overflow-x-auto p-1 [scrollbar-width:none] lg:overflow-visible [&::-webkit-scrollbar]:hidden">
+                        <ul aria-label="{{ __('Up next') }}" x-edge-fade class="max-lg:edge-fade -mx-1 flex snap-x gap-3 overflow-x-auto p-1 [scrollbar-width:none] lg:overflow-visible [&::-webkit-scrollbar]:hidden">
                             <template x-for="card in upcoming" :key="card.id">
                                 <li :data-card="card.id" class="w-24 shrink-0 snap-start lg:w-32">
                                     <button

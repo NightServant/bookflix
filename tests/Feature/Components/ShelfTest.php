@@ -72,3 +72,10 @@ test('a bleed shelf is a full-width band without a card, its header and first ti
         ->and(htmlQuery($html, '//ul[contains(@class,"px-gutter")][contains(@class,"overflow-x-auto")][contains(@class,"scroll-px-gutter")]')->length)->toBe(1)
         ->and(htmlQuery(renderShelf('title="Staff Picks"'), '//section[contains(@class,"rounded-card")][contains(@class,"p-4")]')->length)->toBe(1);
 });
+
+test('the track carries the edge fade and the arrows do not', function () {
+    $html = renderShelf('title="Trending Now"');
+
+    expect(htmlQuery($html, '//ul[@*[name()="x-edge-fade"]][contains(@class,"edge-fade")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//button[@aria-label="Next in Trending Now"][contains(@class,"edge-fade")]')->length)->toBe(0);
+});

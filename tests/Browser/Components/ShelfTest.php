@@ -79,3 +79,33 @@ test('with motion allowed the arrows scroll smoothly', function () {
     $page->script('(() => { window.__behavior = null; const scrollBy = Element.prototype.scrollBy; Element.prototype.scrollBy = function (o) { window.__behavior = o.behavior; return scrollBy.call(this, o); }; })()');
     $page->keys($this->next, 'Enter')->assertScript('window.__behavior', 'smooth');
 });
+
+test('the track fades only the edges that have more to scroll to, and the arrows stay opaque', function () {
+    $fade = fn (string $side) => "getComputedStyle({$this->track}).getPropertyValue('--fade-{$side}')";
+    $page = visit($this->path, ['viewport' => ['width' => 1280, 'height' => 800]])->wait(1);
+
+    $page->assertScript($fade('start'), '0px')
+        ->assertScript($fade('end'), '56px')
+        ->assertScript("{$this->track}.matches('[data-fade-start]')", false)
+        ->assertScript("{$this->track}.matches('[data-fade-end]')", true)
+        ->assertScript("getComputedStyle({$this->track}).maskImage.startsWith('linear-gradient')", true)
+        ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none')
+        ->assertScript("document.querySelectorAll('section ul')[1].matches('[data-fade-start], [data-fade-end]')", false);
+
+    $page->click($this->next)->wait(1.2)
+        ->assertScript($fade('start'), '56px')
+        ->assertScript($fade('end'), '56px');
+
+    $page->script("{$this->track}.scrollLeft = {$this->track}.scrollWidth");
+    $page->wait(0.6)
+        ->assertScript($fade('start'), '56px')
+        ->assertScript($fade('end'), '0px')
+        ->assertScript("{$this->track}.matches('[data-fade-end]')", false);
+});
+
+test('on a phone the fade is 24px', function () {
+    $page = visit($this->path, ['viewport' => ['width' => 375, 'height' => 812]])->wait(1);
+
+    $page->assertScript("getComputedStyle({$this->track}).getPropertyValue('--fade-end')", '24px')
+        ->assertNoJavaScriptErrors();
+});
