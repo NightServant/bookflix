@@ -4,6 +4,8 @@
     'multiple' => false,
     'placeholder' => null,
     'hideLabel' => false,
+    'labelClass' => null,
+    'freeform' => false,
 ])
 
 {{--
@@ -11,6 +13,8 @@
     `options` is a value => label map (or a plain list, where each string is its own value). `label` is required and a real <label>
     (`hide-label` keeps it for screen readers only). Bind with `wire:model` or `x-model`: a string, or an array of strings with `multiple`.
     Multiple mode keeps the list open and shows the picks as chips, each with a remove button.
+    `freeform` turns it into a search field with suggestions: the typed text is the model, a suggestion fills the field, and Enter
+    keeps what was typed unless an arrow key chose a suggestion. `label-class` replaces the label's styling.
     The ui plugin adds the combobox, listbox and option roles, the arrow/Enter/Escape keys and aria-activedescendant at runtime.
     The ui plugin needs an x-data ancestor, so the state lives on the wrapper and the combobox element only takes the model attributes.
 --}}
@@ -24,11 +28,11 @@
 @endphp
 
 <div
-    x-data="comboboxField(@js($items), @js((bool) $multiple))"
+    x-data="comboboxField(@js($items), { multiple: {{ $multiple ? 'true' : 'false' }}, freeform: {{ $freeform ? 'true' : 'false' }} })"
     {{ $attributes->whereDoesntStartWith(['wire:model', 'x-model', 'name'])->class('relative') }}
 >
     <div x-combobox @if ($multiple) multiple @endif {{ $modelAttributes }}>
-        <label x-combobox:label class="{{ $hideLabel ? 'sr-only' : 'mb-2 block text-meta text-ink-subtle' }}">{{ $label }}</label>
+        <label x-combobox:label class="{{ $hideLabel ? 'sr-only' : ($labelClass ?? 'mb-2 block text-meta text-ink-subtle') }}">{{ $label }}</label>
 
         @if ($multiple)
             <ul aria-label="{{ __('Selected') }}" x-show="$combobox.value.length" style="display: none" class="mb-2 flex flex-wrap gap-2">
@@ -52,14 +56,19 @@
             <flux:input
                 x-combobox:input
                 x-bind:display-value="(value) => labelFor(value)"
-                @change="query = $event.target.value"
+                @change="filter($el)"
+                @input="typed($el)"
+                @keydown.down.capture="beforeArrow($event)"
+                @keydown.enter.capture="beforePick($event)"
                 @keydown.enter="afterPick($el)"
+                :icon="$freeform ? 'magnifying-glass' : null"
                 :placeholder="$placeholder"
                 autocomplete="off"
                 class:input="h-11! rounded-control! pe-12"
             />
             <button
                 x-combobox:button
+                @if ($freeform) hidden @endif
                 type="button"
                 aria-label="{{ __('Show options') }}"
                 class="focus-ring absolute inset-y-0 end-0 inline-flex size-11 items-center justify-center rounded-control text-ink-subtle hover:text-ink"
@@ -87,11 +96,13 @@
             </template>
         </ul>
 
-        <p
-            role="status"
-            x-show="$combobox.isOpen && filtered.length === 0"
-            style="display: none"
-            class="absolute z-20 mt-1 w-full rounded-card border border-hairline bg-surface-card p-3 text-meta text-ink-subtle"
-        >{{ __('No matches') }}</p>
+        @unless ($freeform)
+            <p
+                role="status"
+                x-show="$combobox.isOpen && filtered.length === 0"
+                style="display: none"
+                class="absolute z-20 mt-1 w-full rounded-card border border-hairline bg-surface-card p-3 text-meta text-ink-subtle"
+            >{{ __('No matches') }}</p>
+        @endunless
     </div>
 </div>

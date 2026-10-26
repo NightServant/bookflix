@@ -251,7 +251,7 @@ export default function components(Alpine) {
     }));
 
     // <x-combobox>: the filter and labels around @alpinejs/ui's combobox. Matching ignores case and accents.
-    Alpine.data('comboboxField', (options, multiple) => ({
+    Alpine.data('comboboxField', (options, { multiple, freeform }) => ({
         options,
         query: '',
 
@@ -266,6 +266,11 @@ export default function components(Alpine) {
             return query ? this.options.filter((option) => fold(option.label).includes(query)) : this.options;
         },
 
+        // The plugin empties the field for a moment when it opens the list and says so with a change event, so freeform filters by the model, not the field.
+        filter(input) {
+            this.query = freeform ? (this.$data.__value ?? '') : input.value;
+        },
+
         labelFor(value) {
             return this.options.find((option) => option.value === value)?.label ?? value ?? '';
         },
@@ -276,6 +281,30 @@ export default function components(Alpine) {
 
             picked.splice(picked.indexOf(value), 1);
             this.$refs.__input.focus();
+        },
+
+        // Freeform: the text typed is the model (a suggestion only fills the field). ponytail: writes the ui plugin's __value, pinned at 3.17.5.
+        typed(input) {
+            freeform && (this.$data.__value = input.value);
+        },
+
+        // Freeform: the plugin activates the first suggestion on its own. The first ArrowDown confirms it rather than skipping to the second...
+        beforeArrow(event) {
+            const context = this.$data.__context;
+
+            if (freeform && this.$data.__isOpen && context.hasActive() && ! context.wasActivatedByKeyPress()) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                context.activateKey(context.getActiveItem().key, true);
+            }
+        },
+
+        // ...and Enter must not take an activated suggestion that no arrow key chose, it keeps the typed text.
+        beforePick(event) {
+            if (freeform && ! this.$data.__context.wasActivatedByKeyPress()) {
+                event.stopImmediatePropagation();
+                this.$data.__close();
+            }
         },
 
         // Multiple mode keeps the popup open after a pick, so empty the field for the next search.
