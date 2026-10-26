@@ -21,7 +21,10 @@ use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\View;
 use Tests\TestCase;
 
 /*
@@ -186,4 +189,70 @@ function classified(Media|Collection $media, string $code, string $type = 'prima
 function search(string $query, ?SearchFilters $filters = null): LengthAwarePaginator
 {
     return app(HybridSearch::class)->search($query, $filters ?? new SearchFilters, null);
+}
+
+/**
+ * Component acceptance harness, feature side: render Blade markup (`<x-cover-tile :media="$media" />`) to HTML.
+ *
+ * @param  array<string, mixed>  $data
+ */
+function renderedComponent(string $markup, array $data = []): string
+{
+    return Blade::render($markup, $data);
+}
+
+/**
+ * Component acceptance harness, feature side: query rendered HTML with XPath, e.g. `htmlQuery($html, '//img[@loading="lazy"]')->length`.
+ */
+function htmlQuery(string $html, string $xpath): DOMNodeList
+{
+    $dom = new DOMDocument;
+
+    libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="utf-8"?><body>'.$html.'</body>');
+    libxml_clear_errors();
+
+    return (new DOMXPath($dom))->query($xpath);
+}
+
+/**
+ * Component acceptance harness, browser side: serve Blade markup as a test-only page with the real
+ * assets, Livewire and Alpine, and return its path. The page links to a second page that links back,
+ * so a test proves the component survives a `wire:navigate` round trip (Phase 4 Review Focus #5).
+ *
+ * @param  array<string, mixed>  $data
+ */
+function componentPage(string $markup, array $data = []): string
+{
+    View::addLocation(base_path('tests/Fixtures/views'));
+
+    Route::middleware('web')->group(function () use ($markup, $data) {
+        Route::get('/_test/component', fn () => view('component-fixture', ['markup' => $markup, 'data' => $data]));
+        Route::get('/_test/elsewhere', fn () => view('component-fixture', [
+            'markup' => '<p>Elsewhere page</p><a href="/_test/component" wire:navigate>Back to component</a>',
+            'data' => [],
+        ]));
+    });
+
+    return '/_test/component';
+}
+
+/**
+ * The browser checks every component shares: no JavaScript errors, no serious axe violations, and
+ * `$interact` (the component's own keyboard pattern) working both on first load and after a `wire:navigate` round trip.
+ * Pass `['reducedMotion' => 'reduce']` as `$options` to run the same checks with motion reduced.
+ *
+ * @param  array<string, mixed>  $options
+ */
+function assertComponentAcceptance(string $path, ?Closure $interact = null, array $options = []): void
+{
+    // The longest entrance (reveal stagger + fade) ends well inside a second; axe reads contrast mid-fade otherwise.
+    $page = visit($path, $options)->wait(1)->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
+
+    $interact?->__invoke($page);
+
+    $page->click('Go elsewhere')->assertSee('Elsewhere page');
+    $page->click('Back to component')->wait(1)->assertNoJavaScriptErrors();
+
+    $interact?->__invoke($page);
 }
