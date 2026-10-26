@@ -324,6 +324,16 @@ class Media extends Model
     }
 
     /**
+     * The primary class a reader may see on the story (accepted, or pending with enough confidence).
+     *
+     * @return HasOne<MediaDeweyClass, $this>
+     */
+    public function publicPrimaryDewey(): HasOne
+    {
+        return $this->hasOne(MediaDeweyClass::class)->publicPrimary();
+    }
+
+    /**
      * Media whose public primary class is the given class or one below it.
      *
      * @param  Builder<Media>  $query
