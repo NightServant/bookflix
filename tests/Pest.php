@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Vite;
 use Tests\TestCase;
 
 /*
@@ -43,8 +44,10 @@ pest()->extend(TestCase::class)
     ->beforeEach(fn () => Http::preventStrayRequests())
     ->in('Feature');
 
+// Browser tests run against the built assets (`npm run build`), as CI does, even while a dev server's `public/hot` file exists.
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
+    ->beforeEach(fn () => Vite::useHotFile(storage_path('framework/vite.hot')))
     ->in('Browser');
 
 /*

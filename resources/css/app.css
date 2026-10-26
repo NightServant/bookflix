@@ -75,6 +75,15 @@
     --ease-out-bookflix: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* flux.css resets the accent to white under `.dark`, and Bookflix is dark-only: keep the brand mapping above in force so `variant="primary"` is the red CTA. */
+@layer theme {
+    .dark {
+        --color-accent: var(--color-brand);
+        --color-accent-content: var(--color-ink);
+        --color-accent-foreground: var(--color-ink);
+    }
+}
+
 @media (width >= 48rem) {
     :root {
         --spacing-gutter: 2rem;
