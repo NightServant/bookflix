@@ -31,7 +31,7 @@ class HybridSearch
         )));
 
         $pageIds = array_slice($ranked, ($page - 1) * $perPage, $perPage);
-        $media = Media::query()->whereIn('id', $pageIds)->get()->keyBy('id');
+        $media = $pageIds === [] ? collect() : Media::query()->whereIn('id', $pageIds)->get()->keyBy('id');
 
         return new LengthAwarePaginator(
             collect($pageIds)->map(fn (int $id) => $media->get($id))->filter()->values(),

@@ -23,13 +23,15 @@ class KeywordLeg implements SearchLeg
     }
 
     /**
-     * Full-text hits (Scout, plain terms only), typo-tolerant trigram hits on the title and the alternative titles, and a substring
-     * fallback for non-ASCII queries, whose scripts have no word boundaries. The four lists are fused so a title that several of them agree on wins.
+     * Full-text hits (Scout, whole terms), full-text hits with the last term as a prefix (so `japan` finds `Japanese` while the reader is
+     * still typing), typo-tolerant trigram hits on the title and the alternative titles, and a substring fallback for non-ASCII
+     * queries, whose scripts have no word boundaries. The lists are fused so a title that several of them agree on wins.
      */
     public function ids(string $query, SearchFilters $filters, int $limit = 100): array
     {
         $lists = [
             array_values(Media::search($query)->query(fn (Builder $media) => $this->visible($media->select('media.id'), $filters))->take($limit)->keys()->all()),
+            $this->prefixed($query, $filters, $limit),
             $this->similar(self::TITLE, $query, $filters, $limit),
             $this->similar(self::ALTERNATIVE_TITLES, $query, $filters, $limit),
         ];
@@ -47,6 +49,27 @@ class KeywordLeg implements SearchLeg
         }
 
         return array_slice(array_keys(Rrf::fuse($lists)), 0, $limit);
+    }
+
+    /**
+     * Media whose search text holds every word of the query, the last one as a prefix (none for a query with punctuation in it). Runs on the same `to_tsvector('simple', search_text)` index as Scout.
+     *
+     * @return list<int>
+     */
+    private function prefixed(string $query, SearchFilters $filters, int $limit): array
+    {
+        if (preg_match('/[^\p{L}\p{M}\p{N}\s]/u', $query)) {
+            return []; // punctuation is literal, as in the substring fallback: it never turns into a wildcard
+        }
+
+        $tsquery = collect(preg_split('/\s+/u', $query, flags: PREG_SPLIT_NO_EMPTY))->map(fn (string $word): string => "'{$word}'")->implode(' & ').':*';
+
+        return array_values($this->visible(Media::query(), $filters)
+            ->whereRaw("to_tsvector('simple', media.search_text) @@ to_tsquery('simple', ?)", [$tsquery])
+            ->orderByRaw("ts_rank(to_tsvector('simple', media.search_text), to_tsquery('simple', ?)) desc", [$tsquery])
+            ->limit($limit)
+            ->pluck('media.id')
+            ->all());
     }
 
     /**

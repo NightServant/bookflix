@@ -27,6 +27,13 @@ test('titles are found across scripts accents and alternative titles', function 
     ['Berserl', 'Berserk'],
 ]);
 
+test('the last word matches as a prefix while the reader is still typing', function (string $q) {
+    $comics = Media::factory()->create(['title' => 'Japanese Comics Digest']);
+    $comics->update(['search_text' => app(SearchTextBuilder::class)->build($comics)]);
+
+    expect(search($q)->pluck('title'))->toContain('Japanese Comics Digest');
+})->with(['japan', 'Japan', 'japanese com', 'comics dig']);
+
 test('a fragment of a non latin title is found by substring', function () {
     expect(search('巨人')->pluck('title')->all())->toBe(['Attack on Titan']);
 });
