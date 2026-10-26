@@ -40,9 +40,7 @@
                 class="size-full object-cover motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:ease-out-bookflix motion-safe:group-hover:scale-105"
             >
         @else
-            <span class="flex size-full items-center justify-center" aria-hidden="true">
-                <flux:icon name="book-open" class="size-8 text-ink-muted" />
-            </span>
+            <x-cover-fallback :title="$media->title" />
         @endif
 
         @if ($badge)
@@ -63,7 +61,7 @@
         @endif
     </span>
 
-    <span class="mt-2 line-clamp-2 block text-meta text-ink">{{ $media->title }}</span>
+    <span class="mt-2 line-clamp-2 block min-h-[2lh] text-meta text-ink">{{ $media->title }}</span>
 
     @if ($reason)
         <span class="mt-1 line-clamp-2 block text-legal text-ink-subtle">{{ $reason }}</span>

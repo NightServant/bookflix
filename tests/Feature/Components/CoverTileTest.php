@@ -48,7 +48,7 @@ test('a tile without a cover shows a placeholder, not a broken image', function 
     $html = renderTile(Media::factory()->create(['cover_url' => null]));
 
     expect(htmlQuery($html, '//img')->length)->toBe(0)
-        ->and(htmlQuery($html, '//svg')->length)->toBeGreaterThan(0);
+        ->and(htmlQuery($html, '//*[@data-cover-fallback]')->length)->toBe(1);
 });
 
 test('the media type badge is optional', function () {

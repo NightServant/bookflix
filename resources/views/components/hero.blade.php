@@ -108,6 +108,7 @@
                                         class="group focus-ring block w-full rounded-card text-start"
                                     >
                                         <span class="block aspect-[2/3] overflow-hidden rounded-card bg-surface-card">
+                                            <span x-show="!card.cover" x-text="card.title" aria-hidden="true" class="line-clamp-5 block p-2 text-legal font-black leading-tight tracking-tight text-ink"></span>
                                             <img
                                                 x-show="card.cover"
                                                 :src="card.cover"

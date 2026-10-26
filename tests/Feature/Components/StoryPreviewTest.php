@@ -55,7 +55,7 @@ test('without a cover or a description the panel falls back to a placeholder and
     $html = renderStoryPreview(frankenstein(['cover_url' => null, 'description' => null]));
 
     expect(htmlQuery($html, '//*[@role="dialog"]//img')->length)->toBe(0)
-        ->and(htmlQuery($html, '//*[@role="dialog"]//svg')->length)->toBeGreaterThan(0)
+        ->and(htmlQuery($html, '//*[@role="dialog"]//*[@data-cover-fallback]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@role="dialog"]//p[contains(@class,"line-clamp")]')->length)->toBe(0);
 });
 

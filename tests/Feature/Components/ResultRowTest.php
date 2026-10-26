@@ -62,7 +62,7 @@ test('a row without a cover shows a placeholder, not a broken image', function (
     $html = renderResultRow(resultMedia(['cover_url' => null]));
 
     expect(htmlQuery($html, '//img')->length)->toBe(0)
-        ->and(htmlQuery($html, '//svg')->length)->toBeGreaterThan(0);
+        ->and(htmlQuery($html, '//*[@data-cover-fallback]')->length)->toBe(1);
 });
 
 test('creators are listed once each, in credit order', function () {

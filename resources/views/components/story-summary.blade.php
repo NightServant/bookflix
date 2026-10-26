@@ -15,9 +15,7 @@
             @if ($media->cover_url)
                 <img src="{{ $media->cover_url }}" alt="" width="96" height="144" loading="lazy" decoding="async" class="size-full object-cover">
             @else
-                <span class="flex size-full items-center justify-center" aria-hidden="true">
-                    <flux:icon name="book-open" class="size-8 text-ink-muted" />
-                </span>
+                <x-cover-fallback :title="$media->title" />
             @endif
         </span>
 

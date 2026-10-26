@@ -83,7 +83,7 @@ test('a cover-less volume shows a placeholder', function () {
     $html = renderSeriesItem(seriesMedia(['cover_url' => null]));
 
     expect(htmlQuery($html, '//img')->length)->toBe(0)
-        ->and(htmlQuery($html, '//svg')->length)->toBeGreaterThan(0);
+        ->and(htmlQuery($html, '//*[@data-cover-fallback]')->length)->toBe(1);
 });
 
 test('attributes land on the item', function () {

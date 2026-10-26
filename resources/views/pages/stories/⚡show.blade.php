@@ -155,9 +155,7 @@ new #[Title('Story')] class extends Component {
                 @if ($media->cover_url)
                     <img src="{{ $media->cover_url }}" alt="{{ __('Cover of :title', ['title' => $media->title]) }}" width="256" height="384" decoding="async" class="size-full object-cover">
                 @else
-                    <span class="flex size-full items-center justify-center" aria-hidden="true">
-                        <flux:icon name="book-open" class="size-12 text-ink-muted" />
-                    </span>
+                    <x-cover-fallback :title="$media->title" />
                 @endif
             </span>
         </div>
