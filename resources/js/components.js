@@ -1,4 +1,4 @@
-import { prefersReducedMotion } from './motion';
+import { MOTION, prefersReducedMotion } from './motion';
 
 /**
  * Alpine data for the component kit (resources/views/components). Each name matches `x-data="<name>"` in its Blade view.
@@ -79,6 +79,35 @@ export default function components(Alpine) {
 
         destroy() {
             clearInterval(this.timer);
+        },
+    }));
+
+    // <x-accordion>: a native <details> whose panel collapses with x-collapse. Without JS it is still a plain disclosure.
+    Alpine.data('accordion', (open) => ({
+        expanded: open,
+        closing: false,
+
+        toggle() {
+            const details = this.$root;
+
+            if (details.open && this.expanded) {
+                // The browser hides the content the moment `open` goes, so let the collapse play before dropping it.
+                this.expanded = false;
+                this.closing = true;
+                setTimeout(() => {
+                    this.closing = false;
+                    this.expanded || (details.open = false);
+                }, prefersReducedMotion() ? 0 : MOTION.base);
+            } else {
+                details.open = true;
+                this.expanded = true;
+            }
+        },
+
+        // The browser opens and closes it too (an exclusive `name` group closing a sibling): follow its state.
+        // Its `toggle` events arrive a frame late, so ignore them while our own close is in flight.
+        sync() {
+            this.closing || (this.expanded = this.$root.open);
         },
     }));
 }
