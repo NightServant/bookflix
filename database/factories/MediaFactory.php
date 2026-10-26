@@ -37,6 +37,14 @@ class MediaFactory extends Factory
     }
 
     /**
+     * Indicate that the media is a graphic novel.
+     */
+    public function graphicNovel(): static
+    {
+        return $this->ofType('graphic-novel');
+    }
+
+    /**
      * Indicate that the media is a novel.
      */
     public function novel(): static

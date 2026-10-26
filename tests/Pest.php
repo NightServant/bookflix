@@ -4,11 +4,19 @@ use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
+use App\Classification\ClassificationCandidate;
+use App\Enums\ClassificationMethod;
+use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
+use App\Enums\ReviewStatus;
+use App\Models\DeweyClass;
 use App\Models\ExternalSource;
+use App\Models\Media;
+use App\Models\MediaDeweyClass;
 use App\Models\MediaType;
 use Database\Seeders\MediaTypeSeeder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -86,7 +94,7 @@ function providerFixture(string $path): array
  * @param  list<string>  $isbns
  * @param  array<string, string>  $crossIds
  */
-function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test', ?string $description = null): NormalizedMedia
+function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test', ?string $description = null, ?string $deweyCode = null): NormalizedMedia
 {
     if (isset(MediaTypeSeeder::TYPES[$type])) {
         MediaType::firstOrCreate(['slug' => $type], MediaTypeSeeder::TYPES[$type]);
@@ -100,6 +108,7 @@ function normalized(string $title, string $type = 'novel', ?int $year = null, ar
         crossIds: $crossIds,
         description: $description,
         publicationYear: $year,
+        externalDeweyCode: $deweyCode,
         sourceUrl: "https://{$provider}.test/".rawurlencode($title),
     );
 }
@@ -118,4 +127,46 @@ function importFixture(string $provider, string $fixture, array $mutate = []): I
     $record = new ProviderRecord($provider, (string) ($payload['id'] ?? ''), $payload, $payload['siteUrl'] ?? null, now()->toImmutable());
 
     return app(IngestionPipeline::class)->import($record, app(config("bookflix.providers.{$provider}.class")));
+}
+
+/**
+ * A classification candidate for a code; the source follows the method the way production sources do.
+ */
+function cand(string $code, float $confidence, ClassificationMethod $method = ClassificationMethod::Automatic): ClassificationCandidate
+{
+    $source = match ($method) {
+        ClassificationMethod::Manual => 'admin',
+        ClassificationMethod::External => 'open_library',
+        ClassificationMethod::Automatic => 'rules',
+    };
+
+    return new ClassificationCandidate($code, $confidence, $method, $source);
+}
+
+/**
+ * A seeded Dewey-inspired class by code; seed `DeweySeeder` first.
+ */
+function dewey(string $code): DeweyClass
+{
+    return DeweyClass::where('code', $code)->firstOrFail();
+}
+
+/**
+ * Give each media a class with this code (an accepted primary by default); seed `DeweySeeder` first. Returns what it was given.
+ *
+ * @param  Media|Collection<int, Media>  $media
+ * @return ($media is Media ? Media : Collection<int, Media>)
+ */
+function classified(Media|Collection $media, string $code, string $type = 'primary', string $status = 'accepted', float $confidence = 0.95): Media|Collection
+{
+    foreach (Collection::wrap($media) as $item) {
+        MediaDeweyClass::factory()->for($item)->create([
+            'dewey_class_id' => dewey($code)->id,
+            'classification_type' => ClassificationType::from($type),
+            'review_status' => ReviewStatus::from($status),
+            'confidence' => $confidence,
+        ]);
+    }
+
+    return $media;
 }

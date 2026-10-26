@@ -2,18 +2,24 @@
 
 namespace App\Models;
 
+use App\Classification\DeweyCounts;
 use App\Enums\AgeRating;
+use App\Enums\ClassificationType;
 use App\Enums\PublicationStatus;
+use App\Enums\ReviewStatus;
 use Database\Factories\MediaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -103,6 +109,12 @@ class Media extends Model
                 $media->slug = static::uniqueSlug($media->title, $media->publication_year);
             }
         });
+
+        // A removed (merges included) or restored media enters or leaves every class count, so the cached counts are dropped once the change is committed.
+        $flushCounts = fn () => DB::afterCommit(fn () => app(DeweyCounts::class)->flush());
+
+        static::deleted($flushCounts);
+        static::restored($flushCounts);
     }
 
     /**
@@ -269,5 +281,35 @@ class Media extends Model
         return $this->belongsToMany(Media::class, 'media_relations', 'media_id', 'related_media_id')
             ->withPivot('relation')
             ->withTimestamps();
+    }
+
+    /**
+     * @return HasMany<MediaDeweyClass, $this>
+     */
+    public function deweyClasses(): HasMany
+    {
+        return $this->hasMany(MediaDeweyClass::class);
+    }
+
+    /**
+     * The live primary class: any primary that has not been rejected.
+     *
+     * @return HasOne<MediaDeweyClass, $this>
+     */
+    public function primaryDewey(): HasOne
+    {
+        return $this->hasOne(MediaDeweyClass::class)
+            ->where('classification_type', ClassificationType::Primary)
+            ->where('review_status', '!=', ReviewStatus::Rejected);
+    }
+
+    /**
+     * Media whose public primary class is the given class or one below it.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeInDeweySubtree(Builder $query, DeweyClass $class): void
+    {
+        $query->whereHas('deweyClasses', fn (Builder $rows) => $rows->publicPrimary()->whereIn('dewey_class_id', DeweyClass::subtree($class)->select('id')));
     }
 }

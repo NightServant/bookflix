@@ -6,6 +6,7 @@ use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Providers\MetadataProvider;
 use App\Enums\ImportOutcome;
+use App\Jobs\ClassifyMedia;
 use App\Models\Character;
 use App\Models\Creator;
 use App\Models\ExternalSource;
@@ -76,7 +77,7 @@ class IngestionPipeline
 
             MediaExternalId::updateOrCreate(
                 ['external_source_id' => $source->id, 'external_id' => $record->externalId],
-                ['media_id' => $media->id, 'source_url' => $incoming->sourceUrl, 'payload_hash' => $hash, 'last_synced_at' => now()],
+                ['media_id' => $media->id, 'dewey_code' => $incoming->externalDeweyCode, 'source_url' => $incoming->sourceUrl, 'payload_hash' => $hash, 'last_synced_at' => now()],
             );
 
             $this->recordIsbns($media, $incoming, $hash);
@@ -84,6 +85,8 @@ class IngestionPipeline
             $this->enricher->apply($media, $incoming, $source);
             $media->refreshSearchText();
             $this->deduplicator->recordCandidates($media, $candidates);
+
+            ClassifyMedia::dispatch($media->id)->afterCommit();
 
             return $outcome;
         });

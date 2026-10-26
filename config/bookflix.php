@@ -51,6 +51,7 @@ return [
 
     'navigation' => [
         ['label' => 'Home', 'icon' => 'home', 'route' => 'home', 'active' => ['home']],
+        ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'explore.index', 'active' => ['explore.*']],
         ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit']],
     ],
 
@@ -133,6 +134,23 @@ return [
         'auto_title_similarity' => 0.90,
         'review_min_similarity' => 0.75,
         'year_window' => 1,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Classification
+    |--------------------------------------------------------------------------
+    |
+    | Automatic classes below `min_confidence` are dropped. The public site shows
+    | accepted classes plus pending ones at or above `public_min_confidence`.
+    | A media keeps one primary class and at most `max_secondary` secondary ones.
+    |
+    */
+
+    'classification' => [
+        'public_min_confidence' => 0.80,
+        'min_confidence' => 0.50,
+        'max_secondary' => 3,
     ],
 
 ];

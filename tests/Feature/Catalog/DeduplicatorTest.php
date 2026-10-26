@@ -1,14 +1,19 @@
 <?php
 
 use App\Catalog\Ingestion\Deduplicator;
+use App\Classification\DeweyCounts;
+use App\Enums\ClassificationType;
 use App\Enums\DuplicateStatus;
+use App\Enums\ReviewStatus;
 use App\Models\Creator;
 use App\Models\DuplicateCandidate;
 use App\Models\ExternalSource;
 use App\Models\Genre;
 use App\Models\Media;
+use App\Models\MediaDeweyClass;
 use App\Models\MediaExternalId;
 use App\Models\User;
+use Database\Seeders\DeweySeeder;
 use Illuminate\Support\Facades\Schema;
 
 test('the same work from two providers resolves to one media with two external ids', function () {
@@ -198,4 +203,49 @@ test('a plainly deleted slug resolves to nothing', function () {
     $media->delete();
 
     expect(Media::resolveSlug($media->slug))->toBeNull();
+});
+
+test('merge brings the loser\'s classes over: the winner\'s row wins a clash, never a second live primary, and the limit holds', function () {
+    $this->seed(DeweySeeder::class);
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    classified($winner, '813');
+    classified($winner, '500', type: 'secondary');
+    classified($loser, '823');
+    classified($loser, '500', type: 'secondary', status: 'pending');
+    classified($loser, '600', type: 'secondary');
+    classified($loser, '700', type: 'secondary');
+    $winnersOwn = $winner->deweyClasses()->where('dewey_class_id', dewey('500')->id)->value('id');
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    $moved = $winner->deweyClasses()->get()->mapWithKeys(fn (MediaDeweyClass $row) => [$row->deweyClass->code => $row->classification_type]);
+    expect($moved->all())->toEqual(['813' => ClassificationType::Primary, '500' => ClassificationType::Secondary, '823' => ClassificationType::Secondary, '600' => ClassificationType::Secondary])
+        ->and($winner->deweyClasses()->where('dewey_class_id', dewey('500')->id)->value('id'))->toBe($winnersOwn)
+        ->and($winner->deweyClasses()->where('dewey_class_id', dewey('500')->id)->value('review_status'))->toBe(ReviewStatus::Accepted)
+        ->and($loser->deweyClasses()->count())->toBe(0);
+});
+
+test('merge hands the loser\'s primary to a winner without one and keeps its rejections', function () {
+    $this->seed(DeweySeeder::class);
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    classified($loser, '813');
+    classified($loser, '823', status: 'rejected');
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    expect($winner->primaryDewey->deweyClass->code)->toBe('813')
+        ->and($winner->deweyClasses()->where('dewey_class_id', dewey('823')->id)->value('review_status'))->toBe(ReviewStatus::Rejected);
+});
+
+test('merging refreshes the cached class counts', function () {
+    $this->seed(DeweySeeder::class);
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    classified($winner, '823');
+    classified($loser, '813');
+    $counts = app(DeweyCounts::class);
+    expect($counts->forClass(dewey('813')))->toBe(1)->and($counts->forClass(dewey('800')))->toBe(2);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    expect($counts->forClass(dewey('813')))->toBe(0)->and($counts->forClass(dewey('800')))->toBe(1);
 });
