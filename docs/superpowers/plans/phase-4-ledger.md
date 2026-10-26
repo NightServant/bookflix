@@ -65,3 +65,4 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-4-discovery.md` on `origin/claude
   - Instant swap under reduced motion; carousel ARIA.
   Sent to the batch A implementer while it was building `<x-hero>`; C7 row #1 is being updated on PR #3. The Figma hero frames trail the code until a design-QA pass. Cost: the Figma frames lag the code.
 - Backend done. Waiting on Figma F3 part 2, then F4/F5, F6 and the user's sign-off, before 4.0a and onward.
+| 4.0b A | `6303943`…`dc8e74f`, `f4d618a` | DONE: verified 2026-10-26 by the controller: Pint and PHPStan clean, 452 feature/unit tests and 36 browser tests pass, build OK. `f4d618a` centers the desktop hero text and slider vertically (user request; Figma L variants updated to match) | none |
