@@ -218,7 +218,7 @@ test('merge brings the loser\'s classes over: the winner\'s row wins a clash, ne
 
     app(Deduplicator::class)->merge($winner, $loser);
 
-    $moved = $winner->deweyClasses()->get()->mapWithKeys(fn (MediaDeweyClass $row) => [$row->deweyClass->code => $row->classification_type]);
+    $moved = $winner->deweyClasses()->with('deweyClass')->get()->mapWithKeys(fn (MediaDeweyClass $row) => [$row->deweyClass->code => $row->classification_type]);
     expect($moved->all())->toEqual(['813' => ClassificationType::Primary, '500' => ClassificationType::Secondary, '823' => ClassificationType::Secondary, '600' => ClassificationType::Secondary])
         ->and($winner->deweyClasses()->where('dewey_class_id', dewey('500')->id)->value('id'))->toBe($winnersOwn)
         ->and($winner->deweyClasses()->where('dewey_class_id', dewey('500')->id)->value('review_status'))->toBe(ReviewStatus::Accepted)

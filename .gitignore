@@ -37,3 +37,6 @@ yarn-error.log
 /boost.json
 /opencode.json
 /opencode.jsonc
+
+/tests/Browser/Screenshots
+/tests/Browser/Traces

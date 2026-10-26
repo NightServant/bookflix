@@ -23,5 +23,7 @@
                 <flux:button :href="route('login')" size="base">{{ __('Sign in') }}</flux:button>
             </div>
         </main>
+
+        @livewireScriptConfig
     </body>
 </html>
