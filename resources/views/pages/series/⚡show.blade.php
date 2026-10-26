@@ -21,9 +21,12 @@ new #[Title('Series')] class extends Component {
         $this->seriesId = Series::query()->where('slug', $slug)->firstOrFail()->id;
     }
 
+    /**
+     * The header is a band across the whole page, so the layout leaves `<main>` bare (see layouts/app).
+     */
     public function render(): View
     {
-        return $this->view()->title($this->series->title);
+        return $this->view()->title($this->series->title)->layoutData(['flush' => true]);
     }
 
     #[Computed]
@@ -85,14 +88,14 @@ new #[Title('Series')] class extends Component {
     ])->filter();
 @endphp
 
-<section class="pt-2 pb-12 lg:pt-6">
-    <header class="relative isolate overflow-hidden rounded-card bg-surface-deep">
+<div>
+    <header class="relative isolate overflow-hidden bg-surface-deep">
         @if ($first?->cover_url)
             <img src="{{ $first->cover_url }}" alt="" width="224" height="336" decoding="async" aria-hidden="true" class="absolute inset-0 -z-20 size-full scale-125 object-cover opacity-60 blur-3xl">
         @endif
         <div aria-hidden="true" class="absolute inset-0 -z-10 bg-linear-to-t from-canvas via-canvas/50 to-canvas/10"></div>
 
-        <div x-data x-motion-reveal data-stagger="60" class="flex flex-col gap-8 p-4 pt-8 sm:p-8 lg:flex-row lg:items-end lg:gap-12 lg:p-12 lg:pt-16">
+        <div x-data x-motion-reveal data-stagger="60" class="flex flex-col gap-8 px-gutter py-8 lg:flex-row lg:items-end lg:gap-12 lg:py-16">
             <span class="block aspect-[2/3] w-40 shrink-0 overflow-hidden rounded-card bg-surface-card sm:w-56">
                 @if ($first?->cover_url)
                     <img src="{{ $first->cover_url }}" alt="{{ __('Cover of :title', ['title' => $first->title]) }}" width="224" height="336" fetchpriority="high" decoding="async" class="size-full object-cover">
@@ -136,23 +139,25 @@ new #[Title('Series')] class extends Component {
         </div>
     </header>
 
-    <div class="mt-12 max-w-3xl lg:mt-16">
-        <h2 class="text-section text-ink">{{ __('Volumes') }}</h2>
+    <div class="px-gutter pt-12 lg:pt-16">
+        <div class="max-w-3xl">
+            <h2 class="text-section text-ink">{{ __('Volumes') }}</h2>
 
-        @if ($volumes->isNotEmpty())
-            <ul class="mt-4 divide-y divide-hairline">
-                @foreach ($volumes as $volume)
-                    <li wire:key="volume-{{ $volume->id }}">
-                        <x-series-item :media="$volume" :position="$volume->pivot->position" :label="$volume->pivot->label" aligned class="py-3" />
-                    </li>
-                @endforeach
-            </ul>
-        @else
-            <div class="mt-4 max-w-prose">
-                <p class="text-lead text-ink">{{ __('No volumes yet') }}</p>
-                <p class="mt-2 text-body text-ink-subtle">{{ __('This series is listed, but none of its volumes have reached the catalog. They appear here as soon as they are added.') }}</p>
-                <x-cta variant="secondary" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
-            </div>
-        @endif
+            @if ($volumes->isNotEmpty())
+                <ul class="mt-4 divide-y divide-hairline">
+                    @foreach ($volumes as $volume)
+                        <li wire:key="volume-{{ $volume->id }}">
+                            <x-series-item :media="$volume" :position="$volume->pivot->position" :label="$volume->pivot->label" aligned class="py-3" />
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <div class="mt-4 max-w-prose">
+                    <p class="text-lead text-ink">{{ __('No volumes yet') }}</p>
+                    <p class="mt-2 text-body text-ink-subtle">{{ __('This series is listed, but none of its volumes have reached the catalog. They appear here as soon as they are added.') }}</p>
+                    <x-cta variant="secondary" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
+                </div>
+            @endif
+        </div>
     </div>
-</section>
+</div>

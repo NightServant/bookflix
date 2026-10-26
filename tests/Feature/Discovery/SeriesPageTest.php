@@ -129,3 +129,13 @@ test('the story page links its series to this page', function () {
     $this->actingAs(User::factory()->create())->get(route('stories.show', $volume->slug))
         ->assertSee(route('series.show', $series->slug));
 });
+
+test('the header is a full-width band and the volumes sit in the page gutter', function () {
+    $series = seriesWith([[1, 'Vol One']]);
+
+    $html = $this->actingAs(User::factory()->create())->get(route('series.show', $series->slug))->getContent();
+
+    expect(htmlQuery($html, '//main/div/header[not(contains(@class,"rounded-card"))]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//main/div[contains(@class,"px-gutter")]')->length)->toBe(0)
+        ->and(htmlQuery($html, '//main/div/div[contains(@class,"px-gutter")]//h2[normalize-space()="Volumes"]')->length)->toBe(1);
+});
