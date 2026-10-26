@@ -7,34 +7,6 @@ import { MOTION, prefersReducedMotion, release } from './motion';
  * Registered as a plugin so it lands before Livewire.start() boots Alpine.
  */
 export default function components(Alpine) {
-    // x-edge-fade: marks a horizontally scrolling element with `data-fade-start` once it has been scrolled away from its start and
-    // `data-fade-end` while there is more to scroll to; the `edge-fade` utility (app.css) turns them into a mask that dissolves
-    // that edge. Decorative only: it changes no markup assistive tech reads. Updated on scroll (passive, one frame at a time)
-    // and when the element is resized. ponytail: a Livewire morph of the element drops the attributes until the next scroll.
-    Alpine.directive('edge-fade', (el, _, { cleanup }) => {
-        let frame = 0;
-
-        const update = () => {
-            frame = 0;
-            el.toggleAttribute('data-fade-start', el.scrollLeft > 1);
-            el.toggleAttribute('data-fade-end', el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-        };
-        const queue = () => {
-            frame ||= requestAnimationFrame(update);
-        };
-        const observer = new ResizeObserver(queue);
-
-        el.addEventListener('scroll', queue, { passive: true });
-        observer.observe(el);
-        queue();
-
-        cleanup(() => {
-            cancelAnimationFrame(frame);
-            observer.disconnect();
-            el.removeEventListener('scroll', queue);
-        });
-    });
-
     // <x-shelf>: scroll-snap track with prev/next arrows that disable at the ends.
     // ponytail: left-to-right scrolling only (every supported language reads LTR); add RTL maths if one is ever added.
     Alpine.data('shelf', () => ({

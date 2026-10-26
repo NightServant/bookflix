@@ -4,6 +4,7 @@ use App\Models\Media;
 
 beforeEach(function () {
     $this->media = Media::factory()->count(2)->create(['cover_url' => '/favicon.svg'])->each->refresh();
+    $this->media[1]->update(['title' => 'Embalming: The Another Tale of Frankenstein and the Long Night at the Villa Diodati']);
     $this->path = componentPage('<div class="flex gap-4">@foreach ($media as $item)<x-cover-tile :media="$item" :progress="40" data-test="tile-{{ $loop->index }}" wire:key="m-{{ $item->id }}" />@endforeach</div>', ['media' => $this->media]);
 });
 
@@ -39,4 +40,11 @@ test('the tile is at least 44px tall and the progress bar is exposed', function 
     visit($this->path)
         ->assertScript('document.querySelector("a[href*=stories]").getBoundingClientRect().height >= 44', true)
         ->assertScript('document.querySelectorAll("[role=progressbar][aria-valuenow=\"40\"]").length', 2);
+});
+
+test('a long title is cut at two lines, so tiles in a row stay the same height, and the link keeps the whole title', function () {
+    visit($this->path)->wait(1)
+        ->assertScript('(() => { const title = document.querySelector("[data-test=tile-1] > span.line-clamp-2"); const style = getComputedStyle(title); return style.webkitLineClamp === "2" && title.scrollHeight > title.clientHeight; })()', true)
+        ->assertScript('document.querySelector("[data-test=tile-1]").textContent.includes("the Long Night at the Villa Diodati")', true)
+        ->assertScript('Math.abs(document.querySelector("[data-test=tile-0]").getBoundingClientRect().height - document.querySelector("[data-test=tile-1]").getBoundingClientRect().height) < 1', true);
 });

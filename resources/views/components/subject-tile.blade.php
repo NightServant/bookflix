@@ -15,7 +15,7 @@
 >
     <span class="text-meta tabular-nums text-ink-subtle">[{{ $deweyClass->code }}]</span>
     <span class="block">
-        <span class="line-clamp-2 block text-lead tracking-tight text-ink">{{ $deweyClass->name }}</span>
+        <span class="line-clamp-2 text-lead tracking-tight text-ink">{{ $deweyClass->name }}</span>
         <span class="mt-1 block text-meta tabular-nums text-ink-subtle">{{ trans_choice(':count story|:count stories', $deweyClass->stories_count) }}</span>
     </span>
 </a>

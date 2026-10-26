@@ -82,3 +82,11 @@ test('the hover scale is motion-safe only', function () {
 
     expect($html)->toContain('motion-safe:group-hover:scale-105')->not->toMatch('/(?<!motion-safe:)group-hover:scale/');
 });
+
+test('the title is clamped to two lines, and the whole title stays in the link', function () {
+    $title = 'Embalming: The Another Tale of Frankenstein and the Long Night at the Villa Diodati';
+    $html = renderTile(Media::factory()->create(['title' => $title]));
+
+    expect(htmlQuery($html, '//a/span[contains(@class,"line-clamp-2")][not(contains(@class,"block"))]')->item(0)->textContent)->toBe($title)
+        ->and(trim(htmlQuery($html, '//a')->item(0)->textContent))->toContain($title);
+});

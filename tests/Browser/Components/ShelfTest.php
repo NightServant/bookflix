@@ -16,6 +16,11 @@ beforeEach(function () {
                 <li wire:key="t-{{ $item->id }}"><x-cover-tile :media="$item" /></li>
             @endforeach
         </x-shelf>
+        <x-shelf title="New Releases" bleed class="mt-8">
+            @foreach ($media as $item)
+                <li wire:key="n-{{ $item->id }}"><x-cover-tile :media="$item" /></li>
+            @endforeach
+        </x-shelf>
         BLADE, ['media' => $media]);
 
     $this->prev = '[aria-label="Previous in Staff Picks"]';
@@ -80,32 +85,26 @@ test('with motion allowed the arrows scroll smoothly', function () {
     $page->keys($this->next, 'Enter')->assertScript('window.__behavior', 'smooth');
 });
 
-test('the track fades only the edges that have more to scroll to, and the arrows stay opaque', function () {
-    $fade = fn (string $side) => "getComputedStyle({$this->track}).getPropertyValue('--fade-{$side}')";
-    $page = visit($this->path, ['viewport' => ['width' => 1280, 'height' => 800]])->wait(1);
+test('a full-bleed track fades on both screen edges at rest, over the gutter, so the first tile stays crisp', function () {
+    $bleed = "document.querySelectorAll('section ul')[2]";
+    $fade = fn (string $side) => "getComputedStyle({$bleed}).getPropertyValue('--fade-{$side}')";
 
-    $page->assertScript($fade('start'), '0px')
-        ->assertScript($fade('end'), '56px')
-        ->assertScript("{$this->track}.matches('[data-fade-start]')", false)
-        ->assertScript("{$this->track}.matches('[data-fade-end]')", true)
-        ->assertScript("getComputedStyle({$this->track}).maskImage.startsWith('linear-gradient')", true)
-        ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none')
-        ->assertScript("document.querySelectorAll('section ul')[1].matches('[data-fade-start], [data-fade-end]')", false);
-
-    $page->click($this->next)->wait(1.2)
-        ->assertScript($fade('start'), '56px')
-        ->assertScript($fade('end'), '56px');
-
-    $page->script("{$this->track}.scrollLeft = {$this->track}.scrollWidth");
-    $page->wait(0.6)
-        ->assertScript($fade('start'), '56px')
-        ->assertScript($fade('end'), '0px')
-        ->assertScript("{$this->track}.matches('[data-fade-end]')", false);
+    foreach ([['width' => 1440, 'height' => 800, 'start' => '96px', 'end' => '96px', 'gutter' => 148], ['width' => 375, 'height' => 812, 'start' => '16px', 'end' => '32px', 'gutter' => 16]] as $viewport) {
+        visit($this->path, ['viewport' => ['width' => $viewport['width'], 'height' => $viewport['height']]])->wait(1)
+            ->assertScript($fade('start'), $viewport['start'])
+            ->assertScript($fade('end'), $viewport['end'])
+            ->assertScript("getComputedStyle({$bleed}).maskImage.startsWith('linear-gradient')", true)
+            ->assertScript("(() => { const inset = {$bleed}.firstElementChild.getBoundingClientRect().left - {$bleed}.getBoundingClientRect().left; return inset >= parseFloat({$fade('start')}) - 0.5 && Math.abs(inset - {$viewport['gutter']}) < 1; })()", true)
+            ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none');
+    }
 });
 
-test('on a phone the fade is 24px', function () {
-    $page = visit($this->path, ['viewport' => ['width' => 375, 'height' => 812]])->wait(1);
+test('a boxed track fades only on its right edge, and the arrows stay opaque', function () {
+    $fade = fn (string $side) => "getComputedStyle({$this->track}).getPropertyValue('--fade-{$side}')";
 
-    $page->assertScript("getComputedStyle({$this->track}).getPropertyValue('--fade-end')", '24px')
-        ->assertNoJavaScriptErrors();
+    visit($this->path, ['viewport' => ['width' => 1280, 'height' => 800]])->wait(1)
+        ->assertScript($fade('start'), '0px')
+        ->assertScript($fade('end'), '32px')
+        ->assertScript("getComputedStyle({$this->track}).maskImage.startsWith('linear-gradient')", true)
+        ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none');
 });

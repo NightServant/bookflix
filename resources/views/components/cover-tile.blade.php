@@ -61,9 +61,9 @@
         @endif
     </span>
 
-    <span class="mt-2 line-clamp-2 block min-h-[2lh] text-meta text-ink">{{ $media->title }}</span>
+    <span class="mt-2 line-clamp-2 min-h-[2lh] text-meta text-ink">{{ $media->title }}</span>
 
     @if ($reason)
-        <span class="mt-1 line-clamp-2 block text-legal text-ink-subtle">{{ $reason }}</span>
+        <span class="mt-1 line-clamp-2 text-legal text-ink-subtle">{{ $reason }}</span>
     @endif
 </a>

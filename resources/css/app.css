@@ -115,9 +115,10 @@
 }
 
 /*
- * Edge fade for a scrolling track (with x-edge-fade, resources/js/components.js): a mask, so it works over any background and never
- * blocks a click. The fade only shows on a side that has more to scroll to, and eases in and out (not under reduced motion).
- * The length of each side is a registered property so it can transition.
+ * Edge fade for a scrolling track: the tiles dissolve into the background at the left and right edge of the track, so a full-bleed
+ * shelf fades at the edges of the screen. A mask, not an overlay, so it works over any background and never blocks a click.
+ * `--fade-start` / `--fade-end` are the two widths (set per use; both registered as lengths so they resolve to pixels).
+ * The mask repeats down and is not clipped to the box, so a hover preview that opens below a tile is not cut off by it.
  */
 @property --fade-start {
     syntax: '<length>';
@@ -132,25 +133,9 @@
 }
 
 @utility edge-fade {
-    --fade-width: 1.5rem;
     mask-image: linear-gradient(to right, transparent, black var(--fade-start), black calc(100% - var(--fade-end)), transparent);
-    transition: --fade-start var(--motion-fast) var(--ease-out-bookflix), --fade-end var(--motion-fast) var(--ease-out-bookflix);
-
-    @media (width >= 48rem) {
-        --fade-width: 3.5rem;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        transition: none;
-    }
-
-    &[data-fade-start] {
-        --fade-start: var(--fade-width);
-    }
-
-    &[data-fade-end] {
-        --fade-end: var(--fade-width);
-    }
+    mask-repeat: repeat-y;
+    mask-clip: no-clip;
 }
 
 /* The keyboard focus ring every interactive element wears. */

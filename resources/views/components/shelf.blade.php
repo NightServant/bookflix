@@ -11,7 +11,9 @@
     A titled, horizontally scrolling row. The slot holds `<li>` items (usually `<x-cover-tile>`, each with a `wire:key`).
     `featured` is the gradient shelf and is reserved for Trending Now; every other shelf is plain.
     Titles are Title Case. `href` adds "See all" (named after the shelf for screen readers).
-    The track dissolves at an edge that has more to scroll to (the `edge-fade` mask, driven by `x-edge-fade`); the arrows stay opaque.
+    The track dissolves at both of its edges, always (the `edge-fade` mask): a bleed shelf fades over the gutter-wide strips at the
+    screen's edges, so its first tile stays crisp and tiles running off either side melt away; a boxed shelf fades only on the right.
+    The arrows sit outside the track and stay opaque.
     `bleed` makes it a band that spans the whole page (in a `flush` layout): the title, controls and the first tile line up with the
     header's gutter while the track runs on past the right edge. Without it the shelf is a rounded card inside the page's container.
 --}}
@@ -65,13 +67,12 @@
     <ul
         x-ref="track"
         x-motion-reveal
-        x-edge-fade
         data-stagger="30"
         @scroll.passive="update()"
         @class([
             'edge-fade mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:shrink-0 [&>li]:snap-start',
-            '-mx-1 scroll-px-1 p-1' => ! $bleed,
-            'scroll-px-gutter px-gutter py-1' => $bleed,
+            '[--fade-start:0px] [--fade-end:2rem] -mx-1 scroll-px-1 p-1' => ! $bleed,
+            '[--fade-start:min(var(--spacing-gutter),6rem)] [--fade-end:clamp(2rem,var(--spacing-gutter),6rem)] scroll-px-gutter px-gutter py-1' => $bleed,
         ])
     >
         {{ $slot }}
