@@ -11,9 +11,11 @@
     A titled, horizontally scrolling row. The slot holds `<li>` items (usually `<x-cover-tile>`, each with a `wire:key`).
     `featured` is the gradient shelf and is reserved for Trending Now; every other shelf is plain.
     Titles are Title Case. `href` adds "See all" (named after the shelf for screen readers).
-    The track dissolves at both of its edges, always (the `edge-fade` mask): a bleed shelf fades over a strip at each screen edge that is
-    wider than the gutter (3rem to 16rem, 18vw between), so the outer part of the first tile and the tiles running off the right
-    melt away; a boxed shelf fades only on the right.
+    The track dissolves at an edge that has more to scroll to (the `edge-fade` mask, driven by `x-edge-fade`): the left only once it has
+    been scrolled, the right until the end, 2rem wide in a card and 3 to 4rem on a bleed shelf.
+    On a bleed shelf only the band is full width: the track keeps the header's gutters as its margins and clips there, so no cover
+    ever shows in the side margins, and the first tile sits on the logo's edge. (A focus ring on an outermost tile is clipped there.)
+    The mask makes the track a stacking context, so it sits at `z-10`, and at `z-20` while one of its tiles has a preview open: the preview then lands over the shelf beneath.
     The arrows sit outside the track and stay opaque.
     `bleed` makes it a band that spans the whole page (in a `flush` layout): the title, controls and the first tile line up with the
     header's gutter while the track runs on past the right edge. Without it the shelf is a rounded card inside the page's container.
@@ -68,12 +70,13 @@
     <ul
         x-ref="track"
         x-motion-reveal
+        x-edge-fade
         data-stagger="30"
         @scroll.passive="update()"
         @class([
-            'edge-fade mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:shrink-0 [&>li]:snap-start',
-            '[--fade-start:0px] [--fade-end:2rem] -mx-1 scroll-px-1 p-1' => ! $bleed,
-            '[--fade-start:clamp(3rem,18vw,16rem)] [--fade-end:clamp(3rem,18vw,16rem)] scroll-px-gutter px-gutter py-1' => $bleed,
+            'edge-fade relative z-10 has-[a[aria-expanded=true]]:z-20 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:shrink-0 [&>li]:snap-start',
+            '[--fade-width:2rem] -mx-1 scroll-px-1 p-1' => ! $bleed,
+            '[--fade-width:clamp(3rem,4vw,4rem)] mx-gutter py-1' => $bleed,
         ])
     >
         {{ $slot }}

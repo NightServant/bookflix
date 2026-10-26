@@ -85,29 +85,42 @@ test('with motion allowed the arrows scroll smoothly', function () {
     $page->keys($this->next, 'Enter')->assertScript('window.__behavior', 'smooth');
 });
 
-test('a full-bleed track fades on both screen edges at rest, and the fade reaches into the outermost tiles', function () {
+test('a track fades only the edges that have more to scroll to, and the arrows stay opaque', function () {
+    $fade = fn (string $side) => "getComputedStyle({$this->track}).getPropertyValue('--fade-{$side}')";
+    $page = visit($this->path, ['viewport' => ['width' => 1280, 'height' => 800]])->wait(1);
+
+    $page->assertScript($fade('start'), '0px')
+        ->assertScript($fade('end'), '32px')
+        ->assertScript("{$this->track}.matches('[data-fade-start]')", false)
+        ->assertScript("{$this->track}.matches('[data-fade-end]')", true)
+        ->assertScript("getComputedStyle({$this->track}).maskImage.startsWith('linear-gradient')", true)
+        ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none')
+        ->assertScript("document.querySelectorAll('section ul')[1].matches('[data-fade-start], [data-fade-end]')", false);
+
+    $page->click($this->next)->wait(1.2)
+        ->assertScript($fade('start'), '32px')
+        ->assertScript($fade('end'), '32px');
+
+    $page->script("{$this->track}.scrollLeft = {$this->track}.scrollWidth");
+    $page->wait(0.6)
+        ->assertScript($fade('start'), '32px')
+        ->assertScript($fade('end'), '0px')
+        ->assertScript("{$this->track}.matches('[data-fade-end]')", false);
+});
+
+test('a bleed track keeps the gutters as its margins and fades 3 to 4rem, left only after a scroll', function () {
     $bleed = "document.querySelectorAll('section ul')[2]";
     $fade = fn (string $side) => "getComputedStyle({$bleed}).getPropertyValue('--fade-{$side}')";
 
-    foreach ([['width' => 1440, 'height' => 800, 'fade' => '256px', 'gutter' => 148], ['width' => 375, 'height' => 812, 'fade' => '67.5px', 'gutter' => 16]] as $viewport) {
-        visit($this->path, ['viewport' => ['width' => $viewport['width'], 'height' => $viewport['height']]])->wait(1)
-            ->assertScript($fade('start'), $viewport['fade'])
-            ->assertScript($fade('end'), $viewport['fade'])
-            ->assertScript("getComputedStyle({$bleed}).maskImage.startsWith('linear-gradient')", true)
-            // The first tile starts on the gutter, inside the left fade: its outer part dissolves at rest.
-            ->assertScript("(() => { const inset = {$bleed}.firstElementChild.getBoundingClientRect().left - {$bleed}.getBoundingClientRect().left; return Math.abs(inset - {$viewport['gutter']}) < 1 && inset < parseFloat({$fade('start')}); })()", true)
-            // The tile running off the right edge sits inside the right fade.
-            ->assertScript("(() => { const box = {$bleed}.getBoundingClientRect(); const edge = Array.from({$bleed}.children).find((tile) => tile.getBoundingClientRect().right > box.right); return edge.getBoundingClientRect().left < box.right && edge.getBoundingClientRect().right > box.right - parseFloat({$fade('end')}); })()", true)
-            ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none');
+    foreach ([['width' => 1440, 'height' => 800, 'fade' => '57.6px', 'gutter' => '148px'], ['width' => 375, 'height' => 812, 'fade' => '48px', 'gutter' => '16px']] as $viewport) {
+        $page = visit($this->path, ['viewport' => ['width' => $viewport['width'], 'height' => $viewport['height']]])->wait(1);
+
+        $page->assertScript("getComputedStyle({$bleed}).marginLeft + '|' + getComputedStyle({$bleed}).marginRight", $viewport['gutter'].'|'.$viewport['gutter'])
+            ->assertScript("getComputedStyle({$bleed}).paddingLeft", '0px')
+            ->assertScript($fade('start'), '0px')
+            ->assertScript($fade('end'), $viewport['fade']);
+
+        $page->script("{$bleed}.scrollLeft = 300");
+        $page->wait(0.6)->assertScript($fade('start'), $viewport['fade']);
     }
-});
-
-test('a boxed track fades only on its right edge, and the arrows stay opaque', function () {
-    $fade = fn (string $side) => "getComputedStyle({$this->track}).getPropertyValue('--fade-{$side}')";
-
-    visit($this->path, ['viewport' => ['width' => 1280, 'height' => 800]])->wait(1)
-        ->assertScript($fade('start'), '0px')
-        ->assertScript($fade('end'), '32px')
-        ->assertScript("getComputedStyle({$this->track}).maskImage.startsWith('linear-gradient')", true)
-        ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none');
 });

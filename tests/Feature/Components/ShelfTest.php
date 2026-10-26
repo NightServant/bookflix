@@ -63,22 +63,21 @@ test('the track reveals its tiles with motion and has no scrollbar chrome', func
     expect(htmlQuery(renderShelf(), '//ul[@x-motion-reveal][contains(@class,"snap-x")][contains(@class,"overflow-x-auto")]')->length)->toBe(1);
 });
 
-test('a bleed shelf is a full-width band without a card, its header and first tile on the page gutter', function () {
+test('a bleed shelf is a full-width band without a card, its header and its track on the page gutters', function () {
     $html = renderShelf('title="Trending Now" featured bleed href="/discover"');
 
     expect(htmlQuery($html, '//section[contains(@class,"py-8")][contains(@class,"from-featured-from")]')->length)->toBe(1)
         ->and($html)->not->toContain('rounded-card p-4')
         ->and(htmlQuery($html, '//section/div[contains(@class,"px-gutter")]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//ul[contains(@class,"px-gutter")][contains(@class,"overflow-x-auto")][contains(@class,"scroll-px-gutter")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//ul[contains(@class,"mx-gutter")][contains(@class,"overflow-x-auto")][not(contains(@class,"px-gutter"))]')->length)->toBe(1)
         ->and(htmlQuery(renderShelf('title="Staff Picks"'), '//section[contains(@class,"rounded-card")][contains(@class,"p-4")]')->length)->toBe(1);
 });
 
-test('the track carries the edge fade, wider and on both sides on a bleed shelf, and the arrows do not', function () {
+test('the track carries the state-aware edge fade, and on a bleed shelf keeps the gutters as its margins', function () {
     $boxed = renderShelf('title="Staff Picks"');
     $bleed = renderShelf('title="Trending Now" bleed');
 
-    expect(htmlQuery($boxed, '//ul[contains(@class,"edge-fade")][contains(@class,"[--fade-start:0px]")][contains(@class,"[--fade-end:2rem]")]')->length)->toBe(1)
-        ->and(htmlQuery($bleed, '//ul[contains(@class,"edge-fade")][contains(@class,"[--fade-start:clamp(3rem,18vw,16rem)]")][contains(@class,"[--fade-end:clamp(3rem,18vw,16rem)]")]')->length)->toBe(1)
-        ->and($boxed)->not->toContain('x-edge-fade')
+    expect(htmlQuery($boxed, '//ul[@*[name()="x-edge-fade"]][contains(@class,"edge-fade")][contains(@class,"[--fade-width:2rem]")]')->length)->toBe(1)
+        ->and(htmlQuery($bleed, '//ul[@*[name()="x-edge-fade"]][contains(@class,"edge-fade")][contains(@class,"[--fade-width:clamp(3rem,4vw,4rem)]")][contains(@class,"mx-gutter")][not(contains(@class,"px-gutter"))]')->length)->toBe(1)
         ->and(htmlQuery($bleed, '//button[@aria-label="Next in Trending Now"][contains(@class,"edge-fade")]')->length)->toBe(0);
 });

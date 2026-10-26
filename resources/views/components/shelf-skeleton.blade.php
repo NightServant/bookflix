@@ -27,7 +27,7 @@
         <h2 class="{{ $bleed ? 'text-section' : 'text-lead' }} text-ink">{{ $title }}</h2>
     </div>
 
-    <ul @class(['mt-3 flex gap-4 overflow-hidden motion-safe:animate-pulse', '-mx-1 p-1' => ! $bleed, 'px-gutter py-1' => $bleed])>
+    <ul @class(['mt-3 flex gap-4 overflow-hidden motion-safe:animate-pulse', '-mx-1 p-1' => ! $bleed, 'mx-gutter py-1' => $bleed])>
         @foreach (range(1, $count) as $tile)
             @if ($kind === 'subjects')
                 <li data-skeleton-tile class="h-40 w-56 shrink-0 rounded-card bg-surface-card sm:w-64"></li>

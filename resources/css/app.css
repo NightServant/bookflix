@@ -115,10 +115,12 @@
 }
 
 /*
- * Edge fade for a scrolling track: the tiles dissolve into the background at the left and right edge of the track, so a full-bleed
- * shelf fades at the edges of the screen. A mask, not an overlay, so it works over any background and never blocks a click.
- * `--fade-start` / `--fade-end` are the two widths (set per use; both registered as lengths so they resolve to pixels).
- * The mask repeats down and is not clipped to the box, so a hover preview that opens below a tile is not cut off by it.
+ * Edge fade for a scrolling track (with x-edge-fade, resources/js/components.js): inside the track's own box the tiles dissolve to
+ * nothing at an edge that has more to scroll to (the left only once scrolled, the right until the end). A mask, so it works over any
+ * background and never blocks a click. `--fade-width` is the size of a fade; the two edge lengths are registered properties so they
+ * resolve to pixels and can ease in (not under reduced motion).
+ * The mask has three layers: the fade over the box, and an opaque layer everywhere outside the box (a solid layer, repeated without
+ * clipping, minus a solid one the size of the box), so a hover preview that opens below or beside a tile is never masked or cut off.
  */
 @property --fade-start {
     syntax: '<length>';
@@ -133,9 +135,27 @@
 }
 
 @utility edge-fade {
-    mask-image: linear-gradient(to right, transparent, black var(--fade-start), black calc(100% - var(--fade-end)), transparent);
-    mask-repeat: repeat-y;
-    mask-clip: no-clip;
+    --fade-width: 3rem;
+    mask-image:
+        linear-gradient(to right, transparent, black var(--fade-start), black calc(100% - var(--fade-end)), transparent),
+        linear-gradient(black, black),
+        linear-gradient(black, black);
+    mask-clip: border-box, no-clip, border-box;
+    mask-repeat: no-repeat, repeat, no-repeat;
+    mask-composite: add, subtract;
+    transition: --fade-start var(--motion-fast) var(--ease-out-bookflix), --fade-end var(--motion-fast) var(--ease-out-bookflix);
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+
+    &[data-fade-start] {
+        --fade-start: var(--fade-width);
+    }
+
+    &[data-fade-end] {
+        --fade-end: var(--fade-width);
+    }
 }
 
 /* The keyboard focus ring every interactive element wears. */
