@@ -85,16 +85,19 @@ test('with motion allowed the arrows scroll smoothly', function () {
     $page->keys($this->next, 'Enter')->assertScript('window.__behavior', 'smooth');
 });
 
-test('a full-bleed track fades on both screen edges at rest, over the gutter, so the first tile stays crisp', function () {
+test('a full-bleed track fades on both screen edges at rest, and the fade reaches into the outermost tiles', function () {
     $bleed = "document.querySelectorAll('section ul')[2]";
     $fade = fn (string $side) => "getComputedStyle({$bleed}).getPropertyValue('--fade-{$side}')";
 
-    foreach ([['width' => 1440, 'height' => 800, 'start' => '96px', 'end' => '96px', 'gutter' => 148], ['width' => 375, 'height' => 812, 'start' => '16px', 'end' => '32px', 'gutter' => 16]] as $viewport) {
+    foreach ([['width' => 1440, 'height' => 800, 'fade' => '256px', 'gutter' => 148], ['width' => 375, 'height' => 812, 'fade' => '67.5px', 'gutter' => 16]] as $viewport) {
         visit($this->path, ['viewport' => ['width' => $viewport['width'], 'height' => $viewport['height']]])->wait(1)
-            ->assertScript($fade('start'), $viewport['start'])
-            ->assertScript($fade('end'), $viewport['end'])
+            ->assertScript($fade('start'), $viewport['fade'])
+            ->assertScript($fade('end'), $viewport['fade'])
             ->assertScript("getComputedStyle({$bleed}).maskImage.startsWith('linear-gradient')", true)
-            ->assertScript("(() => { const inset = {$bleed}.firstElementChild.getBoundingClientRect().left - {$bleed}.getBoundingClientRect().left; return inset >= parseFloat({$fade('start')}) - 0.5 && Math.abs(inset - {$viewport['gutter']}) < 1; })()", true)
+            // The first tile starts on the gutter, inside the left fade: its outer part dissolves at rest.
+            ->assertScript("(() => { const inset = {$bleed}.firstElementChild.getBoundingClientRect().left - {$bleed}.getBoundingClientRect().left; return Math.abs(inset - {$viewport['gutter']}) < 1 && inset < parseFloat({$fade('start')}); })()", true)
+            // The tile running off the right edge sits inside the right fade.
+            ->assertScript("(() => { const box = {$bleed}.getBoundingClientRect(); const edge = Array.from({$bleed}.children).find((tile) => tile.getBoundingClientRect().right > box.right); return edge.getBoundingClientRect().left < box.right && edge.getBoundingClientRect().right > box.right - parseFloat({$fade('end')}); })()", true)
             ->assertScript("getComputedStyle(document.querySelector('{$this->next}')).maskImage", 'none');
     }
 });

@@ -73,12 +73,12 @@ test('a bleed shelf is a full-width band without a card, its header and first ti
         ->and(htmlQuery(renderShelf('title="Staff Picks"'), '//section[contains(@class,"rounded-card")][contains(@class,"p-4")]')->length)->toBe(1);
 });
 
-test('the track carries the edge fade, wider over the gutter on a bleed shelf, and the arrows do not', function () {
+test('the track carries the edge fade, wider and on both sides on a bleed shelf, and the arrows do not', function () {
     $boxed = renderShelf('title="Staff Picks"');
     $bleed = renderShelf('title="Trending Now" bleed');
 
     expect(htmlQuery($boxed, '//ul[contains(@class,"edge-fade")][contains(@class,"[--fade-start:0px]")][contains(@class,"[--fade-end:2rem]")]')->length)->toBe(1)
-        ->and(htmlQuery($bleed, '//ul[contains(@class,"edge-fade")][contains(@class,"[--fade-start:min(var(--spacing-gutter),6rem)]")][contains(@class,"[--fade-end:clamp(2rem,var(--spacing-gutter),6rem)]")]')->length)->toBe(1)
+        ->and(htmlQuery($bleed, '//ul[contains(@class,"edge-fade")][contains(@class,"[--fade-start:clamp(3rem,18vw,16rem)]")][contains(@class,"[--fade-end:clamp(3rem,18vw,16rem)]")]')->length)->toBe(1)
         ->and($boxed)->not->toContain('x-edge-fade')
         ->and(htmlQuery($bleed, '//button[@aria-label="Next in Trending Now"][contains(@class,"edge-fade")]')->length)->toBe(0);
 });
