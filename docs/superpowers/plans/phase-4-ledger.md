@@ -93,3 +93,18 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-4-discovery.md` on `origin/claude
   - Cover links are taken out of the tab order.
   - The view toggle needs `wire:model.live`.
   - The result row's eager loads are `mediaType`, `publicPrimaryDewey.deweyClass`, `creators` and `genres`.
+| 4.3+4.4 | `ffa388b`, `8661361`, `db824e1`, `ff4f991` | DONE: the controller's re-run is green (PHPStan clean, 610 feature/unit tests, 143 browser tests); the dev DB is migrated (`search_queries`) | F6: the story page runs 24 queries against a budget of 25 (4 of them layout and palette), so the review should check headroom. The Figma Top nav still has no Search entry |
+
+- Accepted deviations from 4.3/4.4:
+  - F1's `:*` is skipped when the query has punctuation.
+  - F3 is fixed generically in `comboboxField`.
+  - `query` prop on cover-tile and result-row (`?sq=`).
+  - The header palette is hidden below `sm`.
+  - `stories.show` is inside auth+verified.
+  - `Series::orderedMedia()` arrives in 4.4, so 4.5 reuses it.
+  - `series.show` links are guarded by `Route::has`.
+  - Text-free filter searches browse and aren't logged.
+  - Tabs show only when they have content.
+  - The primary CTA is "Add to Library".
+  - Filters are one include, rendered twice.
+- User 2026-10-26: stop before 4.5 (session limit). Next: one agent for 4.5–4.7, then 4.8, the Opus review, the fix wave (F4, F5, F6) and the PR.
