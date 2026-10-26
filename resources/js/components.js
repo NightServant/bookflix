@@ -192,6 +192,49 @@ export default function components(Alpine) {
         },
     }));
 
+    // <x-story-preview>: `open` is the model of the ui popover inside. It opens 300ms after a mouse rests on the trigger or the
+    // keyboard reaches it, and closes a moment after both leave. Touch never opens it, and neither does a click's focus (that is
+    // not :focus-visible); the popover plugin itself handles Escape, Tab out and focus returning to the trigger.
+    Alpine.data('storyPreview', () => ({
+        open: false,
+        timer: null,
+
+        // The trigger's own link (or button); the popover plugin focuses it again when the preview closes.
+        link() {
+            return this.$refs.trigger.querySelector('a[href], button') ?? this.$refs.trigger;
+        },
+
+        schedule(open, delay) {
+            clearTimeout(this.timer);
+            this.timer = setTimeout(() => (this.open = open), delay);
+        },
+
+        dismiss() {
+            clearTimeout(this.timer);
+            this.open = false;
+        },
+
+        enter(event) {
+            event.pointerType !== 'touch' && this.schedule(true, 300);
+        },
+
+        leave(event) {
+            event.pointerType !== 'touch' && this.schedule(false, 150);
+        },
+
+        // Focus coming back from the panel (Escape, Shift+Tab) is not an arrival, so it must not reopen what it just closed.
+        focus(event) {
+            event.target.matches(':focus-visible') && ! event.currentTarget.contains(event.relatedTarget) && this.schedule(true, 300);
+        },
+
+        // A pointer still over the preview keeps it open (a click on its text moves focus to the page).
+        blur(event) {
+            const root = event.currentTarget;
+
+            root.contains(event.relatedTarget) || root.matches(':hover') || this.schedule(false, 0);
+        },
+    }));
+
     // <x-range-filter>: a two-handle nouislider. `values` is the model ([from, to], written when a drag or key press ends);
     // `display` follows the handles while they move. The slider is built in a fresh element every time, so a page restored
     // from Livewire's navigate cache (which keeps the old slider's DOM) never ends up with two, and destroyed on teardown.
