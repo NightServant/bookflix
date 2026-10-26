@@ -62,7 +62,7 @@ class KeywordLeg implements SearchLeg
             return []; // punctuation is literal, as in the substring fallback: it never turns into a wildcard
         }
 
-        $tsquery = collect(preg_split('/\s+/u', $query, flags: PREG_SPLIT_NO_EMPTY))->map(fn (string $word): string => "'{$word}'")->implode(' & ').':*';
+        $tsquery = collect(explode(' ', $query))->map(fn (string $word): string => "'{$word}'")->implode(' & ').':*';
 
         return array_values($this->visible(Media::query(), $filters)
             ->whereRaw("to_tsvector('simple', media.search_text) @@ to_tsquery('simple', ?)", [$tsquery])
