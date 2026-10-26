@@ -54,4 +54,14 @@ class Series extends Model
     {
         return $this->belongsToMany(Media::class, 'media_series')->withPivot(['position', 'label'])->withTimestamps();
     }
+
+    /**
+     * The volumes in reading order: by position, those without one last, then by title.
+     *
+     * @return BelongsToMany<Media, $this, Pivot, 'pivot'>
+     */
+    public function orderedMedia(): BelongsToMany
+    {
+        return $this->media()->orderByRaw('media_series.position asc nulls last')->orderBy('media.title')->orderBy('media.id');
+    }
 }

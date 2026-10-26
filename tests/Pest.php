@@ -12,11 +12,19 @@ use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
 use App\Enums\ReviewStatus;
+use App\Models\Creator;
 use App\Models\DeweyClass;
 use App\Models\ExternalSource;
+use App\Models\Genre;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
+use App\Models\MediaExternalId;
 use App\Models\MediaType;
+use App\Models\Publisher;
+use App\Models\Series;
+use App\Models\Tag;
+use App\Models\Theme;
+use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -180,6 +188,43 @@ function classified(Media|Collection $media, string $code, string $type = 'prima
             'confidence' => $confidence,
         ]);
     }
+
+    return $media;
+}
+
+/**
+ * A story with everything the page can show: creators, publisher, genres, themes, tags, a series of three, a related story,
+ * content warnings, a public class (813) and a provider source with attribution.
+ */
+function fullMedia(): Media
+{
+    (new DeweySeeder)->run();
+
+    $media = Media::factory()->novel()->create([
+        'title' => 'Dune',
+        'alternative_titles' => ['Duna'],
+        'description' => 'A desert planet and the spice that rules it.',
+        'content_warnings' => ['Violence'],
+        'average_rating' => '9.0',
+        'ratings_count' => 120,
+    ]);
+
+    $media->creators()->attach(Creator::factory()->create(['name' => 'Frank Herbert']), ['role' => CreatorRole::Author->value, 'position' => 0]);
+    $media->publishers()->attach(Publisher::factory()->create(['name' => 'Chilton Books']));
+    $media->genres()->attach(Genre::factory()->create(['name' => 'Science Fiction', 'slug' => 'science-fiction']));
+    $media->themes()->attach(Theme::factory()->create(['name' => 'Politics', 'slug' => 'politics']));
+    $media->tags()->attach(Tag::factory()->create(['name' => 'Desert']));
+
+    $series = Series::factory()->create(['title' => 'Dune Chronicles']);
+    $media->series()->attach($series, ['position' => 1]);
+    Media::factory()->create(['title' => 'Dune Messiah'])->series()->attach($series, ['position' => 2]);
+
+    $media->relations()->attach(Media::factory()->create(['title' => 'Dune: The Movie']), ['relation' => 'adaptation']);
+
+    classified($media, '813');
+
+    $source = ExternalSource::factory()->create(['attribution' => 'Book data from Open Library (openlibrary.org).']);
+    MediaExternalId::factory()->create(['media_id' => $media->id, 'external_source_id' => $source->id]);
 
     return $media;
 }

@@ -2,8 +2,11 @@
 
 use App\Discovery\Search\SearchTextBuilder;
 use App\Models\Media;
+use App\Models\User;
 
 beforeEach(function () {
+    $this->actingAs(User::factory()->create());
+
     foreach (['Dune Chronicle One', 'Dune Chronicle Two', 'Berserk'] as $title) {
         $media = Media::factory()->create(['title' => $title]);
         $media->update(['search_text' => app(SearchTextBuilder::class)->build($media)]);
@@ -16,8 +19,6 @@ beforeEach(function () {
     $this->dialogOpen = 'getComputedStyle(document.querySelector("[role=dialog]")).display !== "none"';
     $this->results = 'Array.from(document.querySelectorAll("[role=dialog] [role=option]")).map((o) => o.querySelector("span").textContent.trim()).join("|")';
     $this->onTrigger = 'document.activeElement === document.querySelector("[aria-haspopup=dialog]")';
-    // The story page does not exist yet (Phase 4.3), so record where a pick would go and cancel the navigation.
-    $this->stubNavigate = 'window.__navigated = null; document.addEventListener("livewire:navigate", (event) => { event.preventDefault(); window.__navigated = event.detail.url.href; })';
 });
 
 test('the palette passes the shared checks closed, and after wire:navigate', function () {
@@ -49,18 +50,29 @@ test('command-k and control-k open it from anywhere', function () {
         ->assertScript($this->dialogOpen, true);
 });
 
-test('typing lists matching stories and Enter on the first opens it', function () {
+test('typing lists matching stories and Enter on the chosen one opens its story page', function () {
     $page = visit($this->path)->wait(1);
-    $page->script($this->stubNavigate);
 
     $page->click($this->trigger)->wait(0.6)
         ->keys($this->input, ['d', 'u', 'n', 'e'])->wait(1.2)
         ->assertScript('Array.from(document.querySelectorAll("[role=dialog] [role=option]")).length', 2)
         ->assertScript($this->results, 'Dune Chronicle One|Dune Chronicle Two')
         ->assertNoAccessibilityIssues()
-        ->keys($this->input, ['ArrowDown', 'Enter'])->wait(0.4)
-        ->assertScript('window.__navigated.includes("/stories/dune-chronicle-")', true)
-        ->assertScript($this->dialogOpen, false);
+        ->keys($this->input, ['ArrowDown', 'Enter'])->wait(1.5)
+        ->assertPathBeginsWith('/stories/dune-chronicle-')
+        ->assertScript('document.querySelector("h1").textContent.trim().startsWith("Dune Chronicle")', true)
+        ->assertNoJavaScriptErrors();
+});
+
+test('clicking a result opens its story page', function () {
+    $page = visit($this->path)->wait(1);
+
+    $page->click($this->trigger)->wait(0.6)
+        ->keys($this->input, ['d', 'u', 'n', 'e'])->wait(1.2)
+        ->click('[role=dialog] [role=option]:has-text("Dune Chronicle Two")')->wait(1.5)
+        ->assertPathBeginsWith('/stories/dune-chronicle-two')
+        ->assertScript('document.querySelector("h1").textContent.trim()', 'Dune Chronicle Two')
+        ->assertNoJavaScriptErrors();
 });
 
 test('Escape first closes the results, then the dialog, and focus goes back to the trigger', function () {
