@@ -190,4 +190,43 @@ export default function components(Alpine) {
             this.closing || (this.expanded = this.$root.open);
         },
     }));
+
+    // <x-combobox>: the filter and labels around @alpinejs/ui's combobox. Matching ignores case and accents.
+    Alpine.data('comboboxField', (options, multiple) => ({
+        options,
+        query: '',
+
+        // The ui plugin puts aria-multiselectable on the input, where a combobox may not carry it; the listbox has it (in the markup).
+        init() {
+            multiple && this.$nextTick(() => this.$refs.__input?.removeAttribute('aria-multiselectable'));
+        },
+
+        get filtered() {
+            const query = fold(this.query);
+
+            return query ? this.options.filter((option) => fold(option.label).includes(query)) : this.options;
+        },
+
+        labelFor(value) {
+            return this.options.find((option) => option.value === value)?.label ?? value ?? '';
+        },
+
+        // Multiple mode: a chip's remove button. The list-selection state is the model itself, so editing it is enough.
+        remove(value) {
+            const picked = this.$combobox.value;
+
+            picked.splice(picked.indexOf(value), 1);
+            this.$refs.__input.focus();
+        },
+
+        // Multiple mode keeps the popup open after a pick, so empty the field for the next search.
+        afterPick(input) {
+            multiple && this.$nextTick(() => {
+                input.value = '';
+                this.query = '';
+            });
+        },
+    }));
 }
+
+const fold = (text) => String(text).normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase();

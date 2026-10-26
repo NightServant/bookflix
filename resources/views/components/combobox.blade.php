@@ -1,0 +1,97 @@
+@props([
+    'options' => [],
+    'label',
+    'multiple' => false,
+    'placeholder' => null,
+    'hideLabel' => false,
+])
+
+{{--
+    A combobox after the APG pattern, on @alpinejs/ui: a text field that filters a popup list of options.
+    `options` is a value => label map (or a plain list, where each string is its own value). `label` is required and a real <label>
+    (`hide-label` keeps it for screen readers only). Bind with `wire:model` or `x-model`: a string, or an array of strings with `multiple`.
+    Multiple mode keeps the list open and shows the picks as chips, each with a remove button.
+    The ui plugin adds the combobox, listbox and option roles, the arrow/Enter/Escape keys and aria-activedescendant at runtime.
+    The ui plugin needs an x-data ancestor, so the state lives on the wrapper and the combobox element only takes the model attributes.
+--}}
+@php
+    $items = collect($options)
+        ->map(fn ($text, $key) => ['value' => (string) (array_is_list($options) ? $text : $key), 'label' => (string) $text])
+        ->values()
+        ->all();
+
+    $modelAttributes = $attributes->whereStartsWith(['wire:model', 'x-model', 'name']);
+@endphp
+
+<div
+    x-data="comboboxField(@js($items), @js((bool) $multiple))"
+    {{ $attributes->whereDoesntStartWith(['wire:model', 'x-model', 'name'])->class('relative') }}
+>
+    <div x-combobox @if ($multiple) multiple @endif {{ $modelAttributes }}>
+        <label x-combobox:label class="{{ $hideLabel ? 'sr-only' : 'mb-2 block text-meta text-ink-subtle' }}">{{ $label }}</label>
+
+        @if ($multiple)
+            <ul aria-label="{{ __('Selected') }}" x-show="$combobox.value.length" style="display: none" class="mb-2 flex flex-wrap gap-2">
+                <template x-for="value in $combobox.value" :key="value">
+                    <li class="inline-flex items-center rounded-full bg-surface-input ps-4 text-meta text-ink">
+                        <span x-text="labelFor(value)"></span>
+                        <button
+                            type="button"
+                            :aria-label="@js(__('Remove')) + ' ' + labelFor(value)"
+                            @click="remove(value)"
+                            class="focus-ring inline-flex size-11 items-center justify-center rounded-full text-ink-subtle hover:text-ink"
+                        >
+                            <flux:icon name="x-mark" class="size-4" />
+                        </button>
+                    </li>
+                </template>
+            </ul>
+        @endif
+
+        <div class="relative">
+            <flux:input
+                x-combobox:input
+                x-bind:display-value="(value) => labelFor(value)"
+                @change="query = $event.target.value"
+                @keydown.enter="afterPick($el)"
+                :placeholder="$placeholder"
+                autocomplete="off"
+                class:input="h-11! rounded-control! pe-12"
+            />
+            <button
+                x-combobox:button
+                type="button"
+                aria-label="{{ __('Show options') }}"
+                class="focus-ring absolute inset-y-0 end-0 inline-flex size-11 items-center justify-center rounded-control text-ink-subtle hover:text-ink"
+            >
+                <flux:icon name="chevron-up-down" class="size-5" />
+            </button>
+        </div>
+
+        <ul
+            x-combobox:options
+            @if ($multiple) aria-multiselectable="true" @endif
+            style="display: none"
+            class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-card border border-hairline bg-surface-card p-1"
+        >
+            <template x-for="option in filtered" :key="option.value">
+                <li
+                    x-combobox:option
+                    :value="option.value"
+                    :class="{ 'bg-surface-input': $comboboxOption.isActive }"
+                    class="flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-control px-3 text-body text-ink"
+                >
+                    <span x-text="option.label"></span>
+                    <flux:icon name="check" x-show="$comboboxOption.isSelected" style="display: none" class="size-5 shrink-0" />
+                </li>
+            </template>
+        </ul>
+
+        <p
+            role="status"
+            x-show="$combobox.isOpen && filtered.length === 0"
+            style="display: none"
+            class="absolute z-20 mt-1 w-full rounded-card border border-hairline bg-surface-card p-3 text-meta text-ink-subtle"
+        >{{ __('No matches') }}</p>
+    </div>
+</div>
