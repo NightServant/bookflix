@@ -12,7 +12,7 @@ export const MOTION = {
 };
 
 // Read at call time so a changed OS/browser setting is honoured without a reload.
-const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+export const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Motion leaves its final keyframe as inline style; drop it so CSS (e.g. hover transforms) owns the element again.
 const release = (targets) => () => targets.forEach((target) => {
