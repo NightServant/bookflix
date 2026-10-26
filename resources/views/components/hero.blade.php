@@ -59,7 +59,7 @@
             <div data-hero-scrim class="absolute inset-0 bg-linear-to-t from-canvas via-canvas/80 to-canvas/60 lg:bg-linear-to-r lg:via-canvas/60 lg:to-canvas/10"></div>
         </div>
 
-        <div data-hero-content class="relative flex flex-col justify-end gap-8 p-4 sm:p-8 {{ $height }} lg:flex-row lg:items-end lg:justify-between">
+        <div data-hero-content class="relative flex flex-col justify-end gap-8 p-4 sm:p-8 {{ $height }} lg:flex-row lg:items-center lg:justify-between">
             <div class="max-w-2xl" aria-live="polite">
                 @foreach ($items as $index => $slide)
                     @php
