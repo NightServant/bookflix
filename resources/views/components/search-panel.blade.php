@@ -1,19 +1,29 @@
 @props([
     'placeholder' => null,
     'suggestions' => [],
+    'action' => null,
+    'browse' => true,
 ])
 
 {{--
-    The "What would you like to find?" panel that opens the Search and Discover screens: one search field with optional typeahead
-    `suggestions` (a list of strings) and a secondary way into Discover. The field is a freeform <x-combobox>: bind the text with
-    `wire:model` (or `.live.debounce` for results as you type); the label is a real <label>.
+    The "What would you like to find?" panel that opens the Search, Discover and Home screens: one search field with optional typeahead
+    `suggestions` (a list of strings) and, unless `browse` is false, a secondary way into Discover. The field is a freeform <x-combobox>:
+    bind the text with `wire:model` (or `.live.debounce` for results as you type); the label is a real <label>.
+    Pass `action` (a URL, usually route('search')) instead of a binding on a screen that is not the results: Enter then opens that URL
+    with the text as `?q=` (two letters at least, the search's own minimum), over wire:navigate.
     Discover's route comes from the `Discover` item of config('bookflix.navigation').
 --}}
 @php
-    $discover = collect(config('bookflix.navigation'))->firstWhere('label', 'Discover');
+    $discover = $browse ? collect(config('bookflix.navigation'))->firstWhere('label', 'Discover') : null;
 @endphp
 
-<search {{ $attributes->only('class')->class('flex flex-col gap-4 sm:flex-row sm:items-end') }}>
+<search
+    {{ $attributes->only('class')->class('flex flex-col gap-4 sm:flex-row sm:items-end') }}
+    @if ($action)
+        x-data="{ q: '' }"
+        @keydown.enter.capture="if ($event.target.matches('[role=combobox]') && !$event.isComposing && q.trim().length >= 2) { $event.preventDefault(); Livewire.navigate(@js($action).concat('?q=', encodeURIComponent(q.trim()))) }"
+    @endif
+>
     <x-combobox
         freeform
         :label="__('What would you like to find?')"
@@ -21,7 +31,7 @@
         :options="$suggestions"
         :placeholder="$placeholder"
         class="min-w-0 flex-1"
-        {{ $attributes->except('class') }}
+        {{ $attributes->except('class')->merge($action ? ['x-model' => 'q'] : []) }}
     />
 
     @if ($discover)

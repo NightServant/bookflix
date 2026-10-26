@@ -31,7 +31,7 @@ test('the placeholder reaches the input and the model attribute reaches the comb
 test('a secondary cta leads to Discover, wherever the navigation config puts it', function () {
     $html = renderSearchPanel();
 
-    expect(htmlQuery($html, '//a[@href="'.route('explore.index').'"][@data-flux-button][normalize-space()="Browse Discover"]')->length)->toBe(1)
+    expect(htmlQuery($html, '//a[@href="'.route('discover').'"][@data-flux-button][normalize-space()="Browse Discover"]')->length)->toBe(1)
         ->and($html)->not->toContain('--color-accent');
 
     config(['bookflix.navigation' => [['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'home', 'active' => []]]]);
@@ -41,4 +41,13 @@ test('a secondary cta leads to Discover, wherever the navigation config puts it'
 
 test('there is no toggle button to reach, suggestions open as you type', function () {
     expect(htmlQuery(renderSearchPanel(), '//button[@*[name()="x-combobox:button"]][@hidden]')->length)->toBe(1);
+});
+
+test('an action turns Enter into a search on that page, and the secondary cta can be left out', function () {
+    $html = renderSearchPanel('action="/search" :browse="false"');
+
+    expect(htmlQuery($html, '//search[@x-data="{ q: \'\' }"][contains(@*[name()="@keydown.enter.capture"],"Livewire.navigate")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//*[@x-combobox][@x-model="q"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//a[@data-flux-button]')->length)->toBe(0)
+        ->and(htmlQuery(renderSearchPanel(), '//search[@x-data]')->length)->toBe(0);
 });

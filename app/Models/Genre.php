@@ -6,6 +6,8 @@ use Database\Factories\GenreFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,4 +22,12 @@ class Genre extends Model
 {
     /** @use HasFactory<GenreFactory> */
     use HasFactory;
+
+    /**
+     * @return BelongsToMany<Media, $this, Pivot, 'pivot'>
+     */
+    public function media(): BelongsToMany
+    {
+        return $this->belongsToMany(Media::class, 'media_genres')->withTimestamps();
+    }
 }

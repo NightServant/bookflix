@@ -51,7 +51,7 @@ return [
 
     'navigation' => [
         ['label' => 'Home', 'icon' => 'home', 'route' => 'home', 'active' => ['home']],
-        ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'explore.index', 'active' => ['explore.*']],
+        ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'discover', 'active' => ['discover', 'explore.*']],
         ['label' => 'Search', 'icon' => 'magnifying-glass', 'route' => 'search', 'active' => ['search']],
         ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit']],
     ],

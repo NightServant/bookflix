@@ -13,10 +13,10 @@
         @foreach ($links as $link)
             <li wire:key="quick-link-{{ $link['route'] }}-{{ $loop->index }}">
                 <a href="{{ route($link['route']) }}" wire:navigate class="group focus-ring block h-full rounded-card">
-                    <flux:card size="sm" class="h-full rounded-card border-hairline bg-surface-card group-hover:bg-surface-input">
+                    <flux:card size="sm" class="h-full rounded-card border-hairline bg-surface-card p-2! ps-4! group-hover:bg-surface-input">
                         <span class="flex min-h-11 items-center gap-3">
-                            <flux:icon :name="$link['icon']" class="size-6 shrink-0 text-ink-subtle group-hover:text-ink" />
-                            <span class="text-lead text-ink">{{ $link['label'] }}</span>
+                            <flux:icon :name="$link['icon']" class="size-5 shrink-0 text-ink-subtle group-hover:text-ink" />
+                            <span class="text-body font-medium text-ink">{{ $link['label'] }}</span>
                         </span>
                     </flux:card>
                 </a>

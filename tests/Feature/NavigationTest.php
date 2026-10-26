@@ -27,7 +27,7 @@ test('the discover item is current on every explore page', function (string $rou
     $response = $this->actingAs(User::factory()->create())->get(route($routeName, $parameters))->assertOk();
 
     $navs = primaryNavs($response->getContent());
-    $discover = preg_quote(route('explore.index'), '#');
+    $discover = preg_quote(route('discover'), '#');
     $home = preg_quote(route('home'), '#');
 
     expect($navs['header'])
