@@ -16,5 +16,6 @@
         </nav>
 
         @livewireScriptConfig
+        @fluxScripts
     </body>
 </html>

@@ -201,6 +201,20 @@ html[data-hero-transition]::view-transition-new(hero-cover) {
     @apply ring-2 ring-accent-electric ring-offset-2 ring-offset-canvas;
 }
 
+/* Flux modals and flyouts (<x-filter-sheet>): a scrim in the canvas colour instead of Flux's 10% black, and no transition under reduced motion. */
+[data-flux-modal] > dialog::backdrop {
+    background-color: color-mix(in srgb, var(--color-canvas) 80%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-flux-modal] > dialog,
+    [data-flux-modal] > dialog[open],
+    [data-flux-modal] > dialog::backdrop,
+    [data-flux-modal] > dialog[open]::backdrop {
+        transition: none;
+    }
+}
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }
