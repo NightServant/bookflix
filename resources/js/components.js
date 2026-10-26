@@ -1,4 +1,5 @@
 import { animate, stagger } from 'motion';
+import noUiSlider from 'nouislider';
 import { MOTION, prefersReducedMotion, release } from './motion';
 
 /**
@@ -188,6 +189,64 @@ export default function components(Alpine) {
         // Its `toggle` events arrive a frame late, so ignore them while our own close is in flight.
         sync() {
             this.closing || (this.expanded = this.$root.open);
+        },
+    }));
+
+    // <x-range-filter>: a two-handle nouislider. `values` is the model ([from, to], written when a drag or key press ends);
+    // `display` follows the handles while they move. The slider is built in a fresh element every time, so a page restored
+    // from Livewire's navigate cache (which keeps the old slider's DOM) never ends up with two, and destroyed on teardown.
+    Alpine.data('rangeFilter', ({ min, max, step, names }) => ({
+        values: [min, max],
+        display: [min, max],
+        slider: null,
+
+        init() {
+            const target = document.createElement('div');
+
+            this.$refs.mount.replaceChildren(target);
+            this.slider = noUiSlider.create(target, {
+                start: this.bounded(this.values),
+                connect: true,
+                step,
+                range: { min, max },
+                behaviour: 'tap-drag',
+                animate: ! prefersReducedMotion(),
+                format: { to: (value) => Math.round(value), from: Number },
+            });
+
+            this.slider.on('update', (values) => {
+                this.display = values.map(Number);
+                this.describe(target);
+            });
+            this.slider.on('change', (values) => (this.values = values.map(Number)));
+            this.$watch('values', (values) => this.slider?.set(this.bounded(values)));
+        },
+
+        // The model can arrive as anything (null before the server sets it, strings from a query string).
+        bounded(values) {
+            const [from, to] = (Array.isArray(values) && values.length === 2 ? values : [min, max]).map(Number);
+            const clamp = (value) => Math.min(Math.max(Number.isNaN(value) ? min : value, min), max);
+
+            return [clamp(from), clamp(to)];
+        },
+
+        // nouislider 15 gives the handle role="slider" but puts the value attributes on a child; move them to the handle (APG multi-thumb slider).
+        describe(target) {
+            const [from, to] = this.display;
+
+            target.querySelectorAll('.noUi-handle').forEach((handle, index) => {
+                ['aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext'].forEach((name) => handle.firstElementChild?.removeAttribute(name));
+
+                handle.setAttribute('aria-label', names[index]);
+                handle.setAttribute('aria-valuemin', index === 0 ? min : from);
+                handle.setAttribute('aria-valuemax', index === 0 ? to : max);
+                handle.setAttribute('aria-valuenow', index === 0 ? from : to);
+            });
+        },
+
+        destroy() {
+            this.slider?.destroy();
+            this.$refs.mount?.replaceChildren();
         },
     }));
 
