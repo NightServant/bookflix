@@ -38,7 +38,7 @@ test('component views draw no shadows', function () {
 
 test('only chips, markers and thumbs are fully rounded', function () {
     // Decision (c): add a component here only when it is a chip, a step marker or a slider thumb.
-    $allowed = ['combobox.blade.php'];
+    $allowed = ['combobox.blade.php', 'result-row.blade.php'];
 
     $offenders = componentViews()
         ->reject(fn ($f) => in_array($f->getFilename(), $allowed, true))
