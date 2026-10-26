@@ -39,4 +39,46 @@ export default function components(Alpine) {
             track.scrollBy({ left: direction * track.clientWidth * 0.9, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
         },
     }));
+
+    // <x-hero>: one slide at a time with prev/next, a counter and an optional rotation, following the APG carousel pattern.
+    Alpine.data('hero', (count, autoplay, interval) => ({
+        current: 0,
+        playing: false,
+        hold: false,
+        timer: null,
+
+        init() {
+            // Reduced motion never starts rotating on its own; the reader can still press Play.
+            this.playing = autoplay && !prefersReducedMotion();
+            this.$watch('playing', () => this.schedule());
+            this.schedule();
+        },
+
+        schedule() {
+            clearInterval(this.timer);
+
+            if (this.playing) {
+                // Hovering or focusing the hero holds the rotation so nobody loses a slide they are reading.
+                this.timer = setInterval(() => !this.hold && !document.hidden && this.next(), interval);
+            }
+        },
+
+        next() {
+            this.current = (this.current + 1) % count;
+            this.schedule();
+        },
+
+        prev() {
+            this.current = (this.current - 1 + count) % count;
+            this.schedule();
+        },
+
+        toggle() {
+            this.playing = !this.playing;
+        },
+
+        destroy() {
+            clearInterval(this.timer);
+        },
+    }));
 }
