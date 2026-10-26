@@ -112,3 +112,20 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-4-discovery.md` on `origin/claude
   - Cause: `<x-cta>` forces the plan's 24 px label token (`--text-cta: 1.5rem`, weight 500) onto `flux:button`, with `text-cta!`, `min-h-11`, `px-[22px]` and `py-2`. That's the Netflix-landing CTA size, used everywhere: the hero, the story page, the search panel, the quick view.
   - Fix direction for the fix wave: a smaller default CTA (about 16 px, i.e. `text-body`/`text-meta`, 40–44 px tall), keeping the 24 px size only for the hero (an opt-in `size="lg"`), with 44 px targets kept through height and padding, not font size. Check the other controls too.
   - The user plans a harsh visual review ("Gordon Ramsay mode") after 4.5–4.7, so a visual-polish pass across every Phase 4 page goes into the fix wave.
+| 4.5–4.7 + F7 + user UI feedback | `effd606`, `0038074`, `4d89b05`, `dacb1d7`, `dfece8d`, `989ee1b`, `46a1542`, `6d0670b`, `e6f1716`, `100b2a4`, `f248f54`, `f413e7b`, `b9c50cb` | DONE (the agent reports 671 feature/unit tests and 161 browser tests; the controller re-runs them). The controller checked the shelf screenshot: the track is contained to the header margins with inner fades | F8: the hero backdrop is a heavily blurred 230 px cover (reads as a smudge). F9: Discover tiles and the series layout are plain, with an empty right column on series. F10: phone type sizes. F11: the outermost tile's focus ring is clipped by the track. F12: the Figma frames lag the code (full-bleed, palette, ghost controls). F13: a shelf morph drops the fade state until the next scroll. F14: no series pagination past about 300 volumes |
+
+- User UI rules from live review (2026-10-26), all applied:
+  - a smaller default `<x-cta>` (no `lg` size; the hero uses the default too)
+  - the palette search as the card's top row
+  - standard control heights and constrained widths
+  - full-bleed bands with content on the header gutter
+  - ghost prev/next buttons and a legible counter
+  - the shelf track contained to the header margins, with state-aware inner fades
+  - titles clamped to 2 lines
+- Accepted deviations from 4.5–4.7:
+  - Quick links: "New releases" dropped (no page); "Continue reading" and "My collections" guarded until Phase 5; "Filter the catalog" added.
+  - "See all" goes to Discover or Explore.
+  - New Releases pushes stories that are trending to the back.
+  - `HomeShelves` caches ids (`home:shelves:v1:{n}`).
+  - `989ee1b` and `46a1542` were reconstructed from partial states; the later full runs cover them.
+- Queued after the Phase 4 PR (user decision): catalog expansion wave 1. Env placeholders in `d34c8ef`.
