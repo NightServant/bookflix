@@ -103,7 +103,7 @@ new #[Title('Explore the Library')] class extends Component {
         <ul class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             @foreach ($this->stories as $media)
                 <li wire:key="story-{{ $media->id }}">
-                    <x-story-tile :media="$media" />
+                    <x-cover-tile :media="$media" fluid />
                 </li>
             @endforeach
         </ul>

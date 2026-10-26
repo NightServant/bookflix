@@ -14,8 +14,8 @@
 
         <ul tabindex="0" aria-label="{{ __('Stories in :shelf', ['shelf' => $shelf->class->name]) }}" class="focus-ring mt-3 flex gap-4 overflow-x-auto rounded-card pb-2">
             @foreach ($shelf->media as $media)
-                <li class="w-32 shrink-0 sm:w-40" wire:key="shelf-{{ $shelf->class->id }}-{{ $media->id }}">
-                    <x-story-tile :media="$media" />
+                <li class="shrink-0" wire:key="shelf-{{ $shelf->class->id }}-{{ $media->id }}">
+                    <x-cover-tile :media="$media" />
                 </li>
             @endforeach
         </ul>
