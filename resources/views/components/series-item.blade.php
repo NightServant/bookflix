@@ -2,6 +2,7 @@
     'media',
     'position' => null,
     'label' => null,
+    'aligned' => false,
 ])
 
 {{--
@@ -9,6 +10,7 @@
     `position` is `media_series.position` (decimal(8,2), so 1, "1.00" and "1.50" all work): `[01]`, `[01.5]`. Without a position
     the pivot `label` stands in (`[Omnibus]`), and with neither there is no bracket. The cover also links to the story, but only
     for pointers; it is out of the tab order and hidden from screen readers, so the title is the one link.
+    `aligned` keeps the index column's width when a volume has no index, so the covers of a numbered list stay in line.
     The list around it is the page's: `<ul>` with an `<li wire:key>` per volume, ordered by `Series::orderedMedia()`.
 --}}
 @php
@@ -27,6 +29,8 @@
 <div {{ $attributes->class('flex items-center gap-4 py-2') }}>
     @if ($index !== null)
         <span data-index class="min-w-16 shrink-0 text-meta tabular-nums text-ink-subtle">{{ $index }}</span>
+    @elseif ($aligned)
+        <span aria-hidden="true" class="min-w-16 shrink-0"></span>
     @endif
 
     <a href="{{ $story }}" wire:navigate aria-hidden="true" tabindex="-1" class="block aspect-[2/3] w-12 shrink-0 overflow-hidden rounded-control bg-surface-card">
