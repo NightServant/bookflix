@@ -108,3 +108,7 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-4-discovery.md` on `origin/claude
   - The primary CTA is "Add to Library".
   - Filters are one include, rendered twice.
 - User 2026-10-26: stop before 4.5 (session limit). Next: one agent for 4.5–4.7, then 4.8, the Opus review, the fix wave (F4, F5, F6) and the PR.
+- **F7 (user, 2026-10-26): "Why are the buttons so big?"** Note only; the fix comes after 4.5–4.7.
+  - Cause: `<x-cta>` forces the plan's 24 px label token (`--text-cta: 1.5rem`, weight 500) onto `flux:button`, with `text-cta!`, `min-h-11`, `px-[22px]` and `py-2`. That's the Netflix-landing CTA size, used everywhere: the hero, the story page, the search panel, the quick view.
+  - Fix direction for the fix wave: a smaller default CTA (about 16 px, i.e. `text-body`/`text-meta`, 40–44 px tall), keeping the 24 px size only for the hero (an opt-in `size="lg"`), with 44 px targets kept through height and padding, not font size. Check the other controls too.
+  - The user plans a harsh visual review ("Gordon Ramsay mode") after 4.5–4.7, so a visual-polish pass across every Phase 4 page goes into the fix wave.
