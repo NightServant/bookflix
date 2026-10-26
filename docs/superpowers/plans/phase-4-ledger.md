@@ -82,3 +82,14 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-4-discovery.md` on `origin/claude
   - Provider syncs were already scheduled in Phase 2 (`routes/console.php`: Open Library hourly, AniList every six hours, only while enabled). Locally they need `php artisan schedule:work`.
   - The user accepted every pending classification (1,415 rows, through `ClassificationService::accept`).
   - The ai-employees plugin is installed at user scope; OpenCompany was declined.
+| 4.0b C | `acc50cc`, `ee85877`, `3cc8a25`, `e22a8c7`, `ac4b411`, `0d5688f`, `d059c00` | DONE: the controller re-ran `composer test` (555 pass, PHPStan clean); the agent reports 130 browser tests passing | F5: a focused story-preview trigger swallows Escape even while closed (the popover plugin stops propagation), which could block an outer dialog's Escape, so the fix wave checks it inside the palette and filter sheet |
+
+- Accepted deviations from batch C:
+  - `<x-story-summary>` is shared by the preview and the quick view.
+  - The preview's popover button is set through `__buttonEl` (pinned to `@alpinejs/ui` 3.17.5), anchored with `x-anchor.fixed`, and opens on keyboard focus only.
+  - Result-row chips join the `rounded-full` allow-list.
+  - The quick-view trigger is always rendered, and pages place it.
+  - The rating text uses one decimal on the 5-point scale.
+  - Cover links are taken out of the tab order.
+  - The view toggle needs `wire:model.live`.
+  - The result row's eager loads are `mediaType`, `publicPrimaryDewey.deweyClass`, `creators` and `genres`.
