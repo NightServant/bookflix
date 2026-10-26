@@ -101,3 +101,15 @@ test('the search results are announced to screen readers', function () {
 
     expect(htmlQuery($html, '//p[@role="status"][contains(@class,"sr-only")][contains(.,"1 result")]')->length)->toBe(1);
 });
+
+test('the card is one piece: icon, borderless field and close button share a header row above a hairline', function () {
+    $html = renderPalette();
+
+    expect(htmlQuery($html, '//*[@data-palette-panel][contains(@class,"max-w-2xl")][contains(@class,"overflow-hidden")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//*[@data-palette-panel]//div[contains(@class,"border-b")][.//svg][.//input[@*[name()="x-combobox:input"]][contains(@class,"outline-none")]][.//button[@aria-label="Close search"]]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//*[@data-palette-panel]//input[@data-flux-control]')->length)->toBe(0);
+});
+
+test('a blank palette hints at what to type', function () {
+    expect(htmlQuery(renderPalette(), '//*[@data-palette-panel]//p[contains(.,"Type a title, an author or a subject.")]')->length)->toBe(1);
+});

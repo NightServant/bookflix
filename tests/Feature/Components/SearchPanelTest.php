@@ -51,3 +51,7 @@ test('an action turns Enter into a search on that page, and the secondary cta ca
         ->and(htmlQuery($html, '//a[@data-flux-button]')->length)->toBe(0)
         ->and(htmlQuery(renderSearchPanel(), '//search[@x-data]')->length)->toBe(0);
 });
+
+test('the field is capped at 672px so it never stretches across a wide page', function () {
+    expect(htmlQuery(renderSearchPanel(), '//search/div[contains(@class,"sm:max-w-2xl")][contains(@class,"sm:flex-1")]')->length)->toBe(1);
+});

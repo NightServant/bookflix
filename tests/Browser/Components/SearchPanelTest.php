@@ -65,7 +65,7 @@ test('the label focuses the field and the way into Discover is a 44px secondary 
 
     $page->click('What would you like to find?')
         ->assertScript('document.activeElement === document.querySelector("[role=combobox]")', true)
-        ->assertScript('document.querySelector("search a").getAttribute("href")', url('/explore'))
+        ->assertScript('document.querySelector("search a").getAttribute("href")', url('/discover'))
         ->assertScript('document.querySelector("search a").textContent.trim()', 'Browse Discover')
         ->assertScript('document.querySelector("search a").getBoundingClientRect().height >= 44', true)
         ->assertScript('getComputedStyle(document.querySelector("search a")).backgroundColor !== "rgb(229, 9, 20)"', true);

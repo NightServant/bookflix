@@ -240,7 +240,7 @@ new #[Title('Discover')] class extends Component {
         @endif
     </header>
 
-    <x-search-panel :action="route('search')" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-8 max-w-3xl" />
+    <x-search-panel :action="route('search')" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-8" />
 
     @if ($quickLinks !== [])
         <x-quick-links :links="$quickLinks" class="mt-8" />

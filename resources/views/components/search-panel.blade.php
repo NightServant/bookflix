@@ -11,6 +11,8 @@
     bind the text with `wire:model` (or `.live.debounce` for results as you type); the label is a real <label>.
     Pass `action` (a URL, usually route('search')) instead of a binding on a screen that is not the results: Enter then opens that URL
     with the text as `?q=` (two letters at least, the search's own minimum), over wire:navigate.
+    The field is a standard 44px high and at most 672px wide (it never stretches across a wide page); the secondary cta sits right
+    next to it, wrapping beneath it on a phone.
     Discover's route comes from the `Discover` item of config('bookflix.navigation').
 --}}
 @php
@@ -30,7 +32,7 @@
         label-class="mb-2 block text-lead text-ink"
         :options="$suggestions"
         :placeholder="$placeholder"
-        class="min-w-0 flex-1"
+        class="w-full min-w-0 sm:max-w-2xl sm:flex-1"
         {{ $attributes->except('class')->merge($action ? ['x-model' => 'q'] : []) }}
     />
 

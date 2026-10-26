@@ -3,6 +3,8 @@
 {{--
     The search palette: a trigger button, plus ⌘K / Ctrl-K from anywhere on the page, opens a modal dialog (@alpinejs/ui dialog,
     focus trapped, Escape closes) holding a combobox over the Livewire search results (`command-palette-results`).
+    The card is one piece: a header row (search icon, borderless field, the 44px close button), a hairline, then the results
+    (see `command-palette-results`, which owns the row so the field and its close button share it).
     Escape closes the result list first, then the dialog. Closing returns focus to whatever opened it.
     The app header renders it for every signed-in page.
 --}}
@@ -37,25 +39,12 @@
             x-dialog:panel
             x-motion-expand="open"
             data-palette-panel
-            class="relative w-full max-w-2xl rounded-card border border-hairline bg-surface-card p-3"
+            class="relative w-full max-w-2xl overflow-hidden rounded-card border border-hairline bg-surface-card"
         >
             <h2 x-dialog:title class="sr-only">{{ __('Search the Library') }}</h2>
             <p x-dialog:description class="sr-only">{{ __('Type to search. Use the arrow keys to choose a result and Enter to open it.') }}</p>
 
-            <div class="flex items-start gap-2">
-                <div class="min-w-0 flex-1">
-                    <livewire:command-palette-results />
-                </div>
-
-                <button
-                    type="button"
-                    @click="$dialog.close()"
-                    aria-label="{{ __('Close search') }}"
-                    class="focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-control text-ink-subtle hover:bg-surface-input hover:text-ink"
-                >
-                    <flux:icon name="x-mark" class="size-5" />
-                </button>
-            </div>
+            <livewire:command-palette-results />
         </div>
     </div>
 </div>
