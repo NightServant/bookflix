@@ -30,7 +30,7 @@
                 aria-selected="{{ $loop->index === $default ? 'true' : 'false' }}"
                 :aria-selected="$tab.isSelected"
                 wire:key="{{ $base }}-tab-{{ $key }}"
-                class="focus-ring -mb-px min-h-11 shrink-0 rounded-t-control border-b-2 border-transparent px-4 text-lead text-ink-subtle hover:text-ink aria-selected:border-ink aria-selected:text-ink"
+                class="focus-ring -mb-px min-h-11 shrink-0 rounded-t-control border-b-2 border-transparent px-4 text-body font-medium text-ink-subtle hover:text-ink aria-selected:border-ink aria-selected:text-ink"
             >{{ $title }}</button>
         @endforeach
     </div>

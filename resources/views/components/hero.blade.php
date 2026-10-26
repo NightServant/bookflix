@@ -8,7 +8,7 @@
 {{--
     The featured-story carousel: the current story's cover as the backdrop, its eyebrow, title, blurb and actions on the
     left, the next three stories as cards on the right (below the text on a phone). Pass `:slides` (Media list) or one `:media`.
-    `size` is L|M|S (S has no cards). There is no autoplay. The `cta` slot replaces the two per-slide buttons.
+    `size` is L|M|S (S has no cards; only L wears the large 24px cta). There is no autoplay. The `cta` slot replaces the two per-slide buttons.
     "Add to Library" dispatches a `library-add` event with the media id (the library arrives in Phase 5).
     Eager-load `mediaType` and `genres` on fetched media (the eyebrow reads them).
 --}}
@@ -17,6 +17,7 @@
     $count = $items->count();
     $total = str_pad((string) $count, 2, '0', STR_PAD_LEFT);
     $compact = strtoupper($size) === 'S';
+    $ctaSize = strtoupper($size) === 'L' ? 'lg' : 'base';
 
     [$height, $titleSize] = match (strtoupper($size)) {
         'S' => ['min-h-56 lg:min-h-64', 'text-lead'],
@@ -86,8 +87,8 @@
                             @if (isset($cta) && $cta->isNotEmpty())
                                 {{ $cta }}
                             @else
-                                <x-cta :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('Start reading') }}</x-cta>
-                                <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $slide->id }} })">{{ __('Add to Library') }}</x-cta>
+                                <x-cta :size="$ctaSize" :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('Start reading') }}</x-cta>
+                                <x-cta :size="$ctaSize" variant="secondary" @click="$dispatch('library-add', { id: {{ $slide->id }} })">{{ __('Add to Library') }}</x-cta>
                             @endif
                         </div>
                     </article>
