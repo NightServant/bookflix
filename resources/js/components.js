@@ -299,8 +299,22 @@ export default function components(Alpine) {
         query: '',
 
         // The ui plugin puts aria-multiselectable on the input, where a combobox may not carry it; the listbox has it (in the markup).
+        // It also sets aria-controls once, after boot, from a binding that never re-runs, and a Livewire morph of the parent strips it
+        // (the server markup has no such attribute) while putting aria-multiselectable back. So both are fixed after boot and after every morph of the input.
         init() {
-            multiple && this.$nextTick(() => this.$refs.__input?.removeAttribute('aria-multiselectable'));
+            const fix = () => {
+                const input = this.$refs.__input;
+
+                multiple && input?.removeAttribute('aria-multiselectable');
+                this.$refs.__options?.id && input?.setAttribute('aria-controls', this.$refs.__options.id);
+            };
+
+            this.$nextTick(fix);
+            this.unhook = window.Livewire?.hook('morph.updated', ({ el }) => el === this.$refs.__input && this.$nextTick(fix));
+        },
+
+        destroy() {
+            this.unhook?.();
         },
 
         get filtered() {

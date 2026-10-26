@@ -16,6 +16,7 @@ Route::get('stories/{slug}', function (string $slug) {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('home', 'pages::home.index')->name('home');
+    Route::livewire('search', 'pages::search.index')->name('search');
     Route::livewire('explore', 'pages::explore.index')->name('explore.index');
     Route::livewire('explore/{code}', 'pages::explore.show')->name('explore.show')->where('code', '[0-9]{3}(\.[0-9]+)?');
 });

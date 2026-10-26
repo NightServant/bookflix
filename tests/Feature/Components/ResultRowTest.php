@@ -45,6 +45,12 @@ test('a row is an article with a small lazy 2:3 cover that leads to the story bu
         ->and(htmlQuery($html, '//*[contains(@class,"aspect-[2/3]")]')->length)->toBe(1);
 });
 
+test('query adds parameters to both story links', function () {
+    $html = renderResultRow(resultMedia(), ':query="[\'sq\' => 7]"');
+
+    expect(htmlQuery($html, '//a[@href="'.route('stories.show', 'dracula').'?sq=7"]')->length)->toBe(2);
+});
+
 test('the title is the one link a screen reader meets, a 44px target with the focus ring', function () {
     $html = renderResultRow(resultMedia());
 

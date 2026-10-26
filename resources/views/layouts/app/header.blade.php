@@ -17,6 +17,8 @@
 
             <flux:spacer />
 
+            <x-command-palette class="me-2 max-sm:hidden" />
+
             <x-desktop-user-menu />
         </flux:header>
 

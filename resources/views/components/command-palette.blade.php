@@ -4,7 +4,7 @@
     The search palette: a trigger button, plus ⌘K / Ctrl-K from anywhere on the page, opens a modal dialog (@alpinejs/ui dialog,
     focus trapped, Escape closes) holding a combobox over the Livewire search results (`command-palette-results`).
     Escape closes the result list first, then the dialog. Closing returns focus to whatever opened it.
-    The page layout does not render it yet.
+    The app header renders it for every signed-in page.
 --}}
 <div
     x-data="{ open: false }"

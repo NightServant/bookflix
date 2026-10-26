@@ -5,11 +5,13 @@
     'reason' => null,
     'badge' => false,
     'fluid' => false,
+    'query' => [],
 ])
 
 {{--
     A 2:3 cover linking to the story. `size` S|M|L sets the width (`fluid` fills the cell instead, for grids);
     `badge` adds the media type (eager-load `mediaType` first); `progress` is a 0-100 percentage; `reason` is a short "why this" line.
+    `query` adds query-string parameters to the story link (search results pass `['sq' => $searchQueryId]`).
 --}}
 @php
     [$width, $widthClasses] = match (strtoupper($size)) {
@@ -22,7 +24,7 @@
 @endphp
 
 <a
-    href="{{ route('stories.show', $media->slug) }}"
+    href="{{ route('stories.show', ['slug' => $media->slug, ...$query]) }}"
     wire:navigate
     {{ $attributes->class(['group focus-ring block shrink-0 rounded-card', $fluid ? 'w-full' : $widthClasses]) }}
 >
