@@ -15,12 +15,14 @@ enum AgeRating: string
      */
     public function label(): ?string
     {
-        return match ($this) {
-            self::All => __('All ages'),
-            self::Teen => __('Teen'),
-            self::Mature => __('Mature'),
-            self::Adult => __('Adult'),
+        $label = match ($this) {
+            self::All => 'All ages',
+            self::Teen => 'Teen',
+            self::Mature => 'Mature',
+            self::Adult => 'Adult',
             self::Unknown => null,
         };
+
+        return $label === null ? null : (string) __($label);
     }
 }
