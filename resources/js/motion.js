@@ -14,11 +14,12 @@ export const MOTION = {
 // Read at call time so a changed OS/browser setting is honoured without a reload.
 export const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// Motion leaves its final keyframe as inline style; drop it so CSS (e.g. hover transforms) owns the element again.
-const release = (targets) => () => targets.forEach((target) => {
+// Motion leaves its final keyframe as inline style, writing it just after the animation resolves (when it animates
+// opacity and transform together); drop it a frame later so CSS (e.g. hover transforms) owns the element again.
+export const release = (targets) => () => requestAnimationFrame(() => targets.forEach((target) => {
     target.style.removeProperty('opacity');
     target.style.removeProperty('transform');
-});
+}));
 
 /**
  * x-motion-reveal: children (or the element itself when it has none) fade in and rise 8px

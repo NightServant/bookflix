@@ -118,6 +118,32 @@
     @apply outline-hidden focus-visible:ring-2 focus-visible:ring-accent-electric focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
 }
 
+/*
+ * <x-hero> view transition (flag and names are set in resources/js/components.js): the chosen cover morphs into the
+ * backdrop while the scrim and content, named so they paint above it, stay on top. Never started under reduced motion.
+ */
+html[data-hero-transition] [data-hero-scrim] {
+    view-transition-name: hero-scrim;
+}
+
+html[data-hero-transition] [data-hero-content] {
+    view-transition-name: hero-content;
+}
+
+html[data-hero-transition]::view-transition-group(hero-cover) {
+    animation-duration: var(--motion-slow);
+    animation-timing-function: var(--ease-out-bookflix);
+    border-radius: var(--radius-card);
+    overflow: clip;
+}
+
+html[data-hero-transition]::view-transition-old(hero-cover),
+html[data-hero-transition]::view-transition-new(hero-cover) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }

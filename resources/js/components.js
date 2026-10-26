@@ -1,4 +1,5 @@
-import { MOTION, prefersReducedMotion } from './motion';
+import { animate, stagger } from 'motion';
+import { MOTION, prefersReducedMotion, release } from './motion';
 
 /**
  * Alpine data for the component kit (resources/views/components). Each name matches `x-data="<name>"` in its Blade view.
@@ -40,47 +41,126 @@ export default function components(Alpine) {
         },
     }));
 
-    // <x-hero>: one slide at a time with prev/next, a counter and an optional rotation, following the APG carousel pattern.
-    Alpine.data('hero', (count, autoplay, interval) => ({
-        current: 0,
-        playing: false,
-        hold: false,
-        timer: null,
+    // <x-hero>: one story at a time over its cover art, the next three as cards that jump to their slide.
+    // A change morphs the chosen card into the backdrop (View Transitions), slides the remaining cards one place
+    // (Motion transform) and reveals the new title word by word. Reduced motion swaps instantly; there is no autoplay.
+    Alpine.data('hero', (cards) => {
+        // Kept outside Alpine's scope: a card handler runs in the card's own scope, and `$root` stops resolving there
+        // once that card has left the DOM.
+        let root;
 
-        init() {
-            // Reduced motion never starts rotating on its own; the reader can still press Play.
-            this.playing = autoplay && !prefersReducedMotion();
-            this.$watch('playing', () => this.schedule());
-            this.schedule();
-        },
+        const backdrop = (index) => root.querySelector(`[data-backdrop="${index}"]`);
 
-        schedule() {
-            clearInterval(this.timer);
+        return {
+            cards, // [{ id, title, cover }] for every slide, in order
+            current: 0,
+            fade: 0, // bumped to replay x-motion-crossfade on the backdrops where View Transitions are missing
 
-            if (this.playing) {
-                // Hovering or focusing the hero holds the rotation so nobody loses a slide they are reading.
-                this.timer = setInterval(() => !this.hold && !document.hidden && this.next(), interval);
+            init() {
+                root = this.$root;
+            },
+
+            get count() {
+                return this.cards.length;
+            },
+
+            // The next three after the current one, in the order they will be reached.
+            get upcoming() {
+                return Array.from({ length: Math.min(3, this.count - 1) }, (_, offset) => {
+                    const index = (this.current + 1 + offset) % this.count;
+
+                    return { ...this.cards[index], index };
+                });
+            },
+
+            next() {
+                this.show((this.current + 1) % this.count);
+            },
+
+            prev() {
+                this.show((this.current - 1 + this.count) % this.count);
+            },
+
+            show(index) {
+                if (index === this.current) {
+                    return;
+                }
+
+                if (prefersReducedMotion()) {
+                    this.current = index;
+                    this.$nextTick(keepFocus);
+
+                    return;
+                }
+
+                const first = cardPositions();
+                const source = root.querySelector(`[data-card="${this.cards[index].id}"] img`);
+
+                const swap = async () => {
+                    this.current = index;
+                    await this.$nextTick();
+
+                    keepFocus();
+                    slideCards(first);
+                    revealTitle(index);
+                };
+
+                if (!document.startViewTransition) {
+                    this.fade++;
+                    swap();
+
+                    return;
+                }
+
+                // The card (old state) and the new backdrop (new state) share a name, so the browser morphs one into the other.
+                const clear = () => {
+                    delete document.documentElement.dataset.heroTransition;
+                    source?.style.removeProperty('view-transition-name');
+                    backdrop(index)?.style.removeProperty('view-transition-name');
+                };
+
+                document.documentElement.dataset.heroTransition = '';
+                source?.style.setProperty('view-transition-name', 'hero-cover');
+
+                document
+                    .startViewTransition(async () => {
+                        await swap();
+                        backdrop(index)?.style.setProperty('view-transition-name', 'hero-cover');
+                    })
+                    .finished.then(clear, clear);
+            },
+        };
+
+        function cardPositions() {
+            return new Map([...root.querySelectorAll('[data-card]')].map((card) => [card.dataset.card, card.getBoundingClientRect()]));
+        }
+
+        // FLIP: cards that were already showing glide from where they were; a new one enters from the right.
+        function slideCards(first) {
+            root.querySelectorAll('[data-card]').forEach((card) => {
+                const before = first.get(card.dataset.card);
+                const distance = before ? before.left - card.getBoundingClientRect().left : card.getBoundingClientRect().width;
+                const keyframes = before ? { x: [distance, 0] } : { x: [distance, 0], opacity: [0, 1] };
+
+                animate(card, keyframes, { duration: MOTION.base / 1000, ease: 'easeOut' }).then(release([card]));
+            });
+        }
+
+        // Each word rises out of its own overflow-hidden mask, 40ms after the one before it.
+        function revealTitle(index) {
+            const words = [...root.querySelectorAll(`[data-slide="${index}"] [data-word]`)];
+
+            words.forEach((word) => (word.style.transform = 'translateY(100%)'));
+            animate(words, { y: ['100%', '0%'] }, { duration: MOTION.base / 1000, ease: 'easeOut', delay: stagger(0.04) }).then(release(words));
+        }
+
+        // A card that became the backdrop leaves the page with the focus on it; hand focus to the next one up.
+        function keepFocus() {
+            if (!root.contains(document.activeElement)) {
+                (root.querySelector('[data-card] button') ?? root.querySelector('[data-hero-next]'))?.focus();
             }
-        },
-
-        next() {
-            this.current = (this.current + 1) % count;
-            this.schedule();
-        },
-
-        prev() {
-            this.current = (this.current - 1 + count) % count;
-            this.schedule();
-        },
-
-        toggle() {
-            this.playing = !this.playing;
-        },
-
-        destroy() {
-            clearInterval(this.timer);
-        },
-    }));
+        }
+    });
 
     // <x-accordion>: a native <details> whose panel collapses with x-collapse. Without JS it is still a plain disclosure.
     Alpine.data('accordion', (open) => ({
