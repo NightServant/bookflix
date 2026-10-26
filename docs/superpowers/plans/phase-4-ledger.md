@@ -66,3 +66,19 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-4-discovery.md` on `origin/claude
   Sent to the batch A implementer while it was building `<x-hero>`; C7 row #1 is being updated on PR #3. The Figma hero frames trail the code until a design-QA pass. Cost: the Figma frames lag the code.
 - Backend done. Waiting on Figma F3 part 2, then F4/F5, F6 and the user's sign-off, before 4.0a and onward.
 | 4.0b A | `6303943`…`dc8e74f`, `f4d618a` | DONE: verified 2026-10-26 by the controller: Pint and PHPStan clean, 452 feature/unit tests and 36 browser tests pass, build OK. `f4d618a` centers the desktop hero text and slider vertically (user request; Figma L variants updated to match) | none |
+| 4.0b B | `ed9ec55`, `a1b1ae7`, `d8f4665`, `d49b188`, `d2b8fa3`, `e0b9bbe` | DONE: re-verified by the controller: `composer test` green (Pint, PHPStan, 488 feature/unit tests), 75 browser tests pass | F3: the combobox input loses `aria-controls` when a Livewire parent morphs it (worked around on the palette with `wire:ignore`), so 4.3 checks it on the filter sidebar. F4: `@click.prevent` on palette results swallows Ctrl/Cmd-click (folded into the fix wave) |
+
+- Accepted deviations from batch B:
+  - `x-data` on the tabs and combobox roots.
+  - `aria-multiselectable` moved from the combobox input to the listbox (axe).
+  - Combobox `freeform` mode and `label-class` prop, for the search panel. Freeform writes the plugin's private `__value`, so it's pinned to `@alpinejs/ui` 3.17.5.
+  - The palette's results are a Livewire single-file component, `⚡command-palette-results`, rendered as `<a role="option">`. Its field sits in `wire:ignore`, it has a hidden `x-combobox:button`, and Escape is two-step (results, then the dialog).
+  - The nouislider CSS sits in the `components` layer; `aria-value*` moved onto the handle.
+  - The filter sheet is a Flux flyout, plus a label, autofocus, focus wrap, reduced-motion CSS and a 44 px close button.
+  - The search panel's CTA reads "Browse Discover".
+- 2026-10-26, user reports:
+  - The Discover TypeError is fixed in `dde1893`. The cause: `cache.serializable_classes => false` turns a cached Eloquent collection into `__PHP_Incomplete_Class`, so `DeweyHierarchy::roots()` now caches attribute rows and hydrates them. It's also latent on `main` (Phase 3).
+  - The Open Library sync now skips works with neither a cover nor a description, in `page()` only, not `find()` (commit after `dde1893`).
+  - Provider syncs were already scheduled in Phase 2 (`routes/console.php`: Open Library hourly, AniList every six hours, only while enabled). Locally they need `php artisan schedule:work`.
+  - The user accepted every pending classification (1,415 rows, through `ClassificationService::accept`).
+  - The ai-employees plugin is installed at user scope; OpenCompany was declined.
