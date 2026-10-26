@@ -69,7 +69,7 @@ test('each slide offers a primary start reading link and a filled add to library
     $html = renderHero(slides: $slides);
 
     expect(htmlQuery($html, '//article[@aria-label="2 of 2"]//a[@href="'.route('stories.show', $slides[1]->slug).'"][normalize-space()="Start reading"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//article[@aria-label="2 of 2"]//button[normalize-space()="Add to Library"][contains(@class,"text-cta!")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//article[@aria-label="2 of 2"]//button[normalize-space()="Add to Library"][contains(@class,"text-body!")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//article[@aria-label="2 of 2"]//a[contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//button[normalize-space()="Add to Library"][contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(0)
         ->and($html)->toContain('library-add');
@@ -123,4 +123,14 @@ test('a single media is a hero without cards or controls', function () {
 
 test('no slides renders nothing', function () {
     expect(trim(renderedComponent('<x-hero :slides="[]" />')))->toBe('');
+});
+
+test('a bleed hero spans the page with square edges and its content on the page gutter, an inset one stays a rounded card', function () {
+    $bleed = renderHero('bleed');
+    $inset = renderHero();
+
+    expect(htmlQuery($bleed, '//section[@aria-roledescription="carousel"][not(contains(@class,"rounded-card"))]')->length)->toBe(1)
+        ->and(htmlQuery($bleed, '//div[@data-hero-content][contains(@class,"px-gutter")]')->length)->toBe(1)
+        ->and(htmlQuery($inset, '//section[@aria-roledescription="carousel"][contains(@class,"rounded-card")]')->length)->toBe(1)
+        ->and(htmlQuery($inset, '//div[@data-hero-content][contains(@class,"px-gutter")]')->length)->toBe(0);
 });

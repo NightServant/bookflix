@@ -5,7 +5,6 @@ beforeEach(function () {
         <div x-data="{ clicks: 0 }" class="flex flex-wrap items-start gap-4">
             <x-cta href="/_test/elsewhere" data-test="link">Start reading</x-cta>
             <x-cta variant="secondary" data-test="button" @click="clicks++">Browse the catalog</x-cta>
-            <x-cta size="lg" href="/_test/elsewhere" data-test="large">Start reading</x-cta>
             <p data-test="clicks" x-text="clicks">0</p>
         </div>
         BLADE);
@@ -29,10 +28,4 @@ test('the cta is red, 16px, padded 20px by 8px, flat and 44px tall', function ()
         ->assertScript('document.querySelector("[data-test=link]").getBoundingClientRect().height', 44)
         ->assertScript('/[1-9]\\d*px/.test(getComputedStyle(document.querySelector("[data-test=link]")).boxShadow)', false)
         ->assertScript('getComputedStyle(document.querySelector("[data-test=button]")).backgroundColor !== "rgb(229, 9, 20)"', true);
-});
-
-test('the large cta is the 24px hero label and at least 56px tall', function () {
-    visit($this->path)
-        ->assertScript('(() => { const s = getComputedStyle(document.querySelector("[data-test=large]")); return [s.fontSize, s.paddingLeft, s.minHeight].join("|"); })()', '24px|24px|56px')
-        ->assertScript('document.querySelector("[data-test=large]").getBoundingClientRect().height >= 56', true);
 });

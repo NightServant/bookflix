@@ -62,3 +62,13 @@ test('the optional eyebrow sits above the title', function () {
 test('the track reveals its tiles with motion and has no scrollbar chrome', function () {
     expect(htmlQuery(renderShelf(), '//ul[@x-motion-reveal][contains(@class,"snap-x")][contains(@class,"overflow-x-auto")]')->length)->toBe(1);
 });
+
+test('a bleed shelf is a full-width band without a card, its header and first tile on the page gutter', function () {
+    $html = renderShelf('title="Trending Now" featured bleed href="/discover"');
+
+    expect(htmlQuery($html, '//section[contains(@class,"py-8")][contains(@class,"from-featured-from")]')->length)->toBe(1)
+        ->and($html)->not->toContain('rounded-card p-4')
+        ->and(htmlQuery($html, '//section/div[contains(@class,"px-gutter")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//ul[contains(@class,"px-gutter")][contains(@class,"overflow-x-auto")][contains(@class,"scroll-px-gutter")]')->length)->toBe(1)
+        ->and(htmlQuery(renderShelf('title="Staff Picks"'), '//section[contains(@class,"rounded-card")][contains(@class,"p-4")]')->length)->toBe(1);
+});

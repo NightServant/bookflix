@@ -3,12 +3,14 @@
     'media' => null,
     'size' => 'L',
     'label' => null,
+    'bleed' => false,
 ])
 
 {{--
     The featured-story carousel: the current story's cover as the backdrop, its eyebrow, title, blurb and actions on the
     left, the next three stories as cards on the right (below the text on a phone). Pass `:slides` (Media list) or one `:media`.
-    `size` is L|M|S (S has no cards; only L wears the large 24px cta). There is no autoplay. The `cta` slot replaces the two per-slide buttons.
+    `size` is L|M|S (S has no cards). `bleed` makes it a band that spans the whole page (in a `flush` layout) with its content
+    on the header's gutter; otherwise it is a rounded card inside the page's container. There is no autoplay. The `cta` slot replaces the two per-slide buttons.
     "Add to Library" dispatches a `library-add` event with the media id (the library arrives in Phase 5).
     Eager-load `mediaType` and `genres` on fetched media (the eyebrow reads them).
 --}}
@@ -17,7 +19,6 @@
     $count = $items->count();
     $total = str_pad((string) $count, 2, '0', STR_PAD_LEFT);
     $compact = strtoupper($size) === 'S';
-    $ctaSize = strtoupper($size) === 'L' ? 'lg' : 'base';
 
     [$height, $titleSize] = match (strtoupper($size)) {
         'S' => ['min-h-56 lg:min-h-64', 'text-lead'],
@@ -36,7 +37,7 @@
         x-data="hero(@js($cards))"
         @keydown.arrow-left="prev()"
         @keydown.arrow-right="next()"
-        {{ $attributes->class('relative overflow-hidden rounded-card bg-surface-deep') }}
+        {{ $attributes->class(['relative overflow-hidden bg-surface-deep', 'rounded-card' => ! $bleed]) }}
     >
         <div class="absolute inset-0" aria-hidden="true">
             @foreach ($items as $index => $slide)
@@ -60,7 +61,7 @@
             <div data-hero-scrim class="absolute inset-0 bg-linear-to-t from-canvas via-canvas/80 to-canvas/60 lg:bg-linear-to-r lg:via-canvas/60 lg:to-canvas/10"></div>
         </div>
 
-        <div data-hero-content class="relative flex flex-col justify-end gap-8 p-4 sm:p-8 {{ $height }} lg:flex-row lg:items-center lg:justify-between">
+        <div data-hero-content class="relative flex flex-col justify-end gap-8 {{ $bleed ? 'px-gutter py-8 lg:py-12' : 'p-4 sm:p-8' }} {{ $height }} lg:flex-row lg:items-center lg:justify-between">
             <div class="max-w-2xl" aria-live="polite">
                 @foreach ($items as $index => $slide)
                     @php
@@ -87,8 +88,8 @@
                             @if (isset($cta) && $cta->isNotEmpty())
                                 {{ $cta }}
                             @else
-                                <x-cta :size="$ctaSize" :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('Start reading') }}</x-cta>
-                                <x-cta :size="$ctaSize" variant="secondary" @click="$dispatch('library-add', { id: {{ $slide->id }} })">{{ __('Add to Library') }}</x-cta>
+                                <x-cta :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('Start reading') }}</x-cta>
+                                <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $slide->id }} })">{{ __('Add to Library') }}</x-cta>
                             @endif
                         </div>
                     </article>

@@ -4,12 +4,15 @@
     'eyebrow' => null,
     'featured' => false,
     'id' => null,
+    'bleed' => false,
 ])
 
 {{--
     A titled, horizontally scrolling row. The slot holds `<li>` items (usually `<x-cover-tile>`, each with a `wire:key`).
     `featured` is the gradient shelf and is reserved for Trending Now; every other shelf is plain.
     Titles are Title Case. `href` adds "See all" (named after the shelf for screen readers).
+    `bleed` makes it a band that spans the whole page (in a `flush` layout): the title, controls and the first tile line up with the
+    header's gutter while the track runs on past the right edge. Without it the shelf is a rounded card inside the page's container.
 --}}
 @php
     $headingId = $id ?? 'shelf-'.Str::slug($title);
@@ -22,17 +25,18 @@
     x-init="$nextTick(() => update())"
     @resize.window.debounce.150ms="update()"
     {{ $attributes->class([
-        'rounded-card p-4 sm:p-6',
+        'rounded-card p-4 sm:p-6' => ! $bleed,
+        'py-8 lg:py-12' => $bleed,
         'bg-linear-to-r from-featured-from via-featured-via to-featured-to' => $featured,
         'bg-surface-deep' => ! $featured,
     ]) }}
 >
-    <div class="flex items-end justify-between gap-4">
+    <div @class(['flex items-end justify-between gap-4', 'px-gutter' => $bleed])>
         <div class="min-w-0">
             @if ($eyebrow)
                 <p class="text-legal uppercase tracking-widest text-ink-subtle">{{ $eyebrow }}</p>
             @endif
-            <h2 id="{{ $headingId }}" class="text-lead text-ink">{{ $title }}</h2>
+            <h2 id="{{ $headingId }}" class="{{ $bleed ? 'text-section' : 'text-lead' }} text-ink">{{ $title }}</h2>
         </div>
 
         <div class="flex shrink-0 items-center gap-2">
@@ -61,7 +65,11 @@
         x-motion-reveal
         data-stagger="30"
         @scroll.passive="update()"
-        class="-mx-1 mt-3 flex snap-x snap-mandatory scroll-px-1 gap-4 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:shrink-0 [&>li]:snap-start"
+        @class([
+            'mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:shrink-0 [&>li]:snap-start',
+            '-mx-1 scroll-px-1 p-1' => ! $bleed,
+            'scroll-px-gutter px-gutter py-1' => $bleed,
+        ])
     >
         {{ $slot }}
     </ul>

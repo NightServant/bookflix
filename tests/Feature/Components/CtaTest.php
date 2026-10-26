@@ -15,12 +15,6 @@ test('the primary cta is the red flux button with a body label and a 44px floor'
         ->and($html)->toContain('focus-ring')->toContain('shadow-none!');
 });
 
-test('the large cta keeps the 24px label token for the hero', function () {
-    $html = renderCta('href="/start" size="lg"');
-
-    expect($html)->toContain('text-cta!')->toContain('min-h-14')->toContain('px-6!')->not->toContain('text-body!');
-});
-
 test('a cta without an href is a button and keeps wire and alpine attributes', function () {
     $html = renderCta('wire:click="start" @click="go()"');
 
