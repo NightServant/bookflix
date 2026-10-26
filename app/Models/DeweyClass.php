@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $parent_id
  * @property int $level Depth in the tree; a main class is level 1.
  * @property string $path Codes from the root down, e.g. 800/810/813.
+ * @property int $stories_count Only on classes from DeweyCounts::rootsWithCounts(): the stories in the subtree.
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */

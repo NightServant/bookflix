@@ -53,3 +53,15 @@ test('non admins do not see the admin link in the user menu', function () {
         ->assertOk()
         ->assertDontSee('href="'.route('admin.index').'"', false);
 });
+
+test('pages sit in the shared gutter container, and home runs its bands edge to edge', function () {
+    $this->actingAs(User::factory()->create());
+
+    $settings = $this->get(route('profile.edit'))->getContent();
+    $home = $this->get(route('home'))->getContent();
+
+    expect(htmlQuery($settings, '//main/div[contains(@class,"px-gutter")]')->length)->toBe(1)
+        ->and(htmlQuery($home, '//main/div[contains(@class,"px-gutter")]')->length)->toBe(0)
+        ->and(htmlQuery($home, '//main[not(contains(@class,"px-gutter"))]')->length)->toBe(1)
+        ->and(htmlQuery($settings, '//main[not(contains(@class,"px-gutter"))]')->length)->toBe(1);
+});

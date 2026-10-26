@@ -200,6 +200,19 @@ class Media extends Model
     }
 
     /**
+     * The stories readers rate most, the newest breaking ties. Interim: Phase 6 redefines it over `media_popularity`.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeTrending(Builder $query): void
+    {
+        $query->unmerged()
+            ->orderByDesc('media.ratings_count')
+            ->orderByRaw('media.published_on desc nulls last')
+            ->orderByDesc('media.id');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

@@ -1,0 +1,109 @@
+<?php
+
+use App\Models\Genre;
+use App\Models\Media;
+use App\Models\User;
+use Database\Seeders\DeweySeeder;
+
+beforeEach(function () {
+    $this->actingAs(User::factory()->create());
+    (new DeweySeeder)->run();
+
+    $genre = Genre::factory()->create(['name' => 'Action', 'slug' => 'action']);
+
+    $stories = Media::factory()->manga()->count(9)->sequence(fn ($sequence) => [
+        'title' => 'Panel Tale '.($sequence->index + 1),
+        'cover_url' => '/favicon.svg',
+        'ratings_count' => 100 - $sequence->index,
+        'published_on' => now()->subDays($sequence->index + 1),
+    ])->create();
+
+    foreach ($stories as $story) {
+        $story->genres()->attach($genre);
+    }
+
+    classified($stories, '813');
+
+    $this->desktop = ['viewport' => ['width' => 1440, 'height' => 900]];
+    $this->phone = ['viewport' => ['width' => 375, 'height' => 812]];
+    $this->scrollDown = 'window.scrollTo(0, document.body.scrollHeight)';
+});
+
+test('home passes the shared checks on desktop and on a phone with its shelves loaded', function () {
+    foreach ([$this->desktop, $this->phone] as $viewport) {
+        $page = visit(route('home'), $viewport + ['reducedMotion' => 'reduce'])->wait(1);
+
+        foreach ([0, 500, 1000, 2000] as $offset) {
+            $page->script("window.scrollTo(0, {$offset})");
+            $page->wait(0.6);
+        }
+
+        $page->script($this->scrollDown);
+        $page->wait(1.5)
+            ->assertSee('Trending Now')->assertSee('New Releases')->assertSee('Explore by Subject')
+            ->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
+            ->assertNoJavaScriptErrors()
+            ->assertNoAccessibilityIssues();
+    }
+});
+
+test('the hero sits flush under the header and every band spans the page, content on the header gutter', function () {
+    $page = visit(route('home'), $this->desktop + ['reducedMotion' => 'reduce'])->wait(1);
+
+    foreach ([0, 600, 1400] as $offset) {
+        $page->script("window.scrollTo(0, {$offset})");
+        $page->wait(0.8);
+    }
+
+    $page->script('window.scrollTo(0, 0)');
+    $page->wait(0.5)
+        ->assertScript('Math.abs(document.querySelector("main section[aria-roledescription=carousel]").getBoundingClientRect().top - document.querySelector("header").getBoundingClientRect().bottom) < 1.5', true)
+        ->assertScript('Array.from(document.querySelectorAll("main section[aria-roledescription=carousel], main section[aria-labelledby^=shelf-]")).every((band) => { const r = band.getBoundingClientRect(); return r.left === 0 && Math.abs(r.width - document.documentElement.clientWidth) < 1; })', true)
+        ->assertScript('(() => { const logo = document.querySelector("header a").getBoundingClientRect().left; return ["main section[aria-roledescription=carousel] h1", "main section[aria-labelledby=shelf-trending] h2", "main section[aria-labelledby=shelf-trending] ul li:first-child a", "main search label"].every((selector) => { const el = Array.from(document.querySelectorAll(selector)).find((node) => node.offsetParent !== null); return Math.abs(el.getBoundingClientRect().left - logo) < 1.5; }); })()', true);
+});
+
+test('lazy shelves swap in without shifting the page', function () {
+    $page = visit(route('home'), $this->desktop)->wait(0.3);
+
+    $page->script('window.__shift = 0; new PerformanceObserver((list) => list.getEntries().forEach((entry) => entry.hadRecentInput || (window.__shift += entry.value))).observe({ type: "layout-shift", buffered: true });');
+
+    foreach ([400, 900, 1500, 2200] as $offset) {
+        $page->script("window.scrollTo(0, {$offset})");
+        $page->wait(1);
+    }
+
+    $page->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
+        ->assertScript('window.__shift < 0.05', true);
+});
+
+test('with reduced motion every shelf tile is visible at once', function () {
+    $page = visit(route('home'), $this->desktop + ['reducedMotion' => 'reduce'])->wait(1);
+
+    $page->script('window.scrollTo(0, 700)');
+    $page->wait(1.2)
+        ->assertScript('Array.from(document.querySelectorAll("[x-motion-reveal] > *")).length > 0', true)
+        ->assertScript('Array.from(document.querySelectorAll("[x-motion-reveal] > *")).every((el) => getComputedStyle(el).opacity === "1")', true);
+});
+
+test('going to Search and back keeps the hero and the shelves working', function () {
+    $page = visit(route('home'), $this->desktop)->wait(1.5);
+
+    $page->click('header [data-flux-navbar] a[href$="/search"]')->wait(1)->assertPathIs('/search')
+        ->click('header [data-flux-navbar] a[href$="/home"]')->wait(1.5)->assertPathIs('/home')
+        ->assertScript('document.querySelector("main section[aria-roledescription=carousel]") !== null', true)
+        ->click('[data-hero-next]')->wait(1)
+        ->assertScript('document.querySelector("main section p[aria-hidden]").textContent.replace(/\s+/g, " ").trim()', '02 / 05');
+
+    $page->script('window.scrollTo(0, 800)');
+    $page->wait(1);
+    $page->script($this->scrollDown);
+    $page->wait(1.5)->assertSee('Trending Now')->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)->assertNoJavaScriptErrors();
+});
+
+test('Enter in the search panel opens the search with the typed text', function () {
+    visit(route('home'), $this->desktop)->wait(1)
+        ->click('main search [role=combobox]')->type('main search [role=combobox]', 'panel')->keys('main search [role=combobox]', 'Enter')->wait(1)
+        ->assertPathIs('/search')
+        ->assertQueryStringHas('q', 'panel')
+        ->assertNoJavaScriptErrors();
+});
