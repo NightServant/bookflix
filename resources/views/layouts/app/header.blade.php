@@ -4,6 +4,12 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-canvas text-ink antialiased">
+        {{-- Parked above the viewport until focused, then it sits over the header at the logo's gutter. --}}
+        <a
+            href="#main"
+            class="focus-ring fixed start-gutter top-2 z-50 flex -translate-y-20 opacity-0 focus:translate-y-0 focus:opacity-100 min-h-11 items-center rounded-control border border-hairline bg-surface-card px-4 text-meta text-ink shadow-lg"
+        >{{ __('Skip to content') }}</a>
+
         <flux:header class="border-b border-hairline bg-canvas px-gutter!">
             <x-app-logo href="{{ route('home') }}" wire:navigate />
 

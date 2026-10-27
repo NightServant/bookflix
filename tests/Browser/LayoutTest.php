@@ -38,3 +38,22 @@ test('contained pages and the full-bleed ones start their content on the header 
         }
     }
 });
+
+test('the first Tab reaches the skip link and Enter moves focus to main, before and after wire:navigate', function () {
+    $this->actingAs(User::factory()->create());
+
+    $skip = 'document.activeElement.textContent.trim() === "Skip to content"';
+    $page = visit(route('discover'), ['reducedMotion' => 'reduce'])->wait(1);
+
+    $page->keys(':root', 'Tab')
+        ->assertScript($skip, true)
+        ->keys(':focus', 'Enter')
+        ->assertScript('document.activeElement.id', 'main');
+
+    $page->click('header nav a[href$="/search"]')->wait(1.5)
+        ->assertPathBeginsWith('/search')
+        ->keys(':root', 'Tab')
+        ->assertScript($skip, true)
+        ->keys(':focus', 'Enter')
+        ->assertScript('document.activeElement.id', 'main');
+});

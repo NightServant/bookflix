@@ -4,7 +4,7 @@
     (`$this->view()->layoutData(['flush' => true])`) and brings the container itself: `px-gutter` inside every band.
 --}}
 <x-layouts::app.header :title="$title ?? null">
-    <main class="pb-24 lg:pb-12">
+    <main id="main" tabindex="-1" class="pb-24 outline-none lg:pb-12">
         @if ($flush ?? false)
             {{ $slot }}
         @else
