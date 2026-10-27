@@ -296,7 +296,7 @@ class MangaDexProvider implements MetadataProvider
         }
 
         if (ctype_digit($mal)) {
-            $ids['mal'] = $mal;
+            $ids['myanimelist'] = $mal;
         }
 
         // MangaUpdates ids are now base 36 slugs in links; its API ids are the same number in decimal.

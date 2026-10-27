@@ -272,11 +272,26 @@ class Deduplicator
                 return [
                     'media' => $media,
                     'score' => $score,
-                    'auto' => $score >= (float) config('bookflix.dedup.auto_title_similarity')
-                        && $this->sharesCreator($incoming, $media)
-                        && $this->withinYearWindow($incoming, $media),
+                    'auto' => $this->qualifiesForAutoMerge($incoming, $media, $score),
                 ];
             });
+    }
+
+    /**
+     * A near-identical title with a shared creator and a year within the window, or an identical normalized title in the
+     * same family published in exactly the same year (providers disagree on creator spelling, or send none).
+     */
+    private function qualifiesForAutoMerge(NormalizedMedia $incoming, Media $media, float $score): bool
+    {
+        if ($score >= (float) config('bookflix.dedup.auto_title_similarity')
+            && $this->sharesCreator($incoming, $media)
+            && $this->withinYearWindow($incoming, $media)) {
+            return true;
+        }
+
+        return $score >= 1.0
+            && $incoming->publicationYear !== null
+            && $incoming->publicationYear === $media->publication_year;
     }
 
     private function sharesCreator(NormalizedMedia $incoming, Media $media): bool

@@ -82,7 +82,7 @@ test('page maps titles, type, taxonomy, creators, links and urls', function () {
         ->and($media->language)->toBe('ko')->and($media->publicationYear)->toBe(2018)->and($media->chapterCount)->toBe(200)
         ->and($media->status)->toBe(PublicationStatus::Completed)->and($media->ageRating)->toBe(AgeRating::All)
         ->and(collect($media->creators)->pluck('role')->all())->toBe([CreatorRole::Author, CreatorRole::Artist])
-        ->and($media->crossIds)->toBe(['anilist' => '105398', 'mal' => '103299', 'mangaupdates' => '12573233956'])
+        ->and($media->crossIds)->toBe(['anilist' => '105398', 'myanimelist' => '103299', 'mangaupdates' => '12573233956'])
         ->and($media->coverUrl)->toBe('https://uploads.mangadex.org/covers/'.MD_ID.'/cover.jpg.512.jpg')
         ->and($media->sourceUrl)->toBe('https://mangadex.org/title/'.MD_ID)
         ->and($media->metrics)->toBe(['follows' => 320768, 'average_rating' => 4.66])
