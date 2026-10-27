@@ -58,7 +58,7 @@ new #[Title('Story')] class extends Component {
             'externalIds.externalSource',
         ])->findOrFail($this->mediaId);
 
-        $classes = $media->deweyClasses()->public()->with('deweyClass')->orderBy('classification_type')->orderBy('id')->get();
+        $classes = $media->deweyClasses()->public()->with('deweyClass.parent')->orderBy('classification_type')->orderBy('id')->get();
 
         return $media
             ->setRelation('publicDeweyClasses', $classes)

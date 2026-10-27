@@ -97,13 +97,14 @@ class SimilarMedia
      */
     private function sameDivision(Media $media, int $limit): array
     {
-        $path = $media->loadMissing('publicPrimaryDewey.deweyClass')->publicPrimaryDewey?->deweyClass?->path;
+        $class = $media->loadMissing('publicPrimaryDewey.deweyClass.parent')->publicPrimaryDewey?->deweyClass;
 
-        if ($path === null) {
+        if ($class === null) {
             return [];
         }
 
-        $division = DeweyClass::where('code', explode('/', $path)[1] ?? explode('/', $path)[0])->first();
+        // A main class or a division is its own division and a section's parent is one; only deeper classes need a lookup.
+        $division = $class->level <= 2 ? $class : ($class->level === 3 ? $class->parent : DeweyClass::where('code', explode('/', $class->path)[1])->first());
 
         if ($division === null) {
             return [];

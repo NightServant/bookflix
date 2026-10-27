@@ -270,6 +270,18 @@ test('the story page runs a bounded number of queries', function () {
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
 });
 
+test('the story page runs at most twenty queries once the similar ids are cached', function () {
+    $m = fullMedia();
+    $this->actingAs(User::factory()->create());
+    $this->get(route('stories.show', $m->slug))->assertOk();
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $this->get(route('stories.show', $m->slug))->assertOk();
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(20);
+});
+
 test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {
     [$base, $sibling, $sharesGenre] = similarFixture();
 
