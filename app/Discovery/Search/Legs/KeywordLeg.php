@@ -30,7 +30,8 @@ class KeywordLeg implements SearchLeg
     public function ids(string $query, SearchFilters $filters, int $limit = 100): array
     {
         $lists = [
-            array_values(Media::search($query)->query(fn (Builder $media) => $this->visible($media->select('media.id'), $filters))->take($limit)->keys()->all()),
+            // Scout's database engine would otherwise list newest first; every list breaks ties by id ascending, so fused ties stay stable.
+            array_values(Media::search($query)->query(fn (Builder $media) => $this->visible($media->select('media.id'), $filters))->orderBy('media.id')->take($limit)->keys()->all()),
             $this->prefixed($query, $filters, $limit),
             $this->similar(self::TITLE, $query, $filters, $limit),
             $this->similar(self::ALTERNATIVE_TITLES, $query, $filters, $limit),
@@ -43,6 +44,7 @@ class KeywordLeg implements SearchLeg
                 ->where(fn (Builder $media) => $media
                     ->whereRaw('media.title ilike ?', [$like])
                     ->orWhereRaw('cast(media.alternative_titles as text) ilike ?', [$like]))
+                ->orderBy('media.id')
                 ->limit($limit)
                 ->pluck('media.id')
                 ->all());
@@ -67,6 +69,7 @@ class KeywordLeg implements SearchLeg
         return array_values($this->visible(Media::query(), $filters)
             ->whereRaw("to_tsvector('simple', media.search_text) @@ to_tsquery('simple', ?)", [$tsquery])
             ->orderByRaw("ts_rank(to_tsvector('simple', media.search_text), to_tsquery('simple', ?)) desc", [$tsquery])
+            ->orderBy('media.id') // equal ranks come back in a stable order, whatever plan Postgres picks
             ->limit($limit)
             ->pluck('media.id')
             ->all());
@@ -83,6 +86,7 @@ class KeywordLeg implements SearchLeg
         return array_values($this->visible(Media::query(), $filters)
             ->whereRaw("{$expression} % immutable_unaccent(lower(?))", [$query])
             ->orderByRaw("similarity({$expression}, immutable_unaccent(lower(?))) desc", [$query])
+            ->orderBy('media.id')
             ->limit($limit)
             ->pluck('media.id')
             ->all());
