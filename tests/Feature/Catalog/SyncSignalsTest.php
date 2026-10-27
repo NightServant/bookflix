@@ -5,8 +5,10 @@ use App\Models\Media;
 use App\Models\MediaExternalId;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 
 beforeEach(function () {
+    Sleep::fake();
     config(['bookflix.providers.wikidata.rate_per_minute' => 1000, 'bookflix.providers.wikipedia.rate_per_minute' => 1000]);
     $this->wikidata = ExternalSource::factory()->create(['key' => 'wikidata', 'enabled' => true]);
     $this->wikipedia = ExternalSource::factory()->create(['key' => 'wikipedia', 'enabled' => true]);
@@ -119,4 +121,6 @@ test('a disabled signal source is skipped unless forced and a throttled one fail
 
     $this->artisan('bookflix:sync-signals', ['source' => 'wikidata', '--force' => true])->assertFailed();
     $this->artisan('bookflix:sync-signals', ['source' => 'nope'])->assertFailed();
+    Http::assertSentCount(3);
+    Sleep::assertSlept(fn ($duration) => $duration->totalSeconds === 30.0, 2);
 });
