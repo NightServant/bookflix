@@ -72,7 +72,7 @@
             <div data-hero-scrim class="absolute inset-0 bg-linear-to-t from-canvas via-canvas/80 to-canvas/60 lg:bg-linear-to-r lg:from-canvas lg:via-canvas/85 lg:to-transparent"></div>
         </div>
 
-        <div data-hero-content class="relative flex flex-col justify-end gap-8 {{ $bleed ? 'px-gutter py-8 lg:py-12' : 'p-4 sm:p-8' }} {{ $height }} {{ $compact ? 'lg:flex-row lg:items-center lg:justify-between' : 'lg:grid lg:grid-cols-[minmax(0,1fr)_30rem] lg:grid-rows-[1fr_auto] lg:items-center lg:gap-x-8 lg:gap-y-0' }}">
+        <div data-hero-content class="relative flex flex-col justify-end gap-8 {{ $bleed ? 'px-gutter pt-22 pb-8 lg:pt-26 lg:pb-12' : 'p-4 sm:p-8' }} {{ $height }} {{ $compact ? 'lg:flex-row lg:items-center lg:justify-between' : 'lg:grid lg:grid-cols-[minmax(0,1fr)_30rem] lg:grid-rows-[1fr_auto] lg:items-center lg:gap-x-8 lg:gap-y-0' }}">
             <div class="max-w-2xl lg:self-end" aria-live="polite">
                 @foreach ($items as $index => $slide)
                     @php

@@ -10,7 +10,8 @@
             class="focus-ring fixed start-gutter top-2 z-50 flex -translate-y-20 opacity-0 focus:translate-y-0 focus:opacity-100 min-h-11 items-center rounded-control border border-hairline bg-surface-card px-4 text-meta text-ink shadow-lg"
         >{{ __('Skip to content') }}</a>
 
-        <flux:header class="border-b border-hairline bg-canvas px-gutter!">
+        {{-- Over a band the header is translucent (the band runs under it); otherwise it is the solid canvas. --}}
+        <flux:header @class(['border-b border-hairline px-gutter!', 'relative z-20 -mb-14 bg-canvas/70 backdrop-blur-md' => $band ?? false, 'bg-canvas' => ! ($band ?? false)])>
             <x-app-logo href="{{ route('home') }}" wire:navigate />
 
             <flux:navbar class="-mb-px ms-6 max-lg:hidden">

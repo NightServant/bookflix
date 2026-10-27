@@ -31,7 +31,7 @@ new #[Title('Series')] class extends Component {
      */
     public function render(): View
     {
-        return $this->view()->title($this->series->title)->layoutData(['flush' => true]);
+        return $this->view()->title($this->series->title)->layoutData(['flush' => true, 'band' => true]);
     }
 
     #[Computed]
@@ -126,7 +126,7 @@ new #[Title('Series')] class extends Component {
         {{-- The scrim keeps the text over the tinted band above AA contrast whatever the cover is. --}}
         <div aria-hidden="true" class="absolute inset-0 -z-10 bg-linear-to-t from-canvas via-canvas/75 to-canvas/60 lg:bg-linear-to-r lg:from-canvas/90 lg:via-canvas/75 lg:to-canvas/50"></div>
 
-        <div class="flex flex-col gap-8 px-gutter py-8 lg:flex-row lg:items-center lg:gap-16 lg:py-16">
+        <div class="flex flex-col gap-8 px-gutter pt-22 pb-8 lg:flex-row lg:items-center lg:gap-16 lg:pt-30 lg:pb-16">
             {{-- The first volumes as a staggered stack, spine towards the reader; scaled down on a phone. --}}
             <div data-series-stack class="relative h-[calc(27rem*.55)] w-[calc(32rem*.55)] shrink-0 sm:h-[calc(27rem*.8)] sm:w-[calc(32rem*.8)] lg:h-[27rem] lg:w-[32rem]">
                 @if ($stack->isNotEmpty())

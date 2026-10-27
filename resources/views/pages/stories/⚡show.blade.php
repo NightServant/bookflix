@@ -36,7 +36,7 @@ new #[Title('Story')] class extends Component {
 
     public function render(): View
     {
-        return $this->view()->title($this->media->title)->layoutData(['flush' => true]);
+        return $this->view()->title($this->media->title)->layoutData(['flush' => true, 'band' => true]);
     }
 
     /**
@@ -173,7 +173,7 @@ new #[Title('Story')] class extends Component {
         {{-- The scrim keeps the text over the tinted band above AA contrast whatever the cover is. --}}
         <div aria-hidden="true" class="absolute inset-0 -z-10 bg-linear-to-t from-canvas via-canvas/75 to-canvas/60 lg:bg-linear-to-r lg:from-canvas/90 lg:via-canvas/75 lg:to-canvas/50"></div>
 
-        <div class="px-gutter py-8 lg:py-16">
+        <div class="px-gutter pt-22 pb-8 lg:pt-30 lg:pb-16">
             @if ($this->primaryClass)
                 <x-dewey-breadcrumb :dewey-class="$this->primaryClass" />
             @endif

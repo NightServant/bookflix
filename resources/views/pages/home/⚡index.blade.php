@@ -14,7 +14,7 @@ new #[Title('Home')] class extends Component {
      */
     public function render(): View
     {
-        return $this->view()->layoutData(['flush' => true]);
+        return $this->view()->layoutData(['flush' => true, 'band' => $this->slides->isNotEmpty()]);
     }
 
     #[Computed]
