@@ -43,11 +43,11 @@ new #[Title('Home')] class extends Component {
             <h1 class="sr-only">{{ __('Home') }}</h1>
         @endif
 
-        <x-search-panel :action="route('search')" :placeholder="__('Titles, authors, series and subjects')" class="mt-12 px-gutter lg:mt-16" />
+        <x-search-panel :action="route('search')" :placeholder="__('Titles, authors, series and subjects')" class="my-12 px-gutter lg:my-16" />
 
         @foreach (array_keys(App\Discovery\HomeShelves::SHELVES) as $shelf)
-            {{-- Sections are a `mt-12 lg:mt-16` apart (the gap sits on the band's wrapper, and only once the shelf has rendered something). --}}
-            <div class="has-[section]:mt-12 lg:has-[section]:mt-16">
+            {{-- The shelves are bands that butt together: each brings its own padding, so there is no strip of bare canvas between two of them. --}}
+            <div>
                 <livewire:home-shelf :$shelf :key="'home-shelf-'.$shelf" />
             </div>
         @endforeach
