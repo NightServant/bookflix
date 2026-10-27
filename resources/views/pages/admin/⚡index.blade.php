@@ -10,6 +10,7 @@ use App\Models\MediaDeweyClass;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Number;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -54,7 +55,7 @@ new #[Title('Admin')] class extends Component {
             icon="square-2-stack"
             :title="__('Duplicate review')"
             :description="__('Pairs the sync found similar but not certain. Merge them or keep both.')"
-            :stat="$counts['duplicates'] > 0 ? trans_choice(':count pair waiting|:count pairs waiting', $counts['duplicates']) : __('All clear')"
+            :stat="$counts['duplicates'] > 0 ? trans_choice(':count pair waiting|:count pairs waiting', $counts['duplicates'], ['count' => Number::format($counts['duplicates'])]) : __('All clear')"
             :attention="$counts['duplicates'] > 0"
         />
 
@@ -63,7 +64,7 @@ new #[Title('Admin')] class extends Component {
             icon="rectangle-group"
             :title="__('Classification review')"
             :description="__('Accept or reject the shelves the sync suggested, least confident first.')"
-            :stat="$counts['classifications'] > 0 ? __(':count to review', ['count' => $counts['classifications']]) : __('All clear')"
+            :stat="$counts['classifications'] > 0 ? __(':count to review', ['count' => Number::format($counts['classifications'])]) : __('All clear')"
             :attention="$counts['classifications'] > 0"
         />
 
@@ -80,7 +81,7 @@ new #[Title('Admin')] class extends Component {
             icon="book-open"
             :title="__('Media')"
             :description="__('Search the catalog, correct a record or remove an invalid one.')"
-            :stat="trans_choice(':count story|:count stories', $counts['media'])"
+            :stat="trans_choice(':count story|:count stories', $counts['media'], ['count' => Number::format($counts['media'])])"
         />
 
         <x-admin-task
@@ -88,7 +89,7 @@ new #[Title('Admin')] class extends Component {
             icon="users"
             :title="__('Users')"
             :description="__('Everyone with an account, with their role and status.')"
-            :stat="trans_choice(':count person|:count people', $counts['users'])"
+            :stat="trans_choice(':count person|:count people', $counts['users'], ['count' => Number::format($counts['users'])])"
         />
     </div>
 </section>

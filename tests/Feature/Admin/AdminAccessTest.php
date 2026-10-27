@@ -48,3 +48,10 @@ test('the admin dashboard shows live counts within a small query budget and cach
 
     expect($cold)->toBeLessThanOrEqual(12)->and($warm)->toBeLessThan($cold);
 });
+
+test('the dashboard stat pills group thousands', function () {
+    Cache::put('admin.dashboard-counts', ['media' => 12345, 'users' => 3, 'duplicates' => 1200, 'classifications' => 1305, 'sources' => 1, 'lastRun' => null], 60);
+
+    $this->actingAs(User::factory()->admin()->create())->get(route('admin.index'))->assertOk()
+        ->assertSee('1,305 to review')->assertSee('1,200 pairs waiting')->assertSee('12,345 stories');
+});
