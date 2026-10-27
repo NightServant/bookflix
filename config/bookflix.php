@@ -2,6 +2,7 @@
 
 use App\Catalog\Providers\AniList\AniListProvider;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
+use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
 use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
 
 return [
@@ -116,11 +117,11 @@ return [
         ],
 
         'mangaupdates' => [
-            'class' => null,
+            'class' => MangaUpdatesProvider::class,
             'enabled' => (bool) env('BOOKFLIX_MANGAUPDATES_ENABLED', false),
             'rate_per_minute' => 20,
             'max_pages_per_run' => 20,
-            'allowed_hosts' => ['api.mangaupdates.com', 'cdn.mangaupdates.com'],
+            'allowed_hosts' => ['www.mangaupdates.com', 'api.mangaupdates.com', 'cdn.mangaupdates.com'],
         ],
 
         'comicvine' => [

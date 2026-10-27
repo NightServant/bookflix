@@ -1,0 +1,17 @@
+provider_term,kind,bookflix_slug
+Action,genre,action
+Adventure,genre,adventure
+Comedy,genre,comedy
+Drama,genre,drama
+Ecchi,genre,ecchi
+Fantasy,genre,fantasy
+Horror,genre,horror
+Mystery,genre,mystery
+Psychological,genre,psychological
+Romance,genre,romance
+Sci-fi,genre,science-fiction
+Slice of Life,genre,slice-of-life
+Sports,genre,sports
+Supernatural,genre,supernatural
+School Life,theme,school
+Tragedy,theme,tragedy
