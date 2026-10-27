@@ -105,3 +105,25 @@ test('a combobox works the same with reduced motion', function () {
             ->assertScript(($this->out)('genre'), 'fantasy');
     }, ['reducedMotion' => 'reduce']);
 });
+
+test('a freeform field suggests again after Backspace brings the text back to a match', function () {
+    $path = componentPage(<<<'BLADE'
+        <div x-data="{ q: '' }">
+            <x-combobox freeform data-test="free" label="Find" x-model="q" :options="['Dune', 'Dungeon Meshi', 'Dunkirk']" />
+            <output data-test="q" x-text="q"></output>
+        </div>
+        BLADE);
+
+    $input = '[data-test=free] [role=combobox]';
+    $visible = 'Array.from(document.querySelectorAll("[data-test=free] [role=option]")).filter((o) => o.offsetParent !== null).length';
+
+    visit($path)->wait(1)
+        ->keys($input, ['d', 'u', 'n'])->wait(0.3)
+        ->assertScript($visible, 3)
+        ->keys($input, ['z', 'z'])->wait(0.3)
+        ->assertScript($visible, 0)
+        ->keys($input, ['Backspace', 'Backspace'])->wait(0.3)
+        ->assertScript('document.querySelector("'.$input.'").value', 'dun')
+        ->assertScript('document.querySelector("[data-test=q]").textContent', 'dun')
+        ->assertScript($visible, 3);
+});

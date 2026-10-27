@@ -479,8 +479,12 @@ export default function components(Alpine) {
         },
 
         // Freeform: the text typed is the model (a suggestion only fills the field). ponytail: writes the ui plugin's __value, pinned at 3.17.5.
+        // The plugin's own input handler fires `change` before this runs, so `filter` has read the model one keystroke late: filter again now.
         typed(input) {
-            freeform && (this.$data.__value = input.value);
+            if (freeform) {
+                this.$data.__value = input.value;
+                this.query = input.value;
+            }
         },
 
         // Freeform: the plugin activates the first suggestion on its own. The first ArrowDown confirms it rather than skipping to the second...
