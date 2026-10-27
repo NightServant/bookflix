@@ -46,7 +46,7 @@ test('there is no toggle button to reach, suggestions open as you type', functio
 test('an action turns Enter into a search on that page, and the secondary cta can be left out', function () {
     $html = renderSearchPanel('action="/search" :browse="false"');
 
-    expect(htmlQuery($html, '//search[@x-data="{ q: \'\' }"][contains(@*[name()="@keydown.enter.capture"],"Livewire.navigate")]')->length)->toBe(1)
+    expect(htmlQuery($html, '//search[@x-data="{ q: \'\' }"][contains(@*[name()="x-on:keydown.enter.capture"],"Livewire.navigate")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@x-combobox][@x-model="q"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//a[@data-flux-button]')->length)->toBe(0)
         ->and(htmlQuery(renderSearchPanel(), '//search[@x-data]')->length)->toBe(0);

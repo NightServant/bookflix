@@ -41,8 +41,8 @@ test('there is a visible 44px close button and a show results cta that closes th
 test('tab wraps around inside the sheet', function () {
     $html = renderFilterSheet();
 
-    expect(htmlQuery($html, '//dialog//*[@*[name()="@keydown.tab.prevent"]="$focus.wrap().next()"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//dialog//*[@*[name()="@keydown.shift.tab.prevent"]="$focus.wrap().previous()"]')->length)->toBe(1);
+    expect(htmlQuery($html, '//dialog//*[@*[name()="x-on:keydown.tab.prevent"]="$focus.wrap().next()"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//dialog//*[@*[name()="x-on:keydown.shift.tab.prevent"]="$focus.wrap().previous()"]')->length)->toBe(1);
 });
 
 test('resizing up to a desktop width closes it, so the page is never left inert behind a hidden dialog', function () {

@@ -50,8 +50,8 @@ test('a visible 44px close button replaces the flux one, and tab wraps inside th
 
     expect(htmlQuery($html, '//dialog//*[@data-flux-modal-close]//button[@aria-label="Close quick view"][contains(@class,"size-11")][contains(@class,"focus-ring")][@autofocus]')->length)->toBe(1)
         ->and(htmlQuery($html, '//dialog//button[@aria-label="Close modal"]')->length)->toBe(0)
-        ->and(htmlQuery($html, '//dialog//*[@*[name()="@keydown.tab.prevent"]="$focus.wrap().next()"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//dialog//*[@*[name()="@keydown.shift.tab.prevent"]="$focus.wrap().previous()"]')->length)->toBe(1);
+        ->and(htmlQuery($html, '//dialog//*[@*[name()="x-on:keydown.tab.prevent"]="$focus.wrap().next()"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//dialog//*[@*[name()="x-on:keydown.shift.tab.prevent"]="$focus.wrap().previous()"]')->length)->toBe(1);
 });
 
 test('attributes land on the wrapper', function () {

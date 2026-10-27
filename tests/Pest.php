@@ -253,13 +253,16 @@ function renderedComponent(string $markup, array $data = []): string
 
 /**
  * Component acceptance harness, feature side: query rendered HTML with XPath, e.g. `htmlQuery($html, '//img[@loading="lazy"]')->length`.
+ *
+ * Alpine's `@event` shorthand is not a valid attribute name for libxml 2.9 (CI), which then ends the tag at the
+ * first `>` inside the value. It is parsed as its `x-on:event` long form, so query `name()="x-on:keydown.escape"`.
  */
 function htmlQuery(string $html, string $xpath): DOMNodeList
 {
     $dom = new DOMDocument;
 
     libxml_use_internal_errors(true);
-    $dom->loadHTML('<?xml encoding="utf-8"?><body>'.$html.'</body>');
+    $dom->loadHTML('<?xml encoding="utf-8"?><body>'.preg_replace('/(\s)@([a-zA-Z][\w.:-]*)(?==)/', '$1x-on:$2', $html).'</body>');
     libxml_clear_errors();
 
     return (new DOMXPath($dom))->query($xpath);

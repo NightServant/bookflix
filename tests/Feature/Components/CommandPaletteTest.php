@@ -33,8 +33,8 @@ test('the palette is a trigger and a modal dialog named by a title and a descrip
 test('it opens on command-k and control-k from anywhere on the page', function () {
     $html = renderPalette();
 
-    expect(htmlQuery($html, '//*[@*[name()="@keydown.window.prevent.meta.k"]="open = true"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//*[@*[name()="@keydown.window.prevent.ctrl.k"]="open = true"]')->length)->toBe(1);
+    expect(htmlQuery($html, '//*[@*[name()="x-on:keydown.window.prevent.meta.k"]="open = true"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//*[@*[name()="x-on:keydown.window.prevent.ctrl.k"]="open = true"]')->length)->toBe(1);
 });
 
 test('a visible 44px close button has an accessible name', function () {
