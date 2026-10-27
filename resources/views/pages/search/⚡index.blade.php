@@ -52,7 +52,7 @@ new #[Title('Search')] class extends Component {
     #[Url]
     public string $view = 'grid';
 
-    /** The last search this page logged: the one a refinement links back to and the one result clicks credit. */
+    /** The last search this page logged: the one a refinement links back to. */
     #[Locked]
     public ?int $lastQueryId = null;
 

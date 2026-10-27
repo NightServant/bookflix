@@ -1,11 +1,14 @@
 <?php
 
 use App\Discovery\Search\HybridSearch;
+use App\Discovery\Search\SearchTextBuilder;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\SearchQuery;
 use App\Models\User;
+use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 
@@ -246,4 +249,40 @@ test('a throttled search says so instead of showing a blank', function () {
         ->assertSee('Searching a little too fast')->assertDontSee('No stories found')->assertDontSee('Berserk');
 
     expect(SearchQuery::count())->toBe(0);
+});
+
+/**
+ * A catalog of rated, tagged stories whose search text is built, as ingestion leaves them.
+ */
+function seedSearchableCatalog(): Genre
+{
+    test()->seed(DeweySeeder::class);
+    $genre = Genre::factory()->create(['slug' => 'action']);
+
+    Media::factory()->manga()->count(15)->create(['cover_url' => '/favicon.svg', 'language' => 'en'])->each(function (Media $media) use ($genre) {
+        $media->genres()->attach($genre);
+        $media->update(['search_text' => app(SearchTextBuilder::class)->build($media).' dune']);
+    });
+
+    return $genre;
+}
+
+test('a list view text search with two filters stays within the query budget without lazy loading', function () {
+    seedSearchableCatalog();
+    $this->actingAs(User::factory()->create());
+
+    DB::enableQueryLog();
+    $this->get(route('search', ['q' => 'dune', 'view' => 'list', 'filters' => ['genres' => ['action'], 'languages' => ['en']]]))->assertOk()->assertSee('data-view="list"', false);
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(22);
+});
+
+test('a pure filter browse stays within the query budget without lazy loading', function () {
+    seedSearchableCatalog();
+    $this->actingAs(User::factory()->create());
+
+    DB::enableQueryLog();
+    $this->get(route('search', ['view' => 'list', 'filters' => ['genres' => ['action'], 'languages' => ['en']]]))->assertOk()->assertSee('data-view="list"', false);
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(22);
 });
