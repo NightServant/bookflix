@@ -81,7 +81,8 @@ new class extends Component {
                     wire:key="result-{{ $media->id }}"
                     href="{{ $url }}"
                     value="{{ $url }}"
-                    @click.prevent
+                    {{-- Captured, and stopped immediately: the plugin's own click handler on this element would otherwise still pick the option and navigate here. --}}
+                    @click.capture="($event.metaKey || $event.ctrlKey || $event.shiftKey) ? $event.stopImmediatePropagation() : $event.preventDefault()"
                     :class="{ 'bg-surface-input': $comboboxOption.isActive }"
                     class="flex min-h-14 flex-col justify-center rounded-control px-3 py-2 text-ink"
                 >

@@ -121,3 +121,23 @@ test('the palette opens and searches with reduced motion', function () {
             ->assertScript($this->dialogOpen, false);
     }, ['reducedMotion' => 'reduce']);
 });
+
+test('a modified click on a result is left to the browser: not prevented, not picked, the palette stays open', function () {
+    $page = visit($this->path)->wait(1);
+
+    $page->click($this->trigger)->wait(0.6)
+        ->keys($this->input, ['d', 'u', 'n', 'e'])->wait(1.2)
+        // The click is dispatched once and its outcome remembered (a script assertion may run its expression again). The link's href
+        // is parked on a hash first, so the browser's own default for a modified click cannot send this tab away: the page's own handlers are what is under test.
+        ->assertScript('window.metaClickPrevented ??= (() => {
+            const option = document.querySelector("[role=dialog] [role=option]");
+            option.setAttribute("href", "#");
+            const event = new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true });
+            option.dispatchEvent(event);
+
+            return event.defaultPrevented;
+        })()', false)
+        ->wait(1)
+        ->assertScript($this->dialogOpen, true)
+        ->assertScript('location.pathname', '/_test/component');
+});
