@@ -16,6 +16,9 @@ final readonly class SearchFilters
 {
     public const LENGTHS = ['short', 'medium', 'long'];
 
+    /** The most values one list filter keeps, so a crafted payload cannot exceed the database's bind-parameter limit. */
+    public const MAX_VALUES = 50;
+
     /**
      * @param  list<string>  $mediaTypes  media type slugs
      * @param  list<string>  $genres  genre slugs
@@ -143,7 +146,7 @@ final readonly class SearchFilters
     {
         $strings = array_map(fn (mixed $item): string => is_scalar($item) ? trim((string) $item) : '', Arr::wrap($value));
 
-        return array_values(array_unique(array_filter($strings, fn (string $item): bool => $item !== '')));
+        return array_slice(array_values(array_unique(array_filter($strings, fn (string $item): bool => $item !== ''))), 0, self::MAX_VALUES);
     }
 
     /**
@@ -153,6 +156,6 @@ final readonly class SearchFilters
     {
         $ids = array_map(fn (mixed $item): ?int => filter_var($item, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE), Arr::wrap($value));
 
-        return array_values(array_unique(array_filter($ids, fn (?int $id): bool => $id !== null)));
+        return array_slice(array_values(array_unique(array_filter($ids, fn (?int $id): bool => $id !== null))), 0, self::MAX_VALUES);
     }
 }

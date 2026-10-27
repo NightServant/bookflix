@@ -1,5 +1,6 @@
 <?php
 
+use App\Discovery\Search\HybridSearch;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\SearchQuery;
@@ -207,4 +208,20 @@ test('the header carries the command palette and the nav carries search', functi
 
 test('guests are redirected to login', function () {
     $this->get(route('search'))->assertRedirect(route('login'));
+});
+
+test('a pasted wall of text is capped before it is searched and logged', function () {
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test('pages::search.index')->set('q', str_repeat('ab ', 200))->assertOk();
+
+    expect(mb_strlen(SearchQuery::sole()->query))->toBeLessThanOrEqual(HybridSearch::MAX_QUERY_LENGTH);
+});
+
+test('malformed UTF-8 in the URL renders instead of failing the log insert', function () {
+    $this->actingAs(User::factory()->create());
+
+    $this->get(route('search', ['q' => "\xFFab"]))->assertOk();
+
+    expect(SearchQuery::count())->toBe(1);
 });

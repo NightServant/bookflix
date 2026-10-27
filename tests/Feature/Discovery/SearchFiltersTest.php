@@ -135,3 +135,9 @@ test('a secondary class does not satisfy a dewey filter', function () {
 
     expect(app(HybridSearch::class)->browse(new SearchFilters(deweyCode: '810'))->pluck('title'))->not->toContain('Hidden');
 });
+
+test('a crafted payload cannot flood a list filter past the cap', function () {
+    $filters = SearchFilters::fromArray(['genres' => range(1, 500), 'creatorIds' => range(1, 500)]);
+
+    expect($filters->genres)->toHaveCount(SearchFilters::MAX_VALUES)->and($filters->creatorIds)->toHaveCount(SearchFilters::MAX_VALUES);
+});

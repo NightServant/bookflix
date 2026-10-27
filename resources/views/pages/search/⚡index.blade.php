@@ -61,12 +61,14 @@ new #[Title('Search')] class extends Component {
 
     public function mount(): void
     {
+        $this->q = $this->cleanQuery($this->q);
         $this->filters = [...self::NO_FILTERS, ...Arr::only($this->filters, array_keys(self::NO_FILTERS))];
         $this->recordSearch();
     }
 
     public function updatedQ(): void
     {
+        $this->q = $this->cleanQuery($this->q);
         $this->resetPage();
         $this->recordSearch();
     }
@@ -75,6 +77,14 @@ new #[Title('Search')] class extends Component {
     {
         $this->resetPage();
         $this->recordSearch();
+    }
+
+    /**
+     * Invalid UTF-8 replaced and the length capped, once, at the boundary: what the page logs, shows and searches is always storable.
+     */
+    private function cleanQuery(string $text): string
+    {
+        return mb_substr(mb_scrub($text), 0, HybridSearch::MAX_QUERY_LENGTH);
     }
 
     /**

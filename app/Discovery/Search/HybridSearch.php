@@ -11,7 +11,7 @@ use Illuminate\Pagination\Paginator;
 
 class HybridSearch
 {
-    private const MAX_QUERY_LENGTH = 200;
+    public const MAX_QUERY_LENGTH = 200;
 
     public function __construct(private KeywordLeg $keyword, private SubjectLeg $subject) {}
 
