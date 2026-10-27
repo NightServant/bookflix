@@ -196,3 +196,34 @@ test('Enter in the search panel opens the search with the typed text', function 
         ->assertQueryStringHas('q', 'panel')
         ->assertNoJavaScriptErrors();
 });
+
+test('three.js is not requested before the page has loaded, and the hero text or backdrop is the largest paint, never the canvas', function () {
+    $page = visit(route('home'), $this->desktop)->wait(3);
+
+    // The scene waits for idle time after first paint: the document names no three chunk, and none was requested before the load event ended.
+    $page->assertScript('fetch(location.href).then((response) => response.text()).then((html) => !/build\/assets\/[^"\']*(three|RoomEnvironment|RoundedBox)/.test(html))', true)
+        ->assertScript('(() => {
+            const loaded = performance.getEntriesByType("navigation")[0].loadEventEnd;
+            const chunks = performance.getEntriesByType("resource").filter((entry) => /three|RoomEnvironment|RoundedBoxGeometry/.test(entry.name));
+
+            return chunks.length > 0 && chunks.every((entry) => entry.startTime >= loaded);
+        })()', true)
+        ->assertScript('(async () => {
+            const entries = await new Promise((resolve) => {
+                const observer = new PerformanceObserver((list) => resolve(list.getEntries()));
+                observer.observe({ type: "largest-contentful-paint", buffered: true });
+            });
+            const element = entries[entries.length - 1].element;
+
+            return element !== null && element.tagName !== "CANVAS" && element.closest("canvas") === null && element.closest("section[aria-roledescription=carousel]") !== null;
+        })()', true);
+});
+
+test('the hero shows the active story as a 3D book with the next two fanned behind it', function () {
+    $page = visit(route('home'), $this->desktop + ['reducedMotion' => 'reduce'])->wait(1);
+
+    $page->assertScript('document.querySelectorAll("[data-hero-books] [data-book-3d]").length', 3)
+        ->assertScript('document.querySelector("[data-hero-books] [data-size=xl]").dataset.scene', 'skipped') // reduced motion: the CSS book stays
+        ->assertScript('Array.from(document.querySelectorAll("[data-hero-books] [data-book-3d]")).map((book) => book.dataset.size).join()', 'lg,md,xl')
+        ->assertScript('(() => { const shot = (selector) => document.querySelector(selector).getBoundingClientRect(); const main = shot("[data-hero-books] [data-size=xl]"); const next = shot("[data-fan=\"0\"]"); return next.left > main.left && next.right > main.right; })()', true);
+});
