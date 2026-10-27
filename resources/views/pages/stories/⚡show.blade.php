@@ -312,13 +312,26 @@ new #[Title('Story')] class extends Component {
                                 @endif
                             </h2>
 
+                            @php
+                                // Five volumes either side of this one; the series page has the rest.
+                                $volumes = $series->orderedMedia->values();
+                                $at = $volumes->search(fn ($volume) => $volume->is($media));
+                                $window = $at === false ? $volumes->take(11) : $volumes->slice(max(0, $at - 5), min($at, 5) + 6);
+                            @endphp
+
                             <ul class="mt-2">
-                                @foreach ($series->orderedMedia as $volume)
+                                @foreach ($window as $volume)
                                     <li wire:key="volume-{{ $series->id }}-{{ $volume->id }}">
                                         <x-series-item :media="$volume" :position="$volume->pivot->position" :label="$volume->pivot->label" :aria-current="$volume->is($media) ? 'true' : null" />
                                     </li>
                                 @endforeach
                             </ul>
+
+                            @if ($linkSeries && $volumes->count() > $window->count())
+                                <a href="{{ route('series.show', $series->slug) }}" wire:navigate class="focus-ring mt-2 inline-flex min-h-11 items-center gap-1 rounded-control text-meta text-link hover:underline">
+                                    {{ trans_choice('All :count volume|All :count volumes', $volumes->count()) }}<flux:icon name="arrow-right" variant="micro" class="size-4" />
+                                </a>
+                            @endif
                         </section>
                     @endforeach
                 </div>

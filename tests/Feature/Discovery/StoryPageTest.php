@@ -293,3 +293,33 @@ test('similar media ids are kept an hour as plain ids and the rows are loaded fr
 
     expect(app(SimilarMedia::class)->for($base)->pluck('id')->all())->toBe([$sharesGenre->id]);
 });
+
+test('the series tab lists five volumes either side of this one and links to all of them', function () {
+    $series = Series::factory()->create();
+    $volumes = collect(range(1, 30))->map(function (int $number) use ($series) {
+        $volume = Media::factory()->create(['title' => "Volume {$number}"]);
+        $series->media()->attach($volume, ['position' => $number]);
+
+        return $volume;
+    });
+
+    $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $volumes[14]->slug))->getContent();
+    $indexes = array_map(fn ($node) => trim($node->textContent), iterator_to_array(htmlQuery($html, '//*[@data-index]')));
+
+    expect($indexes)->toBe(array_map(fn (int $n) => '['.str_pad((string) $n, 2, '0', STR_PAD_LEFT).']', range(10, 20)))
+        ->and(htmlQuery($html, '//a[@href="'.route('series.show', $series->slug).'"][contains(., "All 30 volumes")]')->length)->toBe(1);
+});
+
+test('the series tab starts at the first volume when this one is near the start', function () {
+    $series = Series::factory()->create();
+    $volumes = collect(range(1, 20))->map(function (int $number) use ($series) {
+        $volume = Media::factory()->create(['title' => "Volume {$number}"]);
+        $series->media()->attach($volume, ['position' => $number]);
+
+        return $volume;
+    });
+
+    $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $volumes[1]->slug))->getContent();
+
+    expect(htmlQuery($html, '//*[@data-index]')->length)->toBe(7);
+});
