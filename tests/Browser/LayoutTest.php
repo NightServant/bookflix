@@ -18,7 +18,7 @@ test('contained pages and the full-bleed ones start their content on the header 
         'search' => [route('search'), 'main > div'],
         'discover' => [route('discover'), 'main h1'],
         'explore' => [route('explore.index'), 'main h1'],
-        'story' => [route('stories.show', $story->slug), 'main > div'],
+        'story' => [route('stories.show', $story->slug), 'main header > div.px-gutter'],
         'profile' => [route('profile.edit'), 'main > div'],
         'series' => [route('series.show', $series->slug), 'main header > div.px-gutter'],
         'home' => [route('home'), 'main h1'],

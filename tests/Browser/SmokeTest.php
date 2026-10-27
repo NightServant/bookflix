@@ -161,8 +161,8 @@ test('a reader can wire:navigate across every page and back with the palette, ta
     $page->click('header [data-flux-navbar] a[href$="/discover"]')->wait(1)->assertPathIs('/discover')->assertSee('Browse by Format')
         ->click('Explore the Library')->wait(1)->assertPathIs('/explore')->assertSee('Browse by Subject')
         ->click('a[href$="/explore/800"] >> nth=0')->wait(1)->assertPathIs('/explore/800')->assertSee('American Literature')
-        ->click('a[href$="/stories/dune"]')->wait(1.2)->assertPathIs('/stories/dune')->assertSee('Part of')
-        ->click('Dune Chronicles')->wait(1)->assertPathIs('/series/'.$this->series->slug)->assertSee('Volumes')
+        ->click('a[href$="/stories/dune"]')->wait(1.2)->assertPathIs('/stories/dune')->assertSee('See the series')
+        ->click('See the series')->wait(1)->assertPathIs('/series/'.$this->series->slug)->assertSee('Volumes')
         ->assertNoJavaScriptErrors();
 
     // Back through the history restores the story page whole: its tabs still switch.

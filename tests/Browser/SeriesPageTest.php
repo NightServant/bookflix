@@ -30,9 +30,9 @@ test('the call to action opens volume 1 and the series link on the story page co
     $page = visit(route('series.show', $this->series->slug))->wait(1)
         ->click('See volume 1')->wait(1)
         ->assertPathIs('/stories/'.$first->slug)
-        ->assertSee('Part of');
+        ->assertSee('See the series');
 
-    $page->click('Frankenstein Cycle')->wait(1)->assertPathIs('/series/'.$this->series->slug)->assertSee('Volumes')->assertNoJavaScriptErrors();
+    $page->click('See the series')->wait(1)->assertPathIs('/series/'.$this->series->slug)->assertSee('Volumes')->assertNoJavaScriptErrors();
 });
 
 test('the header cover, the LCP image, paints at full opacity on the first frame while the text still reveals', function () {

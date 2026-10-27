@@ -34,7 +34,7 @@ test('the tabs switch between overview, series and related', function () {
     $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
 
     $page->assertScript($this->tabs, 'Overview')
-        ->assertScript($this->visiblePanel, 'Description')
+        ->assertScript($this->visiblePanel, 'Genres')
         ->click('[role=tab]:has-text("Series")')->wait(0.5)
         ->assertScript($this->tabs, 'Series')
         ->assertScript($this->visiblePanel, 'Dune Chronicles')
