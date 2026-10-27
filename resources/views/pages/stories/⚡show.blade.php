@@ -179,7 +179,7 @@ new #[Title('Story')] class extends Component {
                     <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Read the summary and see where this story sits in the library. Follow a genre, theme or class to find more like it.') }}</p>
 
                     @if ($media->alternative_titles !== [])
-                        <p class="mt-1 max-w-prose text-meta text-ink-subtle">{{ __('Also known as') }} {{ implode(', ', $media->alternative_titles) }}</p>
+                        <p class="mt-1 line-clamp-2 max-w-prose text-meta text-ink-subtle">{{ __('Also known as') }} {{ implode(', ', $media->alternative_titles) }}</p>
                     @endif
 
                     @if ($creators->isNotEmpty())
