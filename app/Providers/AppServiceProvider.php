@@ -33,6 +33,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
 
         foreach (config('bookflix.providers') as $key => $provider) {
+            if ($provider['class'] === null) {
+                continue;
+            }
+
             RateLimiter::for("provider:{$key}", fn (): Limit => Limit::perMinute($provider['rate_per_minute']));
         }
     }

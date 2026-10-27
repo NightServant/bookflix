@@ -29,6 +29,26 @@ test('staff roles map to creator roles and the MAL id becomes a cross id', funct
         ->and($media->alternativeTitles)->toContain('ベルセルク');
 });
 
+test('popularity, favourites and the 0-100 score become metrics on a 0-5 scale', function (array $extra, array $expected) {
+    $payload = [...providerFixture('anilist/manga-berserk.json'), 'popularity' => null, 'favourites' => null, 'averageScore' => null, 'meanScore' => null, ...$extra];
+
+    $media = app(AniListProvider::class)->normalize(new ProviderRecord('anilist', '30002', $payload, null, now()->toImmutable()));
+
+    expect($media->metrics)->toBe($expected);
+})->with([
+    'all signals' => [['popularity' => 12000, 'favourites' => 340, 'averageScore' => 92, 'meanScore' => 90], ['popularity' => 12000, 'favourites' => 340, 'average_rating' => 4.6]],
+    'mean score fallback' => [['popularity' => 5, 'meanScore' => 80], ['popularity' => 5, 'average_rating' => 4.0]],
+    'nothing known' => [['popularity' => 0, 'averageScore' => 0], []],
+]);
+
+test('every request asks for the popularity fields', function () {
+    Http::fake(['graphql.anilist.co' => Http::response(['data' => ['Media' => null]])]);
+
+    app(AniListProvider::class)->find('1');
+
+    Http::assertSent(fn ($r) => str_contains($r['query'], 'popularity favourites averageScore meanScore'));
+});
+
 test('page reads one GraphQL page and hands back the next page token and the newest update', function () {
     $media = providerFixture('anilist/page-1.json')['data']['Page']['media'];
     Http::fake(['graphql.anilist.co' => Http::sequence()->push(providerFixture('anilist/page-1.json'))->push(['data' => ['Page' => ['pageInfo' => ['hasNextPage' => false], 'media' => []]]])]);
@@ -41,7 +61,7 @@ test('page reads one GraphQL page and hands back the next page token and the new
         ->and($first->maxUpdatedAt->getTimestamp())->toBe(max(array_column($media, 'updatedAt')))
         ->and($last->records)->toBe([])->and($last->nextPageToken)->toBeNull()->and($last->maxUpdatedAt)->toBeNull();
     Http::assertSentCount(2);
-    Http::assertSent(fn ($r) => $r['variables']['page'] === 1 && $r['variables']['sort'] === ['ID']);
+    Http::assertSent(fn ($r) => $r['variables']['page'] === 1 && $r['variables']['sort'] === ['POPULARITY_DESC']);
     Http::assertSent(fn ($r) => $r['variables']['page'] === 2 && $r->hasHeader('User-Agent', config('bookflix.provider_user_agent')));
 });
 

@@ -50,6 +50,7 @@ use Laravel\Scout\Searchable;
  * @property int|null $chapter_count
  * @property string|null $average_rating
  * @property int $ratings_count
+ * @property float $popularity_score
  * @property string $search_text
  * @property list<string> $locked_fields
  * @property int|null $merged_into_id
@@ -226,13 +227,14 @@ class Media extends Model
     }
 
     /**
-     * The stories readers rate most, the newest breaking ties. Interim: Phase 6 redefines it over `media_popularity`.
+     * The stories with the strongest popularity signals (`bookflix:score-popularity`), then the most rated, the newest breaking ties.
      *
      * @param  Builder<Media>  $query
      */
     public function scopeTrending(Builder $query): void
     {
         $query->unmerged()
+            ->orderByDesc('media.popularity_score')
             ->orderByDesc('media.ratings_count')
             ->orderByRaw('media.published_on desc nulls last')
             ->orderByDesc('media.id');

@@ -249,3 +249,20 @@ test('merging refreshes the cached class counts', function () {
 
     expect($counts->forClass(dewey('813')))->toBe(0)->and($counts->forClass(dewey('800')))->toBe(1);
 });
+
+test('an identical title in the same year merges even when the creator spelling differs or is missing', function () {
+    $existing = Media::factory()->manga()->create(['title' => 'One Piece', 'publication_year' => 1997]);
+    $existing->creators()->attach(Creator::factory()->create(['name' => 'Eiichirou Oda']), ['role' => 'author', 'position' => 0]);
+
+    expect(app(Deduplicator::class)->match(normalized(title: 'One Piece', type: 'manga', year: 1997, creators: ['Oda Eiichirou']))?->is($existing))->toBeTrue()
+        ->and(app(Deduplicator::class)->match(normalized(title: 'one piece!', type: 'manga', year: 1997))?->is($existing))->toBeTrue();
+});
+
+test('an identical title without the same year or without a year is only a review candidate', function () {
+    Media::factory()->manga()->create(['title' => 'One Piece', 'publication_year' => 1997]);
+
+    foreach ([1998, 2010, null] as $year) {
+        expect(app(Deduplicator::class)->match(normalized(title: 'One Piece', type: 'manga', year: $year)))->toBeNull()
+            ->and(app(Deduplicator::class)->candidates(normalized(title: 'One Piece', type: 'manga', year: $year)))->toHaveCount(1);
+    }
+});

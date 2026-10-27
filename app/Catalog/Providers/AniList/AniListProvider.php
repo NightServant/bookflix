@@ -25,7 +25,7 @@ class AniListProvider implements MetadataProvider
 
     private const PAGE_SIZE = 50;
 
-    private const FIELDS = 'id idMal title { romaji english native } synonyms description(asHtml: false) format status countryOfOrigin isAdult startDate { year month day } chapters genres tags { name isMediaSpoiler } coverImage { extraLarge large } siteUrl updatedAt staff(perPage: 10, sort: RELEVANCE) { edges { role node { name { full } } } } characters(perPage: 5, sort: ROLE) { edges { node { name { full } } } }';
+    private const FIELDS = 'id idMal title { romaji english native } synonyms description(asHtml: false) format status countryOfOrigin isAdult startDate { year month day } chapters genres tags { name isMediaSpoiler } coverImage { extraLarge large } siteUrl updatedAt popularity favourites averageScore meanScore staff(perPage: 10, sort: RELEVANCE) { edges { role node { name { full } } } } characters(perPage: 5, sort: ROLE) { edges { node { name { full } } } }';
 
     /**
      * @var array<string, PublicationStatus>
@@ -53,13 +53,13 @@ class AniListProvider implements MetadataProvider
     /**
      * One GraphQL page; the token is the next page number. With a cursor, media newest-updated first until the cursor
      * is passed (AniList has no updatedAt filter), so the page that reaches it is the last. Without one, the whole
-     * catalogue in id order.
+     * catalogue most popular first, so the first pages of a long sync are what readers want most.
      */
     public function page(?CarbonImmutable $since, ?string $pageToken): ProviderPage
     {
         $page = max(1, (int) $pageToken);
         $query = 'query ($page: Int, $sort: [MediaSort]) { Page(page: $page, perPage: '.self::PAGE_SIZE.') { pageInfo { hasNextPage } media(type: MANGA, sort: $sort) { '.self::FIELDS.' } } }';
-        $data = $this->post($query, ['page' => $page, 'sort' => [$since ? 'UPDATED_AT_DESC' : 'ID']])->json('data.Page');
+        $data = $this->post($query, ['page' => $page, 'sort' => [$since ? 'UPDATED_AT_DESC' : 'POPULARITY_DESC']])->json('data.Page');
         $data = is_array($data) ? $data : [];
         $records = [];
         $newest = 0;
@@ -123,7 +123,33 @@ class AniListProvider implements MetadataProvider
             coverUrl: $this->safeUrl($payload['coverImage']['extraLarge'] ?? $payload['coverImage']['large'] ?? null),
             sourceUrl: $this->safeUrl($record->sourceUrl),
             isAdult: $isAdult,
+            metrics: $this->metrics($payload),
         );
+    }
+
+    /**
+     * AniList scores run 0 to 100; the mean score stands in when the weighted average is missing.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, int|float>
+     */
+    private function metrics(array $payload): array
+    {
+        $metrics = [];
+
+        foreach (['popularity', 'favourites'] as $name) {
+            if (is_int($payload[$name] ?? null) && $payload[$name] > 0) {
+                $metrics[$name] = $payload[$name];
+            }
+        }
+
+        $score = collect([$payload['averageScore'] ?? null, $payload['meanScore'] ?? null])->first(fn ($value) => is_int($value) && $value > 0 && $value <= 100);
+
+        if ($score !== null) {
+            $metrics['average_rating'] = round($score / 20, 2);
+        }
+
+        return $metrics;
     }
 
     /**

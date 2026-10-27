@@ -1,6 +1,11 @@
 <?php
 
 use App\Catalog\Providers\AniList\AniListProvider;
+use App\Catalog\Providers\ComicVine\ComicVineProvider;
+use App\Catalog\Providers\Hardcover\HardcoverProvider;
+use App\Catalog\Providers\MangaDex\MangaDexProvider;
+use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
+use App\Catalog\Providers\Metron\MetronProvider;
 use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
 
 return [
@@ -81,6 +86,8 @@ return [
     | one request, an Open Library page is ten works at several requests each.
     | `max_pages_per_run` bounds one sync; the next run resumes where it stopped.
     | `allowed_hosts` are the only hosts whose https cover and source URLs are kept.
+    | A provider whose `class` is null is not built yet: its source is seeded but
+    | never synced, listed, or allowed for covers.
     |
     */
 
@@ -104,6 +111,82 @@ return [
             'allowed_hosts' => ['anilist.co', 's4.anilist.co'],
         ],
 
+        'mangadex' => [
+            'class' => MangaDexProvider::class,
+            'enabled' => (bool) env('BOOKFLIX_MANGADEX_ENABLED', false),
+            'rate_per_minute' => 30,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['mangadex.org', 'api.mangadex.org', 'uploads.mangadex.org'],
+        ],
+
+        'mangaupdates' => [
+            'class' => MangaUpdatesProvider::class,
+            'enabled' => (bool) env('BOOKFLIX_MANGAUPDATES_ENABLED', false),
+            'rate_per_minute' => 20,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['www.mangaupdates.com', 'api.mangaupdates.com', 'cdn.mangaupdates.com'],
+        ],
+
+        'comicvine' => [
+            'class' => ComicVineProvider::class,
+            'api_key' => env('BOOKFLIX_COMICVINE_API_KEY'),
+            'enabled' => (bool) env('BOOKFLIX_COMICVINE_ENABLED', false),
+            'rate_per_minute' => 3,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['comicvine.gamespot.com'],
+        ],
+
+        'metron' => [
+            'class' => MetronProvider::class,
+            'username' => env('BOOKFLIX_METRON_USERNAME'),
+            'password' => env('BOOKFLIX_METRON_PASSWORD'),
+            'enabled' => (bool) env('BOOKFLIX_METRON_ENABLED', false),
+            // One page job a minute; each makes at most 19 requests (see MetronProvider::DETAILS_PER_PAGE), under Metron's polite 20 a minute.
+            'rate_per_minute' => 1,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['metron.cloud', 'static.metron.cloud'],
+        ],
+
+        'hardcover' => [
+            'class' => HardcoverProvider::class,
+            'api_token' => env('BOOKFLIX_HARDCOVER_API_TOKEN'),
+            'enabled' => (bool) env('BOOKFLIX_HARDCOVER_ENABLED', false),
+            'rate_per_minute' => 30,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['hardcover.app', 'api.hardcover.app', 'assets.hardcover.app'],
+        ],
+
+        'wikidata' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_WIKIDATA_ENABLED', false),
+            'rate_per_minute' => 20,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['www.wikidata.org', 'query.wikidata.org'],
+        ],
+
+        'wikipedia' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_WIKIPEDIA_ENABLED', false),
+            'rate_per_minute' => 30,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['wikimedia.org', 'en.wikipedia.org'],
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Signal Sources
+    |--------------------------------------------------------------------------
+    |
+    | `bookflix:sync-signals` checks this many media per run, least recently checked first:
+    | Wikidata lookups share one SPARQL query per run, each Wikipedia pageview check is one request.
+    |
+    */
+
+    'signals' => [
+        'wikidata_batch' => 50,
+        'wikipedia_batch' => 100,
     ],
 
     /*
@@ -119,6 +202,27 @@ return [
 
     'sync' => [
         'cursor_overlap_minutes' => 5,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Popularity
+    |--------------------------------------------------------------------------
+    |
+    | `bookflix:score-popularity` ranks every (source, metric) pair as a percentile
+    | and averages a media's ranks with these weights. A metric not listed weighs 1.
+    |
+    */
+
+    'popularity' => [
+        'weights' => [
+            'popularity' => 3,
+            'follows' => 3,
+            'pageviews_30d' => 3,
+            'favourites' => 2,
+            'ratings_count' => 1,
+            'average_rating' => 1,
+        ],
     ],
 
     /*

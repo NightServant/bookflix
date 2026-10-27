@@ -1,0 +1,24 @@
+provider_term,kind,bookflix_slug
+Action,genre,action
+Adventure,genre,adventure
+Comedy,genre,comedy
+Drama,genre,drama
+Fantasy,genre,fantasy
+Horror,genre,horror
+Magical Girls,genre,magical-girl
+Mystery,genre,mystery
+Psychological,genre,psychological
+Romance,genre,romance
+Sci-Fi,genre,science-fiction
+Slice of Life,genre,slice-of-life
+Sports,genre,sports
+Supernatural,genre,supernatural
+Thriller,genre,thriller
+Crime,theme,crime
+Isekai,theme,isekai
+Military,theme,war
+Philosophical,theme,philosophy
+School Life,theme,school
+Survival,theme,survival
+Time Travel,theme,time-travel
+Tragedy,theme,tragedy

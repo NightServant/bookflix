@@ -7,6 +7,7 @@ use App\Enums\ImportOutcome;
 use App\Enums\IngestionMode;
 use App\Enums\IngestionStatus;
 use App\Jobs\FetchProviderPage;
+use App\Jobs\ScorePopularity;
 use App\Jobs\SyncProvider;
 use App\Models\ExternalSource;
 use App\Models\IngestionRun;
@@ -20,6 +21,7 @@ use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -104,6 +106,20 @@ test('a sync runs page by page, imports each page inline and moves the cursor to
     Http::assertSent(fn ($request) => $request['variables']['page'] === 2);
 });
 
+test('a successful sync queues a popularity scoring pass, a failed one does not', function () {
+    Bus::fake([ScorePopularity::class]);
+    Http::fake(['graphql.anilist.co' => Http::response(anilistPage(anilistMedia()))]);
+
+    (new SyncProvider('anilist'))->handle();
+    Bus::assertDispatchedTimes(ScorePopularity::class, 1);
+
+    Bus::fake([ScorePopularity::class]);
+    Http::fake(['graphql.anilist.co' => Http::response(anilistPage(anilistMedia(30004, blankTitle: [30004, 30005, 30006])))]);
+
+    (new SyncProvider('anilist', IngestionMode::Full))->handle();
+    Bus::assertNotDispatched(ScorePopularity::class);
+});
+
 test('a sync stops at max_pages_per_run and the next run resumes at the stored page', function () {
     config(['bookflix.providers.anilist.max_pages_per_run' => 1]);
     $this->travelTo(CarbonImmutable::parse('2026-10-23 10:00:00', 'UTC'));
@@ -166,7 +182,7 @@ test('a full sync ignores the stored cursor and resume point', function () {
 
     (new SyncProvider('anilist', IngestionMode::Full))->handle();
 
-    Http::assertSent(fn ($request) => $request['variables']['sort'] === ['ID'] && $request['variables']['page'] === 1);
+    Http::assertSent(fn ($request) => $request['variables']['sort'] === ['POPULARITY_DESC'] && $request['variables']['page'] === 1);
     expect(IngestionRun::sole()->mode)->toBe(IngestionMode::Full);
 });
 
@@ -379,4 +395,14 @@ test('redis retry_after outlasts the longest horizon supervisor timeout', functi
     $longest = collect(config('horizon.defaults'))->max('timeout');
 
     expect(config('queue.connections.redis.retry_after'))->toBeGreaterThan($longest);
+});
+
+test('a configured provider without a class is unknown to the sync command and skipped by the job', function () {
+    config(['bookflix.providers.classless' => ['class' => null, 'enabled' => true, 'rate_per_minute' => 1, 'max_pages_per_run' => 1, 'allowed_hosts' => []]]);
+    ExternalSource::factory()->create(['key' => 'classless', 'enabled' => true]);
+
+    $this->artisan('bookflix:sync', ['provider' => 'classless'])->assertFailed();
+    (new SyncProvider('classless'))->handle();
+
+    expect(IngestionRun::count())->toBe(0);
 });

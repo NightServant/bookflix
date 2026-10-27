@@ -83,6 +83,7 @@ class IngestionPipeline
             $this->recordIsbns($media, $incoming, $hash);
             $this->attachRelations($media, $incoming, $source->key);
             $this->enricher->apply($media, $incoming, $source);
+            $this->recordMetrics($media, $incoming, $source);
             $media->refreshSearchText();
             $this->deduplicator->recordCandidates($media, $candidates);
 
@@ -90,6 +91,50 @@ class IngestionPipeline
 
             return $outcome;
         });
+    }
+
+    /**
+     * Upsert the record's popularity signals for its source, then refresh the media's rating columns from every source's
+     * metrics: the counts add up and the average is weighted by each source's count (a source without one weighs 1).
+     * A locked column is left alone.
+     */
+    private function recordMetrics(Media $media, NormalizedMedia $incoming, ExternalSource $source): void
+    {
+        $metrics = array_filter($incoming->metrics, fn (int|float $value): bool => is_finite((float) $value));
+
+        if ($metrics === []) {
+            return;
+        }
+
+        DB::table('media_metrics')->upsert(
+            array_map(fn (string $metric, int|float $value): array => [
+                'media_id' => $media->id,
+                'external_source_id' => $source->id,
+                'metric' => $metric,
+                'value' => $value,
+                'observed_at' => now(),
+            ], array_keys($metrics), $metrics),
+            ['media_id', 'external_source_id', 'metric'],
+            ['value', 'observed_at'],
+        );
+
+        $perSource = DB::table('media_metrics')->where('media_id', $media->id)->whereIn('metric', ['ratings_count', 'average_rating'])
+            ->get()->groupBy('external_source_id')
+            ->map(fn ($rows): array => $rows->pluck('value', 'metric')->all());
+
+        $count = (int) round($perSource->sum(fn (array $m): float => (float) ($m['ratings_count'] ?? 0)));
+        $rated = $perSource->filter(fn (array $m): bool => isset($m['average_rating']));
+        $weight = $rated->sum(fn (array $m): float => max((float) ($m['ratings_count'] ?? 0), 1));
+
+        if ($count > 0 && ! in_array('ratings_count', $media->locked_fields, true)) {
+            $media->ratings_count = $count;
+        }
+
+        if ($weight > 0 && ! in_array('average_rating', $media->locked_fields, true)) {
+            $media->average_rating = (string) round($rated->sum(fn (array $m): float => (float) $m['average_rating'] * max((float) ($m['ratings_count'] ?? 0), 1)) / $weight, 2);
+        }
+
+        $media->save();
     }
 
     /**

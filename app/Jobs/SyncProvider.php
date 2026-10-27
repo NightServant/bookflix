@@ -64,6 +64,10 @@ class SyncProvider implements ShouldBeUnique, ShouldQueue
      */
     public function handle(): void
     {
+        if (config("bookflix.providers.{$this->providerKey}.class") === null) {
+            return;
+        }
+
         $source = ExternalSource::where('key', $this->providerKey)->firstOrFail();
 
         IngestionRun::where('external_source_id', $source->id)->where('status', IngestionStatus::Running)

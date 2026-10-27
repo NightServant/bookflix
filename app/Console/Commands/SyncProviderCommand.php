@@ -23,8 +23,8 @@ class SyncProviderCommand extends Command
     {
         $provider = $this->argument('provider');
 
-        if (! is_string($provider) || config("bookflix.providers.{$provider}") === null) {
-            $this->error('Unknown provider. Known: '.implode(', ', array_keys(config('bookflix.providers'))).'.');
+        if (! is_string($provider) || config("bookflix.providers.{$provider}.class") === null) {
+            $this->error('Unknown provider. Known: '.implode(', ', array_keys(array_filter(config('bookflix.providers'), fn (array $config): bool => $config['class'] !== null))).'.');
 
             return self::FAILURE;
         }
