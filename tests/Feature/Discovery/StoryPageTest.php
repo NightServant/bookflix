@@ -110,15 +110,16 @@ test('genres and themes link to search with that filter, tags to a text search',
         ->and(htmlQuery($html, '//a[@href="'.e(route('search', ['q' => 'Desert'])).'"]')->length)->toBeGreaterThan(0);
 });
 
-test('the classification links to explore and shows only public classes', function () {
+test('the primary class is the breadcrumb, only the secondary public classes are listed under "Also shelved in"', function () {
     $m = fullMedia();
     classified($m, '823', type: 'secondary');
     classified($m, '833', type: 'secondary', status: 'rejected');
 
     $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->getContent();
 
-    expect(htmlQuery($html, '//a[@href="'.route('explore.show', '813').'"]')->length)->toBeGreaterThan(0)
-        ->and(htmlQuery($html, '//a[@href="'.route('explore.show', '823').'"]')->length)->toBeGreaterThan(0)
+    expect(htmlQuery($html, '//nav[@aria-label="Breadcrumb"]//*[@aria-current="page"][contains(., "813")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//section[h2[normalize-space()="Also shelved in"]]//a[@href="'.route('explore.show', '823').'"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//section[h2[normalize-space()="Also shelved in"]]//a[@href="'.route('explore.show', '813').'"]')->length)->toBe(0)
         ->and($html)->not->toContain('German Fiction');
 });
 

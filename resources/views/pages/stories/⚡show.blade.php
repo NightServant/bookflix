@@ -36,7 +36,7 @@ new #[Title('Story')] class extends Component {
 
     public function render(): View
     {
-        return $this->view()->title($this->media->title);
+        return $this->view()->title($this->media->title)->layoutData(['flush' => true]);
     }
 
     /**
@@ -78,6 +78,17 @@ new #[Title('Story')] class extends Component {
     public function primaryClass(): ?DeweyClass
     {
         return $this->media->publicPrimaryDewey?->deweyClass;
+    }
+
+    /**
+     * The classes beyond the primary one: the primary is the breadcrumb, so only these are listed, under "Also shelved in".
+     *
+     * @return Collection<int, MediaDeweyClass>
+     */
+    #[Computed]
+    public function secondaryClasses(): Collection
+    {
+        return $this->classes->filter(fn (MediaDeweyClass $class): bool => $class->classification_type !== ClassificationType::Primary)->values();
     }
 
     /**
@@ -143,109 +154,111 @@ new #[Title('Story')] class extends Component {
     $linkSeries = Route::has('series.show');
 @endphp
 
-<section class="py-12" x-data>
-    @if ($this->primaryClass)
-        <x-dewey-breadcrumb :dewey-class="$this->primaryClass" />
-    @endif
+<div x-data>
+    <header class="relative isolate overflow-hidden bg-surface-deep">
+        @if ($media->cover_url)
+            <img src="{{ $media->cover_url }}" alt="" width="256" height="384" decoding="async" aria-hidden="true" class="absolute inset-0 -z-20 size-full scale-125 object-cover opacity-50 blur-3xl">
+        @endif
+        {{-- The scrim keeps the text over the tinted band above AA contrast whatever the cover is. --}}
+        <div aria-hidden="true" class="absolute inset-0 -z-10 bg-linear-to-t from-canvas via-canvas/75 to-canvas/60 lg:bg-linear-to-r lg:from-canvas/90 lg:via-canvas/75 lg:to-canvas/50"></div>
 
-    <div class="mt-6 grid gap-8 md:grid-cols-[14rem_minmax(0,1fr)] lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <div class="w-48 md:w-full">
-            <span class="block aspect-[2/3] overflow-hidden rounded-card bg-surface-deep">
-                @if ($media->cover_url)
-                    <img src="{{ $media->cover_url }}" alt="{{ __('Cover of :title', ['title' => $media->title]) }}" width="256" height="384" decoding="async" class="size-full object-cover">
-                @else
-                    <x-cover-fallback :title="$media->title" />
-                @endif
-            </span>
-        </div>
-
-        <div class="min-w-0">
-            <h1 class="text-section tracking-tight text-balance text-ink md:text-title">{{ $media->title }}</h1>
-            <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Read the summary and see where this story sits in the library. Follow a genre, theme or class to find more like it.') }}</p>
-
-            @if ($media->alternative_titles !== [])
-                <p class="mt-1 text-meta text-ink-subtle">{{ __('Also known as') }} {{ implode(', ', $media->alternative_titles) }}</p>
+        <div class="px-gutter py-8 lg:py-16">
+            @if ($this->primaryClass)
+                <x-dewey-breadcrumb :dewey-class="$this->primaryClass" />
             @endif
 
-            @if ($creators->isNotEmpty())
-                <ul aria-label="{{ __('Creators') }}" class="mt-3 flex flex-wrap gap-x-4 text-body text-ink">
-                    @foreach ($creators as $creator)
-                        <li wire:key="creator-{{ $creator->id }}-{{ $creator->pivot->role->value }}" class="flex items-baseline gap-2">
-                            <a href="{{ route('search', ['q' => $creator->name]) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control hover:underline">{{ $creator->name }}</a>
-                            <span class="text-legal text-ink-subtle">{{ Str::headline($creator->pivot->role->value) }}</span>
-                        </li>
-                    @endforeach
-                </ul>
-            @endif
-
-            @if ($media->publishers->isNotEmpty())
-                <p class="text-meta text-ink-subtle">{{ __('Published by') }} {{ $media->publishers->pluck('name')->implode(', ') }}</p>
-            @endif
-
-            <x-story-info :media="$media" class="mt-3" />
-
-            <x-rating-display :average="$media->average_rating" :count="$media->ratings_count" class="mt-3" />
-
-            @if (Route::has('library.store'))
-                <div class="mt-6">
-                    <x-cta icon="plus" @click="$dispatch('library-add', { id: {{ $media->id }} })">{{ __('Add to Library') }}</x-cta>
+            <div class="mt-6 flex flex-col gap-8 lg:flex-row lg:items-center lg:gap-16">
+                <div class="relative h-[19.5rem] w-[14.5rem] shrink-0 ps-3 sm:h-[26rem] sm:w-[19rem] lg:h-[27.5rem] lg:w-[20rem]">
+                    <div class="origin-top-left scale-75 sm:scale-100">
+                        <x-book-3d :media="$media" size="xl" tilt="24deg" interactive scene :title="$media->title" />
+                    </div>
                 </div>
-            @endif
 
-            @if ($neighbours)
-                <p class="mt-6 text-meta text-ink-subtle">
-                    {{ __('Part of') }}
-                    @if ($linkSeries)
-                        <a href="{{ route('series.show', $neighbours['series']->slug) }}" wire:navigate class="focus-ring rounded-control text-link hover:underline">{{ $neighbours['series']->title }}</a>
-                    @else
-                        <span class="text-ink">{{ $neighbours['series']->title }}</span>
+                <div x-motion-reveal data-stagger="60" class="min-w-0 flex-1">
+                    <h1 class="line-clamp-3 text-section tracking-tight text-balance text-ink md:text-title">{{ $media->title }}</h1>
+                    <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Read the summary and see where this story sits in the library. Follow a genre, theme or class to find more like it.') }}</p>
+
+                    @if ($media->alternative_titles !== [])
+                        <p class="mt-1 max-w-prose text-meta text-ink-subtle">{{ __('Also known as') }} {{ implode(', ', $media->alternative_titles) }}</p>
                     @endif
-                </p>
 
-                @if ($neighbours['previous'] || $neighbours['next'])
-                    <nav aria-label="{{ __('Series navigation') }}" class="mt-2 flex flex-wrap gap-x-6">
-                        @if ($neighbours['previous'])
-                            <a href="{{ route('stories.show', $neighbours['previous']->slug) }}" wire:navigate rel="prev" class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control text-body text-link hover:underline">
-                                <flux:icon name="chevron-left" variant="micro" />
-                                <span><span class="text-ink-subtle">{{ __('Previous in series') }}</span> {{ $neighbours['previous']->title }}</span>
-                            </a>
-                        @endif
+                    @if ($creators->isNotEmpty())
+                        <ul aria-label="{{ __('Creators') }}" class="mt-3 flex flex-wrap gap-x-4 text-body text-ink">
+                            @foreach ($creators as $creator)
+                                <li wire:key="creator-{{ $creator->id }}-{{ $creator->pivot->role->value }}" class="flex items-baseline gap-2">
+                                    <a href="{{ route('search', ['q' => $creator->name]) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control hover:underline">{{ $creator->name }}</a>
+                                    <span class="text-legal text-ink-subtle">{{ Str::headline($creator->pivot->role->value) }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
 
-                        @if ($neighbours['next'])
-                            <a href="{{ route('stories.show', $neighbours['next']->slug) }}" wire:navigate rel="next" class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control text-body text-link hover:underline">
-                                <span><span class="text-ink-subtle">{{ __('Next in series') }}</span> {{ $neighbours['next']->title }}</span>
-                                <flux:icon name="chevron-right" variant="micro" />
-                            </a>
+                    @if ($media->publishers->isNotEmpty())
+                        <p class="text-meta text-ink-subtle">{{ __('Published by') }} {{ $media->publishers->pluck('name')->implode(', ') }}</p>
+                    @endif
+
+                    <x-story-info :media="$media" :class-code="false" class="mt-3" />
+
+                    <x-rating-display :average="$media->average_rating" :count="$media->ratings_count" class="mt-3" />
+
+                    @if (filled($media->description))
+                        <x-clamped-text class="mt-4">{{ $media->description }}</x-clamped-text>
+                    @endif
+
+                    @if (Route::has('library.store') || ($neighbours && $linkSeries))
+                        <div class="mt-6 flex flex-wrap gap-3">
+                            @if (Route::has('library.store'))
+                                <x-cta icon="plus" @click="$dispatch('library-add', { id: {{ $media->id }} })">{{ __('Add to Library') }}</x-cta>
+                            @endif
+
+                            @if ($neighbours && $linkSeries)
+                                <x-cta :variant="Route::has('library.store') ? 'secondary' : 'primary'" icon="rectangle-stack" :href="route('series.show', $neighbours['series']->slug)" wire:navigate>{{ __('See the series') }}</x-cta>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if ($neighbours)
+                        @unless ($linkSeries)
+                            <p class="mt-6 text-meta text-ink-subtle">{{ __('Part of') }} <span class="text-ink">{{ $neighbours['series']->title }}</span></p>
+                        @endunless
+
+                        @if ($neighbours['previous'] || $neighbours['next'])
+                            <nav aria-label="{{ __('Series navigation') }}" class="mt-2 flex flex-wrap gap-x-6">
+                                @if ($neighbours['previous'])
+                                    <a href="{{ route('stories.show', $neighbours['previous']->slug) }}" wire:navigate rel="prev" class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control text-body text-link hover:underline">
+                                        <flux:icon name="chevron-left" variant="micro" />
+                                        <span><span class="text-ink-subtle">{{ __('Previous in series') }}</span> {{ $neighbours['previous']->title }}</span>
+                                    </a>
+                                @endif
+
+                                @if ($neighbours['next'])
+                                    <a href="{{ route('stories.show', $neighbours['next']->slug) }}" wire:navigate rel="next" class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control text-body text-link hover:underline">
+                                        <span><span class="text-ink-subtle">{{ __('Next in series') }}</span> {{ $neighbours['next']->title }}</span>
+                                        <flux:icon name="chevron-right" variant="micro" />
+                                    </a>
+                                @endif
+                            </nav>
                         @endif
-                    </nav>
-                @endif
-            @endif
+                    @endif
+                </div>
+            </div>
         </div>
-    </div>
+    </header>
 
-    <x-tabs :tabs="$tabs" :label="__('Story sections')" class="mt-10">
+    <div class="px-gutter">
+    <x-tabs :tabs="$tabs" :label="__('Story sections')" class="mt-12 lg:mt-16">
         <x-slot:overview>
             <div class="flex max-w-prose flex-col gap-8">
-                @if (filled($media->description))
+                @if ($this->secondaryClasses->isNotEmpty())
                     <section>
-                        <h2 class="text-lead text-ink">{{ __('Description') }}</h2>
-                        <p class="mt-2 text-body text-ink-subtle">{{ $media->description }}</p>
-                    </section>
-                @endif
-
-                @if ($this->classes->isNotEmpty())
-                    <section>
-                        <h2 class="text-lead text-ink">{{ __('Classification') }}</h2>
-                        <p class="mt-1 text-meta text-ink-subtle">{{ __('Where this story is shelved. Open a class to see its neighbours.') }}</p>
+                        <h2 class="text-lead text-ink">{{ __('Also shelved in') }}</h2>
+                        <p class="mt-1 text-meta text-ink-subtle">{{ __('Other places this story fits. Open a class to see its neighbours.') }}</p>
                         <ul class="mt-2 flex flex-col">
-                            @foreach ($this->classes as $class)
+                            @foreach ($this->secondaryClasses as $class)
                                 <li wire:key="class-{{ $class->id }}">
                                     <a href="{{ route('explore.show', $class->deweyClass->code) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center gap-2 rounded-control text-body text-link hover:underline">
                                         <span class="tabular-nums">{{ $class->deweyClass->code }}</span>
                                         <span>{{ $class->deweyClass->name }}</span>
-                                        @if ($class->classification_type === App\Enums\ClassificationType::Secondary)
-                                            <span class="text-legal text-ink-subtle">{{ __('Also') }}</span>
-                                        @endif
                                     </a>
                                 </li>
                             @endforeach
@@ -330,8 +343,10 @@ new #[Title('Story')] class extends Component {
         @endif
     </x-tabs>
 
+    </div>
+
     @if ($this->similar->isNotEmpty())
-        <x-shelf :title="__('More Like This')" :description="__('Stories that share this one’s genres and themes. Open one to keep going.')" previews="quick-view-similar" class="mt-12">
+        <x-shelf bleed :title="__('More Like This')" :description="__('Stories that share this one’s genres and themes. Open one to keep going.')" previews="quick-view-similar" class="mt-12 lg:mt-16">
             @foreach ($this->similar as $similar)
                 <li wire:key="similar-{{ $similar->id }}" class="shrink-0">
                     <x-story-preview :media="$similar">
@@ -343,7 +358,7 @@ new #[Title('Story')] class extends Component {
     @endif
 
     @if ($this->attributions->isNotEmpty())
-        <footer class="mt-12 border-t border-hairline pt-6">
+        <footer class="mx-gutter mt-12 border-t border-hairline pt-6 lg:mt-16">
             <h2 class="text-meta text-ink-subtle">{{ __('Data from') }}</h2>
 
             <ul class="mt-2 flex flex-col gap-1 text-legal text-ink-subtle">
@@ -358,4 +373,4 @@ new #[Title('Story')] class extends Component {
             </ul>
         </footer>
     @endif
-</section>
+</div>
