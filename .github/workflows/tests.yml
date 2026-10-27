@@ -59,11 +59,40 @@ jobs:
       - name: Run CI Checks
         run: composer ci:check
 
-  # Pest browser tests (Playwright, headless Chromium) against the built assets. Separate from `ci` so a flaky browser never blocks the required check;
-  # `composer test` does not run tests/Browser (phpunit.xml lists only Unit and Feature).
+  # Whether a pull request touches the dependency files (package*.json, composer.lock). A bump of @alpinejs/ui or of Livewire's bundled Alpine can break
+  # the private internals that only the browser suite exercises, so `browser` must block those pull requests.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dependencies: ${{ steps.diff.outputs.dependencies }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Look for dependency changes
+        id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ] && git diff --name-only "origin/${BASE_REF}...HEAD" | grep -Eq '(^|/)(package(-lock)?\.json|composer\.lock)$'; then
+            echo "dependencies=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dependencies=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Pest browser tests (Playwright, headless Chromium) against the built assets; `composer test` does not run tests/Browser (phpunit.xml lists only
+  # Unit and Feature). The job always runs, but `continue-on-error` keeps a flaky browser from failing the check unless the pull request touches
+  # package*.json or composer.lock, where it blocks. The repository owner must mark `browser` as a required status check in the branch protection
+  # (Settings > Branches > main > Require status checks > add `browser`): when it is not blocking it still reports success, so required is safe.
   browser:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: ${{ needs.changes.outputs.dependencies != 'true' }}
 
     env:
       DB_CONNECTION: pgsql
