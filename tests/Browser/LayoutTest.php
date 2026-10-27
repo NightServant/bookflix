@@ -50,8 +50,8 @@ test('the first Tab reaches the skip link and Enter moves focus to main, before 
         ->keys(':focus', 'Enter')
         ->assertScript('document.activeElement.id', 'main');
 
-    $page->click('header nav a[href$="/search"]')->wait(1.5)
-        ->assertPathBeginsWith('/search')
+    $page->click('header nav a[href$="/home"]')->wait(1.5)
+        ->assertPathBeginsWith('/home')
         ->keys(':root', 'Tab')
         ->assertScript($skip, true)
         ->keys(':focus', 'Enter')

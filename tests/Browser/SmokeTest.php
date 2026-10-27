@@ -87,7 +87,6 @@ beforeEach(function () {
 });
 
 test('landing to login to home to search to a story works on desktop and on a phone', function (int $width, int $height) {
-    $search = $width > 800 ? 'header [data-flux-navbar] a[href$="/search"]' : 'nav[aria-label=Primary] a[href$="/search"]';
 
     $page = visit(route('landing'), ['viewport' => ['width' => $width, 'height' => $height]])
         ->click('Sign in')->assertPathIs('/login')
@@ -96,8 +95,12 @@ test('landing to login to home to search to a story works on desktop and on a ph
         ->assertPathIs('/home')->assertSee('View story');
 
     scrolledThrough($page);
-    $page->assertSee('Trending Now')
-        ->click($search)->wait(1)->assertPathIs('/search')
+    $page->assertSee('Trending Now');
+
+    // The desktop header has the palette instead of a Search item, so only the bottom nav is clicked.
+    $width <= 800 ? $page->click('nav[aria-label=Primary] a[href$="/search"]') : $page->navigate(route('search'));
+
+    $page->wait(1)->assertPathIs('/search')
         ->keys('search input[role=combobox]', str_split('messiah'))->wait(1.5)
         ->assertSee('Dune Messiah')
         ->click('Dune Messiah')->wait(1.5)
@@ -115,13 +118,13 @@ test('Tab walks Home in reading order: header, hero (text, controls, the book fa
 
     $stops = [];
 
-    foreach (range(1, 17) as $stop) {
+    foreach (range(1, 16) as $stop) {
         $stops[] = $page->script($this->focused);
         $page->keys(':focus', 'Tab');
     }
 
     expect($stops)->toBe([
-        'a:Bookflix', 'a:Home', 'a:Discover', 'a:Search', 'a:Profile', 'button:Search', 'button:GR Gabe Reader',
+        'a:Bookflix', 'a:Home', 'a:Discover', 'a:Profile', 'button:Search', 'button:GR Gabe Reader',
         'a:View story', 'button:Previous slide', 'button:Next slide', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3',
         'input:combobox', 'a:Browse Discover',
         'a:See all in Trending Now', 'button:Next in Trending Now', 'a:Dune',

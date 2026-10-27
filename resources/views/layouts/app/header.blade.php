@@ -14,7 +14,7 @@
             <x-app-logo href="{{ route('home') }}" wire:navigate />
 
             <flux:navbar class="-mb-px ms-6 max-lg:hidden">
-                @foreach (config('bookflix.navigation') as $item)
+                @foreach (collect(config('bookflix.navigation'))->where('desktop', '!==', false) as $item)
                     <flux:navbar.item :icon="$item['icon']" :href="route($item['route'])" :current="request()->routeIs(...$item['active'])" wire:navigate>
                         {{ __($item['label']) }}
                     </flux:navbar.item>

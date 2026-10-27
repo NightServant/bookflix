@@ -65,3 +65,13 @@ test('pages sit in the shared gutter container, and home runs its bands edge to 
         ->and(htmlQuery($home, '//main[not(contains(@class,"px-gutter"))]')->length)->toBe(1)
         ->and(htmlQuery($settings, '//main[not(contains(@class,"px-gutter"))]')->length)->toBe(1);
 });
+
+test('search is in the bottom nav only: the desktop header has the palette trigger instead', function () {
+    $response = $this->actingAs(User::factory()->create())->get(route('home'))->assertOk();
+
+    $navs = primaryNavs($response->getContent());
+    $search = preg_quote(route('search'), '#');
+
+    expect($navs['header'])->not->toMatch('#<a href="'.$search.'"#')
+        ->and($navs['bottom'])->toMatch('#<a\s+href="'.$search.'"#');
+});

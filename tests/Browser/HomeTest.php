@@ -174,10 +174,10 @@ test('with reduced motion every shelf tile is visible at once', function () {
         ->assertScript('Array.from(document.querySelectorAll("[x-motion-reveal] > *")).every((el) => getComputedStyle(el).opacity === "1")', true);
 });
 
-test('going to Search and back keeps the hero and the shelves working', function () {
+test('going to Discover and back keeps the hero and the shelves working', function () {
     $page = visit(route('home'), $this->desktop)->wait(1.5);
 
-    $page->click('header [data-flux-navbar] a[href$="/search"]')->wait(1)->assertPathIs('/search')
+    $page->click('header [data-flux-navbar] a[href$="/discover"]')->wait(1)->assertPathIs('/discover')
         ->click('header [data-flux-navbar] a[href$="/home"]')->wait(1.5)->assertPathIs('/home')
         ->assertScript('document.querySelector("main section[aria-roledescription=carousel]") !== null', true)
         ->click('[data-hero-next]')->wait(1)

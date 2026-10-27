@@ -207,7 +207,7 @@ test('the header carries the command palette and the nav carries search', functi
     $navs = primaryNavs($html);
 
     expect($html)->toContain('aria-haspopup="dialog"')
-        ->and($navs['header'])->toContain(route('search'))
+        ->and($navs['header'])->not->toContain(route('search'))
         ->and($navs['bottom'])->toContain(route('search'));
 });
 

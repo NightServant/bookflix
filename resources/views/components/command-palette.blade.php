@@ -20,11 +20,12 @@
         @click="open = true"
         aria-haspopup="dialog"
         aria-keyshortcuts="Control+K Meta+K"
-        class="focus-ring inline-flex min-h-11 items-center gap-2 rounded-control bg-surface-input px-3 text-meta text-ink-subtle hover:bg-hairline hover:text-ink"
+        aria-label="{{ $label ?? __('Search') }}"
+        class="focus-ring inline-flex h-10 items-center gap-2 rounded-control border border-hairline bg-surface-input px-3 text-meta text-ink-subtle hover:border-border-input hover:text-ink"
     >
-        <flux:icon name="magnifying-glass" class="size-5" />
-        <span>{{ $label ?? __('Search') }}</span>
-        <kbd x-text="/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘K' : 'Ctrl K'" class="hidden text-legal text-ink-subtle sm:inline" aria-hidden="true">⌘K</kbd>
+        <flux:icon name="magnifying-glass" class="size-4" />
+        <span class="sr-only md:not-sr-only">{{ $label ?? __('Search') }}</span>
+        <kbd x-text="/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘K' : 'Ctrl K'" class="hidden rounded-control border border-hairline px-1.5 text-legal leading-5 text-ink-subtle sm:inline" aria-hidden="true">⌘K</kbd>
     </button>
 
     <div

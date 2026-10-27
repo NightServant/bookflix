@@ -24,7 +24,7 @@ beforeEach(function () {
 test('the palette passes the shared checks closed, and after wire:navigate', function () {
     assertComponentAcceptance($this->path, function ($page) {
         $page->assertScript($this->dialogOpen, false)
-            ->assertScript('document.querySelector("[aria-haspopup=dialog]").getBoundingClientRect().height >= 44', true);
+            ->assertScript('document.querySelector("[aria-haspopup=dialog]").getBoundingClientRect().height >= 40', true);
     });
 });
 

@@ -26,7 +26,7 @@ function renderPalette(): string
 test('the palette is a trigger and a modal dialog named by a title and a description', function () {
     $html = renderPalette();
 
-    expect(htmlQuery($html, '//button[@aria-haspopup="dialog"][contains(normalize-space(),"Search")][contains(@class,"min-h-11")]')->length)->toBe(1)
+    expect(htmlQuery($html, '//button[@aria-haspopup="dialog"][@aria-label="Search"][contains(@class,"h-10")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@x-dialog]//h2[@*[name()="x-dialog:title"]][contains(@class,"sr-only")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@x-dialog]//p[@*[name()="x-dialog:description"]][contains(@class,"sr-only")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@x-dialog][@style="display: none"]')->length)->toBe(1);
