@@ -100,3 +100,31 @@ test('navigating away disposes the scene: the canvas is gone and its WebGL conte
         ->assertScript('window.__host.dataset.scene', 'disposed')
         ->assertScript('document.querySelectorAll("canvas").length', 0);
 });
+
+test('the scene loop idles once the book is at rest: no animation frames are requested', function () {
+    $page = visit($this->path.'?scene=1')->wait(4)
+        ->assertScript('document.querySelector("[data-test=book-xl]").dataset.scene', 'ready');
+
+    // Count every requestAnimationFrame request from here on; a resting book must make none.
+    $page->script('(() => { if (window.__raf !== undefined) return true; window.__raf = 0; const raf = window.requestAnimationFrame.bind(window); window.requestAnimationFrame = (cb) => (window.__raf++, raf(cb)); return true; })()');
+    $page->wait(2)
+        ->assertScript('document.querySelector("[data-test=book-xl]").bookScene.stats().looping', false)
+        ->assertScript('window.__raf', 0);
+
+    // A pointer move wakes it again, and it settles back to rest.
+    $page->hover('@book-interactive')->wait(0.3)
+        ->assertScript('window.__raf > 0', true)
+        ->wait(4)
+        ->assertScript('document.querySelector("[data-test=book-xl]").bookScene.stats().looping', false);
+});
+
+test('page turns release the textures they replace, so the resource count stays bounded', function () {
+    $page = visit($this->path.'?scene=1')->wait(4)
+        ->assertScript('document.querySelector("[data-test=book-xl]").dataset.scene', 'ready');
+
+    $page->script('(() => { if (window.__base !== undefined) return true; window.__base = document.querySelector("[data-test=book-xl]").bookScene.stats().resources; (async () => { for (let i = 0; i < 6; i++) await document.querySelector("[data-test=book-xl]").bookScene.turnTo("/_test/cover/" + (1 + (i % 4))); window.__turned = true; })(); return true; })()');
+    $page->wait(8)
+        ->assertNoJavaScriptErrors()
+        ->assertScript('window.__turned === true', true)
+        ->assertScript('document.querySelector("[data-test=book-xl]").bookScene.stats().resources <= window.__base', true);
+});

@@ -9,6 +9,9 @@ import { prefersReducedMotion } from './motion';
  * the cover texture fails. One renderer per element; it pauses off-screen and in a hidden tab, and is disposed on Alpine cleanup
  * and on `livewire:navigating`. `el.bookScene.turnTo(url)` opens the cover like a leaf and reveals another one (the hero's flip).
  * `el.dataset.scene` reads `pending`, `ready`, `skipped` or `disposed`.
+ *
+ * Drawn on demand: frames run only while something moves (the pointer easing the book, the float settling after a pointer move, a turn)
+ * and the loop stops once the book is at rest, so an idle page costs no GPU. Pointer moves, turns, resizes and re-entering the viewport restart it.
  */
 
 // The book in units of its own width: 1 wide, 1.5 tall, 0.2 deep. Hardcover boards, a rounded spine, a recessed page block.
@@ -22,13 +25,21 @@ const REST_PITCH = 0.12; // The CSS book rests at -7deg; three's x axis points t
 
 const live = new Set();
 
+let webgl;
+
+// Probed once per page, and the probe context is released at once: Chrome keeps only ~16 live contexts, reclaimed on GC at best.
 const supportsWebGL = () => {
+    if (webgl !== undefined) return webgl;
+
     try {
         const canvas = document.createElement('canvas');
+        const context = canvas.getContext('webgl2') || canvas.getContext('webgl');
 
-        return Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+        context?.getExtension('WEBGL_lose_context')?.loseContext();
+
+        return (webgl = Boolean(context));
     } catch {
-        return false;
+        return (webgl = false);
     }
 };
 
@@ -84,8 +95,10 @@ export default function bookScene(Alpine) {
 
             if (disposed) return;
 
-            const disposables = [];
-            const track = (item) => (disposables.push(item), item);
+            // Everything with a GPU/CPU footprint; items replaced by a turn are released and leave the set, so it stays bounded.
+            const disposables = new Set();
+            const track = (item) => (disposables.add(item), item);
+            const release = (item) => (item.dispose(), disposables.delete(item));
             const loader = new THREE.TextureLoader();
             const load = (url) => new Promise((resolve, reject) => loader.load(url, resolve, undefined, reject));
             const prepare = (texture, renderer) => {
@@ -154,6 +167,19 @@ export default function bookScene(Alpine) {
 
             const scene = new THREE.Scene();
             const pmrem = new THREE.PMREMGenerator(renderer);
+
+            // Until the real teardown exists, a failure after this point (or a dispose while the cover loads) still frees the renderer.
+            dispose = () => {
+                disposed = true;
+                disposables.forEach((item) => item.dispose());
+                scene.environment?.dispose();
+                pmrem.dispose();
+                renderer.dispose();
+                renderer.forceContextLoss();
+                canvas.remove();
+                el.dataset.scene = 'disposed';
+            };
+
             const room = new RoomEnvironment();
             scene.environment = pmrem.fromScene(room, 0.06).texture;
             scene.environmentIntensity = 0.55;
@@ -165,19 +191,10 @@ export default function bookScene(Alpine) {
             try {
                 cover = prepare(await load(coverUrl), renderer);
             } catch {
-                pmrem.dispose();
-                renderer.dispose();
-
                 return dispose();
             }
 
-            if (disposed) {
-                pmrem.dispose();
-                renderer.dispose();
-                cover.dispose();
-
-                return;
-            }
+            if (disposed) return;
 
             const aspect = (WIDTH + MARGIN_X * 2) / (HEIGHT * (1 + MARGIN_Y * 2));
             const fov = 22;
@@ -341,6 +358,10 @@ export default function bookScene(Alpine) {
             let visible = true;
             let last = 0;
             let first = true;
+            let clock = 0; // Virtual seconds that advance only while drawing, so the float resumes where it stopped.
+            let float = 0; // 0..1: the idle float's strength; it fades out after activity so the loop can stop.
+            let awakeUntil = 0;
+            let draws = 0;
 
             const onPointer = (event) => {
                 if (event.pointerType === 'touch') return;
@@ -348,8 +369,15 @@ export default function bookScene(Alpine) {
                 const box = el.getBoundingClientRect();
                 const clamp = (value) => Math.max(-1, Math.min(1, value));
 
-                pointer.x = clamp((event.clientX - (box.left + box.width / 2)) / 600);
-                pointer.y = clamp((event.clientY - (box.top + box.height / 2)) / 500);
+                const x = clamp((event.clientX - (box.left + box.width / 2)) / 600);
+                const y = clamp((event.clientY - (box.top + box.height / 2)) / 500);
+
+                if (Math.abs(x - pointer.x) < 0.002 && Math.abs(y - pointer.y) < 0.002) return;
+
+                pointer.x = x;
+                pointer.y = y;
+                awakeUntil = performance.now() + 1500;
+                run();
             };
 
             const draw = (now) => {
@@ -359,15 +387,26 @@ export default function bookScene(Alpine) {
 
                 const dt = Math.min((now - (last || now)) / 1000, 0.1);
                 last = now;
-                const time = now / 1000;
                 const follow = 1 - Math.exp(-dt * 4);
+                const lively = turn !== null || now < awakeUntil;
 
-                current.yaw += (tilt + pointer.x * 0.5 - current.yaw) * follow;
-                current.pitch += (REST_PITCH + pointer.y * 0.22 - current.pitch) * follow;
+                clock += dt;
+                float += ((lively ? 1 : 0) - float) * follow;
 
-                book.rotation.set(current.pitch + Math.sin(time * 0.6) * 0.01, current.yaw + Math.sin(time * 0.45) * 0.03, Math.sin(time * 0.5) * 0.006);
-                pivot.position.y = Math.sin(time * 0.9) * 0.022;
-                shadow.scale.setScalar(1 - Math.sin(time * 0.9) * 0.04);
+                const yawGap = tilt + pointer.x * 0.5 - current.yaw;
+                const pitchGap = REST_PITCH + pointer.y * 0.22 - current.pitch;
+                const settled = !lively && float < 0.01 && Math.abs(yawGap) < 0.0005 && Math.abs(pitchGap) < 0.0005;
+
+                if (settled) float = 0;
+
+                current.yaw += yawGap * follow;
+                current.pitch += pitchGap * follow;
+
+                const time = clock;
+
+                book.rotation.set(current.pitch + Math.sin(time * 0.6) * 0.01 * float, current.yaw + Math.sin(time * 0.45) * 0.03 * float, Math.sin(time * 0.5) * 0.006 * float);
+                pivot.position.y = Math.sin(time * 0.9) * 0.022 * float;
+                shadow.scale.setScalar(1 - Math.sin(time * 0.9) * 0.04 * float);
 
                 if (turn) {
                     const progress = Math.min((now - turn.start) / turn.duration, 1);
@@ -385,6 +424,7 @@ export default function bookScene(Alpine) {
                 }
 
                 renderer.render(scene, camera);
+                draws++;
 
                 if (first) {
                     first = false;
@@ -396,7 +436,8 @@ export default function bookScene(Alpine) {
                     });
                 }
 
-                frame = requestAnimationFrame(draw);
+                // At rest: the frame above is the last until something wakes the loop (run()).
+                if (!settled || turn) frame = requestAnimationFrame(draw);
             };
 
             const run = () => {
@@ -410,7 +451,7 @@ export default function bookScene(Alpine) {
                 visible = entry.isIntersecting;
                 visible ? run() : (cancelAnimationFrame(frame), (frame = 0));
             });
-            const sizer = new ResizeObserver(resize);
+            const sizer = new ResizeObserver(() => (resize(), run()));
             const onVisibility = () => (document.hidden ? (cancelAnimationFrame(frame), (frame = 0)) : run());
 
             observer.observe(el);
@@ -427,7 +468,7 @@ export default function bookScene(Alpine) {
 
                 const next = prepare(await load(url), renderer);
 
-                if (disposed) return next.dispose();
+                if (disposed) return;
 
                 const old = front.material.map;
                 leafFront.material.map = old;
@@ -448,11 +489,13 @@ export default function bookScene(Alpine) {
                     run();
                 });
 
-                old.dispose();
-                oldWrap.forEach((map) => map.dispose());
+                leafFront.material.map = null;
+                release(old);
+                oldWrap.forEach(release);
             };
 
-            el.bookScene = { turnTo };
+            // Test hook: the live resource counts, to prove turns do not accumulate and the loop idles.
+            el.bookScene = { turnTo, stats: () => ({ resources: disposables.size, looping: frame !== 0, draws }) };
             el.addEventListener('book-scene:turn', (event) => turnTo(event.detail.src));
 
             dispose = () => {
@@ -465,6 +508,7 @@ export default function bookScene(Alpine) {
                 document.removeEventListener('visibilitychange', onVisibility);
                 window.removeEventListener('pointermove', onPointer);
                 disposables.forEach((item) => item.dispose());
+                disposables.clear();
                 scene.environment?.dispose();
                 pmrem.dispose();
                 renderer.dispose();

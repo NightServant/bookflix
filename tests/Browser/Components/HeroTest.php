@@ -66,7 +66,7 @@ test('a card is a button reachable and activated from the keyboard, and focus is
 
 test('a change runs as a view transition, naming the cover that morphs, and cleans up after', function () {
     $page = visit($this->path, $this->phone)->wait(1);
-    $page->script('(() => { window.__vt = 0; const start = document.startViewTransition.bind(document); document.startViewTransition = (cb) => { window.__vt++; window.__flag = document.documentElement.hasAttribute("data-hero-transition"); return start(cb); }; })()');
+    $page->script('(() => { if (window.__vt !== undefined) return true; window.__vt = 0; const start = document.startViewTransition.bind(document); document.startViewTransition = (cb) => { window.__vt++; window.__flag = document.documentElement.hasAttribute("data-hero-transition"); return start(cb); }; return true; })()');
 
     $page->click('ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]')->wait($this->settle)
         ->assertScript('window.__vt', 1)
@@ -115,7 +115,7 @@ test('without the view transitions api the backdrop crossfades with motion inste
 
 test('reduced motion swaps slides at once: no view transition, no stagger, no inline motion styles', function () {
     assertComponentAcceptance($this->path, function ($page) {
-        $page->script('(() => { window.__vt = 0; if (document.startViewTransition) { const start = document.startViewTransition.bind(document); document.startViewTransition = (cb) => { window.__vt++; return start(cb); }; } })()');
+        $page->script('(() => { window.__vt = 0; if (document.startViewTransition) { const start = document.startViewTransition.bind(document); document.startViewTransition = (cb) => { window.__vt++; return start(cb); }; } return true; })()');
 
         $page->click('ul[aria-label="Up next"] [aria-label="Show Slide Title 3"]')
             ->assertScript($this->counter, '03 / 05')
