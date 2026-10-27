@@ -5,7 +5,7 @@
             :description="__('This is a secure area. Confirm your password and you will go straight to where you were headed.')"
         />
 
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        <x-auth-session-status :status="session('status')" />
 
         <x-passkey-verify
             options-route="passkey.confirm-options"

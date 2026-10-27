@@ -3,7 +3,7 @@
         <x-auth-header :title="__('Reset password')" :description="__('Choose a new password. Once saved, you will go back to log in with it.')" />
 
         <!-- Session Status -->
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        <x-auth-session-status :status="session('status')" />
 
         <form method="POST" action="{{ route('password.update') }}" class="flex flex-col gap-6">
             @csrf
