@@ -29,3 +29,23 @@ test('the cta is red, 16px, padded 20px by 8px, flat and 44px tall', function ()
         ->assertScript('/[1-9]\\d*px/.test(getComputedStyle(document.querySelector("[data-test=link]")).boxShadow)', false)
         ->assertScript('getComputedStyle(document.querySelector("[data-test=button]")).backgroundColor !== "rgb(229, 9, 20)"', true);
 });
+
+test('an icon is 20px, sits one 10px gap from the label, and an icon-only cta is a 44px square', function () {
+    $path = componentPage(<<<'BLADE'
+        <div class="flex flex-wrap items-start gap-4">
+            <x-cta icon="book-open" href="/_test/go" data-test="lead">Start reading</x-cta>
+            <x-cta variant="secondary" icon="x-mark" aria-label="Clear" data-test="only" />
+            <x-cta variant="danger" icon="trash" data-test="danger">Deactivate</x-cta>
+        </div>
+        BLADE);
+
+    visit($path)->wait(1)
+        ->assertScript('(() => { const r = document.querySelector("[data-test=lead] svg").getBoundingClientRect(); return [r.width, r.height].join("x"); })()', '20x20')
+        ->assertScript('getComputedStyle(document.querySelector("[data-test=lead]")).columnGap', '10px')
+        ->assertScript('(() => { const r = document.querySelector("[data-test=only]").getBoundingClientRect(); return [r.width, r.height].join("x"); })()', '44x44')
+        ->assertScript('getComputedStyle(document.querySelector("[data-test=danger]")).backgroundColor !== "rgb(229, 9, 20)"', true)
+        ->hover('@lead')->wait(0.4)
+        ->assertScript('getComputedStyle(document.querySelector("[data-test=lead]")).boxShadow.includes("229, 9, 20")', true)
+        ->hover('@only')->wait(0.4)
+        ->assertScript('getComputedStyle(document.querySelector("[data-test=only]")).boxShadow.includes("229, 9, 20")', false);
+});

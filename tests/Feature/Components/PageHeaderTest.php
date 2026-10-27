@@ -1,13 +1,12 @@
 <?php
 
-test('it renders the h1 on the page title scale and the description under it', function () {
+test('it renders the h1 and the description straight after it', function () {
     $html = renderedComponent('<x-page-header title="Discover" description="Browse the catalog." />');
 
+    // The type scale, spacing and measure are asserted in a real browser: tests/Browser/Components/PageHeaderTest.php.
     expect(htmlQuery($html, '//header/div/h1[normalize-space()="Discover"]')->length)->toBe(1)
-        ->and($html)->toContain('text-section')->toContain('md:text-title')->toContain('tracking-tight')->toContain('text-balance')
-        ->and($html)->not->toContain('text-hero')
-        ->and(htmlQuery($html, '//header//p[normalize-space()="Browse the catalog."]')->length)->toBe(1)
-        ->and($html)->toContain('mt-2')->toContain('text-body')->toContain('text-ink-subtle')->toContain('max-w-prose')->toContain('text-pretty');
+        ->and(htmlQuery($html, '//header//h1')->length)->toBe(1)
+        ->and(htmlQuery($html, '//header/div/h1/following-sibling::p[normalize-space()="Browse the catalog."]')->length)->toBe(1);
 });
 
 test('the description is required', function () {

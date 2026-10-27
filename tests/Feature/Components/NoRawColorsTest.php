@@ -28,9 +28,9 @@ test('component views use design tokens and no raw colors', function () {
     expect($offenders)->toBeEmpty();
 });
 
-test('component views draw no shadows', function () {
+test('component views draw no shadows beyond the three elevation tokens', function () {
     $offenders = componentViews()
-        ->filter(fn ($f) => preg_match('/\b(?:inset-)?shadow-(?!none)|drop-shadow/', $f->getContents()))
+        ->filter(fn ($f) => preg_match('/\b(?:inset-)?shadow-(?!none|raised|overlay|glow-brand)|drop-shadow/', $f->getContents()))
         ->map->getFilename();
 
     expect($offenders)->toBeEmpty();

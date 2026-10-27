@@ -5,14 +5,12 @@ function renderCta(string $attributes = ''): string
     return renderedComponent("<x-cta {$attributes}>Start reading</x-cta>");
 }
 
-test('the primary cta is the red flux button with a body label and a 44px floor', function () {
+test('the primary cta is a link with its label as the accessible name', function () {
     $html = renderCta('href="/start"');
 
+    // How it looks (red, 16px, 44px, flat, focus ring) is asserted in a real browser: tests/Browser/Components/CtaTest.php.
     expect(htmlQuery($html, '//a[@href="/start"][@data-flux-button][normalize-space()="Start reading"]')->length)->toBe(1)
-        ->and($html)->toContain('bg-[var(--color-accent)]')
-        ->and($html)->toContain('text-body!')->toContain('px-5!')->toContain('py-2!')->toContain('min-h-11')
-        ->and($html)->not->toContain('text-cta!')
-        ->and($html)->toContain('focus-ring')->toContain('shadow-none!');
+        ->and(htmlQuery($html, '//a/svg')->length)->toBe(0);
 });
 
 test('a cta without an href is a button and keeps wire and alpine attributes', function () {
@@ -22,11 +20,11 @@ test('a cta without an href is a button and keeps wire and alpine attributes', f
         ->and(htmlQuery($html, '//a')->length)->toBe(0);
 });
 
-test('the secondary cta is not red', function () {
-    $html = renderCta('href="/browse" variant="secondary"');
+test('every variant renders the same labelled link', function (string $variant) {
+    $html = renderCta('href="/browse" variant="'.$variant.'"');
 
-    expect($html)->not->toContain('--color-accent')->toContain('text-body!');
-});
+    expect(htmlQuery($html, '//a[@href="/browse"][@data-flux-button][normalize-space()="Start reading"]')->length)->toBe(1);
+})->with(['primary', 'secondary', 'danger']);
 
 test('flux dark mode keeps the brand red as the accent, so primary is red', function () {
     expect(preg_replace('/\s+/', ' ', file_get_contents(resource_path('css/app.css'))))
@@ -37,7 +35,6 @@ test('a leading icon renders a size-5 outline icon before the label', function (
     $html = renderCta('href="/go" icon="book-open"');
 
     expect(htmlQuery($html, '//a[@data-flux-button]/svg[@data-flux-icon]')->length)->toBe(1)
-        ->and($html)->toContain('size-5')->toContain('ps-4!')->toContain('gap-2.5!')
         ->and(htmlQuery($html, '//a/span[normalize-space()="Start reading"]')->length)->toBe(1)
         ->and(strpos($html, '<svg'))->toBeLessThan(strpos($html, 'Start reading'));
 });
@@ -46,7 +43,6 @@ test('a trailing icon renders after the label', function () {
     $html = renderCta('href="/go" icon:trailing="arrow-right"');
 
     expect(htmlQuery($html, '//a[@data-flux-button]/svg[@data-flux-icon]')->length)->toBe(1)
-        ->and($html)->toContain('pe-4!')->toContain('ps-5!')
         ->and(strpos($html, '<svg'))->toBeGreaterThan(strpos($html, 'Start reading'));
 });
 
@@ -61,11 +57,11 @@ test('the lucide compass is available as a flux icon', function () {
     expect(htmlQuery($html, '//a/svg[@data-flux-icon]//circle')->length)->toBe(1);
 });
 
-test('an icon-only cta is a 44px square that keeps its aria-label', function () {
+test('an icon-only cta is a button that keeps its aria-label and has no text', function () {
     $html = renderedComponent('<x-cta icon="x-mark" aria-label="Clear filters" wire:click="clear" />');
 
     expect(htmlQuery($html, '//button[@aria-label="Clear filters"]/svg')->length)->toBe(1)
-        ->and($html)->toContain('w-11')->toContain('min-h-11')->toContain('data-flux-button')
+        ->and(htmlQuery($html, '//button[@data-flux-button][@aria-label="Clear filters"]')->length)->toBe(1)
         ->and(trim(strip_tags(htmlQuery($html, '//button')->item(0)->textContent)))->toBe('');
 });
 
