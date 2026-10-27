@@ -103,6 +103,7 @@ test('a series without volumes explains itself and offers the way on', function 
     $this->actingAs(User::factory()->create())->get(route('series.show', $series->slug))
         ->assertOk()
         ->assertSee('No volumes yet')
+        ->assertSee('data-book-3d', false)
         ->assertSee(route('explore.index'))
         ->assertDontSee('See volume 1');
 });

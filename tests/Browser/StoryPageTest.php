@@ -88,3 +88,15 @@ test('the similar shelf has a hover preview per story (one shared card) and keep
         ->assertScript('document.querySelectorAll("[data-story-card]").length', 1)
         ->assertScript('Array.from(document.querySelectorAll("button")).filter((button) => button.textContent.includes("Quick view") && button.offsetParent !== null).length', 0);
 });
+
+test('the breadcrumb stays on one line on a phone and shows every crumb on a desktop', function () {
+    $trail = 'Array.from(document.querySelectorAll("nav[aria-label=Breadcrumb] li")).filter((li) => li.offsetParent !== null).map((li) => li.textContent.trim().replace(/\\s+/g, " "))';
+
+    visit(route('stories.show', $this->story->slug), $this->phone)->wait(1)
+        ->assertScript('(() => { const tops = new Set(Array.from(document.querySelectorAll("nav[aria-label=Breadcrumb] li")).filter((li) => li.offsetParent !== null).map((li) => Math.round((li.getBoundingClientRect().top + li.getBoundingClientRect().bottom) / 2))); return tops.size; })()', 1)
+        ->assertScript($trail.'.length', 3)
+        ->assertScript($trail.'[1]', '…');
+
+    visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1)
+        ->assertScript($trail.'.length', 4);
+});

@@ -348,3 +348,17 @@ test('the panel does not send readers away from their results, and the pager doe
         ->and(htmlQuery($html, '//nav[@data-pager]')->length)->toBe(1)
         ->and(htmlQuery($html, '//nav[@data-pager]')->item(0)->textContent)->toContain('Page 1')->not->toContain('Showing')->not->toContain('results');
 });
+
+test('the no-results and throttled states each show the tilted book and a way out', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $none = Livewire::test('pages::search.index')->set('q', 'zzzxxyy')->html();
+    expect(htmlQuery($none, '//*[@data-book-3d]')->length)->toBe(1)
+        ->and(htmlQuery($none, '//a[@href="'.route('explore.index').'"][normalize-space()="Explore the Library"]')->length)->toBe(1);
+
+    RateLimiter::increment('search:'.$user->id, 60, HybridSearch::PER_MINUTE);
+    $throttled = Livewire::test('pages::search.index')->set('q', 'berserk')->html();
+    expect(htmlQuery($throttled, '//*[@data-book-3d]')->length)->toBe(1)
+        ->and(htmlQuery($throttled, '//button[@*[name()="wire:click"]="$refresh"][normalize-space()="Try again"]')->length)->toBe(1);
+});

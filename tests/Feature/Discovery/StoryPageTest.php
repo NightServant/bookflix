@@ -348,3 +348,13 @@ test('a story in a 300 volume series hydrates at most eleven volumes and stays w
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25)
         ->and(count(array_diff(array_keys($hydrated), $shelf)))->toBeLessThanOrEqual(11);
 });
+
+test('the breadcrumb keeps its middle crumbs for a desktop and collapses them behind an ellipsis for a phone', function () {
+    $m = fullMedia();
+
+    $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->getContent();
+
+    // Two ancestors, each hidden below `sm`, and one ellipsis item that only shows there.
+    expect(htmlQuery($html, '//nav[@aria-label="Breadcrumb"]//li[contains(@class,"sm:flex")][.//a]')->length)->toBe(2)
+        ->and(htmlQuery($html, '//nav[@aria-label="Breadcrumb"]//li[contains(@class,"sm:hidden")][normalize-space()="…"]')->length)->toBe(1);
+});
