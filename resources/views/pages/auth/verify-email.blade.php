@@ -11,16 +11,16 @@
         <div class="flex flex-wrap items-center gap-3">
             <form method="POST" action="{{ route('verification.send') }}">
                 @csrf
-                <flux:button type="submit" variant="primary" icon="paper-airplane" icon:variant="outline">
+                <x-cta type="submit" icon="paper-airplane" icon:variant="outline">
                     {{ __('Resend verification email') }}
-                </flux:button>
+                </x-cta>
             </form>
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <flux:button variant="ghost" type="submit" icon="arrow-right-start-on-rectangle" icon:variant="outline" class="cursor-pointer" data-test="logout-button">
+                <x-cta variant="secondary" type="submit" icon="arrow-right-start-on-rectangle" icon:variant="outline" class="cursor-pointer" data-test="logout-button">
                     {{ __('Log out') }}
-                </flux:button>
+                </x-cta>
             </form>
         </div>
     </div>

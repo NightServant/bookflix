@@ -201,9 +201,9 @@ new #[Title('Security settings')] class extends Component {
                 viewable
             />
 
-            <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="update-password-button">
+            <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="update-password-button">
                 {{ __('Save') }}
-            </flux:button>
+            </x-cta>
         </form>
         </x-settings-card>
 
@@ -217,14 +217,14 @@ new #[Title('Security settings')] class extends Component {
                             </flux:text>
 
                             <div class="flex justify-start">
-                                <flux:button
+                                <x-cta
                                     variant="danger"
                                     icon="shield-exclamation"
                                     icon:variant="outline"
                                     wire:click="disable"
                                 >
                                     {{ __('Disable 2FA') }}
-                                </flux:button>
+                                </x-cta>
                             </div>
 
                             <livewire:pages::settings.two-factor.recovery-codes :$requiresConfirmation />
@@ -236,14 +236,14 @@ new #[Title('Security settings')] class extends Component {
                             </flux:text>
 
                             <flux:modal.trigger name="two-factor-setup-modal">
-                                <flux:button
-                                    variant="filled"
+                                <x-cta
+                                    variant="secondary"
                                     icon="shield-check"
                                     icon:variant="outline"
                                     wire:click="$dispatch('start-two-factor-setup')"
                                 >
                                     {{ __('Enable 2FA') }}
-                                </flux:button>
+                                </x-cta>
                             </flux:modal.trigger>
 
                             <livewire:pages::settings.two-factor-setup-modal :requires-confirmation="$requiresConfirmation" />
@@ -287,7 +287,7 @@ new #[Title('Security settings')] class extends Component {
                                     icon:variant="outline"
                                     aria-label="{{ __('Remove passkey :name', ['name' => $passkey['name']]) }}"
                                     wire:click="confirmDelete({{ $passkey['id'] }})"
-                                    class="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                    class="min-h-11 min-w-11 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
                                 />
                             </div>
                         @empty
@@ -322,22 +322,21 @@ new #[Title('Security settings')] class extends Component {
             </div>
 
             <div class="flex gap-3 justify-end">
-                <flux:button
-                    variant="outline"
+                <x-cta
+                    variant="secondary"
                     icon="x-mark"
-                    icon:variant="outline"
                     wire:click="closeDeleteModal"
                 >
                     {{ __('Cancel') }}
-                </flux:button>
-                <flux:button
+                </x-cta>
+                <x-cta
                     variant="danger"
                     icon="trash"
                     icon:variant="outline"
                     wire:click="deletePasskey"
                 >
                     {{ __('Remove passkey') }}
-                </flux:button>
+                </x-cta>
             </div>
         </div>
     </flux:modal>

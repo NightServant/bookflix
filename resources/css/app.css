@@ -274,6 +274,12 @@ html[data-hero-transition]::view-transition-new(hero-cover) {
     @apply  !mb-0 !leading-tight;
 }
 
+/* Form controls meet the same 44px floor as <x-cta>; Flux's own are 40px. Checkboxes, radios, ranges and textareas keep their own size. */
+input[data-flux-control]:not([type='checkbox'], [type='radio'], [type='range']),
+select[data-flux-control] {
+    min-height: 2.75rem;
+}
+
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {

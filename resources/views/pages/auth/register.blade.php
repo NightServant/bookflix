@@ -55,9 +55,9 @@
             />
 
             <div class="flex items-center justify-end">
-                <flux:button type="submit" variant="primary" icon="user-plus" icon:variant="outline" class="w-full" data-test="register-user-button">
+                <x-cta type="submit" icon="user-plus" icon:variant="outline" class="w-full" data-test="register-user-button">
                     {{ __('Create account') }}
-                </flux:button>
+                </x-cta>
             </div>
         </form>
 

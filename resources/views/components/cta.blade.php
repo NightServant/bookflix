@@ -11,7 +11,7 @@
 @endphp
 
 {{--
-    The call to action. `primary` is the red button (the only red control; one per view); `secondary` is the quiet one.
+    The call to action. `primary` is the red button (the only red control; one per view); `secondary` is the quiet one; `danger` is the outlined red-text one for a destructive action (red fill stays the one primary).
     Pass `href` for a link or `wire:click`/`@click` for a button; sentence-case label in the slot.
     Pass `icon="book-open"` for a leading Heroicon, or `icon:trailing="arrow-right"` for a directional action (a Lucide
     icon from resources/views/flux/icon works too). Icons are the outline set at size-5 beside the 16px label and sit one
@@ -21,7 +21,7 @@
     and inset highlight are overridden. The primary button glows red (`--shadow-glow-brand`) on hover only.
 --}}
 <flux:button
-    :variant="$variant === 'secondary' ? 'filled' : 'primary'"
+    :variant="match ($variant) { 'secondary' => 'filled', 'danger' => 'outline', default => 'primary' }"
     :icon="$icon"
     :square="$iconOnly ? true : null"
     {{ $attributes->except('icon:trailing')->merge(array_filter([
@@ -29,7 +29,8 @@
         'icon:variant' => ($icon || $trailing) ? 'outline' : null,
         'icon:class' => ($icon || $trailing) ? 'size-5' : null,
     ]))->class([
-        'hover:shadow-glow-brand!' => $variant !== 'secondary',
+        'hover:shadow-glow-brand!' => ! in_array($variant, ['secondary', 'danger'], true),
+        'border-red-400/60! text-red-400! hover:bg-red-400/10!' => $variant === 'danger',
         'focus-ring h-auto! min-h-11 py-2! text-body! font-medium! shadow-none! gap-2.5!',
         'px-5!' => ! $icon && ! $trailing,
         'ps-4! pe-5!' => $icon && ! $trailing && ! $iconOnly,

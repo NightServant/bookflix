@@ -163,9 +163,9 @@ new #[Title('Profile settings')] class extends Component {
                 @endif
             </div>
 
-            <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="update-profile-button">
+            <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="update-profile-button">
                 {{ __('Save') }}
-            </flux:button>
+            </x-cta>
         </form>
         </x-settings-card>
 
@@ -201,9 +201,9 @@ new #[Title('Profile settings')] class extends Component {
                 @endforeach
             </flux:radio.group>
 
-            <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="update-reading-profile-button">
+            <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="update-reading-profile-button">
                 {{ __('Save') }}
-            </flux:button>
+            </x-cta>
         </form>
         </x-settings-card>
 

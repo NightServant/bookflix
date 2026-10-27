@@ -18,9 +18,9 @@
                 placeholder="email@example.com"
             />
 
-            <flux:button variant="primary" type="submit" icon="paper-airplane" icon:variant="outline" class="w-full" data-test="email-password-reset-link-button">
+            <x-cta type="submit" icon="paper-airplane" icon:variant="outline" class="w-full" data-test="email-password-reset-link-button">
                 {{ __('Email password reset link') }}
-            </flux:button>
+            </x-cta>
         </form>
 
         <div class="space-x-1 rtl:space-x-reverse text-center text-meta text-ink-subtle">

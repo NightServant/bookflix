@@ -9,9 +9,9 @@ new class extends Component {}; ?>
 
     <x-settings-card danger :title="__('Deactivate account')" :description="__('Deactivate your account and sign out everywhere. Its data is permanently deleted after :days days.', ['days' => config('bookflix.privacy.deactivated_retention_days')])">
         <flux:modal.trigger name="confirm-account-deactivation">
-            <flux:button variant="danger" icon="trash" icon:variant="outline" data-test="deactivate-account-button">
+            <x-cta variant="danger" icon="trash" icon:variant="outline" data-test="deactivate-account-button">
                 {{ __('Deactivate account') }}
-            </flux:button>
+            </x-cta>
         </flux:modal.trigger>
 
         <livewire:pages::settings.deactivate-account-modal />

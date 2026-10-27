@@ -46,12 +46,12 @@ new class extends Component {
 
         <div class="flex justify-end space-x-2 rtl:space-x-reverse">
             <flux:modal.close>
-                <flux:button variant="filled" icon="x-mark" icon:variant="outline">{{ __('Cancel') }}</flux:button>
+                <x-cta variant="secondary" icon="x-mark" icon:variant="outline">{{ __('Cancel') }}</x-cta>
             </flux:modal.close>
 
-            <flux:button variant="danger" type="submit" icon="trash" icon:variant="outline" data-test="confirm-deactivate-account-button">
+            <x-cta variant="danger" type="submit" icon="trash" icon:variant="outline" data-test="confirm-deactivate-account-button">
                 {{ __('Deactivate account') }}
-            </flux:button>
+            </x-cta>
         </div>
     </form>
 </flux:modal>

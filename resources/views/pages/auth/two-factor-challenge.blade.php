@@ -79,15 +79,14 @@
                         @enderror
                     </div>
 
-                    <flux:button
-                        variant="primary"
+                    <x-cta
                         type="submit"
                         icon="arrow-right"
                         icon:variant="outline"
                         class="w-full"
                     >
                         {{ __('Continue') }}
-                    </flux:button>
+                    </x-cta>
                 </div>
 
                 <div class="mt-5 space-x-0.5 text-center text-meta text-ink-subtle">

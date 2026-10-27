@@ -201,18 +201,17 @@ new class extends Component {
                     </div>
 
                     <div class="flex items-center space-x-3">
-                        <flux:button
-                            variant="outline"
+                        <x-cta
+                            variant="secondary"
                             icon="arrow-left"
                             icon:variant="outline"
                             class="flex-1"
                             wire:click="resetVerification"
                         >
                             {{ __('Back') }}
-                        </flux:button>
+                        </x-cta>
 
-                        <flux:button
-                            variant="primary"
+                        <x-cta
                             icon="check"
                             icon:variant="outline"
                             class="flex-1"
@@ -220,7 +219,7 @@ new class extends Component {
                             x-bind:disabled="$wire.code.length < 6"
                         >
                             {{ __('Confirm') }}
-                        </flux:button>
+                        </x-cta>
                     </div>
                 </div>
             @else
@@ -248,7 +247,7 @@ new class extends Component {
                 </div>
 
                 <div>
-                    <flux:button
+                    <x-cta
                         :disabled="$errors->has('setupData')"
                         variant="primary"
                         icon:trailing="arrow-right"
@@ -257,7 +256,7 @@ new class extends Component {
                         wire:click="showVerificationIfNecessary"
                     >
                         {{ $this->modalConfig['buttonText'] }}
-                    </flux:button>
+                    </x-cta>
                 </div>
 
                 <div class="space-y-4">

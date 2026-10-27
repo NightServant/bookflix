@@ -45,9 +45,9 @@
             <flux:checkbox name="remember" :label="__('Remember me')" :checked="old('remember')" />
 
             <div class="flex items-center justify-end">
-                <flux:button variant="primary" type="submit" icon="arrow-right-end-on-rectangle" icon:variant="outline" class="w-full" data-test="login-button">
+                <x-cta type="submit" icon="arrow-right-end-on-rectangle" icon:variant="outline" class="w-full" data-test="login-button">
                     {{ __('Log in') }}
-                </flux:button>
+                </x-cta>
             </div>
         </form>
 

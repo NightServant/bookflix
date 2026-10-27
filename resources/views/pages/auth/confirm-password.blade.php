@@ -28,9 +28,9 @@
                 viewable
             />
 
-            <flux:button variant="primary" type="submit" icon="shield-check" icon:variant="outline" class="w-full" data-test="confirm-password-button">
+            <x-cta type="submit" icon="shield-check" icon:variant="outline" class="w-full" data-test="confirm-password-button">
                 {{ __('Confirm') }}
-            </flux:button>
+            </x-cta>
         </form>
     </div>
 </x-layouts::auth>
