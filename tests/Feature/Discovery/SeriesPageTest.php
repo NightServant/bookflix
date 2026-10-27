@@ -74,6 +74,13 @@ test('the one primary call to action starts with volume 1', function () {
         ->and(htmlQuery($html, '//a[@href="'.route('stories.show', $first->slug).'"][normalize-space()="See volume 1"]')->length)->toBe(1);
 });
 
+test('the series status goes through the translator', function () {
+    app('translator')->setLoaded(['*' => ['*' => ['en' => ['Ongoing' => 'En cours']]]]);
+    $series = seriesWith([[1, 'Vol One']], ['status' => 'ongoing']);
+
+    $this->actingAs(User::factory()->create())->get(route('series.show', $series->slug))->assertOk()->assertSee('En cours');
+});
+
 test('the header cover is the first volume and the only eager image, a missing cover falls back to its title', function () {
     $series = seriesWith([[1, 'Vol One', ['cover_url' => 'https://covers.test/one.jpg']], [2, 'Vol Two', ['cover_url' => null]]]);
     $user = User::factory()->create();

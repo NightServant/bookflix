@@ -84,7 +84,7 @@ new #[Title('Series')] class extends Component {
     $facts = collect([
         $volumes->isNotEmpty() ? trans_choice(':count volume|:count volumes', $volumes->count()) : null,
         $this->years,
-        $series->status->value !== 'unknown' ? ucfirst($series->status->value) : null,
+        $series->status->value !== 'unknown' ? __(ucfirst($series->status->value)) : null,
     ])->filter();
 @endphp
 

@@ -23,6 +23,13 @@ test('explore lists the ten classes with story counts', function () {
         ->toMatch('#href="[^"]*/explore/100"[^>]*>\s*<span[^>]*>100</span>\s*<span[^>]*>[^<]*</span>\s*<span[^>]*>0 stories</span>#');
 });
 
+test('explore headings are Title Case', function () {
+    classified(Media::factory()->create(), '813');
+
+    $this->actingAs(User::factory()->create())->get(route('explore.index'))->assertOk()
+        ->assertSee('Browse by Subject')->assertDontSee('Browse by subject');
+});
+
 test('drilling down 800 to 810 to 813 shows breadcrumbs and children', function () {
     $this->actingAs(User::factory()->create());
     $this->get(route('explore.show', '800'))->assertOk()->assertSee('810');

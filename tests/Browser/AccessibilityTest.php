@@ -30,7 +30,7 @@ test('explore and its class pages pass the audit, with stories and without', fun
         $page = visit($path, $this->viewports[$viewport])->wait(1);
         scrolledThrough($page);
 
-        $page->assertSee($path === '/explore' ? 'Browse by subject' : 'Dewey-inspired')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
+        $page->assertSee($path === '/explore' ? 'Browse by Subject' : 'Dewey-inspired')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
     }
 })->with(['desktop', 'phone']);
 

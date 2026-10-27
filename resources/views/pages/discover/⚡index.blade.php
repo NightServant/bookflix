@@ -248,7 +248,7 @@ new #[Title('Discover')] class extends Component {
 
     @if ($hasCatalog)
         <section aria-labelledby="formats-title" class="mt-12 lg:mt-16">
-            <h2 id="formats-title" class="text-section text-ink">{{ __('Browse by format') }}</h2>
+            <h2 id="formats-title" class="text-section text-ink">{{ __('Browse by Format') }}</h2>
 
             @if ($this->families->count() > 1)
                 <nav aria-label="{{ __('Format families') }}" class="mt-4">
@@ -296,7 +296,7 @@ new #[Title('Discover')] class extends Component {
 
         @if ($this->genres->isNotEmpty())
             <section aria-labelledby="genres-title" class="mt-12 lg:mt-16">
-                <h2 id="genres-title" class="text-section text-ink">{{ __('Top genres') }}</h2>
+                <h2 id="genres-title" class="text-section text-ink">{{ __('Top Genres') }}</h2>
 
                 <ul class="mt-4 flex flex-wrap gap-2">
                     @foreach ($this->genres as $genre)
@@ -351,7 +351,7 @@ new #[Title('Discover')] class extends Component {
 
     <section aria-labelledby="subjects-title" class="mt-12 lg:mt-16">
         <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
-            <h2 id="subjects-title" class="text-section text-ink">{{ __('Explore by subject') }}</h2>
+            <h2 id="subjects-title" class="text-section text-ink">{{ __('Explore by Subject') }}</h2>
             <a href="{{ route('explore.index') }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control px-2 text-meta text-link hover:underline">{{ __('Explore the Library') }}</a>
         </div>
 

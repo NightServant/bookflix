@@ -16,7 +16,16 @@ test('discover filters by media family', function () {
 });
 
 test('a genre filter and the subject entry are present', function () {
-    $this->actingAs(User::factory()->create())->get(route('discover'))->assertOk()->assertSee('Explore by subject')->assertSee(route('explore.index'));
+    $this->actingAs(User::factory()->create())->get(route('discover'))->assertOk()->assertSee('Explore by Subject')->assertSee(route('explore.index'));
+});
+
+test('every section heading is Title Case', function () {
+    $media = Media::factory()->create();
+    $media->genres()->attach(Genre::factory()->create());
+
+    $this->actingAs(User::factory()->create())->get(route('discover'))->assertOk()
+        ->assertSee('Browse by Format')->assertSee('Top Genres')->assertSee('Explore by Subject')
+        ->assertDontSee('Browse by format')->assertDontSee('Top genres')->assertDontSee('Explore by subject');
 });
 
 test('an invalid family is ignored', function () {

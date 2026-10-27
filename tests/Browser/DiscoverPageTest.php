@@ -23,7 +23,7 @@ beforeEach(function () {
 test('discover passes the shared checks on desktop and on a phone, filtered or not', function () {
     foreach ([['width' => 1280, 'height' => 900], ['width' => 375, 'height' => 812]] as $viewport) {
         visit(route('discover'), ['viewport' => $viewport])->wait(1)
-            ->assertSee('Browse by format')->assertSee('3 stories')
+            ->assertSee('Browse by Format')->assertSee('3 stories')
             ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
 
         visit(route('discover', ['type' => 'manga', 'genre' => 'action']), ['viewport' => $viewport])->wait(1)

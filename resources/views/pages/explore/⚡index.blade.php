@@ -53,7 +53,7 @@ new #[Title('Explore the Library')] class extends Component {
     </ul>
 
     @if ($this->shelves->isNotEmpty())
-        <h2 class="mt-12 text-lead text-ink">{{ __('Browse by subject') }}</h2>
+        <h2 class="mt-12 text-lead text-ink">{{ __('Browse by Subject') }}</h2>
         <div class="mt-4">
             <x-class-shelves :shelves="$this->shelves" />
         </div>
