@@ -5,7 +5,7 @@
         :title="$shelf->class->name"
         :href="route('explore.show', $shelf->class->code)"
         :id="'shelf-'.$shelf->class->id"
-        class="mt-8 first:mt-0"
+        bleed
         wire:key="shelf-{{ $shelf->class->id }}"
     >
         @foreach ($shelf->media as $media)
