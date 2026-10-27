@@ -381,7 +381,8 @@ select:focus[data-flux-control] {
 .book3d[data-broken] {
     .book3d__fallback { display: block; }
     .book3d__front img { display: none; }
-    .book3d__spine { background-image: none; }
+    .book3d__spine::before,
+    .book3d__back::before { display: none; }
 }
 
 /* Light on the cover: the hinge groove, a soft diagonal gloss, a light that follows the pointer, and a hairline where the board ends. */
@@ -406,29 +407,64 @@ select:focus[data-flux-control] {
 .book3d__back {
     inset: 0;
     transform: rotateY(180deg) translateZ(calc(var(--t) / 2));
+    overflow: hidden;
     border-radius: calc(var(--w) * 0.03) calc(var(--w) * 0.01) calc(var(--w) * 0.01) calc(var(--w) * 0.03);
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-surface-card) 80%, var(--k)), var(--case));
+
+    /* The jacket carries on round the back: the cover again, blurred and darkened, as a printed back panel. */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: calc(var(--w) * -0.05);
+        background: var(--cover, none) center / cover;
+        filter: blur(calc(var(--w) * 0.03)) brightness(0.5) saturate(0.85);
+        transform: scaleX(-1);
+    }
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(270deg, color-mix(in srgb, var(--k) 45%, transparent) 0, transparent 9%);
+    }
 }
 
-/* The spine is the cover's own left edge stretched over the thickness, then rounded with light and shadow. */
+/*
+ * The spine is the jacket wrapping round the hinge: the cover's own left edge, mirrored so the art meets the front without a seam
+ * (the spine's right edge is the cover's left edge), then rounded with light and shadow and a crease where it meets each board.
+ */
 .book3d__spine {
     left: calc((var(--w) - var(--t)) / 2);
     top: 0;
     width: var(--t);
     height: var(--h);
     transform: rotateY(-90deg) translateZ(calc(var(--w) / 2));
+    overflow: hidden;
     background-color: var(--case);
-    background-image:
-        linear-gradient(90deg,
-            color-mix(in srgb, var(--k) 55%, transparent),
-            color-mix(in srgb, var(--hi) 10%, transparent) 28%,
-            color-mix(in srgb, var(--k) 18%, transparent) 62%,
-            color-mix(in srgb, var(--k) 58%, transparent)),
-        linear-gradient(color-mix(in srgb, var(--k) 40%, transparent), color-mix(in srgb, var(--k) 40%, transparent)),
-        var(--cover, none);
-    background-size: 100% 100%, 100% 100%, 900% 100%;
-    background-position: 0 0, 0 0, 0 0;
     border-radius: calc(var(--w) * 0.012) 0 0 calc(var(--w) * 0.012);
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--cover, none) left top / auto 100% no-repeat;
+        filter: blur(calc(var(--w) * 0.006)) brightness(0.85);
+        transform: scaleX(-1);
+    }
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            linear-gradient(90deg,
+                color-mix(in srgb, var(--k) 58%, transparent),
+                color-mix(in srgb, var(--hi) 12%, transparent) 30%,
+                color-mix(in srgb, var(--k) 20%, transparent) 62%,
+                color-mix(in srgb, var(--k) 52%, transparent) 92%,
+                color-mix(in srgb, var(--hi) 10%, transparent) 97%,
+                color-mix(in srgb, var(--k) 40%, transparent));
+    }
 }
 
 /* The board's edge, only at the two covers: the middle is open so the recessed pages show through. */

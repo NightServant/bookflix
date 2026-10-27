@@ -17,6 +17,7 @@
 
             <section class="flex flex-wrap items-end gap-12" data-test="variants">
                 <x-book-3d :src="$covers[1]" size="lg" tilt="18deg" data-test="book-spine" />
+                <x-book-3d :src="$covers[0]" size="lg" tilt="150deg" data-test="book-back" />
                 <x-book-3d :src="$covers[2]" size="lg" tilt="0deg" interactive data-test="book-interactive" />
                 <x-book-3d size="lg" title="No Cover Story" data-test="book-missing" />
                 <x-book-3d src="/_test/missing.jpg" size="lg" title="Broken Cover Story" data-test="book-broken" />

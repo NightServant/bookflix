@@ -24,6 +24,16 @@ test('books render at every size with their cover, and a missing or broken cover
         ->assertScript('getComputedStyle(document.querySelector("[data-test=book-lg] [data-book-fallback]")).display', 'none');
 });
 
+test('the cover wraps the whole jacket: the spine and the back use it, and a missing cover has no image on either', function () {
+    $face = fn (string $book, string $face, string $property = 'backgroundImage') => 'getComputedStyle(document.querySelector("[data-test='.$book.'] .book3d__'.$face.'"), "::before").'.$property;
+
+    visit($this->path)->wait(1)
+        ->assertScript($face('book-interactive', 'spine').'.includes("/_test/cover/3")', true)
+        ->assertScript($face('book-interactive', 'back').'.includes("/_test/cover/3")', true)
+        ->assertScript($face('book-missing', 'spine', 'display'), 'none')
+        ->assertScript($face('book-broken', 'back', 'display'), 'none');
+});
+
 test('an interactive book leans towards the pointer, within 10 degrees', function () {
     visit($this->path)->wait(1)
         ->hover('@book-interactive')
@@ -49,5 +59,5 @@ test('books survive a wire:navigate round trip', function () {
         ->click('Go elsewhere')->assertSee('Back to books')
         ->click('Back to books')->wait(1)
         ->assertNoJavaScriptErrors()
-        ->assertScript('document.querySelectorAll("[data-book-3d]").length', 8);
+        ->assertScript('document.querySelectorAll("[data-book-3d]").length', 9);
 });
