@@ -23,7 +23,7 @@
         <x-cta variant="secondary" icon="adjustments-horizontal">{{ $title }}</x-cta>
     </flux:modal.trigger>
 
-    <flux:modal :name="$name" variant="flyout" :closable="false" class="w-full max-w-sm text-ink">
+    <flux:modal :name="$name" variant="flyout" :closable="false" class="w-full max-w-sm text-ink shadow-overlay!">
         <div
             x-init="$el.closest('dialog').setAttribute('aria-labelledby', '{{ $headingId }}')"
             @keydown.tab.prevent="$focus.wrap().next()"

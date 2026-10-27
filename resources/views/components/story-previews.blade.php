@@ -37,7 +37,7 @@
                 @pointerleave="leave($event)"
                 @focusout="blur($event)"
                 style="display: none"
-                class="z-30 w-96 max-w-[calc(100vw-2rem)] rounded-card border border-hairline bg-surface-card p-4"
+                class="z-30 w-96 max-w-[calc(100vw-2rem)] rounded-card border border-hairline bg-surface-card p-4 shadow-overlay"
             >
                 <div wire:ignore x-effect="fill($el, active)"></div>
             </div>

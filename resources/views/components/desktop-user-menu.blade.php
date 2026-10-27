@@ -7,7 +7,7 @@
         data-test="sidebar-menu-button"
     />
 
-    <flux:menu>
+    <flux:menu class="shadow-overlay!">
         <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
             <flux:avatar
                 :name="auth()->user()->name"

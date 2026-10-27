@@ -40,7 +40,7 @@
             x-dialog:panel
             x-motion-expand="open"
             data-palette-panel
-            class="relative w-full max-w-2xl overflow-hidden rounded-card border border-hairline bg-surface-card"
+            class="relative w-full max-w-2xl overflow-hidden rounded-card border border-hairline bg-surface-card shadow-overlay"
         >
             <h2 x-dialog:title class="sr-only">{{ __('Search the Library') }}</h2>
             <p x-dialog:description class="sr-only">{{ __('Type to search. Use the arrow keys to choose a result and Enter to open it.') }}</p>

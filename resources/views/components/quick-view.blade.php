@@ -9,7 +9,7 @@
     $titleId = $name.'-title';
 @endphp
 
-<flux:modal :name="$name" :closable="false" class="w-full max-w-lg rounded-card! p-4 text-ink sm:p-6">
+<flux:modal :name="$name" :closable="false" class="w-full max-w-lg rounded-card! p-4 text-ink shadow-overlay! sm:p-6">
     <div
         x-init="$el.closest('dialog').setAttribute('aria-labelledby', '{{ $titleId }}')"
         @keydown.tab.prevent="$focus.wrap().next()"

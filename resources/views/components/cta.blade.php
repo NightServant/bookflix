@@ -18,7 +18,7 @@
     gap-2.5 away; the padding on the icon's side shrinks so label plus icon read as centred. With no label the button is a
     44px square and must carry an aria-label.
     One size everywhere: a 16px label and a 44px floor reached through padding, not type. Flux's own 40px height, small text
-    and inset highlight are overridden.
+    and inset highlight are overridden. The primary button glows red (`--shadow-glow-brand`) on hover only.
 --}}
 <flux:button
     :variant="$variant === 'secondary' ? 'filled' : 'primary'"
@@ -29,6 +29,7 @@
         'icon:variant' => ($icon || $trailing) ? 'outline' : null,
         'icon:class' => ($icon || $trailing) ? 'size-5' : null,
     ]))->class([
+        'hover:shadow-glow-brand!' => $variant !== 'secondary',
         'focus-ring h-auto! min-h-11 py-2! text-body! font-medium! shadow-none! gap-2.5!',
         'px-5!' => ! $icon && ! $trailing,
         'ps-4! pe-5!' => $icon && ! $trailing && ! $iconOnly,
