@@ -169,7 +169,7 @@ test('the page ships a skeleton for every shelf, titled, the right height, and g
 
     expect(htmlQuery($html, '//section[@data-shelf-skeleton="trending"][contains(@class,"from-featured-from")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//section[@data-shelf-skeleton]//li[@data-skeleton-tile]')->length)->toBeGreaterThan(8)
-        ->and(htmlQuery($html, '//section[@data-shelf-skeleton="explore-by-subject"]//li[contains(@class,"h-40")]')->length)->toBeGreaterThan(3)
+        ->and(htmlQuery($html, '//section[@data-shelf-skeleton="explore-by-subject"]//li[contains(@class,"h-24")]')->length)->toBeGreaterThan(3)
         ->and(htmlQuery($html, '//section[@data-shelf-skeleton="trending"]//li//div[contains(@class,"aspect-[2/3]")]')->length)->toBeGreaterThan(5);
 });
 

@@ -36,7 +36,7 @@
     <ul @class(['mt-3 flex gap-4 overflow-hidden motion-safe:animate-pulse', '-mx-1 p-1' => ! $bleed, 'mx-gutter py-1' => $bleed])>
         @foreach (range(1, $count) as $tile)
             @if ($kind === 'subjects')
-                <li data-skeleton-tile class="h-40 w-56 shrink-0 rounded-card bg-surface-card sm:w-64"></li>
+                <li data-skeleton-tile class="h-24 w-52 shrink-0 rounded-card bg-surface-card sm:h-28"></li>
             @else
                 <li data-skeleton-tile class="w-36 shrink-0 sm:w-40">
                     <div class="aspect-[2/3] rounded-card bg-surface-card"></div>
