@@ -78,3 +78,22 @@ test('the search panel works the same with reduced motion', function () {
             ->assertScript($this->model, 'Dune');
     }, ['reducedMotion' => 'reduce']);
 });
+
+test('with no suggestions to show the listbox takes no room: no empty bordered box', function () {
+    $height = 'document.querySelector("[role=listbox]").getBoundingClientRect().height';
+
+    $page = visit($this->path)->wait(1);
+
+    $page->keys($this->input, ['d', 'u', 'n'])->wait(0.3)
+        ->assertScript($height.' > 0', true)
+        ->keys($this->input, ['z', 'z'])->wait(0.3)
+        ->assertScript($height, 0);
+
+    // A panel that has no suggestions at all (the page's own markup replaces the one above).
+    $empty = visit(componentPage('<x-search-panel placeholder="Titles" :suggestions="[]" />'))->wait(1);
+
+    $empty->click($this->input)->wait(0.3)
+        ->assertScript($height, 0)
+        ->keys($this->input, ['d', 'u'])->wait(0.3)
+        ->assertScript($height, 0);
+});

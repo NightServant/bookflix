@@ -81,7 +81,7 @@
             x-combobox:options
             @if ($multiple) aria-multiselectable="true" @endif
             style="display: none"
-            class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-card border border-hairline bg-surface-card p-1"
+            class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-card border border-hairline bg-surface-card p-1 not-has-[li]:hidden"
         >
             <template x-for="option in filtered" :key="option.value">
                 <li
