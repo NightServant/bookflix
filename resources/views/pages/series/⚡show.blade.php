@@ -138,9 +138,7 @@ new #[Title('Series')] class extends Component {
                         @endforeach
                     </div>
                 @else
-                    <span class="block aspect-[2/3] w-40 overflow-hidden rounded-card bg-surface-card sm:w-56">
-                        <x-cover-fallback :title="$series->title" />
-                    </span>
+                    <div class="ps-3"><x-book-3d size="xl" tilt="28deg" :title="$series->title" class="origin-top-left scale-[.55] sm:scale-[.8] lg:scale-100" /></div>
                 @endif
             </div>
 
@@ -185,11 +183,13 @@ new #[Title('Series')] class extends Component {
                         <x-pager :paginator="$volumes" class="mt-8" />
                     @endif
                 @else
-                    <div class="mt-4 max-w-prose">
-                        <p class="text-lead text-ink">{{ __('No volumes yet') }}</p>
+                    <x-empty-state :title="__('No volumes yet')" :book="$series->title" class="mt-6">
                         <p class="mt-2 text-body text-ink-subtle">{{ __('This series is listed, but none of its volumes have reached the catalog. They appear here as soon as they are added.') }}</p>
-                        <x-cta variant="secondary" icon="building-library" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
-                    </div>
+
+                        <div class="mt-6 flex flex-wrap gap-3">
+                            <x-cta variant="secondary" icon="building-library" :href="route('explore.index')" wire:navigate>{{ __('Explore the Library') }}</x-cta>
+                        </div>
+                    </x-empty-state>
                 @endif
             </div>
 

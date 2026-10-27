@@ -395,10 +395,13 @@ new #[Title('Discover')] class extends Component {
 
                     <x-pager :paginator="$this->results" class="mt-8" />
                 @else
-                    <div class="mt-6 max-w-prose">
-                        <p class="text-body text-ink-subtle">{{ __('No story has both of those. Drop a filter to see more.') }}</p>
-                        <x-cta variant="secondary" icon="x-mark" :href="route('discover')" wire:navigate class="mt-6">{{ __('Clear filters') }}</x-cta>
-                    </div>
+                    <x-empty-state :title="__('No stories match')" heading="h3" class="mt-6">
+                        <p class="mt-2 text-body text-ink-subtle">{{ __('No story has both of those. Drop a filter to see more.') }}</p>
+
+                        <div class="mt-6 flex flex-wrap gap-3">
+                            <x-cta variant="secondary" icon="x-mark" :href="route('discover')" wire:navigate>{{ __('Clear filters') }}</x-cta>
+                        </div>
+                    </x-empty-state>
                 @endif
             </section>
         @endif

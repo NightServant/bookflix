@@ -108,7 +108,7 @@ test('a page past the end shows the last page instead of an empty one', function
     $last = Media::orderBy('title')->orderBy('id')->get()->last();
 
     $this->actingAs(User::factory()->create())->get(route('explore.show', ['code' => '813', 'page' => 5]))
-        ->assertOk()->assertSee($last->title)->assertDontSee('No stories here yet.');
+        ->assertOk()->assertSee($last->title)->assertDontSee('No stories here yet');
 });
 
 test('the class code of an explore page cannot be changed from the browser', function () {

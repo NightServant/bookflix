@@ -123,7 +123,13 @@ new #[Title('Explore the Library')] class extends Component {
         <section aria-labelledby="stories-title" class="mt-12 lg:mt-16">
             <h2 id="stories-title" class="text-section text-ink">{{ __('Stories') }}</h2>
             @if ($this->stories->isEmpty())
-                <p class="mt-4 text-body text-ink-subtle">{{ __('No stories here yet.') }}</p>
+                <x-empty-state :title="__('No stories here yet')" heading="h3" :book="$this->deweyClass->name" class="mt-6">
+                    <p class="mt-2 text-body text-ink-subtle">{{ __('Nothing has been shelved in this class so far. Browse the rest of the Library, or search for a title.') }}</p>
+
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <x-cta variant="secondary" icon="building-library" :href="route('explore.index')" wire:navigate>{{ __('Explore the Library') }}</x-cta>
+                    </div>
+                </x-empty-state>
             @else
                 <ul class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                     @foreach ($this->stories as $media)

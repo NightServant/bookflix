@@ -330,7 +330,7 @@ new #[Title('Search')] class extends Component {
                 <h2 id="search-filters-title" class="text-lead text-ink">{{ __('Filters') }}</h2>
 
                 @if ($this->chips !== [])
-                    <button type="button" wire:click="clearFilters" class="focus-ring inline-flex min-h-11 items-center rounded-control px-2 -mx-2 text-meta text-link hover:underline">{{ __('Clear all') }}</button>
+                    <button type="button" wire:click="clearFilters" class="focus-ring -mx-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
                 @endif
             </div>
 
@@ -377,7 +377,7 @@ new #[Title('Search')] class extends Component {
                     @endforeach
 
                     <li wire:key="chips-clear">
-                        <button type="button" wire:click="clearFilters" class="focus-ring inline-flex min-h-11 items-center rounded-control px-3 text-meta text-link hover:underline">{{ __('Clear all') }}</button>
+                        <button type="button" wire:click="clearFilters" class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control px-3 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
                     </li>
                 </ul>
             @endif
@@ -406,13 +406,15 @@ new #[Title('Search')] class extends Component {
 
                 <x-pager :paginator="$this->results" class="mt-8" />
             @elseif ($this->throttled)
-                <div class="mt-12 max-w-prose">
-                    <h2 class="text-section text-ink">{{ __('Searching a little too fast') }}</h2>
+                <x-empty-state :title="__('Searching a little too fast')" class="mt-12">
                     <p class="mt-2 text-body text-ink-subtle">{{ __('Give it a moment, then try again. Your search is still here.') }}</p>
-                </div>
+
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <x-cta variant="secondary" icon="arrow-path" wire:click="$refresh">{{ __('Try again') }}</x-cta>
+                    </div>
+                </x-empty-state>
             @elseif ($this->isSearching)
-                <div class="mt-12 max-w-prose">
-                    <h2 class="text-section text-ink">{{ __('No stories found') }}</h2>
+                <x-empty-state :title="__('No stories found')" class="mt-12">
 
                     @if ($this->hasQuery)
                         <p class="mt-2 text-body text-ink-subtle">{{ __('Nothing matched “:query”.', ['query' => trim($q)]) }}</p>
@@ -428,8 +430,10 @@ new #[Title('Search')] class extends Component {
                         <li>{{ __('or browsing the Library by subject.') }}</li>
                     </ul>
 
-                    <x-cta variant="secondary" icon="building-library" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
-                </div>
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <x-cta variant="secondary" icon="building-library" :href="route('explore.index')" wire:navigate>{{ __('Explore the Library') }}</x-cta>
+                    </div>
+                </x-empty-state>
             @else
                 <p class="mt-12 max-w-prose text-body text-ink-subtle">{{ __('Search by title, author, series or subject. Type at least two letters, or pick a filter to browse.') }}</p>
             @endif
