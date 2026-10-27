@@ -129,3 +129,12 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-4-discovery.md` on `origin/claude
   - `HomeShelves` caches ids (`home:shelves:v1:{n}`).
   - `989ee1b` and `46a1542` were reconstructed from partial states; the later full runs cover them.
 - Queued after the Phase 4 PR (user decision): catalog expansion wave 1. Env placeholders in `d34c8ef`.
+| 4.8 | `c657369`, `c9fb730`, `d8e9bfd` | DONE: controller re-run green (PHPStan clean, 671 feature/unit tests, 190 browser tests). F11 fixed | The CI `browser` job is unproven until the first push |
+
+- **Opus whole-branch review** (`docs/superpowers/plans/phase-4-review.md`): MERGE AFTER FIXES, 0 Critical, 4 Important (R1–R4), 13 Minor (R5–R17), and 22 design items that merge F8–F19.
+- Controller rulings for the fix wave:
+  - R2: hide "Add to Library" until `Route::has('library.store')`; "Start reading" becomes "View story" and the series CTA "See volume 1".
+  - R8 is done now.
+  - R12 is DOM weight only.
+  - F12 (Figma) comes after the fix wave.
+- **Fix wave in progress.** R1 is done in `76ca47f`. **Remaining:** R2–R17 and all 22 design items. The session moved to the cloud on 2026-10-27 at the user's request.
