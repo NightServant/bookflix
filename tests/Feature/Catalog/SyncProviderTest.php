@@ -182,7 +182,7 @@ test('a full sync ignores the stored cursor and resume point', function () {
 
     (new SyncProvider('anilist', IngestionMode::Full))->handle();
 
-    Http::assertSent(fn ($request) => $request['variables']['sort'] === ['ID'] && $request['variables']['page'] === 1);
+    Http::assertSent(fn ($request) => $request['variables']['sort'] === ['POPULARITY_DESC'] && $request['variables']['page'] === 1);
     expect(IngestionRun::sole()->mode)->toBe(IngestionMode::Full);
 });
 
