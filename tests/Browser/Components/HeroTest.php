@@ -79,7 +79,7 @@ test('a change runs as a view transition, naming the cover that morphs, and clea
 test('the new title rises word by word out of its mask, and the cards glide one place', function () {
     $page = visit($this->path, $this->phone)->wait(1);
 
-    // Sample on the first frame the new slide is on screen: its last word (80ms stagger) and the sliding cards are mid-flight.
+    // On the first frame the new slide is on screen its last word (80ms stagger) is still low; the sliding cards are mid-flight soon after.
     $page->assertScript('(async () => {
         document.querySelector(\'ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]\').click();
         const article = document.querySelector(\'article[data-slide="1"]\');
@@ -88,7 +88,12 @@ test('the new title rises word by word out of its mask, and the cards glide one 
         }
         const words = Array.from(article.querySelectorAll("[data-word]"));
         const lastWordStillLow = getComputedStyle(words[words.length - 1]).transform !== "none";
-        const aCardIsMoving = Array.from(document.querySelectorAll("[data-card]")).some((card) => getComputedStyle(card).transform !== "none");
+        // The cards start their glide once the view transition has swapped the slides, a frame or two later: watch a short window.
+        let aCardIsMoving = false;
+        for (let frame = 0; frame < 20 && !aCardIsMoving; frame++) {
+            aCardIsMoving = Array.from(document.querySelectorAll("[data-card]")).some((card) => getComputedStyle(card).transform !== "none");
+            await new Promise(requestAnimationFrame);
+        }
 
         return lastWordStillLow && aCardIsMoving;
     })()', true);
