@@ -29,21 +29,22 @@ test('each link points at its route and carries its icon', function () {
     $html = renderQuickLinks();
 
     foreach (quickLinks() as $link) {
-        expect(htmlQuery($html, '//li//a[@href="'.route($link['route']).'"][@*[name()="wire:navigate"]]//*[@data-flux-card]//svg[@data-flux-icon]')->length)->toBe(1);
+        expect(htmlQuery($html, '//li//a[@href="'.route($link['route']).'"][@*[name()="wire:navigate"]]//svg[@data-flux-icon]')->length)->toBe(1);
     }
 });
 
-test('the links are flux cards that fill their cell, so a row has equal heights', function () {
+test('the links are compact bordered controls in one wrapping row, not cards', function () {
     $html = renderQuickLinks();
 
-    expect(htmlQuery($html, '//ul[contains(@class,"auto-rows-fr")]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//li/a[contains(@class,"h-full")]/*[@data-flux-card][contains(@class,"h-full")]')->length)->toBe(3);
+    expect(htmlQuery($html, '//ul[contains(@class,"flex-wrap")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//li/a[contains(@class,"min-h-11")][contains(@class,"border-hairline")][contains(@class,"text-meta")]')->length)->toBe(3)
+        ->and(htmlQuery($html, '//*[@data-flux-card]')->length)->toBe(0);
 });
 
 test('every link is a 44px target with the shared focus ring and every icon is decorative', function () {
     $html = renderQuickLinks();
 
-    expect(htmlQuery($html, '//a[contains(@class,"focus-ring")]//*[contains(@class,"min-h-11")]')->length)->toBe(3)
+    expect(htmlQuery($html, '//a[contains(@class,"focus-ring")][contains(@class,"min-h-11")]')->length)->toBe(3)
         ->and(htmlQuery($html, '//svg[@aria-hidden="true"]')->length)->toBe(3);
 });
 

@@ -248,8 +248,6 @@ new #[Title('Discover')] class extends Component {
     $quickLinks = collect([
         ['label' => __('Continue reading'), 'route' => 'library', 'icon' => 'book-open'],
         ['label' => __('My collections'), 'route' => 'collections.index', 'icon' => 'rectangle-stack'],
-        ['label' => __('Browse by subject'), 'route' => 'explore.index', 'icon' => 'squares-2x2'],
-        ['label' => __('Filter the catalog'), 'route' => 'search', 'icon' => 'adjustments-horizontal'],
     ])->filter(fn (array $link): bool => Route::has($link['route']))->values()->all();
 @endphp
 

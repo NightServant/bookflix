@@ -4,21 +4,17 @@
 ])
 
 {{--
-    A row of shortcut cards (Continue reading, New releases, ...). `links` is a list of `label`, `route` (a route name without
-    parameters) and `icon` (a Heroicons name). The cards are flux:card links: 44px targets, equal heights in a row (the grid rows
-    share the tallest card), and one plain list in DOM order, so the keyboard order is the reading order. `label` names the nav.
+    A row of shortcut chips (Continue reading, My collections, ...). `links` is a list of `label`, `route` (a route name without
+    parameters) and `icon` (a Heroicons name). Each is a 44px-high control (taller if its label wraps) with a hairline border in one
+    wrapping list, in DOM order, so the keyboard order is the reading order. `label` names the nav.
 --}}
 <nav aria-label="{{ $label ?? __('Quick links') }}" {{ $attributes }}>
-    <ul class="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <ul class="flex flex-wrap gap-2">
         @foreach ($links as $link)
             <li wire:key="quick-link-{{ $link['route'] }}-{{ $loop->index }}">
-                <a href="{{ route($link['route']) }}" wire:navigate class="group focus-ring block h-full rounded-card">
-                    <flux:card size="sm" class="h-full rounded-card border-hairline bg-surface-card p-2! ps-4! group-hover:bg-surface-input">
-                        <span class="flex min-h-11 items-center gap-3">
-                            <flux:icon :name="$link['icon']" class="size-5 shrink-0 text-ink-subtle group-hover:text-ink" />
-                            <span class="text-body font-medium text-ink">{{ $link['label'] }}</span>
-                        </span>
-                    </flux:card>
+                <a href="{{ route($link['route']) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center gap-2 rounded-control border border-hairline bg-surface-input px-3 py-1 text-meta text-ink hover:bg-hairline">
+                    <flux:icon :name="$link['icon']" class="size-4 shrink-0 text-ink-subtle" />
+                    <span>{{ $link['label'] }}</span>
                 </a>
             </li>
         @endforeach

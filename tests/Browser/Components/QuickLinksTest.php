@@ -11,7 +11,7 @@ beforeEach(function () {
         BLADE);
 
     $this->labels = 'Array.from(document.querySelectorAll("nav[aria-label=\'Quick links\'] a")).map((a) => a.textContent.trim()).join("|")';
-    $this->cards = 'Array.from(document.querySelectorAll("nav[aria-label=\'Quick links\'] [data-flux-card]"))';
+    $this->cards = 'Array.from(document.querySelectorAll("nav[aria-label=\'Quick links\'] a"))';
     $this->phone = ['viewport' => ['width' => 375, 'height' => 812]];
     $this->desktop = ['viewport' => ['width' => 1280, 'height' => 800]];
 });
@@ -23,33 +23,20 @@ test('quick links pass the shared checks, expose their links and work after wire
     });
 });
 
-test('every card is a 44px target, even where the labels wrap', function () {
+test('every link is a 44px target, even where the labels wrap', function () {
     foreach ([$this->phone, $this->desktop] as $viewport) {
         visit($this->path, $viewport)->wait(1)
             ->assertScript($this->cards.'.every((card) => card.getBoundingClientRect().height >= 44)', true)
-            ->assertScript('Array.from(document.querySelectorAll("nav[aria-label=\'Quick links\'] a")).every((a) => a.getBoundingClientRect().height >= 44)', true);
+            ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true);
     }
 });
 
-test('cards in a row share one height, however long a label runs', function () {
-    foreach ([$this->phone, $this->desktop] as $viewport) {
-        visit($this->path, $viewport)->wait(1)
-            ->assertScript('(() => {
-                const cards = '.$this->cards.'.map((card) => card.getBoundingClientRect());
-                const rows = Object.groupBy(cards, (rect) => Math.round(rect.top));
-
-                return Object.values(rows).every((row) => row.every((rect) => Math.abs(rect.height - row[0].height) < 1)) && cards.length === 4;
-            })()', true);
-    }
-});
-
-test('a desktop lays the cards out in a row, a phone stacks them', function () {
+test('a desktop wraps the links into one row, a phone wraps them onto more', function () {
     visit($this->path, $this->desktop)->wait(1)
         ->assertScript('new Set('.$this->cards.'.map((card) => Math.round(card.getBoundingClientRect().top))).size', 1);
 
     visit($this->path, $this->phone)->wait(1)
-        ->assertScript('new Set('.$this->cards.'.map((card) => Math.round(card.getBoundingClientRect().left))).size', 1)
-        ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true);
+        ->assertScript('new Set('.$this->cards.'.map((card) => Math.round(card.getBoundingClientRect().top))).size > 1', true);
 });
 
 test('keyboard order matches the visual order and each link wears the focus ring', function () {
@@ -75,10 +62,10 @@ test('keyboard order matches the visual order and each link wears the focus ring
     }
 });
 
-test('the cards use the kit surface and radius, not the flux defaults', function () {
+test('the links use the kit surface and control radius, not the flux defaults', function () {
     visit($this->path, $this->desktop)->wait(1)
-        ->assertScript('getComputedStyle('.$this->cards.'[0]).borderRadius', '8px')
-        ->assertScript('getComputedStyle('.$this->cards.'[0]).backgroundColor', 'rgb(35, 35, 35)');
+        ->assertScript('getComputedStyle('.$this->cards.'[0]).borderRadius', '4px')
+        ->assertScript('getComputedStyle('.$this->cards.'[0]).backgroundColor', 'rgb(45, 45, 45)');
 });
 
 test('quick links work the same with reduced motion', function () {
