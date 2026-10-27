@@ -60,6 +60,9 @@ pest()->extend(TestCase::class)
     ->beforeEach(fn () => Vite::useHotFile(storage_path('framework/vite.hot')))
     ->in('Browser');
 
+// A whole page with its lazy shelves can take over the default 5s to load on a busy CI runner.
+pest()->browser()->timeout(10_000);
+
 /*
 |--------------------------------------------------------------------------
 | Expectations
