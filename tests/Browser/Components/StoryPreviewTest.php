@@ -80,7 +80,7 @@ test('keyboard focus opens it after 300ms and the panel is in the tab order afte
         ->keys(':focus', 'Tab')
         ->assertScript('document.activeElement.textContent.trim()', 'View story')
         ->keys(':focus', 'Tab')
-        ->assertScript('document.activeElement.textContent.trim()', 'Add to Library')
+        ->assertScript('document.activeElement.getAttribute("aria-label")', 'Add to Library')
         ->assertScript($this->isOpen, true);
 });
 
@@ -178,7 +178,7 @@ test('add to library announces the media', function () {
     $page->script('window.addEventListener("library-add", (e) => (window.__added = e.detail.id))');
 
     $page->hover('@tile')->wait(0.8)
-        ->click('Add to Library')
+        ->click('[aria-label="Add to Library"]')
         ->assertScript('window.__added', $this->media[0]->id);
 });
 

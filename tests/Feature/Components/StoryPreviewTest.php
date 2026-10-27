@@ -46,12 +46,14 @@ test('the panel shows the cover, title, story facts, description and the view st
         ->and($html)->not->toContain('library-add')->not->toContain('Add to Library');
 });
 
-test('once the library route exists the panel adds an add to library button that announces the media id', function () {
+test('once the library route exists the panel adds an icon-only add to library button that announces the media id', function () {
     enableLibraryRoute();
     $media = frankenstein();
     $html = renderStoryPreview($media);
 
-    expect(htmlQuery($html, "//*[@role='dialog']//button[@data-flux-button][normalize-space()='Add to Library']")->length)->toBe(1);
+    expect(htmlQuery($html, "//*[@role='dialog']//button[@data-flux-button][@aria-label='Add to Library'][normalize-space()='']//*[@data-flux-icon]")->length)->toBe(1)
+        ->and(htmlQuery($html, "//*[@role='dialog']//a[@data-flux-button][contains(@class,'flex-1')][normalize-space()='View story']")->length)->toBe(1)
+        ->and(htmlQuery($html, "//*[@role='dialog']//a[@data-flux-button]/parent::div[contains(@class,'flex-col')]")->length)->toBe(0);
     expect(renderStoryPreview($media))->toContain("\$dispatch('library-add', { id: {$media->id} })");
 });
 

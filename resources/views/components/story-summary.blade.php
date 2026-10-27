@@ -5,7 +5,7 @@
 
 {{--
     The short version of a story that <x-story-preview> (hover) and <x-quick-view> (touch) share: a small cover, the title,
-    <x-story-info>, a three-line blurb and the two ctas. `title-id` is the id the surrounding dialog names itself by.
+    <x-story-info>, a three-line blurb and the ctas: a primary "View story" with, once the library exists, an icon-only add button beside it. `title-id` is the id the surrounding dialog names itself by.
     Eager-load `mediaType` and `publicPrimaryDewey.deweyClass` on fetched media (story-info reads them).
     "Add to Library" dispatches a `library-add` event with the media id (rendered only once the Phase 5 `library.store` route exists), as <x-hero> does.
 --}}
@@ -29,10 +29,12 @@
         </div>
     </div>
 
-    <div class="mt-4 flex flex-col gap-2">
-        <x-cta :href="route('stories.show', $media->slug)" wire:navigate class="w-full">{{ __('View story') }}</x-cta>
+    <div class="mt-4 flex gap-2">
+        <x-cta :href="route('stories.show', $media->slug)" wire:navigate class="flex-1">{{ __('View story') }}</x-cta>
         @if (Route::has('library.store'))
-            <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $media->id }} })" class="w-full">{{ __('Add to Library') }}</x-cta>
+            <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $media->id }} })" aria-label="{{ __('Add to Library') }}" class="w-11 shrink-0 ps-0! pe-0!">
+                <flux:icon name="plus" class="size-5" />
+            </x-cta>
         @endif
     </div>
 </div>

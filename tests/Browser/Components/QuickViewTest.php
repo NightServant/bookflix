@@ -92,7 +92,7 @@ test('Add to Library announces the media', function () {
     $page->script('window.addEventListener("library-add", (e) => (window.__added = e.detail.id))');
 
     $page->click('Quick view of Frankenstein')->wait(0.6)
-        ->click('Add to Library')
+        ->click('[aria-label="Add to Library"]')
         ->assertScript('window.__added', $this->media[0]->id);
 });
 
