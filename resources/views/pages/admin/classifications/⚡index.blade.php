@@ -253,13 +253,13 @@ new #[Title('Classification review')] class extends Component {
                     <h2 class="mt-2 text-lead text-ink">
                         <a href="{{ route('admin.media.edit', $row->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control hover:underline md:min-h-0">{{ $row->media->title }}</a>
                     </h2>
-                    <p class="text-meta text-ink-muted">
+                    <p class="text-meta text-ink-subtle">
                         {{ $row->media->mediaType->name }}@if ($row->media->publication_year) · {{ $row->media->publication_year }}@endif
                         @if ($row->media->creators->isNotEmpty()) · {{ $row->media->creators->pluck('name')->join(', ') }}@endif
                     </p>
                     <p class="mt-2 text-body text-ink-subtle">{{ $row->deweyClass->code }} · {{ $row->deweyClass->name }}</p>
                     @if ($row->reviewed_at)
-                        <p class="text-meta text-ink-muted">{{ __('Reviewed :date', ['date' => $row->reviewed_at->toFormattedDateString()]) }}</p>
+                        <p class="text-meta text-ink-subtle">{{ __('Reviewed :date', ['date' => $row->reviewed_at->toFormattedDateString()]) }}</p>
                     @endif
                 </div>
 

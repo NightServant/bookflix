@@ -93,7 +93,7 @@ new #[Title('Duplicates')] class extends Component {
                     @foreach ([$candidate->media, $candidate->duplicateMedia] as $side)
                         <div wire:key="candidate-{{ $candidate->id }}-{{ $side->id }}" class="flex flex-col">
                             <h2 class="text-lead text-ink">{{ $side->title }}</h2>
-                            <p class="mt-1 text-meta text-ink-muted">
+                            <p class="mt-1 text-meta text-ink-subtle">
                                 {{ $side->mediaType->name }}@if ($side->publication_year) · {{ $side->publication_year }}@endif
                                 @if ($side->creators->isNotEmpty()) · {{ $side->creators->pluck('name')->join(', ') }}@endif
                             </p>

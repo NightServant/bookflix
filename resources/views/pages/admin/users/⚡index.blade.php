@@ -76,7 +76,7 @@ new #[Title('Users')] class extends Component {
                     <flux:table.cell>
                         @if ($user->deactivated_at)
                             <flux:badge size="sm" color="zinc">{{ __('Deactivated') }}</flux:badge>
-                            <span class="ms-2 text-meta text-ink-muted">{{ $user->deactivated_at->toFormattedDateString() }}</span>
+                            <span class="ms-2 text-meta text-ink-subtle">{{ $user->deactivated_at->toFormattedDateString() }}</span>
                         @else
                             <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
                         @endif

@@ -125,10 +125,10 @@ new #[Title('Providers')] class extends Component {
                     <flux:table.cell>
                         <flux:badge size="sm" :color="match ($run->status->value) { 'succeeded' => 'green', 'partial' => 'amber', 'failed' => 'red', default => 'zinc' }">{{ $run->status->value }}</flux:badge>
                         @if ($run->error)
-                            <span class="ms-2 text-meta text-ink-muted">{{ $run->error }}</span>
+                            <span class="ms-2 text-meta text-ink-subtle">{{ $run->error }}</span>
                         @endif
                         @if (! empty($run->counts['failed_ids']))
-                            <details class="mt-1 text-meta text-ink-muted" data-test="failed-ids-{{ $run->id }}">
+                            <details class="mt-1 text-meta text-ink-subtle" data-test="failed-ids-{{ $run->id }}">
                                 <summary>{{ __('Failed ids (:count)', ['count' => count($run->counts['failed_ids'])]) }}</summary>
                                 <ul class="mt-1 space-y-0.5">
                                     @foreach ($run->counts['failed_ids'] as $failed)
