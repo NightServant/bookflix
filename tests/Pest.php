@@ -242,6 +242,16 @@ function search(string $query, ?SearchFilters $filters = null): LengthAwarePagin
 }
 
 /**
+ * Register the Phase 5 `library.store` route the Add to Library CTAs wait for, as the library will once it exists.
+ */
+function enableLibraryRoute(): void
+{
+    Route::middleware('web')->post('/library', fn () => response()->noContent())->name('library.store');
+
+    app('router')->getRoutes()->refreshNameLookups();
+}
+
+/**
  * Component acceptance harness, feature side: render Blade markup (`<x-cover-tile :media="$media" />`) to HTML.
  *
  * @param  array<string, mixed>  $data

@@ -64,21 +64,29 @@ test('the eyebrow is the media type and the first genre, then the title and a tw
         ->and(htmlQuery($html, '//article[@aria-label="1 of 2"]/p[contains(@class,"line-clamp-2")]')->length)->toBe(1);
 });
 
-test('each slide offers a primary start reading link and a filled add to library button', function () {
+test('each slide offers a primary view story link and, with the library route, a quiet add to library button', function () {
+    enableLibraryRoute();
     $slides = heroSlides(2);
     $html = renderHero(slides: $slides);
 
-    expect(htmlQuery($html, '//article[@aria-label="2 of 2"]//a[@href="'.route('stories.show', $slides[1]->slug).'"][normalize-space()="Start reading"]')->length)->toBe(1)
+    expect(htmlQuery($html, '//article[@aria-label="2 of 2"]//a[@href="'.route('stories.show', $slides[1]->slug).'"][normalize-space()="View story"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//article[@aria-label="2 of 2"]//button[normalize-space()="Add to Library"][contains(@class,"text-body!")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//article[@aria-label="2 of 2"]//a[contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//button[normalize-space()="Add to Library"][contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(0)
         ->and($html)->toContain('library-add');
 });
 
+test('a slide has no add to library button while the library route is missing', function () {
+    $html = renderHero(slides: heroSlides(2));
+
+    expect($html)->not->toContain('library-add')->not->toContain('Add to Library')
+        ->and(htmlQuery($html, '//article[@aria-label="1 of 2"]//a[normalize-space()="View story"]')->length)->toBe(1);
+});
+
 test('the cta slot replaces the two buttons', function () {
     $html = renderHero(slides: heroSlides(2), slot: '<x-slot:cta><a href="/explore">Browse the catalog</a></x-slot:cta>');
 
-    expect(htmlQuery($html, '//a[normalize-space()="Start reading"]')->length)->toBe(0)
+    expect(htmlQuery($html, '//a[normalize-space()="View story"]')->length)->toBe(0)
         ->and(htmlQuery($html, '//a[@href="/explore"]')->length)->toBe(2);
 });
 

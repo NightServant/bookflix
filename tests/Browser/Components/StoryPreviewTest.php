@@ -3,6 +3,8 @@
 use App\Models\Media;
 
 beforeEach(function () {
+    enableLibraryRoute();
+
     $this->media = Media::factory()->count(3)->novel()->sequence(
         ['title' => 'Frankenstein', 'slug' => 'frankenstein'],
         ['title' => 'Dracula', 'slug' => 'dracula'],
@@ -76,7 +78,7 @@ test('keyboard focus opens it after 300ms and the panel is in the tab order afte
         ->assertScript($this->isOpen, true)
         ->assertScript($this->expanded, 'true')
         ->keys(':focus', 'Tab')
-        ->assertScript('document.activeElement.textContent.trim()', 'Start reading')
+        ->assertScript('document.activeElement.textContent.trim()', 'View story')
         ->keys(':focus', 'Tab')
         ->assertScript('document.activeElement.textContent.trim()', 'Add to Library')
         ->assertScript($this->isOpen, true);
@@ -106,7 +108,7 @@ test('Escape in the panel closes it and returns focus to the trigger without reo
 
     $page->keys(':root', 'Tab')->wait(0.7)
         ->keys(':focus', 'Tab')
-        ->assertScript('document.activeElement.textContent.trim()', 'Start reading')
+        ->assertScript('document.activeElement.textContent.trim()', 'View story')
         ->keys(':focus', 'Escape')->wait(0.2)
         ->assertScript($this->isOpen, false)
         ->assertScript($this->focusedTile, true)

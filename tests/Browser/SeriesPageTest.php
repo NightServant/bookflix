@@ -17,7 +17,7 @@ beforeEach(function () {
 test('the series page passes the shared checks on desktop and on a phone', function () {
     foreach ([['width' => 1280, 'height' => 900], ['width' => 375, 'height' => 812]] as $viewport) {
         visit(route('series.show', $this->series->slug), ['viewport' => $viewport])->wait(1)
-            ->assertSee('Start with volume 1')
+            ->assertSee('See volume 1')
             ->assertSee('[01.5]')
             ->assertNoJavaScriptErrors()
             ->assertNoAccessibilityIssues();
@@ -28,7 +28,7 @@ test('the call to action opens volume 1 and the series link on the story page co
     $first = $this->series->orderedMedia()->first();
 
     $page = visit(route('series.show', $this->series->slug))->wait(1)
-        ->click('Start with volume 1')->wait(1)
+        ->click('See volume 1')->wait(1)
         ->assertPathIs('/stories/'.$first->slug)
         ->assertSee('Part of');
 

@@ -86,6 +86,7 @@ test('the visible 44px close button closes it and gives the focus back', functio
 });
 
 test('Add to Library announces the media', function () {
+    enableLibraryRoute();
     $page = visit($this->path, $this->phone)->wait(1);
 
     $page->script('window.addEventListener("library-add", (e) => (window.__added = e.detail.id))');

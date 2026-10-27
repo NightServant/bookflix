@@ -186,9 +186,11 @@ new #[Title('Story')] class extends Component {
 
             <x-rating-display :average="$media->average_rating" :count="$media->ratings_count" class="mt-3" />
 
-            <div class="mt-6">
-                <x-cta @click="$dispatch('library-add', { id: {{ $media->id }} })">{{ __('Add to Library') }}</x-cta>
-            </div>
+            @if (Route::has('library.store'))
+                <div class="mt-6">
+                    <x-cta @click="$dispatch('library-add', { id: {{ $media->id }} })">{{ __('Add to Library') }}</x-cta>
+                </div>
+            @endif
 
             @if ($neighbours)
                 <p class="mt-6 text-meta text-ink-subtle">

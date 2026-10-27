@@ -32,7 +32,7 @@ test('the panel is anchored to the trigger and expands with motion', function ()
     expect(htmlQuery($html, '//*[@*[name()="x-popover:panel"]][@*[name()="x-anchor.bottom-start.offset.8.fixed"]="$refs.trigger"][@*[name()="x-motion-expand"]="open"]')->length)->toBe(1);
 });
 
-test('the panel shows the cover, title, story facts, description and both ctas', function () {
+test('the panel shows the cover, title, story facts, description and the view story cta', function () {
     $html = renderStoryPreview(frankenstein());
     $panel = '//*[@role="dialog"]';
 
@@ -41,13 +41,17 @@ test('the panel shows the cover, title, story facts, description and both ctas',
         ->and(htmlQuery($html, "{$panel}//ul//li[normalize-space()='Novel']")->length)->toBe(1)
         ->and(htmlQuery($html, "{$panel}//ul//li[normalize-space()='1818']")->length)->toBe(1)
         ->and($html)->toContain('A young scientist builds a creature he cannot control.')
-        ->and(htmlQuery($html, "{$panel}//a[@href='".route('stories.show', 'frankenstein')."'][@data-flux-button][normalize-space()='Start reading']")->length)->toBe(1)
-        ->and(htmlQuery($html, "{$panel}//button[@data-flux-button][normalize-space()='Add to Library']")->length)->toBe(1);
+        ->and(htmlQuery($html, "{$panel}//a[@href='".route('stories.show', 'frankenstein')."'][@data-flux-button][normalize-space()='View story']")->length)->toBe(1)
+        ->and(htmlQuery($html, "{$panel}//button[@data-flux-button]")->length)->toBe(0)
+        ->and($html)->not->toContain('library-add')->not->toContain('Add to Library');
 });
 
-test('add to library announces the media id for the library to pick up', function () {
+test('once the library route exists the panel adds an add to library button that announces the media id', function () {
+    enableLibraryRoute();
     $media = frankenstein();
+    $html = renderStoryPreview($media);
 
+    expect(htmlQuery($html, "//*[@role='dialog']//button[@data-flux-button][normalize-space()='Add to Library']")->length)->toBe(1);
     expect(renderStoryPreview($media))->toContain("\$dispatch('library-add', { id: {$media->id} })");
 });
 

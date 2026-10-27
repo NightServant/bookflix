@@ -25,8 +25,8 @@ test('the dialog holds the story summary and is opened by the trigger of the sam
 
     expect($html)->toContain('modal-show')->toContain($name)
         ->and(htmlQuery($html, "//dialog[@data-modal='{$name}']//h2[normalize-space()='Frankenstein']")->length)->toBe(1)
-        ->and(htmlQuery($html, "//dialog[@data-modal='{$name}']//a[@href='".route('stories.show', 'frankenstein')."'][normalize-space()='Start reading']")->length)->toBe(1)
-        ->and(htmlQuery($html, "//dialog[@data-modal='{$name}']//button[normalize-space()='Add to Library']")->length)->toBe(1)
+        ->and(htmlQuery($html, "//dialog[@data-modal='{$name}']//a[@href='".route('stories.show', 'frankenstein')."'][normalize-space()='View story']")->length)->toBe(1)
+        ->and($html)->not->toContain('Add to Library')
         ->and($html)->toContain('A young scientist builds a creature he cannot control.');
 });
 

@@ -80,7 +80,7 @@ new #[Title('Series')] class extends Component {
     $series = $this->series;
     $volumes = $this->volumes;
     $first = $volumes->first();
-    $startLabel = $first && (float) $first->pivot->position === 1.0 ? __('Start with volume 1') : __('Start reading');
+    $startLabel = $first && (float) $first->pivot->position === 1.0 ? __('See volume 1') : __('See the first volume');
     $facts = collect([
         $volumes->isNotEmpty() ? trans_choice(':count volume|:count volumes', $volumes->count()) : null,
         $this->years,

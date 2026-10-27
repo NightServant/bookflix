@@ -71,7 +71,7 @@ test('the one primary call to action starts with volume 1', function () {
     $html = $this->actingAs(User::factory()->create())->get(route('series.show', $series->slug))->getContent();
 
     expect(htmlQuery($html, '//main//a[@data-flux-button][contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//a[@href="'.route('stories.show', $first->slug).'"][normalize-space()="Start with volume 1"]')->length)->toBe(1);
+        ->and(htmlQuery($html, '//a[@href="'.route('stories.show', $first->slug).'"][normalize-space()="See volume 1"]')->length)->toBe(1);
 });
 
 test('the header cover is the first volume and the only eager image, a missing cover falls back to its title', function () {
@@ -97,7 +97,7 @@ test('a series without volumes explains itself and offers the way on', function 
         ->assertOk()
         ->assertSee('No volumes yet')
         ->assertSee(route('explore.index'))
-        ->assertDontSee('Start with volume 1');
+        ->assertDontSee('See volume 1');
 });
 
 test('merged and deleted volumes stay off the page', function () {

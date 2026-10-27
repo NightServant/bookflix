@@ -56,6 +56,19 @@ test('the story page renders its sections', function () {
         ->assertSee('Adaptation');
 });
 
+test('the story page has no add to library cta until the library route exists', function () {
+    $m = fullMedia();
+    $url = route('stories.show', $m->slug);
+
+    $this->actingAs(User::factory()->create())->get($url)->assertOk()
+        ->assertDontSee('Add to Library')->assertDontSee('library-add');
+
+    enableLibraryRoute();
+
+    $this->actingAs(User::factory()->create())->get($url)->assertOk()
+        ->assertSee('Add to Library')->assertSee('library-add', false);
+});
+
 test('the page has one h1, the title, and sets the document title', function () {
     $m = fullMedia();
 

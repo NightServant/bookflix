@@ -93,7 +93,7 @@ test('landing to login to home to search to a story works on desktop and on a ph
         ->click('Sign in')->assertPathIs('/login')
         ->fill('email', $this->user->email)->fill('password', 'password')
         ->press('Log in')->wait(1.5)
-        ->assertPathIs('/home')->assertSee('Start reading');
+        ->assertPathIs('/home')->assertSee('View story');
 
     scrolledThrough($page);
     $page->assertSee('Trending Now')
@@ -115,14 +115,14 @@ test('Tab walks Home in reading order: header, hero, search panel, then the firs
 
     $stops = [];
 
-    foreach (range(1, 19) as $stop) {
+    foreach (range(1, 18) as $stop) {
         $stops[] = $page->script($this->focused);
         $page->keys(':focus', 'Tab');
     }
 
     expect($stops)->toBe([
         'a:Bookflix', 'a:Home', 'a:Discover', 'a:Search', 'a:Profile', 'button:Search', 'button:GR Gabe Reader',
-        'a:Start reading', 'button:Add to Library', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3', 'button:Show Panel Tale 4', 'button:Previous slide', 'button:Next slide',
+        'a:View story', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3', 'button:Show Panel Tale 4', 'button:Previous slide', 'button:Next slide',
         'input:combobox', 'a:Browse Discover',
         'a:See all in Trending Now', 'button:Next in Trending Now', 'a:Dune',
     ]);

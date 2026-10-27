@@ -7,7 +7,7 @@
     The short version of a story that <x-story-preview> (hover) and <x-quick-view> (touch) share: a small cover, the title,
     <x-story-info>, a three-line blurb and the two ctas. `title-id` is the id the surrounding dialog names itself by.
     Eager-load `mediaType` and `publicPrimaryDewey.deweyClass` on fetched media (story-info reads them).
-    "Add to Library" dispatches a `library-add` event with the media id (the library arrives in Phase 5), as <x-hero> does.
+    "Add to Library" dispatches a `library-add` event with the media id (rendered only once the Phase 5 `library.store` route exists), as <x-hero> does.
 --}}
 <div {{ $attributes }}>
     <div class="flex gap-4">
@@ -30,7 +30,9 @@
     </div>
 
     <div class="mt-4 flex flex-col gap-2">
-        <x-cta :href="route('stories.show', $media->slug)" wire:navigate class="w-full">{{ __('Start reading') }}</x-cta>
-        <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $media->id }} })" class="w-full">{{ __('Add to Library') }}</x-cta>
+        <x-cta :href="route('stories.show', $media->slug)" wire:navigate class="w-full">{{ __('View story') }}</x-cta>
+        @if (Route::has('library.store'))
+            <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $media->id }} })" class="w-full">{{ __('Add to Library') }}</x-cta>
+        @endif
     </div>
 </div>
