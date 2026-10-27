@@ -233,3 +233,31 @@ test('with reduced motion the panel appears at once, with no motion styles left 
             ->hover($this->away);
     }, ['reducedMotion' => 'reduce']);
 });
+
+test('inside a modal, Escape on a focused tile closes its preview first and the next Escape closes the modal', function () {
+    $path = componentPage(<<<'BLADE'
+        <flux:modal.trigger name="m"><button type="button">Open modal</button></flux:modal.trigger>
+        <flux:modal name="m">
+            <div class="w-40">
+                <x-story-preview :media="$media"><x-cover-tile :media="$media" /></x-story-preview>
+            </div>
+        </flux:modal>
+        BLADE, ['media' => $this->media[0]]);
+
+    $modalOpen = 'document.querySelector("dialog").open';
+    $previewOpen = 'getComputedStyle(document.querySelector("[x-popover] [role=dialog]")).display !== "none"';
+
+    $page = visit($path)->wait(1);
+
+    $page->click('Open modal')->wait(0.6)
+        ->assertScript($modalOpen, true)
+        ->keys('dialog [x-ref=trigger] a', 'Tab')
+        ->keys(':focus', 'Shift+Tab')->wait(0.7)
+        ->assertScript('document.activeElement === document.querySelector("dialog [x-ref=trigger] a")', true)
+        ->assertScript($previewOpen, true)
+        ->keys(':focus', 'Escape')->wait(0.3)
+        ->assertScript($previewOpen, false)
+        ->assertScript($modalOpen, true)
+        ->keys(':focus', 'Escape')->wait(0.5)
+        ->assertScript($modalOpen, false);
+});

@@ -12,6 +12,7 @@
     <div
         x-popover
         x-model="open"
+        @keydown.escape.capture="open || $event.stopPropagation()"
         @pointerenter="enter($event)"
         @pointerleave="leave($event)"
         @focusin="focus($event)"
