@@ -1,12 +1,5 @@
 @php
-    // A few of the most-rated stories with a cover, cached for an hour: the panel is decoration, so it must never cost a query per visit.
-    $books = \Illuminate\Support\Facades\Cache::remember('auth.showcase-books', now()->addHour(), fn () => \App\Models\Media::query()
-        ->trending()
-        ->whereNotNull('media.cover_url')
-        ->limit(3)
-        ->get(['media.id', 'media.title', 'media.cover_url'])
-        ->map(fn ($media) => ['title' => $media->title, 'cover' => $media->cover_url])
-        ->all());
+    $books = \App\Models\Media::showcaseCovers();
 
     // Centre book on top, the others fanned behind it; positions are the book's own centre offset in rem plus a roll.
     $fan = [['x' => '0rem', 'y' => '0rem', 'r' => '0deg', 'z' => 30], ['x' => '-7.5rem', 'y' => '1.25rem', 'r' => '-9deg', 'z' => 20], ['x' => '7.5rem', 'y' => '1.25rem', 'r' => '9deg', 'z' => 10]];

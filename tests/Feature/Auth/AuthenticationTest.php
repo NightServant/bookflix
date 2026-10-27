@@ -68,7 +68,7 @@ test('users can logout', function () {
 });
 
 test('the auth side panel shows the most-rated covers and caches them', function () {
-    Cache::forget('auth.showcase-books');
+    Cache::forget('media:showcase-covers:v1');
     Media::factory()->create(['title' => 'Most Rated Tale', 'ratings_count' => 500, 'cover_url' => 'https://example.com/a.jpg']);
     Media::factory()->create(['title' => 'Coverless Tale', 'ratings_count' => 900, 'cover_url' => null]);
 

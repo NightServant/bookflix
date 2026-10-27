@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Scout\Attributes\SearchUsingFullText;
@@ -166,6 +167,23 @@ class Media extends Model
         }
 
         return $media?->trashed() ? null : $media;
+    }
+
+    /**
+     * A few of the most-rated stories with a cover, as plain arrays cached for an hour, for decoration (the auth panel, empty states):
+     * a decorative book must never cost a query per visit.
+     *
+     * @return list<array{title: string, cover: string}>
+     */
+    public static function showcaseCovers(): array
+    {
+        return Cache::remember('media:showcase-covers:v1', now()->addHour(), fn (): array => array_values(static::query()
+            ->trending()
+            ->whereNotNull('media.cover_url')
+            ->limit(3)
+            ->get(['media.id', 'media.title', 'media.cover_url'])
+            ->map(fn (self $media): array => ['title' => $media->title, 'cover' => (string) $media->cover_url])
+            ->all()));
     }
 
     /**
