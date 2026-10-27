@@ -22,7 +22,7 @@
     {{ $attributes }}
 >
     <div class="flex items-baseline justify-between gap-4">
-        <span class="text-meta text-ink-subtle">{{ $label }}</span>
+        <span class="text-meta font-medium text-ink">{{ $label }}</span>
         <output class="text-meta tabular-nums text-ink" x-text="display.join(' – ')">{{ $min }} – {{ $max }}</output>
     </div>
 
