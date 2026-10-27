@@ -116,3 +116,10 @@ test('the rebuild command refills the search text', function () {
 
     expect($this->aot->fresh()->search_text)->toContain('shingeki no kyojin');
 });
+
+test('a search that fills a leg reports more results than it counts', function () {
+    Media::factory()->count(101)->sequence(fn ($sequence) => ['title' => 'Zebra Tale '.$sequence->index, 'search_text' => 'zebra tale'])->create();
+
+    expect(search('zebra')->hasMore)->toBeTrue()
+        ->and(search('berserk')->hasMore)->toBeFalse();
+});

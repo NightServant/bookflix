@@ -225,3 +225,12 @@ test('malformed UTF-8 in the URL renders instead of failing the log insert', fun
 
     expect(SearchQuery::count())->toBe(1);
 });
+
+test('a capped total reads as a lower bound', function () {
+    Media::factory()->count(101)->sequence(fn ($sequence) => ['title' => 'Zebra Tale '.$sequence->index, 'search_text' => 'zebra tale'])->create();
+    Media::factory()->create(['title' => 'Berserk', 'search_text' => 'berserk']);
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test('pages::search.index')->set('q', 'zebra')->assertSeeHtml('100+ stories')
+        ->set('q', 'berserk')->assertSee('1 story')->assertDontSee('1+ stor');
+});

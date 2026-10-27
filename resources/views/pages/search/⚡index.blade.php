@@ -306,7 +306,11 @@ new #[Title('Search')] class extends Component {
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <p role="status" data-test="result-count" class="text-meta text-ink-subtle">
                     @if ($this->isSearching)
-                        {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
+                        @if ($this->results instanceof \App\Discovery\Search\SearchResults && $this->results->hasMore)
+                            {{ __(':count+ stories', ['count' => $this->results->total()]) }}
+                        @else
+                            {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
+                        @endif
                     @endif
                 </p>
 

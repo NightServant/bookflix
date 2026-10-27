@@ -13,32 +13,38 @@ class HybridSearch
 {
     public const MAX_QUERY_LENGTH = 200;
 
+    /** Each leg's ranking ceiling; a leg that reaches it has more hits than it listed. */
+    public const LEG_LIMIT = 100;
+
     public function __construct(private KeywordLeg $keyword, private SubjectLeg $subject) {}
 
     /**
      * Every leg's hits, fused by reciprocal rank, one page of media in rank order. A blank or punctuation-only query runs nothing.
      *
-     * @return LengthAwarePaginator<int, Media>
+     * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
      */
-    public function search(string $query, SearchFilters $filters, ?User $user, int $perPage = 24): LengthAwarePaginator
+    public function search(string $query, SearchFilters $filters, ?User $user, int $perPage = 24): SearchResults
     {
         $page = Paginator::resolveCurrentPage();
         $query = $this->normalize($query);
 
-        $ranked = $query === '' ? [] : array_keys(Rrf::fuse(array_map(
-            fn (SearchLeg $leg): array => $leg->ids($query, $filters),
+        $lists = $query === '' ? [] : array_map(
+            fn (SearchLeg $leg): array => $leg->ids($query, $filters, self::LEG_LIMIT),
             [$this->keyword, $this->subject],
-        )));
+        );
+        $ranked = array_keys(Rrf::fuse($lists));
+        $hasMore = collect($lists)->contains(fn (array $ids): bool => count($ids) >= self::LEG_LIMIT);
 
         $pageIds = array_slice($ranked, ($page - 1) * $perPage, $perPage);
         $media = $pageIds === [] ? collect() : Media::query()->whereIn('id', $pageIds)->get()->keyBy('id');
 
-        return new LengthAwarePaginator(
+        return new SearchResults(
             collect($pageIds)->map(fn (int $id) => $media->get($id))->filter()->values(),
             count($ranked),
             $perPage,
             $page,
             ['path' => Paginator::resolveCurrentPath()],
+            $hasMore,
         );
     }
 
