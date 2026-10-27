@@ -44,9 +44,12 @@
                 {{ $slot }}
             </div>
 
-            <flux:modal.close>
-                <x-cta icon="check" class="w-full">{{ __('Show results') }}</x-cta>
-            </flux:modal.close>
+            {{-- Stays at the foot of the sheet however far the filters scroll. --}}
+            <div class="sticky bottom-0 -mb-px bg-surface-card pb-1 pt-3">
+                <flux:modal.close>
+                    <x-cta icon="check" class="w-full">{{ __('Show results') }}</x-cta>
+                </flux:modal.close>
+            </div>
         </div>
     </flux:modal>
 </div>
