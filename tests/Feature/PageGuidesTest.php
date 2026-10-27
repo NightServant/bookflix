@@ -99,3 +99,11 @@ test('verify email and confirm password pages guide the reader', function () {
     $html = $this->actingAs(User::factory()->create())->get('/user/confirm-password')->getContent();
     expect(guideAfterH1($html))->not->toBe('');
 });
+
+test('a shelf shows its one-line helper under the title only when given one', function () {
+    $with = renderedComponent('<x-shelf title="Trending Now" description="The most popular stories."><li>One</li></x-shelf>');
+    $without = renderedComponent('<x-shelf title="Trending Now"><li>One</li></x-shelf>');
+
+    expect(htmlQuery($with, '//h2[normalize-space()="Trending Now"]/following-sibling::p[normalize-space()="The most popular stories."]')->length)->toBe(1)
+        ->and(htmlQuery($without, '//h2/following-sibling::p')->length)->toBe(0);
+});

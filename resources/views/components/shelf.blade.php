@@ -2,6 +2,7 @@
     'title',
     'href' => null,
     'eyebrow' => null,
+    'description' => null,
     'featured' => false,
     'id' => null,
     'bleed' => false,
@@ -17,6 +18,7 @@
     On a bleed shelf only the band is full width: the track keeps the header's gutters as its margins and clips there, so no cover
     ever shows in the side margins, and the first tile sits on the logo's edge. The track reaches 0.25rem past each gutter and pads that
     much back in (with a matching `scroll-padding`), so the 4px focus ring of an outermost tile is inside the clip box while the tiles stay on the gutter.
+    `description` is an optional one-line helper under the title (`text-meta text-ink-subtle`) for a shelf whose purpose is not self-evident.
     `previews` (a name, unique per page) wraps the shelf in <x-story-previews> for its <x-story-preview> tiles, which then share one preview card and one quick view dialog.
     The card sits outside the track, so the mask (which makes the track a stacking context at `z-10`) never clips it and it lands over the shelf beneath.
     The arrows sit outside the track and stay opaque.
@@ -48,6 +50,9 @@
                     <p class="text-legal uppercase tracking-widest text-ink-subtle">{{ $eyebrow }}</p>
                 @endif
                 <h2 id="{{ $headingId }}" class="{{ $bleed ? 'text-section' : 'text-lead' }} text-ink">{{ $title }}</h2>
+                @if ($description)
+                    <p class="mt-1 text-meta text-ink-subtle">{{ $description }}</p>
+                @endif
             </div>
 
             <div class="flex shrink-0 items-center gap-2">

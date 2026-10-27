@@ -1,5 +1,6 @@
 @props([
     'title',
+    'description' => null,
     'key' => null,
     'featured' => false,
     'kind' => 'covers',
@@ -24,7 +25,12 @@
     ]) }}
 >
     <div @class(['flex min-h-11 items-end justify-between gap-4', 'px-gutter' => $bleed])>
-        <h2 class="{{ $bleed ? 'text-section' : 'text-lead' }} text-ink">{{ $title }}</h2>
+        <div class="min-w-0">
+            <h2 class="{{ $bleed ? 'text-section' : 'text-lead' }} text-ink">{{ $title }}</h2>
+            @if ($description)
+                <p class="mt-1 text-meta text-ink-subtle">{{ $description }}</p>
+            @endif
+        </div>
     </div>
 
     <ul @class(['mt-3 flex gap-4 overflow-hidden motion-safe:animate-pulse', '-mx-1 p-1' => ! $bleed, 'mx-gutter py-1' => $bleed])>

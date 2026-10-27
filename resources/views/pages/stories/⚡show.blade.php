@@ -332,7 +332,7 @@ new #[Title('Story')] class extends Component {
     </x-tabs>
 
     @if ($this->similar->isNotEmpty())
-        <x-shelf :title="__('More Like This')" previews="quick-view-similar" class="mt-12">
+        <x-shelf :title="__('More Like This')" :description="__('Stories that share this one’s genres and themes. Open one to keep going.')" previews="quick-view-similar" class="mt-12">
             @foreach ($this->similar as $similar)
                 <li wire:key="similar-{{ $similar->id }}" class="shrink-0">
                     <x-story-preview :media="$similar">

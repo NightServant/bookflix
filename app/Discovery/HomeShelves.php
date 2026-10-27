@@ -17,12 +17,12 @@ class HomeShelves
     /**
      * The shelves in the order they appear, with their titles and which one is featured; the skeletons read this too.
      *
-     * @var array<string, array{title: string, featured: bool}>
+     * @var array<string, array{title: string, featured: bool, description: string}>
      */
     public const SHELVES = [
-        'trending' => ['title' => 'Trending Now', 'featured' => true],
-        'new-releases' => ['title' => 'New Releases', 'featured' => false],
-        'explore-by-subject' => ['title' => 'Explore by Subject', 'featured' => false],
+        'trending' => ['title' => 'Trending Now', 'featured' => true, 'description' => 'The most popular stories in the catalog right now.'],
+        'new-releases' => ['title' => 'New Releases', 'featured' => false, 'description' => 'The latest stories added to the catalog.'],
+        'explore-by-subject' => ['title' => 'Explore by Subject', 'featured' => false, 'description' => 'Dewey classes, from the 000s to the 900s.'],
     ];
 
     private const CACHE_MINUTES = 10;
