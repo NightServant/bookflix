@@ -345,5 +345,6 @@ test('the panel does not send readers away from their results, and the pager doe
     $html = Livewire::test('pages::search.index')->set('q', 'berserk')->html();
 
     expect($html)->not->toContain('Browse Discover')
-        ->and(htmlQuery($html, '//*[@data-flux-pagination][contains(@class,"first-child]:hidden")]')->length)->toBe(1);
+        ->and(htmlQuery($html, '//nav[@data-pager]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//nav[@data-pager]')->item(0)->textContent)->toContain('Page 1')->not->toContain('Showing')->not->toContain('results');
 });

@@ -393,7 +393,7 @@ new #[Title('Discover')] class extends Component {
                         @endforeach
                     </ul>
 
-                    <flux:pagination :paginator="$this->results" class="mt-8" />
+                    <x-pager :paginator="$this->results" class="mt-8" />
                 @else
                     <div class="mt-6 max-w-prose">
                         <p class="text-body text-ink-subtle">{{ __('No story has both of those. Drop a filter to see more.') }}</p>

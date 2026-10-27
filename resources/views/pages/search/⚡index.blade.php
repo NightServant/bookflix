@@ -404,7 +404,7 @@ new #[Title('Search')] class extends Component {
                     </ul>
                 @endif
 
-                <flux:pagination :paginator="$this->results" class="mt-8 [&>:first-child]:hidden [&>:not(:first-child)]:mx-auto" />
+                <x-pager :paginator="$this->results" class="mt-8" />
             @elseif ($this->throttled)
                 <div class="mt-12 max-w-prose">
                     <h2 class="text-section text-ink">{{ __('Searching a little too fast') }}</h2>

@@ -133,7 +133,7 @@ new #[Title('Explore the Library')] class extends Component {
                     @endforeach
                 </ul>
 
-                <flux:pagination :paginator="$this->stories" class="mt-8" />
+                <x-pager :paginator="$this->stories" class="mt-8" />
             @endif
         </section>
     </div>

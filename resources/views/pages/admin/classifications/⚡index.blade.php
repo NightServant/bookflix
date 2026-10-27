@@ -289,7 +289,7 @@ new #[Title('Classification review')] class extends Component {
     </ul>
 
     <div class="mt-6">
-        <flux:pagination :paginator="$this->rows" />
+        <x-pager :paginator="$this->rows" />
     </div>
 
     <flux:modal name="class-editor" class="w-full max-w-lg" aria-labelledby="class-editor-title">

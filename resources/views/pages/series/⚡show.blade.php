@@ -182,7 +182,7 @@ new #[Title('Series')] class extends Component {
                     </ul>
 
                     @if ($volumes->hasPages())
-                        <flux:pagination :paginator="$volumes" class="mt-8 [&>:first-child]:hidden [&>:not(:first-child)]:mx-auto" />
+                        <x-pager :paginator="$volumes" class="mt-8" />
                     @endif
                 @else
                     <div class="mt-4 max-w-prose">

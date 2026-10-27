@@ -111,6 +111,6 @@ new #[Title('Duplicates')] class extends Component {
     </div>
 
     <div class="mt-6">
-        <flux:pagination :paginator="$this->candidates" />
+        <x-pager :paginator="$this->candidates" />
     </div>
 </section>
