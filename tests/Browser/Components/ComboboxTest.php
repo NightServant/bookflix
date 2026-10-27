@@ -90,7 +90,7 @@ test('multiple mode keeps the list open, shows removable chips and removes them 
         ->assertScript(($this->in)('multiple', 'root.querySelector("ul[role=listbox]").getAttribute("aria-multiselectable")'), 'true')
         ->assertScript(($this->in)('multiple', 'root.querySelector("[role=combobox]").hasAttribute("aria-multiselectable")'), false)
         ->assertScript(($this->in)('multiple', 'Array.from(root.querySelectorAll("ul[aria-label=Selected] li")).filter((li) => li.offsetParent !== null).map((li) => li.textContent.trim()).join("|")'), 'Fantasy|Mystery')
-        ->assertScript(($this->in)('multiple', 'root.querySelector("[aria-label=\"Remove Fantasy\"]").getBoundingClientRect().height >= 44'), true)
+        ->assertScript(($this->in)('multiple', 'root.querySelector("[aria-label=\"Remove Fantasy\"]").getBoundingClientRect().height === 36'), true)
         ->click('[data-test=multiple] [aria-label="Remove Fantasy"]')
         ->wait(0.3)
         ->assertScript(($this->out)('genres'), 'mystery')

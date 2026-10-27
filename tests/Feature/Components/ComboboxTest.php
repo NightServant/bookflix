@@ -34,7 +34,7 @@ test('multiple mode adds the multiple flag and a list of removable chips', funct
         ->and(htmlQuery($single, '//button[@*[name()=":aria-label"]]')->length)->toBe(0)
         ->and(htmlQuery($multiple, '//*[@x-combobox][@multiple]')->length)->toBe(1)
         ->and(htmlQuery($multiple, '//ul[@aria-label="Selected"]//template[@x-for]//li[contains(@class,"rounded-full")]')->length)->toBe(1)
-        ->and(htmlQuery($multiple, '//li//button[@type="button"][contains(@*[name()=":aria-label"],"Remove")][contains(@class,"size-11")]')->length)->toBe(1);
+        ->and(htmlQuery($multiple, '//li//button[@type="button"][contains(@*[name()=":aria-label"],"Remove")][contains(@class,"size-9")]')->length)->toBe(1);
 });
 
 test('model attributes land on the combobox element and the rest on the wrapper', function () {

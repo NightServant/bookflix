@@ -251,7 +251,6 @@ new #[Title('Discover')] class extends Component {
         ['label' => __('Browse by subject'), 'route' => 'explore.index', 'icon' => 'squares-2x2'],
         ['label' => __('Filter the catalog'), 'route' => 'search', 'icon' => 'adjustments-horizontal'],
     ])->filter(fn (array $link): bool => Route::has($link['route']))->values()->all();
-    $chip = 'focus-ring inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-meta';
 @endphp
 
 <section class="pt-2 pb-12 lg:pt-6">
@@ -280,11 +279,11 @@ new #[Title('Discover')] class extends Component {
                 <nav aria-label="{{ __('Format families') }}" class="mt-4">
                     <ul class="flex flex-wrap gap-2">
                         <li>
-                            <a href="{{ route('discover') }}" wire:navigate @if ($this->activeFamily === null) aria-current="true" @endif class="{{ $chip }} {{ $this->activeFamily === null ? 'bg-ink text-canvas' : 'bg-surface-input text-ink hover:bg-hairline' }}">{{ __('All formats') }}</a>
+                            <x-chip :href="route('discover')" wire:navigate :active="$this->activeFamily === null">{{ __('All formats') }}</x-chip>
                         </li>
                         @foreach ($this->families as $family)
                             <li wire:key="family-{{ $family->value }}">
-                                <a href="{{ route('discover', ['family' => $family->value]) }}" wire:navigate @if ($this->activeFamily === $family) aria-current="true" @endif class="{{ $chip }} {{ $this->activeFamily === $family ? 'bg-ink text-canvas' : 'bg-surface-input text-ink hover:bg-hairline' }}">{{ $this->familyLabel($family) }}</a>
+                                <x-chip :href="route('discover', ['family' => $family->value])" wire:navigate :active="$this->activeFamily === $family">{{ $this->familyLabel($family) }}</x-chip>
                             </li>
                         @endforeach
                     </ul>
@@ -329,16 +328,10 @@ new #[Title('Discover')] class extends Component {
                     @foreach ($this->genres as $genre)
                         @php $isActive = $this->activeGenre?->is($genre) ?? false; @endphp
                         <li wire:key="genre-{{ $genre->id }}">
-                            <a
-                                href="{{ $this->linkTo(['genre' => $isActive ? null : $genre->slug]) }}"
-                                wire:navigate
-                                data-genre-chip
-                                @if ($isActive) aria-current="true" @endif
-                                class="{{ $chip }} {{ $isActive ? 'bg-ink text-canvas' : 'bg-surface-input text-ink hover:bg-hairline' }}"
-                            >
+                            <x-chip :href="$this->linkTo(['genre' => $isActive ? null : $genre->slug])" wire:navigate data-genre-chip :active="$isActive">
                                 <span>{{ $genre->name }}</span>
                                 <span class="tabular-nums {{ $isActive ? 'text-canvas' : 'text-ink-subtle' }}">{{ number_format($genre->media_count) }}</span>
-                            </a>
+                            </x-chip>
                         </li>
                     @endforeach
                 </ul>

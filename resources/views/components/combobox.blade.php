@@ -37,13 +37,13 @@
         @if ($multiple)
             <ul aria-label="{{ __('Selected') }}" x-show="$combobox.value.length" style="display: none" class="mb-2 flex flex-wrap gap-2">
                 <template x-for="value in $combobox.value" :key="value">
-                    <li class="inline-flex items-center rounded-full bg-surface-input ps-4 text-meta text-ink">
+                    <li class="inline-flex h-9 items-center rounded-full bg-surface-input ps-3 text-meta text-ink">
                         <span x-text="labelFor(value)"></span>
                         <button
                             type="button"
                             :aria-label="@js(__('Remove')) + ' ' + labelFor(value)"
                             @click="remove(value)"
-                            class="focus-ring inline-flex size-11 items-center justify-center rounded-full text-ink-subtle hover:text-ink"
+                            class="focus-ring relative inline-flex size-9 items-center justify-center rounded-full text-ink-subtle after:absolute after:-inset-y-1 after:-inset-x-0.5 after:content-[''] hover:text-ink"
                         >
                             <flux:icon name="x-mark" class="size-4" />
                         </button>

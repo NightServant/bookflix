@@ -340,13 +340,13 @@ new #[Title('Search')] class extends Component {
             @if ($this->chips !== [])
                 <ul aria-label="{{ __('Active filters') }}" class="mt-4 flex flex-wrap items-center gap-2">
                     @foreach ($this->chips as $chip)
-                        <li wire:key="chip-{{ $chip['group'] }}-{{ $chip['value'] }}" class="inline-flex items-center rounded-full bg-surface-input ps-4 text-meta text-ink">
+                        <li wire:key="chip-{{ $chip['group'] }}-{{ $chip['value'] }}" class="inline-flex h-9 items-center rounded-full bg-surface-input ps-3 text-meta text-ink">
                             <span>{{ $chip['label'] }}</span>
                             <button
                                 type="button"
                                 wire:click="removeFilter('{{ $chip['group'] }}', @js($chip['value']))"
                                 aria-label="{{ __('Remove filter :label', ['label' => $chip['label']]) }}"
-                                class="focus-ring inline-flex size-11 items-center justify-center rounded-full text-ink-subtle hover:text-ink"
+                                class="focus-ring relative inline-flex size-9 items-center justify-center rounded-full text-ink-subtle after:absolute after:-inset-y-1 after:-inset-x-0.5 after:content-[''] hover:text-ink"
                             >
                                 <flux:icon name="x-mark" class="size-4" />
                             </button>

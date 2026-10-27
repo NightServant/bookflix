@@ -141,7 +141,6 @@ new #[Title('Story')] class extends Component {
         + ($media->relations->isNotEmpty() ? ['related' => __('Related')] : []);
     // Until the series page exists (Phase 4.5) a series is named, not linked.
     $linkSeries = Route::has('series.show');
-    $chip = 'focus-ring inline-flex min-h-11 items-center rounded-full bg-surface-input px-4 text-meta text-ink hover:bg-hairline';
 @endphp
 
 <section class="py-12" x-data>
@@ -266,7 +265,7 @@ new #[Title('Story')] class extends Component {
                             <ul class="mt-2 flex flex-wrap gap-2">
                                 @foreach ($items as $item)
                                     <li wire:key="{{ $group }}-{{ $item->id }}">
-                                        <a href="{{ $link($item) }}" wire:navigate class="{{ $chip }}">{{ $item->name }}</a>
+                                        <x-chip :href="$link($item)" wire:navigate>{{ $item->name }}</x-chip>
                                     </li>
                                 @endforeach
                             </ul>
