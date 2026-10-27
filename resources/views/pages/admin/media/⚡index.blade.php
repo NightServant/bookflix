@@ -51,14 +51,13 @@ new #[Title('Media')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
-    <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <x-page-header class="mt-2" :title="__('Media')" :description="__('Every story in the catalog. Search for a title, then open it to correct its details or remove an invalid record.')" />
+<section class="py-8">
+    <x-admin-header :back="route('admin.index')" :title="__('Media')" :description="__('Every story in the catalog. Search for a title, then open it to correct its details or remove an invalid record.')" />
 
-    <div class="mt-6 flex flex-wrap items-center gap-4">
-        <flux:input class="max-w-sm" type="search" icon="magnifying-glass" wire:model.live.debounce.300ms="search" :placeholder="__('Search titles')" />
+    <x-admin-toolbar>
+        <flux:input class="max-w-sm" type="search" icon="magnifying-glass" icon:variant="outline" wire:model.live.debounce.300ms="search" :placeholder="__('Search titles')" :aria-label="__('Search titles')" />
         <flux:checkbox wire:model.live="trashed" :label="__('Show removed and merged')" />
-    </div>
+    </x-admin-toolbar>
 
     <flux:table class="mt-6" :paginate="$this->media">
         <flux:table.columns>
@@ -86,7 +85,7 @@ new #[Title('Media')] class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="text-ink-muted">{{ __('No media found.') }}</flux:table.cell>
+                    <flux:table.cell colspan="5"><x-admin-empty icon="book-open" :title="__('No media found')" :description="__('Try another title, or switch the removed and merged filter.')" /></flux:table.cell>
                 </flux:table.row>
             @endforelse
         </flux:table.rows>

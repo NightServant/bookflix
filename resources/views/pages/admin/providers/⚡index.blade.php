@@ -68,9 +68,8 @@ new #[Title('Providers')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
-    <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <x-page-header class="mt-2" :title="__('Providers')" :description="__('Metadata sources that fill the catalog. Enable a source, then sync it now to pull its latest records.')" />
+<section class="py-8">
+    <x-admin-header :back="route('admin.index')" :title="__('Providers')" :description="__('Metadata sources that fill the catalog. Enable a source, then sync it now to pull its latest records.')" />
 
     <flux:table class="mt-6">
         <flux:table.columns>
@@ -101,7 +100,8 @@ new #[Title('Providers')] class extends Component {
         </flux:table.rows>
     </flux:table>
 
-    <h2 class="mt-12 text-lead text-ink">{{ __('Recent runs') }}</h2>
+    <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('Recent runs') }}</h2>
+    <p class="mt-1 text-meta text-ink-subtle">{{ __('The last 20 syncs, newest first.') }}</p>
 
     <flux:table class="mt-4">
         <flux:table.columns>
@@ -145,7 +145,7 @@ new #[Title('Providers')] class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="10" class="text-ink-muted">{{ __('No runs yet.') }}</flux:table.cell>
+                    <flux:table.cell colspan="10"><x-admin-empty icon="arrow-path" :title="__('No runs yet')" :description="__('Enable a source and choose Sync now to start the first one.')" /></flux:table.cell>
                 </flux:table.row>
             @endforelse
         </flux:table.rows>

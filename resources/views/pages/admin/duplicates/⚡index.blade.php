@@ -78,13 +78,12 @@ new #[Title('Duplicates')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
-    <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <x-page-header class="mt-2" :title="__('Duplicate review')" :description="__('Pairs the sync found similar but not certain. Keep one record to merge the other into it, or mark the pair as not a duplicate.')" />
+<section class="py-8">
+    <x-admin-header :back="route('admin.index')" :title="__('Duplicate review')" :description="__('Pairs the sync found similar but not certain. Keep one record to merge the other into it, or mark the pair as not a duplicate.')" />
 
     <div class="mt-6 space-y-6">
         @forelse ($this->candidates as $candidate)
-            <article wire:key="candidate-{{ $candidate->id }}" class="rounded-lg bg-surface-card p-6">
+            <article wire:key="candidate-{{ $candidate->id }}" class="rounded-card bg-surface-card p-5 sm:p-6">
                 <div class="flex items-center justify-between">
                     <flux:badge size="sm" color="amber">{{ __(':score% similar', ['score' => round($candidate->score * 100)]) }}</flux:badge>
                     <flux:button size="sm" variant="filled" icon="x-mark" icon:variant="outline" wire:click="dismiss({{ $candidate->id }})">{{ __('Not a duplicate') }}</flux:button>
@@ -107,7 +106,7 @@ new #[Title('Duplicates')] class extends Component {
                 </div>
             </article>
         @empty
-            <p class="text-body text-ink-muted">{{ __('No pending duplicates.') }}</p>
+            <x-admin-empty class="rounded-card bg-surface-card" icon="square-2-stack" :title="__('No pending duplicates')" :description="__('Every similar pair has been reviewed. New ones appear here after the next sync.')" />
         @endforelse
     </div>
 

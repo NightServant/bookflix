@@ -229,15 +229,16 @@ new #[Title('Classification review')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
-    <flux:button variant="ghost" size="sm" icon="arrow-left" class="focus-ring" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <x-page-header class="mt-2" :title="__('Classification review')" :description="__('Classes the sync suggested for each story, least confident first. Accept or reject each one: accepted classes show on the shelves, rejected ones never do.')" />
+<section class="py-8">
+    <x-admin-header :back="route('admin.index')" :title="__('Classification review')" :description="__('Classes the sync suggested for each story, least confident first. Accept or reject each one: accepted classes show on the shelves, rejected ones never do.')" />
 
-    <flux:select class="mt-6 max-w-xs" wire:model.live="status" :label="__('Status')">
-        <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>
-        <flux:select.option value="accepted">{{ __('Accepted') }}</flux:select.option>
-        <flux:select.option value="rejected">{{ __('Rejected') }}</flux:select.option>
-    </flux:select>
+    <x-admin-toolbar>
+        <flux:select class="max-w-xs" wire:model.live="status" :aria-label="__('Status')">
+            <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>
+            <flux:select.option value="accepted">{{ __('Accepted') }}</flux:select.option>
+            <flux:select.option value="rejected">{{ __('Rejected') }}</flux:select.option>
+        </flux:select>
+    </x-admin-toolbar>
 
     <ul class="mt-6 space-y-4">
         @forelse ($this->rows as $row)
@@ -265,25 +266,25 @@ new #[Title('Classification review')] class extends Component {
                 @php($subject = $row->deweyClass->code.' '.$row->deweyClass->name)
                 <div class="mt-4 flex flex-wrap items-center gap-2 md:mt-0">
                     @if ($row->review_status !== ReviewStatus::Accepted)
-                        <flux:button variant="filled" size="sm" icon="check" class="focus-ring min-h-11 md:min-h-0" wire:click="accept({{ $row->id }})" :aria-label="__('Accept :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Accept') }}</flux:button>
+                        <flux:button variant="filled" size="sm" icon="check" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="accept({{ $row->id }})" :aria-label="__('Accept :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Accept') }}</flux:button>
                     @endif
                     @if ($row->review_status !== ReviewStatus::Rejected)
-                        <flux:button variant="filled" size="sm" icon="x-mark" class="focus-ring min-h-11 md:min-h-0" wire:click="reject({{ $row->id }})" :aria-label="__('Reject :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Reject') }}</flux:button>
+                        <flux:button variant="filled" size="sm" icon="x-mark" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="reject({{ $row->id }})" :aria-label="__('Reject :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Reject') }}</flux:button>
                     @endif
-                    <flux:button variant="filled" size="sm" icon="arrows-right-left" class="focus-ring min-h-11 md:min-h-0" wire:click="openChange({{ $row->id }})" :aria-label="__('Change :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Change') }}</flux:button>
+                    <flux:button variant="filled" size="sm" icon="arrows-right-left" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="openChange({{ $row->id }})" :aria-label="__('Change :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Change') }}</flux:button>
 
                     <flux:dropdown position="bottom" align="end">
-                        <flux:button variant="filled" size="sm" icon:trailing="chevron-down" class="focus-ring min-h-11 md:min-h-0" :aria-label="__('More actions for :class on :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('More') }}</flux:button>
+                        <flux:button variant="filled" size="sm" icon:trailing="chevron-down" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" :aria-label="__('More actions for :class on :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('More') }}</flux:button>
 
                         <flux:menu>
-                            <flux:menu.item icon="plus" class="focus-ring min-h-11 md:min-h-0" wire:click="openAdd({{ $row->media_id }})">{{ __('Add class') }}</flux:menu.item>
-                            <flux:menu.item icon="trash" class="focus-ring min-h-11 md:min-h-0" wire:click="remove({{ $row->id }})" wire:confirm="{{ __('Remove :class from this story?', ['class' => $row->deweyClass->code]) }}">{{ __('Remove class') }}</flux:menu.item>
+                            <flux:menu.item icon="plus" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="openAdd({{ $row->media_id }})">{{ __('Add class') }}</flux:menu.item>
+                            <flux:menu.item icon="trash" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="remove({{ $row->id }})" wire:confirm="{{ __('Remove :class from this story?', ['class' => $row->deweyClass->code]) }}">{{ __('Remove class') }}</flux:menu.item>
                         </flux:menu>
                     </flux:dropdown>
                 </div>
             </li>
         @empty
-            <li class="text-body text-ink-muted">{{ __('Nothing to review here.') }}</li>
+            <li><x-admin-empty class="rounded-card bg-surface-card" icon="check-circle" :title="__('Nothing to review here')" :description="__('Classes the sync suggests will queue up under Pending.')" /></li>
         @endforelse
     </ul>
 

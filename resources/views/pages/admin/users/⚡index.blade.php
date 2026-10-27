@@ -44,11 +44,12 @@ new #[Title('Users')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
-    <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <x-page-header class="mt-2" :title="__('Users')" :description="__('Everyone with an account. Search by name or email to find a person.')" />
+<section class="py-8">
+    <x-admin-header :back="route('admin.index')" :title="__('Users')" :description="__('Everyone with an account. Search by name or email to find a person.')" />
 
-    <flux:input class="mt-6 max-w-sm" type="search" icon="magnifying-glass" wire:model.live.debounce.300ms="search" :placeholder="__('Search name or email')" />
+    <x-admin-toolbar>
+        <flux:input class="max-w-sm" type="search" icon="magnifying-glass" icon:variant="outline" wire:model.live.debounce.300ms="search" :placeholder="__('Search name or email')" :aria-label="__('Search name or email')" />
+    </x-admin-toolbar>
 
     <flux:table class="mt-6" :paginate="$this->users">
         <flux:table.columns>
@@ -83,7 +84,7 @@ new #[Title('Users')] class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="6" class="text-ink-muted">{{ __('No users found.') }}</flux:table.cell>
+                    <flux:table.cell colspan="6"><x-admin-empty icon="users" :title="__('No users found')" :description="__('Try a different name or email.')" /></flux:table.cell>
                 </flux:table.row>
             @endforelse
         </flux:table.rows>
