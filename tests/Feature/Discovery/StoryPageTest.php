@@ -323,3 +323,28 @@ test('the series tab starts at the first volume when this one is near the start'
 
     expect(htmlQuery($html, '//*[@data-index]')->length)->toBe(7);
 });
+
+test('a story in a 300 volume series hydrates at most eleven volumes and stays within the query budget', function () {
+    $series = Series::factory()->create();
+    $volumes = Media::factory()->count(300)->create();
+    DB::table('media_series')->insert($volumes->values()->map(fn (Media $volume, int $i): array => [
+        'media_id' => $volume->id, 'series_id' => $series->id, 'position' => $i + 1, 'created_at' => now(), 'updated_at' => now(),
+    ])->all());
+    $middle = $volumes[149];
+    $this->actingAs(User::factory()->create());
+
+    // The similar shelf is its own (capped) list; what the series adds to the page must be the window only.
+    $shelf = app(SimilarMedia::class)->for($middle)->pluck('id')->all();
+    $hydrated = [];
+    Media::retrieved(function (Media $media) use (&$hydrated): void {
+        $hydrated[$media->id] = true;
+    });
+    DB::enableQueryLog();
+
+    $this->get(route('stories.show', $middle->slug))->assertOk()
+        ->assertSee('All 300 volumes')
+        ->assertSeeInOrder([$volumes[148]->title, $volumes[150]->title]);
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25)
+        ->and(count(array_diff(array_keys($hydrated), $shelf)))->toBeLessThanOrEqual(11);
+});

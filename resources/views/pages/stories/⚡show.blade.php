@@ -53,7 +53,7 @@ new #[Title('Story')] class extends Component {
             'genres',
             'themes',
             'tags',
-            'series.orderedMedia',
+            'series' => fn ($series) => $series->withCount('media as volumes_count'),
             'relations',
             'externalIds.externalSource',
         ])->findOrFail($this->mediaId);
@@ -92,6 +92,17 @@ new #[Title('Story')] class extends Component {
     }
 
     /**
+     * For each series of the story, the five volumes either side of it: all the page shows of a series (the count is `volumes_count`).
+     *
+     * @return array<int, Collection<int, Media>>
+     */
+    #[Computed]
+    public function seriesWindows(): array
+    {
+        return $this->media->series->mapWithKeys(fn (Series $series): array => [$series->id => $series->window($this->media)])->all();
+    }
+
+    /**
      * The story before and after this one in its first series, or null for a standalone story.
      *
      * @return array{series: Series, previous: Media|null, next: Media|null}|null
@@ -105,7 +116,7 @@ new #[Title('Story')] class extends Component {
             return null;
         }
 
-        $volumes = $series->orderedMedia->values();
+        $volumes = $this->seriesWindows[$series->id]->values();
         $index = $volumes->search(fn (Media $volume): bool => $volume->is($this->media));
 
         return [
@@ -314,9 +325,7 @@ new #[Title('Story')] class extends Component {
 
                             @php
                                 // Five volumes either side of this one; the series page has the rest.
-                                $volumes = $series->orderedMedia->values();
-                                $at = $volumes->search(fn ($volume) => $volume->is($media));
-                                $window = $at === false ? $volumes->take(11) : $volumes->slice(max(0, $at - 5), min($at, 5) + 6);
+                                $window = $this->seriesWindows[$series->id];
                             @endphp
 
                             <ul class="mt-2">
@@ -327,9 +336,9 @@ new #[Title('Story')] class extends Component {
                                 @endforeach
                             </ul>
 
-                            @if ($linkSeries && $volumes->count() > $window->count())
+                            @if ($linkSeries && $series->volumes_count > $window->count())
                                 <a href="{{ route('series.show', $series->slug) }}" wire:navigate class="focus-ring mt-2 inline-flex min-h-11 items-center gap-1 rounded-control text-meta text-link hover:underline">
-                                    {{ trans_choice('All :count volume|All :count volumes', $volumes->count()) }}<flux:icon name="arrow-right" variant="micro" class="size-4" />
+                                    {{ trans_choice('All :count volume|All :count volumes', $series->volumes_count) }}<flux:icon name="arrow-right" variant="micro" class="size-4" />
                                 </a>
                             @endif
                         </section>
