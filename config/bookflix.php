@@ -2,6 +2,7 @@
 
 use App\Catalog\Providers\AniList\AniListProvider;
 use App\Catalog\Providers\ComicVine\ComicVineProvider;
+use App\Catalog\Providers\Hardcover\HardcoverProvider;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
 use App\Catalog\Providers\Metron\MetronProvider;
@@ -147,11 +148,12 @@ return [
         ],
 
         'hardcover' => [
-            'class' => null,
+            'class' => HardcoverProvider::class,
+            'api_token' => env('BOOKFLIX_HARDCOVER_API_TOKEN'),
             'enabled' => (bool) env('BOOKFLIX_HARDCOVER_ENABLED', false),
             'rate_per_minute' => 30,
             'max_pages_per_run' => 20,
-            'allowed_hosts' => ['api.hardcover.app', 'assets.hardcover.app'],
+            'allowed_hosts' => ['hardcover.app', 'api.hardcover.app', 'assets.hardcover.app'],
         ],
 
         'wikidata' => [
