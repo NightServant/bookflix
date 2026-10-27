@@ -1,11 +1,15 @@
 @props(['lines' => 4])
 
 {{--
-    A paragraph cut to `lines` lines (3 or 4) with a "More" / "Less" disclosure. The button only appears when the text is actually
+    A paragraph cut to `lines` lines (3, 4 or 6) with a "More" / "Less" disclosure. The button only appears when the text is actually
     cut (it is measured on load and on resize), so a short paragraph stays plain. The whole text is always in the DOM.
 --}}
 @php
-    $clamp = $lines === 3 ? 'line-clamp-3' : 'line-clamp-4';
+    $clamp = match ($lines) {
+        3 => 'line-clamp-3',
+        6 => 'line-clamp-6',
+        default => 'line-clamp-4',
+    };
 @endphp
 
 <div

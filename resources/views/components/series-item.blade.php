@@ -28,9 +28,9 @@
 
 <div {{ $attributes->class('flex items-center gap-4 py-2') }}>
     @if ($index !== null)
-        <span data-index class="min-w-16 shrink-0 text-meta tabular-nums text-ink-subtle">{{ $index }}</span>
+        <span data-index class="min-w-12 shrink-0 text-meta tabular-nums text-ink-subtle">{{ $index }}</span>
     @elseif ($aligned)
-        <span aria-hidden="true" class="min-w-16 shrink-0"></span>
+        <span aria-hidden="true" class="min-w-12 shrink-0"></span>
     @endif
 
     <a href="{{ $story }}" wire:navigate aria-hidden="true" tabindex="-1" class="block aspect-[2/3] w-12 shrink-0 overflow-hidden rounded-control bg-surface-card">

@@ -94,6 +94,6 @@ test('an aligned item without an index keeps the index column so covers line up'
     $html = renderedComponent('<x-series-item :media="$media" aligned />', ['media' => seriesMedia()]);
 
     expect(htmlQuery($html, '//*[@data-index]')->length)->toBe(0)
-        ->and(htmlQuery($html, '//span[@aria-hidden="true"][contains(@class,"min-w-16")]')->length)->toBe(1)
-        ->and(htmlQuery(renderSeriesItem(seriesMedia()), '//span[contains(@class,"min-w-16")]')->length)->toBe(0);
+        ->and(htmlQuery($html, '//span[@aria-hidden="true"][contains(@class,"min-w-12")]')->length)->toBe(1)
+        ->and(htmlQuery(renderSeriesItem(seriesMedia()), '//span[contains(@class,"min-w-12")]')->length)->toBe(0);
 });

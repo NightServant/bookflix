@@ -146,3 +146,55 @@ test('the header is a full-width band and the volumes sit in the page gutter', f
         ->and(htmlQuery($html, '//main/div[contains(@class,"px-gutter")]')->length)->toBe(0)
         ->and(htmlQuery($html, '//main/div/div[contains(@class,"px-gutter")]//h2[normalize-space()="Volumes"]')->length)->toBe(1);
 });
+
+test('volumes are paginated 100 to a page and the header counts them all', function () {
+    $series = seriesWith(collect(range(1, 120))->map(fn (int $number) => [$number, "Volume {$number}"])->all());
+    $user = User::factory()->create();
+
+    $first = $this->actingAs($user)->get(route('series.show', $series->slug))->assertOk()->assertSee('120 volumes')->getContent();
+    $second = $this->actingAs($user)->get(route('series.show', ['slug' => $series->slug, 'page' => 2]))->assertOk()->assertSee('120 volumes')->getContent();
+
+    expect(htmlQuery($first, '//*[@data-index]')->length)->toBe(100)
+        ->and($first)->toContain('Volume 100')->not->toContain('Volume 101')
+        ->and(htmlQuery($second, '//*[@data-index]')->length)->toBe(20)
+        ->and($second)->toContain('Volume 101')->toContain('Volume 120')->not->toContain('Volume 100<');
+});
+
+test('a series of 120 volumes still runs a bounded number of queries', function () {
+    $series = seriesWith(collect(range(1, 120))->map(fn (int $number) => [$number, "Volume {$number}"])->all());
+    $this->actingAs(User::factory()->create());
+
+    DB::enableQueryLog();
+    $this->get(route('series.show', $series->slug))->assertOk();
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(12);
+});
+
+test('the header stacks the first four volumes as books, the first one the LCP cover', function () {
+    $series = seriesWith(collect(range(1, 6))->map(fn (int $number) => [$number, "Volume {$number}", ['cover_url' => "https://covers.test/{$number}.jpg"]])->all());
+
+    $html = $this->actingAs(User::factory()->create())->get(route('series.show', $series->slug))->getContent();
+
+    expect(htmlQuery($html, '//header//*[@data-series-stack]//*[@data-book-3d]')->length)->toBe(4)
+        ->and(htmlQuery($html, '//header//*[@data-series-stack]//*[@data-scene-cover]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//header//*[@data-series-stack]//img[@fetchpriority="high"]')->length)->toBe(1);
+});
+
+test('a long description and the credits with their roles sit in "About this series", a short blurb stays in the header', function () {
+    $long = seriesWith([[1, 'Vol One', ['publication_year' => 1994]]], ['description' => str_repeat('A long tale of many words. ', 12), 'status' => 'completed']);
+    $short = seriesWith([[1, 'Vol One']], ['description' => 'A short blurb.']);
+    $long->media->first()->creators()->attach(Creator::factory()->create(['name' => 'Naoki Urasawa']), ['role' => 'author', 'position' => 0]);
+    $user = User::factory()->create();
+
+    $html = $this->actingAs($user)->get(route('series.show', $long->slug))->getContent();
+    $about = '//aside[.//h2[normalize-space()="About this series"]]';
+
+    expect(htmlQuery($html, $about.'//p[contains(., "A long tale")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//header//*[contains(., "A long tale")]')->length)->toBe(0)
+        ->and(htmlQuery($html, $about.'//li[contains(., "Naoki Urasawa")][contains(., "Author")]')->length)->toBe(1)
+        ->and(htmlQuery($html, $about.'//dd[normalize-space()="Completed"]')->length)->toBe(1)
+        ->and(htmlQuery($html, $about.'//dd[normalize-space()="1994"]')->length)->toBe(1);
+
+    $this->actingAs($user)->get(route('series.show', $short->slug))->assertSee('A short blurb.');
+    expect(htmlQuery($this->actingAs($user)->get(route('series.show', $short->slug))->getContent(), '//header//p[contains(., "A short blurb.")]')->length)->toBe(1);
+});
