@@ -92,3 +92,28 @@ test('the sheet opens without transitions when motion is reduced', function () {
             ->assertScript($this->isOpen, false);
     }, [...$this->phone, 'reducedMotion' => 'reduce']);
 });
+
+test('Escape in a filter combobox closes its list first, then the sheet, with focus back on the trigger', function () {
+    $path = componentPage(<<<'BLADE'
+        <x-filter-sheet>
+            <div x-data="{ genres: [] }">
+                <x-combobox label="Genres" multiple x-model="genres" :options="['fantasy' => 'Fantasy', 'mystery' => 'Mystery', 'sci-fi' => 'Science fiction']" />
+            </div>
+        </x-filter-sheet>
+        BLADE);
+
+    $input = 'dialog [role=combobox]';
+    $expanded = 'document.querySelector("dialog [role=combobox]").getAttribute("aria-expanded")';
+
+    $page = visit($path, $this->phone)->wait(1);
+
+    $page->click('Filters')->wait(0.6)
+        ->keys($input, ['m', 'y'])
+        ->assertScript($expanded, 'true')
+        ->keys($input, 'Escape')->wait(0.3)
+        ->assertScript($expanded, 'false')
+        ->assertScript($this->isOpen, true)
+        ->keys($input, 'Escape')->wait(0.5)
+        ->assertScript($this->isOpen, false)
+        ->assertScript('document.activeElement.closest("[data-flux-modal-trigger]") !== null', true);
+});

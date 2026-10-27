@@ -31,7 +31,7 @@
     x-data="comboboxField(@js($items), { multiple: {{ $multiple ? 'true' : 'false' }}, freeform: {{ $freeform ? 'true' : 'false' }} })"
     {{ $attributes->whereDoesntStartWith(['wire:model', 'x-model', 'name'])->class('relative') }}
 >
-    <div x-combobox @if ($multiple) multiple @endif {{ $modelAttributes }}>
+    <div x-combobox @if ($multiple) multiple @endif {{ $modelAttributes }} @keydown.escape.capture="$combobox.isOpen || $event.stopPropagation()">
         <label x-combobox:label class="{{ $hideLabel ? 'sr-only' : ($labelClass ?? 'mb-2 block text-meta text-ink-subtle') }}">{{ $label }}</label>
 
         @if ($multiple)
