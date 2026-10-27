@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Media;
+use App\Models\Series;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 
@@ -52,6 +53,21 @@ test('the media edit page guides the reader after its h1', function () {
     expect(guideAfterH1($html))->not->toBe('');
 });
 
+test('the story and series guides follow the title facts instead of splitting them from the h1', function () {
+    $media = Media::factory()->create(['alternative_titles' => ['Another Name']]);
+    $series = Series::factory()->create();
+    $media->series()->attach($series, ['position' => 1]);
+    $user = User::factory()->create();
+
+    $story = $this->actingAs($user)->get(route('stories.show', $media->slug))->getContent();
+    $page = $this->actingAs($user)->get(route('series.show', $series->slug))->getContent();
+
+    expect(htmlQuery($story, '//h1/following::p[1][contains(., "Also known as")]')->length)->toBe(1)
+        ->and(htmlQuery($story, '//p[contains(., "Also known as")]/following::p[contains(., "Read the summary")]')->length)->toBe(1)
+        ->and(htmlQuery($page, '//h1/following::p[1][contains(., "1 volume")]')->length)->toBe(1)
+        ->and(htmlQuery($page, '//p[contains(., "1 volume")]/following::p[contains(., "Every volume in this series")]')->length)->toBe(1);
+});
+
 test('story, series and class pages guide the reader right after the h1', function () {
     $this->seed(DeweySeeder::class);
     $media = Media::factory()->create();
@@ -69,6 +85,16 @@ test('the search page names the query in its h1 and shows the count once, above 
     expect(trim(htmlQuery($html, '//h1')->item(0)->textContent))->toBe('Results for “Love”')
         ->and(htmlQuery($html, '//header[.//h1]//*[@data-test="result-count"]')->length)->toBe(0)
         ->and(htmlQuery($html, '//*[@data-test="result-count"]')->length)->toBe(1);
+});
+
+test('text too short to search leaves the page titled Search, and a long query is clamped in the h1', function () {
+    $user = User::factory()->create();
+
+    $short = $this->actingAs($user)->get(route('search', ['q' => 'a']))->getContent();
+    $long = $this->actingAs($user)->get(route('search', ['q' => str_repeat('dragon ', 40)]))->getContent();
+
+    expect(trim(htmlQuery($short, '//h1')->item(0)->textContent))->toBe('Search')
+        ->and(htmlQuery($long, '//h1[contains(@class,"line-clamp-2")][contains(@class,"break-words")]')->length)->toBe(1);
 });
 
 test('an empty search is titled Search', function () {

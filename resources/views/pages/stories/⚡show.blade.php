@@ -187,10 +187,8 @@ new #[Title('Story')] class extends Component {
 
                 <div x-motion-reveal data-stagger="60" class="min-w-0 flex-1">
                     <h1 class="line-clamp-3 text-section tracking-tight text-balance text-ink md:text-title">{{ $media->title }}</h1>
-                    <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Read the summary and see where this story sits in the library. Follow a genre, theme or class to find more like it.') }}</p>
-
                     @if ($media->alternative_titles !== [])
-                        <p class="mt-1 line-clamp-2 max-w-prose text-meta text-ink-subtle">{{ __('Also known as') }} {{ implode(', ', $media->alternative_titles) }}</p>
+                        <p class="mt-2 line-clamp-2 max-w-prose text-meta text-ink-subtle">{{ __('Also known as') }} {{ implode(', ', $media->alternative_titles) }}</p>
                     @endif
 
                     @if ($creators->isNotEmpty())
@@ -205,8 +203,11 @@ new #[Title('Story')] class extends Component {
                     @endif
 
                     @if ($media->publishers->isNotEmpty())
-                        <p class="text-meta text-ink-subtle">{{ __('Published by') }} {{ $media->publishers->pluck('name')->implode(', ') }}</p>
+                        <p class="mt-2 text-meta text-ink-subtle">{{ __('Published by') }} {{ $media->publishers->pluck('name')->implode(', ') }}</p>
                     @endif
+
+                    {{-- The guide follows the title's own facts (alternative titles, creators, publisher), not the other way round. --}}
+                    <p class="mt-3 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Read the summary and see where this story sits in the library. Follow a genre, theme or class to find more like it.') }}</p>
 
                     <x-story-info :media="$media" :class-code="false" class="mt-3" />
 

@@ -318,7 +318,7 @@ new #[Title('Search')] class extends Component {
 
 <section class="pb-12">
     <x-page-header
-        :title="filled(trim($q)) ? __('Results for “:q”', ['q' => trim($q)]) : __('Search')"
+        :title="$this->hasQuery ? __('Results for “:q”', ['q' => trim($q)]) : __('Search')"
         :description="__('Search titles, authors, series and subjects. Narrow the results with the filters.')"
     />
 

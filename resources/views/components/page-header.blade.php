@@ -11,7 +11,7 @@
         @if ($eyebrow)
             <p class="mb-2 text-meta text-ink-subtle">{{ $eyebrow }}</p>
         @endif
-        <h1 class="text-section tracking-tight text-balance text-ink md:text-title">{{ $title }}</h1>
+        <h1 class="line-clamp-2 break-words text-section tracking-tight text-balance text-ink md:text-title">{{ $title }}</h1>
         <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ $description }}</p>
     </div>
 

@@ -146,12 +146,12 @@ new #[Title('Series')] class extends Component {
 
             <div x-data x-motion-reveal data-stagger="60" class="min-w-0 flex-1">
                 <p class="text-legal uppercase tracking-widest text-ink-subtle">{{ __('Series') }}</p>
-                <h1 class="mt-2 text-section tracking-tight text-balance text-ink md:text-title">{{ $series->title }}</h1>
-                <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Every volume in this series, in reading order. Start with the first, or open any volume to read more.') }}</p>
-
+                <h1 class="mt-2 line-clamp-3 break-words text-section tracking-tight text-balance text-ink md:text-title">{{ $series->title }}</h1>
                 @if ($summary['count'] > 0)
-                    <p class="mt-3 text-body text-ink-subtle tabular-nums">{{ trans_choice(':count volume|:count volumes', $summary['count']) }}</p>
+                    <p class="mt-2 text-body text-ink-subtle tabular-nums">{{ trans_choice(':count volume|:count volumes', $summary['count']) }}</p>
                 @endif
+
+                <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Every volume in this series, in reading order. Start with the first, or open any volume to read more.') }}</p>
 
                 @if (filled($series->description) && ! $longDescription)
                     <p class="mt-2 max-w-prose text-body text-ink-subtle">{{ $series->description }}</p>
