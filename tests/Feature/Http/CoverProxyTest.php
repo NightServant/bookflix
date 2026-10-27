@@ -20,7 +20,9 @@ test('a cover on an allowed host is streamed from our origin with the image type
     $this->actingAs($this->user)->get(route('covers.show', $media))
         ->assertOk()
         ->assertHeader('Content-Type', 'image/png')
-        ->assertHeader('Cache-Control', 'immutable, max-age=86400, public');
+        ->assertHeader('Cache-Control', 'immutable, max-age=86400, public')
+        ->assertHeader('X-Content-Type-Options', 'nosniff')
+        ->assertHeader('Content-Security-Policy', "default-src 'none'; sandbox");
 
     Http::assertSentCount(1);
 });
@@ -79,6 +81,18 @@ test('a failed, redirected or non-image upstream response is a 404 and is not st
     'server error' => fn () => fn () => Http::response('', 500),
     'redirect' => fn () => fn () => Http::response('', 302, ['Location' => 'https://evil.example.com/x.png']),
     'html page' => fn () => fn () => Http::response('<html></html>', 200, ['Content-Type' => 'text/html']),
+]);
+
+test('an image-typed response whose bytes are not a raster image is a 404 and is not stored', function (string $body) {
+    Http::fake(['s4.anilist.co/*' => Http::response($body, 200, ['Content-Type' => 'image/png'])]);
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
+
+    $this->actingAs($this->user)->get(route('covers.show', $media))->assertNotFound();
+
+    Storage::disk('local')->assertMissing('covers/'.sha1($media->cover_url));
+})->with([
+    'html' => '<html><script>alert(1)</script></html>',
+    'svg' => '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
 ]);
 
 test('guests are redirected to login', function () {
