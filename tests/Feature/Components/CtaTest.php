@@ -56,7 +56,7 @@ test('icons are decorative and a cta without one has no svg', function () {
 });
 
 test('the lucide compass is available as a flux icon', function () {
-    $html = renderedComponent('<x-cta href="/discover" icon="compass">Browse Discover</x-cta>');
+    $html = renderedComponent('<x-cta variant="secondary" href="/discover" icon="compass">Browse Discover</x-cta>');
 
     expect(htmlQuery($html, '//a/svg[@data-flux-icon]//circle')->length)->toBe(1);
 });

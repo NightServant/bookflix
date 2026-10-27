@@ -80,8 +80,7 @@ new #[Title('Duplicates')] class extends Component {
 
 <section class="py-12">
     <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ __('Duplicate review') }}</h1>
-    <p class="mt-1 text-body text-ink-subtle">{{ __('Pairs the sync found similar but not certain. Merging moves ids and relations to the record you keep; the other record\'s URL redirects to it.') }}</p>
+    <x-page-header class="mt-2" :title="__('Duplicate review')" :description="__('Pairs the sync found similar but not certain. Keep one record to merge the other into it, or mark the pair as not a duplicate.')" />
 
     <div class="mt-6 space-y-6">
         @forelse ($this->candidates as $candidate)

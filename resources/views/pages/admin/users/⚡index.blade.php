@@ -46,7 +46,7 @@ new #[Title('Users')] class extends Component {
 
 <section class="py-12">
     <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ __('Users') }}</h1>
+    <x-page-header class="mt-2" :title="__('Users')" :description="__('Everyone with an account. Search by name or email to find a person.')" />
 
     <flux:input class="mt-6 max-w-sm" type="search" icon="magnifying-glass" wire:model.live.debounce.300ms="search" :placeholder="__('Search name or email')" />
 

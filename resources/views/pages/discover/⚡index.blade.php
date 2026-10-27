@@ -255,17 +255,15 @@ new #[Title('Discover')] class extends Component {
 @endphp
 
 <section class="pt-2 pb-12 lg:pt-6">
-    <header>
-        <h1 class="text-hero tracking-tight text-ink">{{ __('Discover') }}</h1>
+    <x-page-header :title="__('Discover')" :description="__('Browse the whole catalog by format, genre and subject. Pick a shelf to start, or search for something specific.')" />
 
-        @if ($hasCatalog)
-            <p class="mt-2 max-w-prose text-body tabular-nums text-ink-subtle">
-                {{ trans_choice(':count story|:count stories', $total) }}
-                {{ trans_choice('in :count format|in :count formats', $this->types->count()) }}
-                {{ trans_choice('and :count genre|and :count genres', $this->genreTotal) }}.
-            </p>
-        @endif
-    </header>
+    @if ($hasCatalog)
+        <p data-test="catalog-stats" class="mt-3 max-w-prose text-meta tabular-nums text-ink-subtle">
+            {{ trans_choice(':count story|:count stories', $total) }}
+            {{ trans_choice('in :count format|in :count formats', $this->types->count()) }}
+            {{ trans_choice('and :count genre|and :count genres', $this->genreTotal) }}.
+        </p>
+    @endif
 
     <x-search-panel :action="route('search')" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-8" />
 
@@ -276,6 +274,7 @@ new #[Title('Discover')] class extends Component {
     @if ($hasCatalog)
         <section aria-labelledby="formats-title" class="mt-12 lg:mt-16">
             <h2 id="formats-title" class="text-section text-ink">{{ __('Browse by Format') }}</h2>
+            <p class="mt-1 text-meta text-ink-subtle">{{ __('Pick a format to see its stories, then narrow by genre.') }}</p>
 
             @if ($this->families->count() > 1)
                 <nav aria-label="{{ __('Format families') }}" class="mt-4">
@@ -324,6 +323,7 @@ new #[Title('Discover')] class extends Component {
         @if ($this->genres->isNotEmpty())
             <section aria-labelledby="genres-title" class="mt-12 lg:mt-16">
                 <h2 id="genres-title" class="text-section text-ink">{{ __('Top Genres') }}</h2>
+                <p class="mt-1 text-meta text-ink-subtle">{{ __('The genres with the most stories. Select one to filter the results.') }}</p>
 
                 <ul class="mt-4 flex flex-wrap gap-2">
                     @foreach ($this->genres as $genre)
@@ -379,6 +379,7 @@ new #[Title('Discover')] class extends Component {
     <section aria-labelledby="subjects-title" class="mt-12 lg:mt-16">
         <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
             <h2 id="subjects-title" class="text-section text-ink">{{ __('Explore by Subject') }}</h2>
+            <p class="mt-1 text-meta text-ink-subtle">{{ __('Dewey classes, from the 000s to the 900s.') }}</p>
             <a href="{{ route('explore.index') }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control px-2 text-meta text-link hover:underline">{{ __('Explore the Library') }}</a>
         </div>
 

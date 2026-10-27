@@ -161,7 +161,8 @@ new #[Title('Story')] class extends Component {
         </div>
 
         <div class="min-w-0">
-            <h1 class="text-section text-ink">{{ $media->title }}</h1>
+            <h1 class="text-section tracking-tight text-balance text-ink md:text-title">{{ $media->title }}</h1>
+            <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Read the summary and see where this story sits in the library. Follow a genre, theme or class to find more like it.') }}</p>
 
             @if ($media->alternative_titles !== [])
                 <p class="mt-1 text-meta text-ink-subtle">{{ __('Also known as') }} {{ implode(', ', $media->alternative_titles) }}</p>
@@ -236,6 +237,7 @@ new #[Title('Story')] class extends Component {
                 @if ($this->classes->isNotEmpty())
                     <section>
                         <h2 class="text-lead text-ink">{{ __('Classification') }}</h2>
+                        <p class="mt-1 text-meta text-ink-subtle">{{ __('Where this story is shelved. Open a class to see its neighbours.') }}</p>
                         <ul class="mt-2 flex flex-col">
                             @foreach ($this->classes as $class)
                                 <li wire:key="class-{{ $class->id }}">
@@ -315,6 +317,7 @@ new #[Title('Story')] class extends Component {
             <x-slot:related>
                 <div class="max-w-prose">
                     <h2 class="text-lead text-ink">{{ __('Related stories') }}</h2>
+                    <p class="mt-1 text-meta text-ink-subtle">{{ __('Sequels, spin-offs and other titles connected to this one.') }}</p>
 
                     <ul class="mt-2">
                         @foreach ($media->relations as $related)

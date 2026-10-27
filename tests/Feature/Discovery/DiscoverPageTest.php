@@ -164,7 +164,7 @@ test('the intro counts every genre with stories, not just the top chips', functi
 
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
 
-    expect(preg_replace('/\s+/', ' ', htmlQuery($html, '//header/p')->item(0)->textContent))->toContain('and 13 genres')
+    expect(preg_replace('/\s+/', ' ', htmlQuery($html, '//p[@data-test="catalog-stats"]')->item(0)->textContent))->toContain('and 13 genres')
         ->and(htmlQuery($html, '//a[@data-genre-chip]')->length)->toBe(12);
 });
 

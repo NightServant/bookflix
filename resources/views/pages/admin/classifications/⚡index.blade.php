@@ -231,8 +231,7 @@ new #[Title('Classification review')] class extends Component {
 
 <section class="py-12">
     <flux:button variant="ghost" size="sm" icon="arrow-left" class="focus-ring" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ __('Classification review') }}</h1>
-    <p class="mt-1 max-w-prose text-body text-ink-subtle">{{ __('Classes the sync suggested for each story, least confident first. Accepted classes show on the shelves; rejected ones never do.') }}</p>
+    <x-page-header class="mt-2" :title="__('Classification review')" :description="__('Classes the sync suggested for each story, least confident first. Accept or reject each one: accepted classes show on the shelves, rejected ones never do.')" />
 
     <flux:select class="mt-6 max-w-xs" wire:model.live="status" :label="__('Status')">
         <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>

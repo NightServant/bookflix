@@ -46,11 +46,11 @@ new #[Title('Privacy settings')] class extends Component {
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading')
+    @include('partials.settings-heading', ['title' => __('Privacy'), 'description' => __('Choose who can see your profile and library, then save.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Privacy settings') }}</flux:heading>
 
-    <x-pages::settings.layout :heading="__('Privacy')" :subheading="__('Control who sees your profile and library')">
+    <x-pages::settings.layout :heading="__('Visibility')" :subheading="__('Control who sees your profile and library')">
         <form wire:submit="updatePrivacy" class="my-6 w-full space-y-6">
             <flux:radio.group wire:model="profileVisibility" :label="__('Profile visibility')">
                 <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your profile.')" />

@@ -298,9 +298,24 @@ new #[Title('Search')] class extends Component {
 }; ?>
 
 <section class="py-12">
-    <h1 class="sr-only">{{ __('Search') }}</h1>
+    <x-page-header
+        :title="filled(trim($q)) ? __('Results for “:q”', ['q' => trim($q)]) : __('Search')"
+        :description="__('Search titles, authors, series and subjects. Narrow the results with the filters.')"
+    >
+        <x-slot:actions>
+            <p role="status" data-test="result-count" class="text-meta tabular-nums text-ink-subtle">
+                @if ($this->isSearching && ! $this->throttled)
+                    @if ($this->results instanceof SearchResults && $this->results->hasMore)
+                        {{ __(':count+ stories', ['count' => $this->results->total()]) }}
+                    @else
+                        {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
+                    @endif
+                @endif
+            </p>
+        </x-slot:actions>
+    </x-page-header>
 
-    <x-search-panel wire:model.live.debounce.300ms="q" :placeholder="__('Titles, authors, series and subjects')" />
+    <x-search-panel wire:model.live.debounce.300ms="q" :placeholder="__('Titles, authors, series and subjects')" class="mt-6" />
 
     <div class="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-10">
         <aside aria-labelledby="search-filters-title" class="hidden lg:block">
@@ -312,17 +327,7 @@ new #[Title('Search')] class extends Component {
         </aside>
 
         <div class="min-w-0">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <p role="status" data-test="result-count" class="text-meta text-ink-subtle">
-                    @if ($this->isSearching && ! $this->throttled)
-                        @if ($this->results instanceof SearchResults && $this->results->hasMore)
-                            {{ __(':count+ stories', ['count' => $this->results->total()]) }}
-                        @else
-                            {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
-                        @endif
-                    @endif
-                </p>
-
+            <div class="flex flex-wrap items-center justify-end gap-3">
                 <div class="flex items-center gap-3">
                     <x-filter-sheet>
                         @include('pages.search.filters', ['facets' => $this->facets])

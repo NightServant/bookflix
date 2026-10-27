@@ -40,10 +40,10 @@ new #[Title('Explore the Library')] class extends Component {
 }; ?>
 
 <section class="py-12">
-    <h1 class="text-section text-ink">{{ __('Explore the Library') }}</h1>
-    <p class="mt-2 max-w-prose text-body text-ink-subtle">{{ __('Browse stories by class, division and section in Bookflix’s Dewey-inspired shelving.') }}</p>
+    <x-page-header :title="__('Explore the Library')" :description="__('Browse stories by class, division and section in Bookflix’s Dewey-inspired shelving. Open a class to go deeper.')" />
 
     <h2 class="mt-8 text-lead text-ink">{{ __('Classes') }}</h2>
+    <p class="mt-1 text-meta text-ink-subtle">{{ __('The ten top-level classes, 000s to 900s.') }}</p>
     <ul class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         @foreach ($this->classes as $class)
             <li wire:key="class-{{ $class->id }}">
@@ -54,6 +54,7 @@ new #[Title('Explore the Library')] class extends Component {
 
     @if ($this->shelves->isNotEmpty())
         <h2 class="mt-12 text-lead text-ink">{{ __('Browse by Subject') }}</h2>
+        <p class="mt-1 text-meta text-ink-subtle">{{ __('The newest stories on each class shelf.') }}</p>
         <div class="mt-4">
             <x-class-shelves :shelves="$this->shelves" />
         </div>

@@ -70,7 +70,7 @@ new #[Title('Providers')] class extends Component {
 
 <section class="py-12">
     <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ __('Providers') }}</h1>
+    <x-page-header class="mt-2" :title="__('Providers')" :description="__('Metadata sources that fill the catalog. Enable a source, then sync it now to pull its latest records.')" />
 
     <flux:table class="mt-6">
         <flux:table.columns>

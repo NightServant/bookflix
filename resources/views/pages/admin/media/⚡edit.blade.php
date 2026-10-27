@@ -103,8 +103,7 @@ new #[Title('Edit media')] class extends Component {
 
 <section class="py-12">
     <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.media.index')" wire:navigate>{{ __('Media') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ $media->title }}</h1>
-    <p class="mt-1 text-meta text-ink-muted">{{ $media->mediaType->name }} · {{ $media->slug }}</p>
+    <x-page-header class="mt-2" :eyebrow="$media->mediaType->name.' · '.$media->slug" :title="$media->title" :description="__('Edit this record’s details and save. A field you change is locked, so the next sync will not overwrite it.')" />
 
     <form wire:submit="save" class="mt-6 max-w-2xl space-y-6">
         <flux:input wire:model="title" :label="__('Title')" required />

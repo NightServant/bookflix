@@ -106,7 +106,8 @@ new #[Title('Series')] class extends Component {
 
             <div x-data x-motion-reveal data-stagger="60" class="min-w-0 flex-1">
                 <p class="text-legal uppercase tracking-widest text-ink-subtle">{{ __('Series') }}</p>
-                <h1 class="mt-2 text-section tracking-tight text-ink md:text-hero">{{ $series->title }}</h1>
+                <h1 class="mt-2 text-section tracking-tight text-balance text-ink md:text-title">{{ $series->title }}</h1>
+                <p class="mt-2 max-w-prose text-body text-ink-subtle text-pretty">{{ __('Every volume in this series, in reading order. Start with the first, or open any volume to read more.') }}</p>
 
                 @if ($facts->isNotEmpty())
                     <ul class="mt-3 flex flex-wrap items-center text-body text-ink-subtle">
@@ -142,6 +143,7 @@ new #[Title('Series')] class extends Component {
     <div class="px-gutter pt-12 lg:pt-16">
         <div class="max-w-3xl">
             <h2 class="text-section text-ink">{{ __('Volumes') }}</h2>
+            <p class="mt-1 text-meta text-ink-subtle">{{ __('In reading order. Select a volume to open its page.') }}</p>
 
             @if ($volumes->isNotEmpty())
                 <ul class="mt-4 divide-y divide-hairline">

@@ -53,7 +53,7 @@ new #[Title('Media')] class extends Component {
 
 <section class="py-12">
     <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ __('Media') }}</h1>
+    <x-page-header class="mt-2" :title="__('Media')" :description="__('Every story in the catalog. Search for a title, then open it to correct its details or remove an invalid record.')" />
 
     <div class="mt-6 flex flex-wrap items-center gap-4">
         <flux:input class="max-w-sm" type="search" icon="magnifying-glass" wire:model.live.debounce.300ms="search" :placeholder="__('Search titles')" />

@@ -167,7 +167,7 @@ new #[Title('Security settings')] class extends Component {
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading')
+    @include('partials.settings-heading', ['title' => __('Security'), 'description' => __('Keep your account safe with a strong password, two-factor authentication and passkeys. Change what you need and save.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Security settings') }}</flux:heading>
 

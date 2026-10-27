@@ -5,6 +5,9 @@
 ])
 
 @php
+    // Inside a button the button's own `variant` (primary, filled...) can leak in; only an icon variant counts.
+    $variant = in_array($variant, ['outline', 'mini', 'micro', 'solid'], true) ? $variant : 'outline';
+
     if ($variant === 'solid') {
         throw new \Exception('The "solid" variant is not supported in Lucide.');
     }

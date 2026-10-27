@@ -78,15 +78,18 @@ new #[Title('Explore the Library')] class extends Component {
 <section class="py-12">
     <x-dewey-breadcrumb :dewey-class="$this->deweyClass" />
 
-    <h1 class="mt-4 text-section text-ink">{{ $this->deweyClass->code }} {{ $this->deweyClass->name }}</h1>
-    <p class="mt-1 text-meta text-ink-muted">{{ $this->levelLabel }} · {{ __('Dewey-inspired') }}</p>
-
-    @if ($this->deweyClass->description)
-        <p class="mt-2 max-w-prose text-body text-ink-subtle">{{ $this->deweyClass->description }}</p>
-    @endif
+    <x-page-header
+        class="mt-4"
+        :eyebrow="$this->levelLabel.' · '.__('Dewey-inspired')"
+        :title="$this->deweyClass->code.' '.$this->deweyClass->name"
+        :description="$this->deweyClass->description ?: ($this->children->isNotEmpty()
+            ? __('Stories shelved under :name. Open a section to narrow down, or pick any story below.', ['name' => $this->deweyClass->name])
+            : __('Stories shelved under :name. Pick any story below to read more.', ['name' => $this->deweyClass->name]))"
+    />
 
     @if ($this->children->isNotEmpty())
         <h2 class="mt-8 text-lead text-ink">{{ $this->childrenLabel }}</h2>
+        <p class="mt-1 text-meta text-ink-subtle">{{ __('Narrower shelves inside :name.', ['name' => $this->deweyClass->name]) }}</p>
         <ul class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             @foreach ($this->children as $child)
                 <li wire:key="child-{{ $child->id }}">
