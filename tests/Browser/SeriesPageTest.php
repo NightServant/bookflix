@@ -34,3 +34,19 @@ test('the call to action opens volume 1 and the series link on the story page co
 
     $page->click('Frankenstein Cycle')->wait(1)->assertPathIs('/series/'.$this->series->slug)->assertSee('Volumes')->assertNoJavaScriptErrors();
 });
+
+test('the header cover, the LCP image, paints at full opacity on the first frame while the text still reveals', function () {
+    $page = visit(route('series.show', $this->series->slug), ['viewport' => ['width' => 1280, 'height' => 900]]);
+
+    // Motion is allowed here: nothing from the cover up to the header may be hidden or animating, not even for a moment, and no reveal may own it.
+    $page->assertScript('document.querySelector("header img[fetchpriority=high]").closest("[x-motion-reveal]") === null', true)
+        ->assertScript('(() => {
+        const chain = [];
+        for (let el = document.querySelector("header img[fetchpriority=high]"); el && el !== document.body; el = el.parentElement) chain.push(el);
+
+        return chain.length > 3 && chain.every((el) => el.style.opacity === "" && getComputedStyle(el).opacity === "1" && el.getAnimations().length === 0);
+    })()', true)
+        ->wait(1)
+        ->assertScript('getComputedStyle(document.querySelector("header h1")).opacity', '1')
+        ->assertNoJavaScriptErrors();
+});

@@ -95,7 +95,7 @@ new #[Title('Series')] class extends Component {
         @endif
         <div aria-hidden="true" class="absolute inset-0 -z-10 bg-linear-to-t from-canvas via-canvas/50 to-canvas/10"></div>
 
-        <div x-data x-motion-reveal data-stagger="60" class="flex flex-col gap-8 px-gutter py-8 lg:flex-row lg:items-end lg:gap-12 lg:py-16">
+        <div class="flex flex-col gap-8 px-gutter py-8 lg:flex-row lg:items-end lg:gap-12 lg:py-16">
             <span class="block aspect-[2/3] w-40 shrink-0 overflow-hidden rounded-card bg-surface-card sm:w-56">
                 @if ($first?->cover_url)
                     <img src="{{ $first->cover_url }}" alt="{{ __('Cover of :title', ['title' => $first->title]) }}" width="224" height="336" fetchpriority="high" decoding="async" class="size-full object-cover">
@@ -104,7 +104,7 @@ new #[Title('Series')] class extends Component {
                 @endif
             </span>
 
-            <div class="min-w-0 flex-1">
+            <div x-data x-motion-reveal data-stagger="60" class="min-w-0 flex-1">
                 <p class="text-legal uppercase tracking-widest text-ink-subtle">{{ __('Series') }}</p>
                 <h1 class="mt-2 text-section tracking-tight text-ink md:text-hero">{{ $series->title }}</h1>
 
