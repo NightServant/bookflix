@@ -240,14 +240,17 @@ new #[Title('Search')] class extends Component {
             return [(int) ($row?->lowest ?? 1900), (int) ($row?->highest ?? now()->year)];
         });
 
+        // The three long lists, kept ten minutes as plain [slug => name] arrays (the models are never cached).
+        $names = fn (string $key, string $model): array => Cache::remember("search:facet-{$key}:v1", 600, fn (): array => $model::query()->orderBy('name')->pluck('name', 'slug')->all());
+
         return [
-            'types' => MediaType::query()->orderBy('name')->pluck('name', 'slug')->all(),
+            'types' => $names('types', MediaType::class),
             'statuses' => collect(PublicationStatus::cases())
                 ->reject(fn (PublicationStatus $status): bool => $status === PublicationStatus::Unknown)
                 ->mapWithKeys(fn (PublicationStatus $status): array => [$status->value => __(ucfirst($status->value))])
                 ->all(),
-            'genres' => Genre::query()->orderBy('name')->pluck('name', 'slug')->all(),
-            'themes' => Theme::query()->orderBy('name')->pluck('name', 'slug')->all(),
+            'genres' => $names('genres', Genre::class),
+            'themes' => $names('themes', Theme::class),
             'languages' => collect(config('bookflix.languages'))
                 ->mapWithKeys(fn (string $code): array => [$code => class_exists(\Locale::class) ? ucfirst(\Locale::getDisplayLanguage($code, app()->getLocale())) : strtoupper($code)])
                 ->all(),

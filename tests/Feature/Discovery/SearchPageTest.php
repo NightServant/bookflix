@@ -299,6 +299,23 @@ test('the year bounds are kept ten minutes as two numbers', function () {
     expect(Cache::get('search:year-bounds:v1'))->toBe([1962, 2021]);
 });
 
+test('the type, genre and theme lists are cached: a second render runs three fewer queries', function () {
+    Media::factory()->create();
+    $this->actingAs(User::factory()->create());
+    $facetQueries = function (): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        Livewire::test('pages::search.index')->assertOk();
+
+        return collect(DB::getQueryLog())->filter(fn (array $q): bool => preg_match('/from "(media_types|genres|themes)"/', $q['query']) === 1)->count();
+    };
+
+    $first = $facetQueries();
+    $second = $facetQueries();
+
+    expect($first - $second)->toBe(3)->and($second)->toBe(0);
+});
+
 test('the type badge shows only when the results mix formats', function () {
     Media::factory()->manga()->create(['title' => 'Berserk Manga', 'search_text' => 'berserk']);
     Media::factory()->manga()->create(['title' => 'Berserk Deluxe', 'search_text' => 'berserk']);
