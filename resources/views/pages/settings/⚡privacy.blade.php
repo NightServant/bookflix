@@ -50,8 +50,9 @@ new #[Title('Privacy settings')] class extends Component {
 
     <flux:heading level="2" class="sr-only">{{ __('Privacy settings') }}</flux:heading>
 
-    <x-pages::settings.layout :heading="__('Visibility')" :subheading="__('Control who sees your profile and library')">
-        <form wire:submit="updatePrivacy" class="my-6 w-full space-y-6">
+    <x-pages::settings.layout>
+        <x-settings-card :title="__('Who can see what')" :description="__('Your profile and library are private until you say otherwise.')">
+        <form wire:submit="updatePrivacy" class="w-full space-y-6">
             <flux:radio.group wire:model="profileVisibility" :label="__('Profile visibility')">
                 <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your profile.')" />
                 <flux:radio value="public" :label="__('Public')" :description="__('Anyone can see your profile.')" />
@@ -61,6 +62,8 @@ new #[Title('Privacy settings')] class extends Component {
                 <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your library.')" />
                 <flux:radio value="public" :label="__('Public')" :description="__('Anyone can see your library.')" />
             </flux:radio.group>
+
+            <flux:separator variant="subtle" />
 
             <flux:switch
                 wire:model="personalizationEnabled"
@@ -72,5 +75,6 @@ new #[Title('Privacy settings')] class extends Component {
                 {{ __('Save') }}
             </flux:button>
         </form>
+        </x-settings-card>
     </x-pages::settings.layout>
 </section>
