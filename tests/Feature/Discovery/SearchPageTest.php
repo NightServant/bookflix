@@ -247,7 +247,8 @@ test('a throttled search says so instead of showing a blank', function () {
     RateLimiter::increment('search:'.$user->id, 60, HybridSearch::PER_MINUTE);
 
     Livewire::test('pages::search.index')->set('q', 'berserk')
-        ->assertSee('Searching a little too fast')->assertDontSee('No stories found')->assertDontSee('Berserk');
+        ->assertSee('Searching a little too fast')->assertDontSee('No stories found')->assertDontSee('Berserk')
+        ->assertDontSee('No stories');
 
     expect(SearchQuery::count())->toBe(0);
 });

@@ -314,7 +314,7 @@ new #[Title('Search')] class extends Component {
         <div class="min-w-0">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <p role="status" data-test="result-count" class="text-meta text-ink-subtle">
-                    @if ($this->isSearching)
+                    @if ($this->isSearching && ! $this->throttled)
                         @if ($this->results instanceof SearchResults && $this->results->hasMore)
                             {{ __(':count+ stories', ['count' => $this->results->total()]) }}
                         @else
