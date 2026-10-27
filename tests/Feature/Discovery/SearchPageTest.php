@@ -8,6 +8,7 @@ use App\Models\SearchQuery;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
@@ -285,4 +286,14 @@ test('a pure filter browse stays within the query budget without lazy loading', 
     $this->get(route('search', ['view' => 'list', 'filters' => ['genres' => ['action'], 'languages' => ['en']]]))->assertOk()->assertSee('data-view="list"', false);
 
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(22);
+});
+
+test('the year bounds are kept ten minutes as two numbers', function () {
+    Media::factory()->create(['publication_year' => 1962]);
+    Media::factory()->create(['publication_year' => 2021]);
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test('pages::search.index')->assertOk();
+
+    expect(Cache::get('search:year-bounds:v1'))->toBe([1962, 2021]);
 });

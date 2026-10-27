@@ -10,6 +10,7 @@ use App\Models\Series;
 use App\Models\Theme;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -267,4 +268,15 @@ test('the story page runs a bounded number of queries', function () {
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
+});
+
+test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {
+    [$base, $sibling, $sharesGenre] = similarFixture();
+
+    expect(app(SimilarMedia::class)->for($base)->pluck('id')->all())->toBe([$sibling->id, $sharesGenre->id])
+        ->and(Cache::get("similar:v1:{$base->id}:12"))->toBe([$sibling->id, $sharesGenre->id]);
+
+    $sibling->delete();
+
+    expect(app(SimilarMedia::class)->for($base)->pluck('id')->all())->toBe([$sharesGenre->id]);
 });

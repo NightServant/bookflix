@@ -6,6 +6,7 @@ use App\Models\DeweyClass;
 use App\Models\Media;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,6 +23,25 @@ class SimilarMedia
      */
     public function for(Media $media, int $limit = 12): Collection
     {
+        $ids = Cache::remember("similar:v1:{$media->id}:{$limit}", now()->addHour(), fn (): array => $this->idsFor($media, $limit));
+
+        if ($ids === []) {
+            return new Collection;
+        }
+
+        $found = Media::query()->whereIn('id', $ids)->with(['mediaType', 'publicPrimaryDewey.deweyClass'])->get()->keyBy('id');
+
+        return new Collection(array_values(array_filter(array_map(fn (int $id): ?Media => $found->get($id), $ids))));
+    }
+
+    /**
+     * The ranked ids, kept an hour by `for()` (ids only: the cache refuses to unserialize models, and a story merged or deleted since
+     * simply drops out when the rows are loaded).
+     *
+     * @return list<int>
+     */
+    private function idsFor(Media $media, int $limit): array
+    {
         $ids = [];
 
         foreach ([$this->siblings(...), $this->sharedTaxonomy(...), $this->sameDivision(...)] as $tier) {
@@ -32,13 +52,7 @@ class SimilarMedia
             }
         }
 
-        if ($ids === []) {
-            return new Collection;
-        }
-
-        $found = Media::query()->whereIn('id', $ids)->with(['mediaType', 'publicPrimaryDewey.deweyClass'])->get()->keyBy('id');
-
-        return new Collection(array_values(array_filter(array_map(fn (int $id): ?Media => $found->get($id), $ids))));
+        return $ids;
     }
 
     /**

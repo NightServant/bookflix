@@ -5,6 +5,7 @@ use App\Models\Media;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
@@ -165,4 +166,21 @@ test('the intro counts every genre with stories, not just the top chips', functi
 
     expect(preg_replace('/\s+/', ' ', htmlQuery($html, '//header/p')->item(0)->textContent))->toContain('and 13 genres')
         ->and(htmlQuery($html, '//a[@data-genre-chip]')->length)->toBe(12);
+});
+
+test('a second discover render reads the counts from the cache and stays within six queries', function () {
+    $this->seed(DeweySeeder::class);
+    Genre::factory()->count(3)->create()->each(fn (Genre $genre) => Media::factory()->manga()->create(['cover_url' => '/favicon.svg'])->genres()->attach($genre));
+    $this->actingAs(User::factory()->create());
+
+    $first = $this->get(route('discover'))->assertOk()->getContent();
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $second = $this->get(route('discover'))->assertOk()->getContent();
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(6)
+        ->and(Cache::get('discover:type-counts:v1'))->toBeArray()->each->toBeInt()
+        ->and(Cache::get('discover:genre-counts:v1'))->toHaveCount(3)->each->toBeInt()
+        ->and(htmlQuery($second, '//a[@data-genre-chip]')->length)->toBe(htmlQuery($first, '//a[@data-genre-chip]')->length);
 });

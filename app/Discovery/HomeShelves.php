@@ -27,6 +27,9 @@ class HomeShelves
 
     private const CACHE_MINUTES = 10;
 
+    /** The most slides the hero holds; the pick keeps this many ids and `hero()` takes as many as it is asked for. */
+    private const HERO_SLIDES = 5;
+
     /**
      * Trending Now, New Releases and Explore by Subject, in that order, every one present even when empty.
      *
@@ -54,9 +57,12 @@ class HomeShelves
      *
      * @return EloquentCollection<int, Media>
      */
-    public function hero(int $count = 5): EloquentCollection
+    public function hero(int $count = self::HERO_SLIDES): EloquentCollection
     {
-        return Media::trending()->whereNotNull('media.cover_url')->with(['mediaType', 'genres'])->limit($count)->get();
+        $ids = array_slice($this->picks(20)['hero'], 0, $count);
+        $media = Media::query()->whereIn('id', $ids)->with(['mediaType', 'genres'])->get()->keyBy('id');
+
+        return new EloquentCollection(array_values(array_filter(array_map(fn (int $id): ?Media => $media->get($id), $ids))));
     }
 
     /**
@@ -64,7 +70,7 @@ class HomeShelves
      */
     private function stories(string $key, int $perShelf): Collection
     {
-        $picks = Cache::remember("home:shelves:v1:{$perShelf}", now()->addMinutes(self::CACHE_MINUTES), fn (): array => $this->pick($perShelf));
+        $picks = $this->picks($perShelf);
 
         $media = Media::query()->whereIn('id', $picks[$key])->with(['mediaType', 'publicPrimaryDewey.deweyClass'])->get()->keyBy('id');
 
@@ -72,7 +78,17 @@ class HomeShelves
     }
 
     /**
-     * @return array{trending: list<int>, new-releases: list<int>}
+     * The ids of every pick (the story shelves and the hero), kept ten minutes.
+     *
+     * @return array{trending: list<int>, new-releases: list<int>, hero: list<int>}
+     */
+    private function picks(int $perShelf): array
+    {
+        return Cache::remember("home:shelves:v1:{$perShelf}", now()->addMinutes(self::CACHE_MINUTES), fn (): array => $this->pick($perShelf));
+    }
+
+    /**
+     * @return array{trending: list<int>, new-releases: list<int>, hero: list<int>}
      */
     private function pick(int $perShelf): array
     {
@@ -91,6 +107,8 @@ class HomeShelves
             ->take($perShelf)
             ->values();
 
-        return ['trending' => $trending, 'new-releases' => array_values($releases->all())];
+        $hero = array_values(Media::trending()->whereNotNull('media.cover_url')->limit(self::HERO_SLIDES)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
+
+        return ['trending' => $trending, 'new-releases' => array_values($releases->all()), 'hero' => $hero];
     }
 }

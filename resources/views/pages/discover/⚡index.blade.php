@@ -70,10 +70,11 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function types(): SupportCollection
     {
-        $counts = Media::query()->unmerged()->selectRaw('media.media_type_id, count(*) as total')->groupBy('media.media_type_id')->pluck('total', 'media_type_id');
+        // Kept ten minutes as `[type id => count]` (the cache refuses to unserialize models).
+        $counts = Cache::remember('discover:type-counts:v1', 600, fn (): array => Media::query()->unmerged()->selectRaw('media.media_type_id, count(*) as total')->groupBy('media.media_type_id')->pluck('total', 'media_type_id')->map(fn (mixed $total): int => (int) $total)->all());
 
         return MediaType::query()->orderBy('name')->get()
-            ->each(fn (MediaType $type) => $type->setAttribute('stories_count', (int) $counts->get($type->id, 0)))
+            ->each(fn (MediaType $type) => $type->setAttribute('stories_count', $counts[$type->id] ?? 0))
             ->filter(fn (MediaType $type): bool => $type->stories_count > 0)
             ->sortByDesc('stories_count')
             ->values();
@@ -130,13 +131,12 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function genres(): Collection
     {
-        return Genre::query()
-            ->withCount(['media' => fn ($media) => $media->unmerged()])
-            ->orderByDesc('media_count')
-            ->orderBy('name')
-            ->limit(self::TOP_GENRES)
-            ->get()
-            ->filter(fn (Genre $genre): bool => $genre->media_count > 0)
+        $counts = array_slice($this->genreCounts, 0, self::TOP_GENRES, true);
+        $genres = Genre::query()->whereIn('id', array_keys($counts))->get()->keyBy('id');
+
+        return (new Collection(array_keys($counts)))
+            ->map(fn (int $id): ?Genre => $genres->get($id)?->setAttribute('media_count', $counts[$id]))
+            ->filter()
             ->values();
     }
 
@@ -146,7 +146,25 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function genreTotal(): int
     {
-        return Genre::query()->whereHas('media', fn ($media) => $media->unmerged())->count();
+        return count($this->genreCounts);
+    }
+
+    /**
+     * Every genre that has a story, the biggest first, as `[genre id => live story count]`, kept ten minutes.
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function genreCounts(): array
+    {
+        return Cache::remember('discover:genre-counts:v1', 600, fn (): array => Genre::query()
+            ->withCount(['media' => fn ($media) => $media->unmerged()])
+            ->orderByDesc('media_count')
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (Genre $genre): bool => $genre->media_count > 0)
+            ->mapWithKeys(fn (Genre $genre): array => [$genre->id => (int) $genre->media_count])
+            ->all());
     }
 
     /**

@@ -233,3 +233,22 @@ test('the search panel sits under the hero and opens the search page on Enter', 
         ->and(htmlQuery($html, '//main//search//a[normalize-space()="Browse Discover"][@href="'.route('discover').'"]')->length)->toBe(1)
         ->and($html)->toContain('Livewire.navigate(')->toContain('q.trim().length >= 2');
 });
+
+test('the hero ids ride in the cached shelf pick, so a second home render costs at least a query less', function () {
+    ratedStories(8);
+    $this->actingAs(User::factory()->create());
+
+    $count = function (): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->get(route('home'))->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    $first = $count();
+    $second = $count();
+
+    expect(Cache::get('home:shelves:v1:20')['hero'])->toHaveCount(5)->each->toBeInt()
+        ->and($second)->toBeLessThanOrEqual($first - 1);
+});

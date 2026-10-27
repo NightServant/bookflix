@@ -12,6 +12,7 @@ use App\Models\Theme;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
@@ -232,7 +233,12 @@ new #[Title('Search')] class extends Component {
     #[Computed]
     public function facets(): array
     {
-        $years = Media::query()->unmerged()->selectRaw('min(media.publication_year) as lowest, max(media.publication_year) as highest')->first();
+        // The slider's ends, kept ten minutes as plain numbers.
+        $years = Cache::remember('search:year-bounds:v1', 600, function (): array {
+            $row = Media::query()->unmerged()->selectRaw('min(media.publication_year) as lowest, max(media.publication_year) as highest')->first();
+
+            return [(int) ($row?->lowest ?? 1900), (int) ($row?->highest ?? now()->year)];
+        });
 
         return [
             'types' => MediaType::query()->orderBy('name')->pluck('name', 'slug')->all(),
@@ -247,7 +253,7 @@ new #[Title('Search')] class extends Component {
                 ->all(),
             'lengths' => ['short' => __('Short'), 'medium' => __('Medium'), 'long' => __('Long')],
             'ratings' => ['6' => __('3 stars and up'), '7' => __('3.5 stars and up'), '8' => __('4 stars and up'), '9' => __('4.5 stars and up')],
-            'years' => [(int) ($years?->lowest ?? 1900), (int) ($years?->highest ?? now()->year)],
+            'years' => $years,
         ];
     }
 
