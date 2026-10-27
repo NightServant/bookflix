@@ -119,8 +119,9 @@ function providerFixture(string $path): array
  * @param  list<string>  $creators
  * @param  list<string>  $isbns
  * @param  array<string, string>  $crossIds
+ * @param  array<string, int|float>  $metrics
  */
-function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test', ?string $description = null, ?string $deweyCode = null): NormalizedMedia
+function normalized(string $title, string $type = 'novel', ?int $year = null, array $creators = [], array $isbns = [], array $crossIds = [], string $provider = 'test', ?string $description = null, ?string $deweyCode = null, array $metrics = []): NormalizedMedia
 {
     if (isset(MediaTypeSeeder::TYPES[$type])) {
         MediaType::firstOrCreate(['slug' => $type], MediaTypeSeeder::TYPES[$type]);
@@ -136,6 +137,7 @@ function normalized(string $title, string $type = 'novel', ?int $year = null, ar
         publicationYear: $year,
         externalDeweyCode: $deweyCode,
         sourceUrl: "https://{$provider}.test/".rawurlencode($title),
+        metrics: $metrics,
     );
 }
 

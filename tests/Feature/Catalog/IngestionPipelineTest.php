@@ -16,6 +16,7 @@ use App\Models\Media;
 use App\Models\MediaExternalId;
 use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 
 test('importing creates media with creators genres and an external id', function () {
     $outcome = importFixture('anilist', 'manga-berserk');
@@ -212,4 +213,30 @@ test('the dewey code of each provider is kept on its external id and a merged im
     expect($outcome)->toBe(ImportOutcome::Merged)
         ->and(MediaExternalId::where('external_id', 'abc')->sole()->dewey_code)->toBe('741.5');
     Bus::assertDispatched(ClassifyMedia::class, fn (ClassifyMedia $job) => $job->mediaId === $existing->id);
+});
+
+test('metrics are stored per source and fill the rating columns from every source', function () {
+    $import = function (string $key, string $id, array $metrics): void {
+        ExternalSource::where('key', $key)->exists() || ExternalSource::factory()->create(['key' => $key]);
+        $provider = Mockery::mock(MetadataProvider::class);
+        $provider->shouldReceive('key')->andReturn($key);
+        $provider->shouldReceive('normalize')->andReturn(normalized(title: 'Berserk', type: 'manga', year: 1990, creators: ['Kentarou Miura'], provider: $key, metrics: $metrics));
+        app(IngestionPipeline::class)->import(new ProviderRecord($key, $id, ['id' => $id, 'metrics' => $metrics], null, now()->toImmutable()), $provider);
+    };
+
+    $import('anilist', '1', ['popularity' => 500, 'ratings_count' => 100, 'average_rating' => 4.0]);
+    $import('mangadex', 'abc', ['follows' => 900, 'ratings_count' => 300, 'average_rating' => 3.0]);
+    $import('anilist', '1', ['popularity' => 700, 'ratings_count' => 100, 'average_rating' => 4.0]);
+
+    $media = Media::sole();
+
+    expect(DB::table('media_metrics')->count())->toBe(6)
+        ->and((float) DB::table('media_metrics')->where('metric', 'popularity')->value('value'))->toBe(700.0)
+        ->and($media->ratings_count)->toBe(400)
+        ->and((float) $media->average_rating)->toBe(3.25);
+
+    $media->update(['ratings_count' => 7, 'locked_fields' => ['ratings_count']]);
+    $import('mangadex', 'abc', ['follows' => 901, 'ratings_count' => 301, 'average_rating' => 3.0]);
+
+    expect($media->fresh()->ratings_count)->toBe(7);
 });

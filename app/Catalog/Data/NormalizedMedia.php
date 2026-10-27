@@ -20,6 +20,7 @@ final readonly class NormalizedMedia
      * @param  list<string>  $isbns  ISBN-13 only.
      * @param  array<string, string>  $crossIds  Other providers' ids, keyed by provider.
      * @param  list<string>  $contentWarnings
+     * @param  array<string, int|float>  $metrics  Popularity signals by name (popularity, favourites, follows, ratings_count, average_rating on a 0-5 scale, pageviews_30d).
      */
     public function __construct(
         public string $title,
@@ -48,5 +49,6 @@ final readonly class NormalizedMedia
         public ?string $externalDeweyCode = null,
         public ?string $sourceUrl = null,
         public bool $isAdult = false,
+        public array $metrics = [],
     ) {}
 }
