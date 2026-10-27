@@ -396,3 +396,12 @@ test('redis retry_after outlasts the longest horizon supervisor timeout', functi
 
     expect(config('queue.connections.redis.retry_after'))->toBeGreaterThan($longest);
 });
+
+test('a configured provider without a class is unknown to the sync command and skipped by the job', function () {
+    ExternalSource::factory()->create(['key' => 'mangadex', 'enabled' => true]);
+
+    $this->artisan('bookflix:sync', ['provider' => 'mangadex'])->assertFailed();
+    (new SyncProvider('mangadex'))->handle();
+
+    expect(IngestionRun::count())->toBe(0);
+});

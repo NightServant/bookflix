@@ -156,5 +156,5 @@ test('seeding gives a new source its starting state from config and never overwr
 
     expect(ExternalSource::firstWhere('key', 'anilist')->enabled)->toBeFalse()
         ->and(ExternalSource::firstWhere('key', 'openlibrary')->enabled)->toBeTrue()
-        ->and(ExternalSource::count())->toBe(2);
+        ->and(ExternalSource::count())->toBe(9);
 });

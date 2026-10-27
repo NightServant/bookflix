@@ -81,6 +81,8 @@ return [
     | one request, an Open Library page is ten works at several requests each.
     | `max_pages_per_run` bounds one sync; the next run resumes where it stopped.
     | `allowed_hosts` are the only hosts whose https cover and source URLs are kept.
+    | A provider whose `class` is null is not built yet: its source is seeded but
+    | never synced, listed, or allowed for covers.
     |
     */
 
@@ -102,6 +104,62 @@ return [
             'rate_per_minute' => 30,
             'max_pages_per_run' => 20,
             'allowed_hosts' => ['anilist.co', 's4.anilist.co'],
+        ],
+
+        'mangadex' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_MANGADEX_ENABLED', false),
+            'rate_per_minute' => 30,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['api.mangadex.org', 'uploads.mangadex.org'],
+        ],
+
+        'mangaupdates' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_MANGAUPDATES_ENABLED', false),
+            'rate_per_minute' => 20,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['api.mangaupdates.com', 'cdn.mangaupdates.com'],
+        ],
+
+        'comicvine' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_COMICVINE_ENABLED', false),
+            'rate_per_minute' => 3,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['comicvine.gamespot.com'],
+        ],
+
+        'metron' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_METRON_ENABLED', false),
+            'rate_per_minute' => 20,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['metron.cloud', 'static.metron.cloud'],
+        ],
+
+        'hardcover' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_HARDCOVER_ENABLED', false),
+            'rate_per_minute' => 30,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['api.hardcover.app', 'assets.hardcover.app'],
+        ],
+
+        'wikidata' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_WIKIDATA_ENABLED', false),
+            'rate_per_minute' => 20,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['www.wikidata.org', 'query.wikidata.org'],
+        ],
+
+        'wikipedia' => [
+            'class' => null,
+            'enabled' => (bool) env('BOOKFLIX_WIKIPEDIA_ENABLED', false),
+            'rate_per_minute' => 30,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['wikimedia.org', 'en.wikipedia.org'],
         ],
 
     ],

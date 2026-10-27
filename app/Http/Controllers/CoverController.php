@@ -76,6 +76,10 @@ class CoverController extends Controller
         $hosts = [];
 
         foreach (config('bookflix.providers', []) as $provider) {
+            if (($provider['class'] ?? null) === null) {
+                continue;
+            }
+
             array_push($hosts, ...array_values($provider['allowed_hosts'] ?? []));
         }
 

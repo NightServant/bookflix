@@ -22,7 +22,7 @@ new #[Title('Providers')] class extends Component {
     #[Computed]
     public function sources(): Collection
     {
-        return ExternalSource::providers()->orderBy('name')->get();
+        return ExternalSource::providers()->whereIn('key', array_keys(array_filter(config('bookflix.providers'), fn (array $provider): bool => $provider['class'] !== null)))->orderBy('name')->get();
     }
 
     /**
@@ -56,7 +56,7 @@ new #[Title('Providers')] class extends Component {
 
         $source = ExternalSource::providers()->where('key', $providerKey)->where('enabled', true)->first();
 
-        if ($source === null || config("bookflix.providers.{$providerKey}") === null) {
+        if ($source === null || config("bookflix.providers.{$providerKey}.class") === null) {
             Flux::toast(variant: 'danger', text: __('That provider is not enabled.'));
 
             return;
