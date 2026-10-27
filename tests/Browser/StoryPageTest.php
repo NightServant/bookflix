@@ -79,11 +79,12 @@ test('an old merged slug lands on the winner', function () {
         ->assertSee('Winner');
 });
 
-test('the similar shelf has a hover preview per story and keeps the quick view for touch devices', function () {
+test('the similar shelf has a hover preview per story (one shared card) and keeps the quick view for touch devices', function () {
     $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
     $page->script($this->scrollDown);
 
     $page->wait(1)
-        ->assertScript('document.querySelectorAll("[role=dialog]").length >= 5', true)
+        ->assertScript('document.querySelectorAll("[data-story-preview]").length >= 5', true)
+        ->assertScript('document.querySelectorAll("[data-story-card]").length', 1)
         ->assertScript('Array.from(document.querySelectorAll("button")).filter((button) => button.textContent.includes("Quick view") && button.offsetParent !== null).length', 0);
 });

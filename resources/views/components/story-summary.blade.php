@@ -1,15 +1,14 @@
 @props([
     'media',
-    'titleId' => null,
 ])
 
 {{--
-    The short version of a story that <x-story-preview> (hover) and <x-quick-view> (touch) share: a small cover, the title,
-    <x-story-info>, a three-line blurb and the ctas: a primary "View story" with, once the library exists, an icon-only add button beside it. `title-id` is the id the surrounding dialog names itself by.
+    The short version of a story that <x-story-preview> keeps for the shared card (hover) and quick view (touch) to clone: a small cover, the title,
+    <x-story-info>, a three-line blurb and the ctas: a primary "View story" with, once the library exists, an icon-only add button beside it.
     Eager-load `mediaType` and `publicPrimaryDewey.deweyClass` on fetched media (story-info reads them).
     "Add to Library" dispatches a `library-add` event with the media id (rendered only once the Phase 5 `library.store` route exists), as <x-hero> does.
 --}}
-<div {{ $attributes }}>
+<div data-story-summary {{ $attributes }}>
     <div class="flex gap-4">
         <span class="block aspect-[2/3] w-24 shrink-0 self-start overflow-hidden rounded-card bg-surface-deep">
             @if ($media->cover_url)
@@ -20,7 +19,7 @@
         </span>
 
         <div class="min-w-0 flex-1">
-            <h2 @if ($titleId) id="{{ $titleId }}" @endif class="text-lead text-ink">{{ $media->title }}</h2>
+            <h2 class="text-lead text-ink">{{ $media->title }}</h2>
             <x-story-info :media="$media" class="mt-1" />
 
             @if ($media->description)

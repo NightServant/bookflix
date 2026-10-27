@@ -13,25 +13,27 @@ beforeEach(function () {
         ->map(fn ($media) => $media->fresh(['mediaType', 'publicPrimaryDewey.deweyClass']));
 
     $this->path = componentPage(<<<'BLADE'
-        <div class="w-40">
-            <x-story-preview :media="$media" data-test="preview">
-                <x-cover-tile :media="$media" data-test="tile" />
-            </x-story-preview>
-        </div>
+        <x-story-previews name="quick-view-test">
+            <div class="w-40">
+                <x-story-preview :media="$media" data-test="preview">
+                    <x-cover-tile :media="$media" data-test="tile" />
+                </x-story-preview>
+            </div>
+        </x-story-previews>
         BLADE, ['media' => $this->media[0]]);
 
     // Small JS probes, so each test reads like the behaviour it checks. The panel is `position: fixed`, so it has no offsetParent.
-    $this->panel = 'document.querySelector("[role=dialog]")';
-    $this->isOpen = 'getComputedStyle(document.querySelector("[role=dialog]")).display !== "none"';
+    $this->panel = 'document.querySelector("[data-story-card]")';
+    $this->isOpen = 'getComputedStyle(document.querySelector("[data-story-card]")).display !== "none"';
     $this->expanded = 'document.querySelector("a[href*=stories]").getAttribute("aria-expanded")';
     $this->focusedTile = 'document.activeElement === document.querySelector("a[href*=stories]")';
     $this->away = 'a[href="/_test/elsewhere"]';
 
     // A pointer arriving at the trigger, as the mouse would deliver it, then frames until the panel is on screen. Resolves with [ms until shown, opacity then].
     $this->arrive = '(async () => {
-        const panel = document.querySelector("[role=dialog]");
+        const panel = document.querySelector("[data-story-card]");
         const start = performance.now();
-        document.querySelector("[x-popover]").dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }));
+        document.querySelector("[data-story-preview]").firstElementChild.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }));
         for (let frame = 0; frame < 200 && getComputedStyle(panel).display === "none"; frame++) {
             await new Promise(requestAnimationFrame);
         }
@@ -63,7 +65,7 @@ test('the preview waits 300ms before it opens', function () {
 test('touch never opens it: the quick view is the touch alternative', function () {
     $page = visit($this->path)->wait(1);
 
-    $page->script('document.querySelector("[x-popover]").dispatchEvent(new PointerEvent("pointerenter", { pointerType: "touch" }))');
+    $page->script('document.querySelector("[data-story-preview]").firstElementChild.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "touch" }))');
 
     $page->wait(0.6)->assertScript($this->isOpen, false);
 });
@@ -194,7 +196,7 @@ test('moving the pointer from the trigger onto the panel keeps it open', functio
 
 test('inside a scrolling shelf the panel is not clipped by the track', function () {
     $path = componentPage(<<<'BLADE'
-        <x-shelf title="Gothic Classics">
+        <x-shelf title="Gothic Classics" previews="quick-view-gothic">
             @foreach ($media as $item)
                 <li wire:key="m-{{ $item->id }}">
                     <x-story-preview :media="$item"><x-cover-tile :media="$item" data-test="tile-{{ $loop->index }}" /></x-story-preview>
@@ -207,12 +209,68 @@ test('inside a scrolling shelf the panel is not clipped by the track', function 
 
     $page->hover('@tile-1')->wait(0.8)
         ->assertScript('(() => {
-            const panel = document.querySelectorAll("[role=dialog]")[1];
+            const panel = document.querySelector("[data-story-card]");
             const box = panel.getBoundingClientRect();
             const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
 
-            return getComputedStyle(panel).display !== "none" && panel.contains(hit) && box.bottom > document.querySelector("ul").getBoundingClientRect().bottom;
+            return panel.querySelector("h2").textContent.trim() === "Dracula" && getComputedStyle(panel).display !== "none" && panel.contains(hit) && box.bottom > document.querySelector("ul").getBoundingClientRect().bottom;
         })()', true);
+});
+
+test('every tile of a shelf shares one card, filled from the tile in use, and only that tile is expanded', function () {
+    $path = componentPage(<<<'BLADE'
+        <x-shelf title="Gothic Classics" previews="quick-view-gothic">
+            @foreach ($media as $item)
+                <li wire:key="m-{{ $item->id }}">
+                    <x-story-preview :media="$item"><x-cover-tile :media="$item" data-test="tile-{{ $loop->index }}" /></x-story-preview>
+                </li>
+            @endforeach
+        </x-shelf>
+        BLADE, ['media' => $this->media]);
+    $title = 'document.querySelector("[data-story-card] h2")?.textContent.trim()';
+    $expanded = 'Array.from(document.querySelectorAll("[data-story-preview] a")).map((a) => a.getAttribute("aria-expanded")).join()';
+
+    $page = visit($path)->wait(1.2);
+
+    $page->assertScript('document.querySelectorAll("[data-story-card]").length', 1)
+        ->assertScript('document.querySelectorAll("dialog").length', 1)
+        ->assertScript('document.querySelectorAll("[data-story-summary]").length', 0)
+        ->assertScript($expanded, 'false,false,false')
+        ->hover('@tile-0')->wait(0.8)
+        ->assertScript($title, 'Frankenstein')
+        ->assertScript($expanded, 'true,false,false')
+        ->assertScript('document.querySelector("[data-story-card]").getAttribute("aria-label")', 'Preview of Frankenstein')
+        ->hover('@tile-2')->wait(0.9)
+        ->assertScript($title, 'Pride and Prejudice')
+        ->assertScript($expanded, 'false,false,true')
+        ->assertScript('document.querySelector("[data-story-card]").getAttribute("aria-label")', 'Preview of Pride and Prejudice')
+        ->assertScript('(() => { const t = document.querySelector("[data-test=tile-2]").getBoundingClientRect(); const p = document.querySelector("[data-story-card]").getBoundingClientRect(); return p.top >= t.bottom && Math.abs(p.left - t.left) < 8; })()', true)
+        ->assertScript('document.querySelectorAll("[data-story-summary]").length', 1)
+        ->assertScript('document.querySelectorAll("[data-story-card]").length', 1);
+});
+
+test('keyboard focus moving to the next tile moves the card to it', function () {
+    $path = componentPage(<<<'BLADE'
+        <x-shelf title="Gothic Classics" previews="quick-view-gothic">
+            @foreach ($media as $item)
+                <li wire:key="m-{{ $item->id }}">
+                    <x-story-preview :media="$item"><x-cover-tile :media="$item" /></x-story-preview>
+                </li>
+            @endforeach
+        </x-shelf>
+        BLADE, ['media' => $this->media]);
+    $title = 'document.querySelector("[data-story-card] h2")?.textContent.trim()';
+
+    $page = visit($path)->wait(1.2);
+
+    // The tiles are the only tab stops on the page.
+    $page->keys(':root', 'Tab')->wait(0.7)
+        ->assertScript($title, 'Frankenstein')
+        ->keys(':focus', 'Escape')->wait(0.2)
+        ->keys(':focus', 'Tab')->wait(0.7)
+        ->assertScript('document.activeElement.textContent.includes("Dracula")', true)
+        ->assertScript($title, 'Dracula')
+        ->assertScript('getComputedStyle(document.querySelector("[data-story-card]")).display !== "none"', true);
 });
 
 test('with motion the panel springs open from a transparent state and settles with no inline motion styles', function () {
@@ -238,22 +296,24 @@ test('inside a modal, Escape on a focused tile closes its preview first and the 
     $path = componentPage(<<<'BLADE'
         <flux:modal.trigger name="m"><button type="button">Open modal</button></flux:modal.trigger>
         <flux:modal name="m">
-            <div class="w-40">
-                <x-story-preview :media="$media"><x-cover-tile :media="$media" /></x-story-preview>
-            </div>
+            <x-story-previews name="quick-view-in-modal">
+                <div class="w-40">
+                    <x-story-preview :media="$media"><x-cover-tile :media="$media" /></x-story-preview>
+                </div>
+            </x-story-previews>
         </flux:modal>
         BLADE, ['media' => $this->media[0]]);
 
     $modalOpen = 'document.querySelector("dialog").open';
-    $previewOpen = 'getComputedStyle(document.querySelector("[x-popover] [role=dialog]")).display !== "none"';
+    $previewOpen = 'getComputedStyle(document.querySelector("[data-story-card]")).display !== "none"';
 
     $page = visit($path)->wait(1);
 
     $page->click('Open modal')->wait(0.6)
         ->assertScript($modalOpen, true)
-        ->keys('dialog [x-ref=trigger] a', 'Tab')
+        ->keys('dialog [data-story-preview] a', 'Tab')
         ->keys(':focus', 'Shift+Tab')->wait(0.7)
-        ->assertScript('document.activeElement === document.querySelector("dialog [x-ref=trigger] a")', true)
+        ->assertScript('document.activeElement === document.querySelector("dialog [data-story-preview] a")', true)
         ->assertScript($previewOpen, true)
         ->keys(':focus', 'Escape')->wait(0.3)
         ->assertScript($previewOpen, false)

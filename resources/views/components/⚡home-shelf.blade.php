@@ -47,7 +47,7 @@ new #[Lazy] class extends Component {
             $seeAll = $shelf->key === 'explore-by-subject' ? route('explore.index') : route('discover');
         @endphp
 
-        <x-shelf :title="$shelf->title" :href="$seeAll" :featured="$shelf->featured" :id="'shelf-'.$shelf->key" :eyebrow="$shelf->reasonLabel" bleed>
+        <x-shelf :title="$shelf->title" :href="$seeAll" :featured="$shelf->featured" :id="'shelf-'.$shelf->key" :eyebrow="$shelf->reasonLabel" :previews="$shelf->key === 'explore-by-subject' ? null : 'quick-view-'.$shelf->key" bleed>
             @foreach ($shelf->items as $item)
                 <li wire:key="{{ $shelf->key }}-{{ $item->id }}">
                     @if ($shelf->key === 'explore-by-subject')
@@ -56,8 +56,6 @@ new #[Lazy] class extends Component {
                         <x-story-preview :media="$item">
                             <x-cover-tile :media="$item" />
                         </x-story-preview>
-
-                        <x-quick-view :media="$item" class="mt-2 hidden pointer-coarse:block" />
                     @endif
                 </li>
             @endforeach

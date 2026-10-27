@@ -180,7 +180,12 @@ test('the loaded shelves have tiles with a hover preview, a touch quick view and
 
     $html = $this->actingAs(User::factory()->create())->get(route('home'))->getContent();
 
-    expect(htmlQuery($html, '//section[@aria-labelledby="shelf-trending"]//li//*[@x-data="storyPreview"]')->length)->toBe(6)
+    expect(htmlQuery($html, '//section[@aria-labelledby="shelf-trending"]//li//*[@data-story-preview]')->length)->toBe(6)
+        ->and(htmlQuery($html, '//*[@data-story-previews][.//section[@aria-labelledby="shelf-trending"]]//*[@data-story-card]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//*[@data-story-previews][.//section[@aria-labelledby="shelf-trending"]]//dialog[@data-modal="quick-view-trending"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//*[@data-story-summary][not(ancestor::template)]')->length)->toBe(0)
+        ->and(htmlQuery($html, '//template/*[@data-story-summary]')->length)->toBe(12)
+        ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-explore-by-subject"]/ancestor::*[@data-story-previews]')->length)->toBe(0)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-trending"]//li//button[contains(.,"Quick view")]')->length)->toBe(6)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-trending"]//a[@href="'.route('discover').'"][contains(@aria-label,"See all in Trending Now")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-new-releases"]//a[@href="'.route('discover').'"]')->length)->toBe(1)

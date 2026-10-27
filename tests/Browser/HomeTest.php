@@ -106,13 +106,36 @@ test('a hover preview opened on one shelf lands over the shelf beneath it, whole
     $page->wait(0.8);
     $page->hover('main section[aria-labelledby=shelf-trending] ul > li:nth-child(5) a.group')->wait(1.2)
         ->assertScript('(() => {
-            const panel = document.querySelector("main section[aria-labelledby=shelf-trending] [role=dialog]:not([style*=\"display: none\"])");
+            const panel = document.querySelector("[data-story-card]:not([style*=\"display: none\"])");
             const box = panel.getBoundingClientRect();
             const below = document.querySelector("main section[aria-labelledby=shelf-new-releases]").getBoundingClientRect().top;
             const hit = document.elementFromPoint(box.left + box.width / 2, Math.min(box.bottom - 10, below + 40));
 
             return box.bottom > below && panel.contains(hit);
         })()', true);
+});
+
+test('home keeps its DOM light: one preview and one quick view per shelf, filled from the tile in use', function () {
+    $page = visit(route('home'), $this->desktop)->wait(1);
+
+    foreach ([0, 600, 1400, 2200] as $offset) {
+        $page->script("window.scrollTo(0, {$offset})");
+        $page->wait(0.8);
+    }
+
+    $shelves = 'document.querySelectorAll("main section[aria-labelledby=shelf-trending], main section[aria-labelledby=shelf-new-releases]").length';
+
+    $page->assertScript('document.querySelectorAll("[data-story-preview]").length', 18)
+        ->assertScript('document.querySelectorAll("dialog").length <= 3', true)
+        // Nothing renders a summary until a tile asks for it, and then it is one per shelf, not one per tile.
+        ->assertScript('document.querySelectorAll("[data-story-summary]").length', 0)
+        ->assertScript('document.querySelectorAll("[data-story-card]").length', 2);
+
+    $page->script('window.scrollTo(0, 560)');
+    $page->wait(0.6);
+    $page->hover('main section[aria-labelledby=shelf-trending] ul > li:nth-child(2) a.group')->wait(0.8)
+        ->assertScript('document.querySelectorAll("[data-story-summary]").length <= '.$shelves, true)
+        ->assertScript('document.querySelector("[data-story-card]:not([style*=\"display: none\"]) h2").textContent.trim()', 'Panel Tale 2');
 });
 
 test('lazy shelves swap in without shifting the page', function () {

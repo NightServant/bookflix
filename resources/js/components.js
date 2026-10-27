@@ -220,48 +220,143 @@ export default function components(Alpine) {
         },
     }));
 
-    // <x-story-preview>: `open` is the model of the ui popover inside. It opens 300ms after a mouse rests on the trigger or the
-    // keyboard reaches it, and closes a moment after both leave. Touch never opens it, and neither does a click's focus (that is
-    // not :focus-visible); the popover plugin itself handles Escape, Tab out and focus returning to the trigger.
-    Alpine.data('storyPreview', () => ({
-        open: false,
-        timer: null,
+    // <x-story-previews>: one preview card and one quick view dialog for every <x-story-preview> tile inside. `active` is the tile in use
+    // (the card shows it, and the popover plugin's button is its link), `quick` the one the touch dialog shows; a tile keeps its summary in a
+    // <template> and `fill` clones it into whichever of the two is asked. `open` is the model of the ui popover around the tiles. It opens 300ms
+    // after a mouse rests on a tile or the keyboard reaches it, and closes a moment after both the tile and the card are left. Touch never opens
+    // it, and neither does a click's focus (that is not :focus-visible); the popover plugin itself handles Escape, Tab out of the card and focus
+    // returning to the tile. The card is not next to its tile in the DOM, so Tab from the tile enters it by hand.
+    Alpine.data('storyPreviews', (quickViewName) => {
+        // The tile whose link is marked expanded; kept out of the reactive data so the effect that sets it does not re-run itself.
+        let lit = null;
 
-        // The trigger's own link (or button); the popover plugin focuses it again when the preview closes.
-        link() {
-            return this.$refs.trigger.querySelector('a[href], button') ?? this.$refs.trigger;
-        },
+        return {
+            open: false,
+            active: null,
+            quick: null,
+            timer: null,
 
-        schedule(open, delay) {
-            clearTimeout(this.timer);
-            this.timer = setTimeout(() => (this.open = open), delay);
-        },
+            // The tile's own link (or button); the popover plugin focuses it again when the card closes.
+            link(tile) {
+                const trigger = tile.firstElementChild;
 
-        dismiss() {
-            clearTimeout(this.timer);
-            this.open = false;
-        },
+                return trigger.querySelector('a[href], button') ?? trigger;
+            },
 
-        enter(event) {
-            event.pointerType !== 'touch' && this.schedule(true, 300);
-        },
+            // Only the tile with the card open is expanded.
+            mark(active, open) {
+                const next = open ? active : null;
 
-        leave(event) {
-            event.pointerType !== 'touch' && this.schedule(false, 150);
-        },
+                if (lit && lit !== next) {
+                    this.link(lit).setAttribute('aria-expanded', 'false');
+                }
 
-        // Focus coming back from the panel (Escape, Shift+Tab) is not an arrival, so it must not reopen what it just closed.
-        focus(event) {
-            event.target.matches(':focus-visible') && ! event.currentTarget.contains(event.relatedTarget) && this.schedule(true, 300);
-        },
+                lit = next;
+                lit && this.link(lit).setAttribute('aria-expanded', 'true');
+            },
 
-        // A pointer still over the preview keeps it open (a click on its text moves focus to the page).
-        blur(event) {
-            const root = event.currentTarget;
+            // Clones a tile's summary into `target`; `titleId` names the dialog's heading.
+            fill(target, tile, titleId) {
+                if (! tile) {
+                    return;
+                }
 
-            root.contains(event.relatedTarget) || root.matches(':hover') || this.schedule(false, 0);
-        },
-    }));
+                target.replaceChildren(tile.querySelector('template').content.cloneNode(true));
+                titleId && target.querySelector('h2')?.setAttribute('id', titleId);
+            },
+
+            quickView(tile) {
+                this.quick = tile;
+                this.$dispatch('modal-show', { name: quickViewName });
+            },
+
+            card() {
+                return this.$root.querySelector('[data-story-card]');
+            },
+
+            schedule(open, delay, tile) {
+                clearTimeout(this.timer);
+                this.timer = setTimeout(() => {
+                    tile && (this.active = tile);
+                    this.open = open;
+                }, delay);
+            },
+
+            dismiss() {
+                clearTimeout(this.timer);
+                this.open = false;
+            },
+
+            // A pointer over the card keeps it open.
+            hold() {
+                clearTimeout(this.timer);
+            },
+
+            enter(event, tile) {
+                event.pointerType !== 'touch' && this.schedule(true, 300, tile);
+            },
+
+            leave(event) {
+                event.pointerType !== 'touch' && this.schedule(false, 150);
+            },
+
+            // Focus coming back from the card (Escape, Shift+Tab) is not an arrival, so it must not reopen what it just closed.
+            focus(event, tile) {
+                const from = event.relatedTarget;
+
+                if (! event.target.matches(':focus-visible') || tile.contains(from) || (tile === this.active && this.card().contains(from))) {
+                    return;
+                }
+
+                this.schedule(true, 300, tile);
+            },
+
+            // Tab from an open tile's link goes into its card, where the tile's neighbour would be if the card sat beside it.
+            enterCard(event, tile) {
+                if (! this.open || tile !== this.active || event.shiftKey || event.target !== this.link(tile)) {
+                    return;
+                }
+
+                const first = this.card().querySelector('a[href], button');
+
+                first && (event.preventDefault(), first.focus());
+            },
+
+            // Tab from the card's last control carries on to whatever follows the tile. The plugin's own version of this trips over the
+            // controls it still lists while they are hidden (a tile's touch-only button), so it is pre-empted here; Shift+Tab is left to it.
+            leaveCard(event) {
+                const controls = this.card().querySelectorAll('a[href], button');
+
+                if (event.shiftKey || event.target !== controls[controls.length - 1]) {
+                    return;
+                }
+
+                const from = this.link(this.active);
+                const next = [...document.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]')].find((el) => (
+                    el.tabIndex >= 0 && ! el.disabled && ! this.card().contains(el) && el.checkVisibility()
+                        && from.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
+                ));
+
+                if (next) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    next.focus();
+                }
+            },
+
+            // Focus moving between the open tile and its card, or a pointer still over either (a click on the card's text moves focus to the page), keeps it open.
+            blur(event) {
+                const next = event.relatedTarget;
+                const card = this.card();
+
+                if (next && (card.contains(next) || this.active?.contains(next))) {
+                    return;
+                }
+
+                this.active?.matches(':hover') || card.matches(':hover') || this.schedule(false, 0);
+            },
+        };
+    });
 
     // <x-range-filter>: a two-handle nouislider. `values` is the model ([from, to], written when a drag or key press ends);
     // `display` follows the handles while they move. The slider is built in a fresh element every time, so a page restored
