@@ -30,8 +30,7 @@ class KeywordLeg implements SearchLeg
     public function ids(string $query, SearchFilters $filters, int $limit = 100): array
     {
         $lists = [
-            // Scout's database engine would otherwise list newest first; every list breaks ties by id ascending, so fused ties stay stable.
-            array_values(Media::search($query)->query(fn (Builder $media) => $this->visible($media->select('media.id'), $filters))->orderBy('media.id')->take($limit)->keys()->all()),
+            array_values(Media::search($query)->query(fn (Builder $media) => $this->visible($media->select('media.id'), $filters))->take($limit)->keys()->all()),
             $this->prefixed($query, $filters, $limit),
             $this->similar(self::TITLE, $query, $filters, $limit),
             $this->similar(self::ALTERNATIVE_TITLES, $query, $filters, $limit),

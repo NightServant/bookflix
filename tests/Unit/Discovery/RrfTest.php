@@ -13,3 +13,8 @@ test('rrf rewards items ranked high in several lists', function () {
 test('rrf with no lists is empty', function () {
     expect(Rrf::fuse([]))->toBe([]);
 });
+
+test('rrf orders equal scores by id, whatever order the lists listed them in', function () {
+    expect(array_keys(Rrf::fuse([[5, 2], [2, 5]])))->toBe([2, 5])
+        ->and(array_keys(Rrf::fuse([[2, 5], [5, 2]])))->toBe([2, 5]);
+});

@@ -1,6 +1,8 @@
 <?php
 
 use App\Console\Commands\RebuildSearchText;
+use App\Discovery\Search\Legs\KeywordLeg;
+use App\Discovery\Search\SearchFilters;
 use App\Discovery\Search\SearchTextBuilder;
 use App\Models\Media;
 use Database\Seeders\DeweySeeder;
@@ -149,4 +151,12 @@ test('a blank query never counts against the limit', function () {
     }
 
     expect(search('berserk')->throttled)->toBeFalse();
+});
+
+test('the keyword leg ranks the stronger full text match first, even when it is the newer story', function () {
+    $weak = Media::factory()->create(['title' => 'Quiet Harbour', 'search_text' => 'quiet harbour a long tale of the sea with one zephyr and many other words besides']);
+    $strong = Media::factory()->create(['title' => 'Windward', 'search_text' => 'zephyr zephyr zephyr windward']);
+
+    expect($strong->id)->toBeGreaterThan($weak->id)
+        ->and(app(KeywordLeg::class)->ids('zephyr', SearchFilters::fromArray([])))->toBe([$strong->id, $weak->id]);
 });
