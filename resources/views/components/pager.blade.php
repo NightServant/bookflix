@@ -12,7 +12,7 @@
 @endphp
 
 @if ($paginator->hasPages())
-    <nav aria-label="{{ __('Pagination') }}" data-pager {{ $attributes->class('flex items-center justify-center gap-3 sm:gap-6') }}>
+    <nav aria-label="{{ __('Pages') }}" data-pager {{ $attributes->class('flex items-center justify-center gap-3 sm:gap-6') }}>
         @if ($paginator->onFirstPage())
             <span aria-disabled="true" class="{{ $off }}"><flux:icon name="arrow-left" variant="micro" class="size-4" />{{ __('Previous') }}</span>
         @else
