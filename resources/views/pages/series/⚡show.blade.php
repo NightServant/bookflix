@@ -132,7 +132,7 @@ new #[Title('Series')] class extends Component {
 
                 @if ($first)
                     <div class="mt-6">
-                        <x-cta :href="route('stories.show', $first->slug)" wire:navigate>{{ $startLabel }}</x-cta>
+                        <x-cta icon="book-open" :href="route('stories.show', $first->slug)" wire:navigate>{{ $startLabel }}</x-cta>
                     </div>
                 @endif
             </div>
@@ -155,7 +155,7 @@ new #[Title('Series')] class extends Component {
                 <div class="mt-4 max-w-prose">
                     <p class="text-lead text-ink">{{ __('No volumes yet') }}</p>
                     <p class="mt-2 text-body text-ink-subtle">{{ __('This series is listed, but none of its volumes have reached the catalog. They appear here as soon as they are added.') }}</p>
-                    <x-cta variant="secondary" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
+                    <x-cta variant="secondary" icon="building-library" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
                 </div>
             @endif
         </div>

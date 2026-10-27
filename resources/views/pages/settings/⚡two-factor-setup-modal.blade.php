@@ -203,6 +203,8 @@ new class extends Component {
                     <div class="flex items-center space-x-3">
                         <flux:button
                             variant="outline"
+                            icon="arrow-left"
+                            icon:variant="outline"
                             class="flex-1"
                             wire:click="resetVerification"
                         >
@@ -211,6 +213,8 @@ new class extends Component {
 
                         <flux:button
                             variant="primary"
+                            icon="check"
+                            icon:variant="outline"
                             class="flex-1"
                             wire:click="confirmTwoFactor"
                             x-bind:disabled="$wire.code.length < 6"
@@ -247,6 +251,8 @@ new class extends Component {
                     <flux:button
                         :disabled="$errors->has('setupData')"
                         variant="primary"
+                        icon:trailing="arrow-right"
+                        icon-trailing:variant="outline"
                         class="w-full"
                         wire:click="showVerificationIfNecessary"
                     >

@@ -122,7 +122,7 @@ new #[Title('Edit media')] class extends Component {
             @endforeach
         </flux:select>
 
-        <flux:button variant="filled" type="submit" data-test="save-media-button">{{ __('Save') }}</flux:button>
+        <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="save-media-button">{{ __('Save') }}</flux:button>
     </form>
 
     <div class="mt-12 max-w-2xl">
@@ -133,7 +133,7 @@ new #[Title('Edit media')] class extends Component {
             @forelse ($media->locked_fields as $field)
                 <li wire:key="locked-{{ $field }}" class="flex items-center justify-between rounded-lg bg-surface-card px-4 py-2">
                     <span class="text-body text-ink">{{ str($field)->headline() }}</span>
-                    <flux:button size="sm" variant="filled" wire:click="unlock('{{ $field }}')">{{ __('Unlock') }}</flux:button>
+                    <flux:button size="sm" variant="filled" icon="lock-open" icon:variant="outline" wire:click="unlock('{{ $field }}')">{{ __('Unlock') }}</flux:button>
                 </li>
             @empty
                 <li class="text-body text-ink-muted">{{ __('None.') }}</li>
@@ -144,7 +144,7 @@ new #[Title('Edit media')] class extends Component {
     <div class="mt-12 max-w-2xl">
         <h2 class="text-lead text-ink">{{ __('Remove invalid record') }}</h2>
         <p class="mt-1 text-meta text-ink-muted">{{ __('Hides the record from the catalogue. It stays in the database.') }}</p>
-        <flux:button class="mt-4" variant="filled" wire:click="remove" wire:confirm="{{ __('Remove this record from the catalogue?') }}" data-test="remove-media-button">
+        <flux:button class="mt-4" variant="filled" icon="trash" icon:variant="outline" wire:click="remove" wire:confirm="{{ __('Remove this record from the catalogue?') }}" data-test="remove-media-button">
             {{ __('Remove') }}
         </flux:button>
     </div>

@@ -11,7 +11,7 @@ new class extends Component {}; ?>
     </div>
 
     <flux:modal.trigger name="confirm-account-deactivation">
-        <flux:button variant="danger" data-test="deactivate-account-button">
+        <flux:button variant="danger" icon="trash" icon:variant="outline" data-test="deactivate-account-button">
             {{ __('Deactivate account') }}
         </flux:button>
     </flux:modal.trigger>

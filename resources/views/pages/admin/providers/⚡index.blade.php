@@ -89,10 +89,10 @@ new #[Title('Providers')] class extends Component {
                     </flux:table.cell>
                     <flux:table.cell>{{ $source->last_synced_at?->diffForHumans() ?? __('Never') }}</flux:table.cell>
                     <flux:table.cell class="flex justify-end gap-2">
-                        <flux:button size="sm" variant="filled" wire:click="toggleEnabled({{ $source->id }})">
+                        <flux:button size="sm" variant="filled" :icon="$source->enabled ? 'pause' : 'play'" icon:variant="outline" wire:click="toggleEnabled({{ $source->id }})">
                             {{ $source->enabled ? __('Disable') : __('Enable') }}
                         </flux:button>
-                        <flux:button size="sm" variant="filled" wire:click="syncNow('{{ $source->key }}')" :disabled="! $source->enabled" data-test="sync-now-{{ $source->key }}">
+                        <flux:button size="sm" variant="filled" icon="arrow-path" icon:variant="outline" wire:click="syncNow('{{ $source->key }}')" :disabled="! $source->enabled" data-test="sync-now-{{ $source->key }}">
                             {{ __('Sync now') }}
                         </flux:button>
                     </flux:table.cell>

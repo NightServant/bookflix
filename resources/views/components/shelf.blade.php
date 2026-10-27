@@ -56,8 +56,8 @@
                         href="{{ $href }}"
                         wire:navigate
                         aria-label="{{ __('See all in :shelf', ['shelf' => $title]) }}"
-                        class="focus-ring inline-flex min-h-11 items-center rounded-control px-2 text-meta {{ $featured ? 'text-ink underline' : 'text-link hover:underline' }}"
-                    >{{ __('See all') }}</a>
+                        class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-meta {{ $featured ? 'text-ink underline' : 'text-link hover:underline' }}"
+                    >{{ __('See all') }}<flux:icon name="arrow-right" variant="micro" class="size-4" /></a>
                 @endif
 
                 <div x-show="canScroll" style="display: none" class="items-center max-sm:!hidden sm:flex">

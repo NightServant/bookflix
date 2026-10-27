@@ -68,7 +68,7 @@ new #[Title('Privacy settings')] class extends Component {
                 :description="__('Use your activity to recommend books. Turn off to stop recording it.')"
             />
 
-            <flux:button variant="filled" type="submit" data-test="update-privacy-button">
+            <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="update-privacy-button">
                 {{ __('Save') }}
             </flux:button>
         </form>

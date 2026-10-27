@@ -80,7 +80,7 @@ new #[Title('Media')] class extends Component {
                         @if ($item->trashed())
                             <flux:badge size="sm" color="zinc">{{ $item->merged_into_id ? __('Merged') : __('Removed') }}</flux:badge>
                         @else
-                            <flux:button size="sm" variant="filled" :href="route('admin.media.edit', $item)" wire:navigate>{{ __('Edit') }}</flux:button>
+                            <flux:button size="sm" variant="filled" icon="pencil-square" icon:variant="outline" :href="route('admin.media.edit', $item)" wire:navigate>{{ __('Edit') }}</flux:button>
                         @endif
                     </flux:table.cell>
                 </flux:table.row>

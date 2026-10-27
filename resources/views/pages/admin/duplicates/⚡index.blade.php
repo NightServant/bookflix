@@ -88,7 +88,7 @@ new #[Title('Duplicates')] class extends Component {
             <article wire:key="candidate-{{ $candidate->id }}" class="rounded-lg bg-surface-card p-6">
                 <div class="flex items-center justify-between">
                     <flux:badge size="sm" color="amber">{{ __(':score% similar', ['score' => round($candidate->score * 100)]) }}</flux:badge>
-                    <flux:button size="sm" variant="filled" wire:click="dismiss({{ $candidate->id }})">{{ __('Not a duplicate') }}</flux:button>
+                    <flux:button size="sm" variant="filled" icon="x-mark" icon:variant="outline" wire:click="dismiss({{ $candidate->id }})">{{ __('Not a duplicate') }}</flux:button>
                 </div>
 
                 <div class="mt-4 grid gap-6 md:grid-cols-2">
@@ -100,7 +100,7 @@ new #[Title('Duplicates')] class extends Component {
                                 @if ($side->creators->isNotEmpty()) · {{ $side->creators->pluck('name')->join(', ') }}@endif
                             </p>
                             <p class="mt-2 line-clamp-4 text-body text-ink-subtle">{{ $side->description }}</p>
-                            <flux:button class="mt-4 self-start" size="sm" variant="filled" wire:click="merge({{ $candidate->id }}, {{ $side->id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}">
+                            <flux:button class="mt-4 self-start" size="sm" variant="filled" icon="arrows-pointing-in" icon:variant="outline" wire:click="merge({{ $candidate->id }}, {{ $side->id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}">
                                 {{ __('Keep this one') }}
                             </flux:button>
                         </div>

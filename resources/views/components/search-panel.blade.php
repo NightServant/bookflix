@@ -37,6 +37,6 @@
     />
 
     @if ($discover)
-        <x-cta variant="secondary" :href="route($discover['route'])" wire:navigate>{{ __('Browse Discover') }}</x-cta>
+        <x-cta variant="secondary" icon="compass" :href="route($discover['route'])" wire:navigate>{{ __('Browse Discover') }}</x-cta>
     @endif
 </search>

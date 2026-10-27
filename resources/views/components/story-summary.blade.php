@@ -29,11 +29,9 @@
     </div>
 
     <div class="mt-4 flex gap-2">
-        <x-cta :href="route('stories.show', $media->slug)" wire:navigate class="flex-1">{{ __('View story') }}</x-cta>
+        <x-cta icon="book-open" :href="route('stories.show', $media->slug)" wire:navigate class="flex-1">{{ __('View story') }}</x-cta>
         @if (Route::has('library.store'))
-            <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $media->id }} })" aria-label="{{ __('Add to Library') }}" class="w-11 shrink-0 ps-0! pe-0!">
-                <flux:icon name="plus" class="size-5" />
-            </x-cta>
+            <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $media->id }} })" icon="plus" aria-label="{{ __('Add to Library') }}" class="shrink-0" />
         @endif
     </div>
 </div>

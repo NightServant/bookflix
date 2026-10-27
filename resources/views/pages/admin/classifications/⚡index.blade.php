@@ -317,10 +317,10 @@ new #[Title('Classification review')] class extends Component {
 
             <div class="flex justify-end gap-2">
                 <flux:modal.close>
-                    <flux:button variant="ghost" class="focus-ring min-h-11 md:min-h-0">{{ __('Cancel') }}</flux:button>
+                    <flux:button variant="ghost" icon="x-mark" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0">{{ __('Cancel') }}</flux:button>
                 </flux:modal.close>
 
-                <flux:button type="submit" variant="filled" class="focus-ring min-h-11 md:min-h-0">{{ $mode === 'add' ? __('Add class') : __('Change class') }}</flux:button>
+                <flux:button type="submit" variant="filled" :icon="$mode === 'add' ? 'plus' : 'check'" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0">{{ $mode === 'add' ? __('Add class') : __('Change class') }}</flux:button>
             </div>
         </form>
     </flux:modal>

@@ -188,7 +188,7 @@ new #[Title('Story')] class extends Component {
 
             @if (Route::has('library.store'))
                 <div class="mt-6">
-                    <x-cta @click="$dispatch('library-add', { id: {{ $media->id }} })">{{ __('Add to Library') }}</x-cta>
+                    <x-cta icon="plus" @click="$dispatch('library-add', { id: {{ $media->id }} })">{{ __('Add to Library') }}</x-cta>
                 </div>
             @endif
 

@@ -90,9 +90,9 @@
                             @if (isset($cta) && $cta->isNotEmpty())
                                 {{ $cta }}
                             @else
-                                <x-cta :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('View story') }}</x-cta>
+                                <x-cta icon="book-open" :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('View story') }}</x-cta>
                                 @if (Route::has('library.store'))
-                                    <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $slide->id }} })">{{ __('Add to Library') }}</x-cta>
+                                    <x-cta variant="secondary" icon="plus" @click="$dispatch('library-add', { id: {{ $slide->id }} })">{{ __('Add to Library') }}</x-cta>
                                 @endif
                             @endif
                         </div>

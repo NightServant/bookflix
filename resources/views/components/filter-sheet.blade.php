@@ -45,7 +45,7 @@
             </div>
 
             <flux:modal.close>
-                <x-cta class="w-full">{{ __('Show results') }}</x-cta>
+                <x-cta icon="check" class="w-full">{{ __('Show results') }}</x-cta>
             </flux:modal.close>
         </div>
     </flux:modal>

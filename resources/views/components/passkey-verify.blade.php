@@ -50,6 +50,7 @@
                 <flux:button
                     variant="outline"
                     icon="finger-print"
+                    icon:variant="outline"
                     class="w-full"
                     x-on:click="verify()"
                     x-bind:disabled="loading"

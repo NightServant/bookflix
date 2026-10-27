@@ -397,7 +397,7 @@ new #[Title('Search')] class extends Component {
                         <li>{{ __('or browsing the Library by subject.') }}</li>
                     </ul>
 
-                    <x-cta variant="secondary" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
+                    <x-cta variant="secondary" icon="building-library" :href="route('explore.index')" wire:navigate class="mt-6">{{ __('Explore the Library') }}</x-cta>
                 </div>
             @else
                 <p class="mt-12 max-w-prose text-body text-ink-subtle">{{ __('Search by title, author, series or subject. Type at least two letters, or pick a filter to browse.') }}</p>

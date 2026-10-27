@@ -74,6 +74,7 @@
             <flux:button
                 variant="primary"
                 icon="plus"
+                icon:variant="outline"
                 x-on:click="showForm = true"
             >
                 {{ __('Add passkey') }}
@@ -98,6 +99,8 @@
             <div class="flex gap-2">
                 <flux:button
                     variant="primary"
+                    icon="check"
+                    icon:variant="outline"
                     x-on:click="register()"
                     x-bind:disabled="loading || !name.trim()"
                 >
@@ -106,6 +109,8 @@
                 </flux:button>
                 <flux:button
                     variant="ghost"
+                    icon="x-mark"
+                    icon:variant="outline"
                     x-on:click="cancel()"
                 >
                     {{ __('Cancel') }}

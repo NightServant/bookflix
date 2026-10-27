@@ -12,14 +12,14 @@
         <p class="mt-2 text-body text-ink-subtle">{{ __('Stories appear here once a metadata provider has synced. Run a sync from the providers page to fill it.') }}</p>
 
         <div class="mt-6 flex flex-wrap gap-3">
-            <x-cta :href="route('admin.providers')" wire:navigate>{{ __('Sync providers') }}</x-cta>
-            <x-cta variant="secondary" :href="route('profile.edit')" wire:navigate>{{ __('Set up your reading profile') }}</x-cta>
+            <x-cta icon="arrow-path" :href="route('admin.providers')" wire:navigate>{{ __('Sync providers') }}</x-cta>
+            <x-cta variant="secondary" icon="user" :href="route('profile.edit')" wire:navigate>{{ __('Set up your reading profile') }}</x-cta>
         </div>
     @else
         <p class="mt-2 text-body text-ink-subtle">{{ __('Stories appear here once the catalog has been synced, which an administrator does. Until then there is nothing to browse. You can set up your reading profile now, so your shelves start personal.') }}</p>
 
         <div class="mt-6">
-            <x-cta variant="secondary" :href="route('profile.edit')" wire:navigate>{{ __('Set up your reading profile') }}</x-cta>
+            <x-cta variant="secondary" icon="user" :href="route('profile.edit')" wire:navigate>{{ __('Set up your reading profile') }}</x-cta>
         </div>
     @endcan
 </div>

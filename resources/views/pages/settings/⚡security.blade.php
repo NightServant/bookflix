@@ -201,7 +201,7 @@ new #[Title('Security settings')] class extends Component {
             />
 
             <div class="flex items-center gap-4">
-                <flux:button variant="filled" type="submit" data-test="update-password-button">
+                <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="update-password-button">
                     {{ __('Save') }}
                 </flux:button>
             </div>
@@ -222,6 +222,8 @@ new #[Title('Security settings')] class extends Component {
                             <div class="flex justify-start">
                                 <flux:button
                                     variant="danger"
+                                    icon="shield-exclamation"
+                                    icon:variant="outline"
                                     wire:click="disable"
                                 >
                                     {{ __('Disable 2FA') }}
@@ -239,6 +241,8 @@ new #[Title('Security settings')] class extends Component {
                             <flux:modal.trigger name="two-factor-setup-modal">
                                 <flux:button
                                     variant="primary"
+                                    icon="shield-check"
+                                    icon:variant="outline"
                                     wire:click="$dispatch('start-two-factor-setup')"
                                 >
                                     {{ __('Enable 2FA') }}
@@ -287,6 +291,7 @@ new #[Title('Security settings')] class extends Component {
                                     size="sm"
                                     icon="trash"
                                     icon:variant="outline"
+                                    aria-label="{{ __('Remove passkey :name', ['name' => $passkey['name']]) }}"
                                     wire:click="confirmDelete({{ $passkey['id'] }})"
                                     class="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
                                 />
@@ -325,12 +330,16 @@ new #[Title('Security settings')] class extends Component {
             <div class="flex gap-3 justify-end">
                 <flux:button
                     variant="outline"
+                    icon="x-mark"
+                    icon:variant="outline"
                     wire:click="closeDeleteModal"
                 >
                     {{ __('Cancel') }}
                 </flux:button>
                 <flux:button
                     variant="danger"
+                    icon="trash"
+                    icon:variant="outline"
                     wire:click="deletePasskey"
                 >
                     {{ __('Remove passkey') }}

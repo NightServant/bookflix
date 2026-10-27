@@ -164,7 +164,7 @@ new #[Title('Profile settings')] class extends Component {
 
             <div class="flex items-center gap-4">
                 <div class="flex items-center justify-end">
-                    <flux:button variant="filled" type="submit" class="w-full" data-test="update-profile-button">
+                    <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" class="w-full" data-test="update-profile-button">
                         {{ __('Save') }}
                     </flux:button>
                 </div>
@@ -210,7 +210,7 @@ new #[Title('Profile settings')] class extends Component {
                 @endforeach
             </flux:radio.group>
 
-            <flux:button variant="filled" type="submit" data-test="update-reading-profile-button">
+            <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="update-reading-profile-button">
                 {{ __('Save') }}
             </flux:button>
         </form>

@@ -367,7 +367,7 @@ new #[Title('Discover')] class extends Component {
                 @else
                     <div class="mt-6 max-w-prose">
                         <p class="text-body text-ink-subtle">{{ __('No story has both of those. Drop a filter to see more.') }}</p>
-                        <x-cta variant="secondary" :href="route('discover')" wire:navigate class="mt-6">{{ __('Clear filters') }}</x-cta>
+                        <x-cta variant="secondary" icon="x-mark" :href="route('discover')" wire:navigate class="mt-6">{{ __('Clear filters') }}</x-cta>
                     </div>
                 @endif
             </section>
