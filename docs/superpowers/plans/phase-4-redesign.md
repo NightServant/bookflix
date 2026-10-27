@@ -19,6 +19,11 @@ Netflix treats every title as a flat 16:9 poster. Bookflix's advantage is that a
   - Series header: the first 3–5 volumes stand as a staggered spine-out stack.
   - Discover header band: a 3-book collage.
   - Empty states (no results, empty catalog, empty shelf): one tilted book with a short line and a way out.
+- **three.js scenes (user request, `three@0.186.1`).** WebGL goes only on the showpieces: the Home hero and the Story and Series headers. There, a real 3D book is lit by an environment light and takes the cover as its front texture, with a page-block geometry and a spine. It turns slowly toward the pointer, and the hero slides flip it in.
+  - Loaded with a dynamic `import('three')` after first paint (`requestIdleCallback`), in its own chunk, so Home's LCP and the Lighthouse ≥ 90 criterion are unaffected. Only `three/src` modules that are actually used are imported, for tree-shaking.
+  - The CSS `<x-book-3d>` renders first and stays as the fallback. The canvas fades over it once ready. It never renders without WebGL, under `prefers-reduced-motion`, on `saveData`, or on coarse pointers below `md`.
+  - One shared renderer per page. It pauses when off-screen (IntersectionObserver) or when the tab is hidden, and is disposed on `livewire:navigating`.
+  - The cover texture needs CORS. AniList and Open Library covers are proxied through a same-origin route, or the scene falls back to the CSS book when the texture fails.
 - **Ambient colour.** Detail pages and the hero tint their band from the cover. The blurred cover goes at very low opacity behind a `bg-surface-deep` scrim, never as a smudge (design item 1).
 
 ## 2. Depth and surfaces
