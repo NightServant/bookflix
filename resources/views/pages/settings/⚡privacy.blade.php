@@ -51,7 +51,7 @@ new #[Title('Privacy settings')] class extends Component {
     <flux:heading level="2" class="sr-only">{{ __('Privacy settings') }}</flux:heading>
 
     <x-pages::settings.layout>
-        <x-settings-card :title="__('Who can see what')" :description="__('Your profile and library are private until you say otherwise.')">
+        <x-settings-card :title="__('Who Can See What')" :description="__('Your profile and library are private until you say otherwise.')">
         <form wire:submit="updatePrivacy" class="w-full space-y-6">
             <flux:radio.group wire:model="profileVisibility" :label="__('Profile visibility')">
                 <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your profile.')" />

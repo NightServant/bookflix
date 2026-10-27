@@ -208,7 +208,7 @@ new #[Title('Security settings')] class extends Component {
         </x-settings-card>
 
         @if ($canManageTwoFactor)
-            <x-settings-card :title="__('Two-factor authentication')" :description="__('Ask for a code from your phone as well as your password when you log in.')">
+            <x-settings-card :title="__('Two-Factor Authentication')" :description="__('Ask for a code from your phone as well as your password when you log in.')">
                 <div class="flex w-full flex-col space-y-6 text-sm" wire:cloak>
                     @if ($twoFactorEnabled)
                         <div class="space-y-4">

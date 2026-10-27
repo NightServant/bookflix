@@ -126,7 +126,7 @@ new #[Title('Edit media')] class extends Component {
     </form>
     </x-settings-card>
 
-    <x-settings-card :title="__('Locked fields')" :description="__('A provider sync never overwrites these.')">
+    <x-settings-card :title="__('Locked Fields')" :description="__('A provider sync never overwrites these.')">
         <ul class="space-y-2">
             @forelse ($media->locked_fields as $field)
                 <li wire:key="locked-{{ $field }}" class="flex items-center justify-between gap-3 rounded-card bg-surface-input px-4 py-2">

@@ -28,7 +28,7 @@ test('security settings page can be rendered', function () {
 
     $response->assertSee('Passkeys');
     $response->assertSee('No passkeys yet');
-    $response->assertSee('Two-factor authentication');
+    $response->assertSee('Two-Factor Authentication');
     $response->assertSee('Enable 2FA');
 });
 
@@ -53,7 +53,7 @@ test('security settings page renders without two factor when feature is disabled
         ->assertSee('Use a long, random password')
         ->assertDontSee('Sign in with your fingerprint, face or device PIN')
         ->assertDontSee('Add a passkey to sign in without a password')
-        ->assertDontSee('Two-factor authentication');
+        ->assertDontSee('Two-Factor Authentication');
 });
 
 test('two factor authentication disabled when confirmation abandoned between requests', function () {

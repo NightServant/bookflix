@@ -100,7 +100,7 @@ new #[Title('Providers')] class extends Component {
         </flux:table.rows>
     </flux:table>
 
-    <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('Recent runs') }}</h2>
+    <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('Recent Runs') }}</h2>
     <p class="mt-1 text-meta text-ink-subtle">{{ __('The last 20 syncs, newest first.') }}</p>
 
     <flux:table class="mt-4">
