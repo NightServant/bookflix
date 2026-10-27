@@ -85,14 +85,13 @@ jobs:
           fi
 
   # Pest browser tests (Playwright, headless Chromium) against the built assets; `composer test` does not run tests/Browser (phpunit.xml lists only
-  # Unit and Feature). The job always runs, but `continue-on-error` keeps a flaky browser from failing the check unless the pull request touches
+  # Unit and Feature). The job always runs, but the test step's `continue-on-error` keeps a flaky browser from failing the check unless the pull request touches
   # package*.json or composer.lock, where it blocks. The repository owner must mark `browser` as a required status check in the branch protection
   # (Settings > Branches > main > Require status checks > add `browser`): when it is not blocking it still reports success, so required is safe.
   browser:
     needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: ${{ needs.changes.outputs.dependencies != 'true' }}
 
     env:
       DB_CONNECTION: pgsql
@@ -151,7 +150,9 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium --only-shell
 
+      # On the step, not the job: a job-level `continue-on-error` still reports the `browser` check as failed, which a required check would block on.
       - name: Run browser tests
+        continue-on-error: ${{ needs.changes.outputs.dependencies != 'true' }}
         run: vendor/bin/pest tests/Browser
 
   ml:
