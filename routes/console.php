@@ -22,3 +22,4 @@ Schedule::job(new SyncProvider('anilist'))->name('sync:anilist')->everySixHours(
 Schedule::job(new SyncProvider('mangadex'))->name('sync:mangadex')->everySixHours()->when($sourceIsEnabled('mangadex'));
 Schedule::job(new SyncProvider('mangaupdates'))->name('sync:mangaupdates')->everySixHours()->when($sourceIsEnabled('mangaupdates'));
 Schedule::job(new SyncProvider('comicvine'))->name('sync:comicvine')->daily()->when($sourceIsEnabled('comicvine'));
+Schedule::job(new SyncProvider('metron'))->name('sync:metron')->everySixHours()->when($sourceIsEnabled('metron'));

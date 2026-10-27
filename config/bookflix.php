@@ -4,6 +4,7 @@ use App\Catalog\Providers\AniList\AniListProvider;
 use App\Catalog\Providers\ComicVine\ComicVineProvider;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
+use App\Catalog\Providers\Metron\MetronProvider;
 use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
 
 return [
@@ -135,9 +136,12 @@ return [
         ],
 
         'metron' => [
-            'class' => null,
+            'class' => MetronProvider::class,
+            'username' => env('BOOKFLIX_METRON_USERNAME'),
+            'password' => env('BOOKFLIX_METRON_PASSWORD'),
             'enabled' => (bool) env('BOOKFLIX_METRON_ENABLED', false),
-            'rate_per_minute' => 20,
+            // One page job a minute; each makes at most 19 requests (see MetronProvider::DETAILS_PER_PAGE), under Metron's polite 20 a minute.
+            'rate_per_minute' => 1,
             'max_pages_per_run' => 20,
             'allowed_hosts' => ['metron.cloud', 'static.metron.cloud'],
         ],

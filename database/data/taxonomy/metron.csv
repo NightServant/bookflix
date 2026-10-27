@@ -1,0 +1,14 @@
+provider_term,kind,bookflix_slug
+Adventure,genre,adventure
+Crime,genre,crime
+Drama,genre,drama
+Fantasy,genre,fantasy
+Historical,genre,historical
+Horror,genre,horror
+Humor,genre,comedy
+Mystery,genre,mystery
+Romance,genre,romance
+Science Fiction,genre,science-fiction
+Sci-Fi,genre,science-fiction
+Thriller,genre,thriller
+War,theme,war
