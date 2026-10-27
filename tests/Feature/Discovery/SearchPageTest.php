@@ -316,6 +316,14 @@ test('the type, genre and theme lists are cached: a second render runs three few
     expect($first - $second)->toBe(3)->and($second)->toBe(0);
 });
 
+test('invalid UTF-8 in a filter value is dropped instead of a 500', function () {
+    $this->actingAs(User::factory()->create());
+
+    $this->get(route('search', ['q' => 'ab', 'filters' => ['genres' => ["\xFF"], 'languages' => ["en\xC3"]]]))->assertOk();
+
+    expect(SearchQuery::count())->toBe(1);
+});
+
 test('the type badge shows only when the results mix formats', function () {
     Media::factory()->manga()->create(['title' => 'Berserk Manga', 'search_text' => 'berserk']);
     Media::factory()->manga()->create(['title' => 'Berserk Deluxe', 'search_text' => 'berserk']);

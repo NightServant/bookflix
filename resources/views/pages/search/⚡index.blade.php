@@ -64,7 +64,7 @@ new #[Title('Search')] class extends Component {
     public function mount(): void
     {
         $this->q = $this->cleanQuery($this->q);
-        $this->filters = [...self::NO_FILTERS, ...Arr::only($this->filters, array_keys(self::NO_FILTERS))];
+        $this->filters = $this->cleanFilters([...self::NO_FILTERS, ...Arr::only($this->filters, array_keys(self::NO_FILTERS))]);
         $this->recordSearch();
     }
 
@@ -77,6 +77,7 @@ new #[Title('Search')] class extends Component {
 
     public function updatedFilters(): void
     {
+        $this->filters = $this->cleanFilters($this->filters);
         $this->resetPage();
         $this->recordSearch();
     }
@@ -87,6 +88,21 @@ new #[Title('Search')] class extends Component {
     private function cleanQuery(string $text): string
     {
         return mb_substr(mb_scrub($text), 0, HybridSearch::MAX_QUERY_LENGTH);
+    }
+
+    /**
+     * Filter values arrive from the URL: a string that is not valid UTF-8 is emptied (and then dropped), so the page can always be serialized and logged.
+     *
+     * @param  array<array-key, mixed>  $filters
+     * @return array<array-key, mixed>
+     */
+    private function cleanFilters(array $filters): array
+    {
+        return array_map(fn (mixed $value): mixed => match (true) {
+            is_array($value) => $this->cleanFilters($value),
+            is_string($value) => mb_check_encoding($value, 'UTF-8') ? $value : '',
+            default => $value,
+        }, $filters);
     }
 
     /**

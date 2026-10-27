@@ -144,7 +144,8 @@ final readonly class SearchFilters
      */
     private static function strings(mixed $value): array
     {
-        $strings = array_map(fn (mixed $item): string => is_scalar($item) ? trim((string) $item) : '', Arr::wrap($value));
+        // Invalid UTF-8 would reach json_encode and Postgres as a 500; a value that does not survive mb_scrub is dropped.
+        $strings = array_map(fn (mixed $item): string => is_scalar($item) && mb_scrub((string) $item) === (string) $item ? trim((string) $item) : '', Arr::wrap($value));
 
         return array_slice(array_values(array_unique(array_filter($strings, fn (string $item): bool => $item !== ''))), 0, self::MAX_VALUES);
     }
