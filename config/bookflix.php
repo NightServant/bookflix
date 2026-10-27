@@ -123,6 +123,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Popularity
+    |--------------------------------------------------------------------------
+    |
+    | `bookflix:score-popularity` ranks every (source, metric) pair as a percentile
+    | and averages a media's ranks with these weights. A metric not listed weighs 1.
+    |
+    */
+
+    'popularity' => [
+        'weights' => [
+            'popularity' => 3,
+            'follows' => 3,
+            'pageviews_30d' => 3,
+            'favourites' => 2,
+            'ratings_count' => 1,
+            'average_rating' => 1,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Duplicate Detection
     |--------------------------------------------------------------------------
     |

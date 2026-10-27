@@ -7,6 +7,7 @@ use App\Enums\ImportOutcome;
 use App\Enums\IngestionMode;
 use App\Enums\IngestionStatus;
 use App\Jobs\FetchProviderPage;
+use App\Jobs\ScorePopularity;
 use App\Jobs\SyncProvider;
 use App\Models\ExternalSource;
 use App\Models\IngestionRun;
@@ -20,6 +21,7 @@ use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -102,6 +104,20 @@ test('a sync runs page by page, imports each page inline and moves the cursor to
         ->and(anilistSource()->last_synced_at)->not->toBeNull();
     Http::assertSentCount(2);
     Http::assertSent(fn ($request) => $request['variables']['page'] === 2);
+});
+
+test('a successful sync queues a popularity scoring pass, a failed one does not', function () {
+    Bus::fake([ScorePopularity::class]);
+    Http::fake(['graphql.anilist.co' => Http::response(anilistPage(anilistMedia()))]);
+
+    (new SyncProvider('anilist'))->handle();
+    Bus::assertDispatchedTimes(ScorePopularity::class, 1);
+
+    Bus::fake([ScorePopularity::class]);
+    Http::fake(['graphql.anilist.co' => Http::response(anilistPage(anilistMedia(30004, blankTitle: [30004, 30005, 30006])))]);
+
+    (new SyncProvider('anilist', IngestionMode::Full))->handle();
+    Bus::assertNotDispatched(ScorePopularity::class);
 });
 
 test('a sync stops at max_pages_per_run and the next run resumes at the stored page', function () {

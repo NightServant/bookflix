@@ -100,6 +100,10 @@ class FetchProviderPage implements ShouldQueue
         }
 
         $run->finish();
+
+        if ($run->status === IngestionStatus::Succeeded) {
+            ScorePopularity::dispatch();
+        }
     }
 
     public function failed(Throwable $exception): void
