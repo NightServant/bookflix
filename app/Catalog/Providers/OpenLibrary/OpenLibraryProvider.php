@@ -30,6 +30,21 @@ class OpenLibraryProvider implements MetadataProvider
 
     private const EDITION_LIMIT = 100;
 
+    /**
+     * A full sync walks these popularity lists instead of recent changes: the trending windows first, then the biggest subjects.
+     */
+    private const TRENDING_PERIODS = ['weekly', 'daily', 'monthly', 'yearly'];
+
+    private const SUBJECTS = [
+        'fantasy', 'science_fiction', 'romance', 'mystery_and_detective_stories', 'young_adult_fiction',
+        'graphic_novels', 'horror', 'historical_fiction', 'thriller', 'classic_literature',
+    ];
+
+    /**
+     * Pages read from each trending window or subject, at PAGE_SIZE works each.
+     */
+    private const DISCOVERY_PAGES = 5;
+
     private const MAX_AUTHORS = 5;
 
     /**
@@ -51,12 +66,16 @@ class OpenLibraryProvider implements MetadataProvider
      * Works touched by book additions and edits since the given moment, newest first. The token is `kind:offset`
      * into the recent-changes feed (additions, then edits); a page is one slice of it, kept small because every work costs
      * several requests.
-     * ponytail: a null cursor reads only the last week of changes; a bulk import needs the Open Library dumps.
+     * A null cursor (full sync) walks popularity instead: the trending windows, then popular subjects, with token `trending:weekly:0` /
+     * `subject:fantasy:0` (page index within the list). A bulk import beyond that needs the Open Library dumps.
      * Edits to a single edition (/books/...) do not map back to their work yet.
      */
     public function page(?CarbonImmutable $since, ?string $pageToken): ProviderPage
     {
-        $since ??= CarbonImmutable::now()->subDays(7);
+        if ($since === null) {
+            return $this->discoveryPage($pageToken);
+        }
+
         [$kind, $offset] = $this->position($pageToken);
 
         $changes = $this->asArray($this->get("/recentchanges/{$kind}.json", ['limit' => self::PAGE_SIZE, 'offset' => $offset])->json());
@@ -97,6 +116,98 @@ class OpenLibraryProvider implements MetadataProvider
         };
 
         return new ProviderPage($records, $next, $newest);
+    }
+
+    private function discoveryPage(?string $pageToken): ProviderPage
+    {
+        $lists = [
+            ...array_map(fn (string $period): array => ['trending', $period], self::TRENDING_PERIODS),
+            ...array_map(fn (string $subject): array => ['subject', $subject], self::SUBJECTS),
+        ];
+        [$kind, $name, $index] = array_pad(explode(':', (string) $pageToken, 3), 3, '');
+        $position = array_search([$kind, $name], $lists, true);
+        $position = $position === false ? 0 : $position;
+        $index = max(0, (int) $index);
+        [$kind, $name] = $lists[$position];
+
+        $works = $kind === 'trending'
+            ? $this->get("/trending/{$name}.json", ['limit' => self::PAGE_SIZE, 'page' => $index + 1])->json('works')
+            : $this->get("/subjects/{$name}.json", ['limit' => self::PAGE_SIZE, 'offset' => $index * self::PAGE_SIZE])->json('works');
+        $works = $this->asArray($works);
+
+        $records = [];
+        $seen = [];
+
+        foreach ($works as $work) {
+            $id = $this->workId($this->asArray($work)['key'] ?? null);
+
+            if ($id === null || isset($seen[$id])) {
+                continue;
+            }
+
+            $seen[$id] = true;
+
+            if ($record = $this->find($id)) {
+                $records[] = new ProviderRecord($record->provider, $record->externalId, [...$record->payload, 'stats' => $this->stats($record->externalId)], $record->sourceUrl, $record->fetchedAt);
+            }
+        }
+
+        $next = match (true) {
+            count($works) >= self::PAGE_SIZE && $index + 1 < self::DISCOVERY_PAGES => "{$kind}:{$name}:".($index + 1),
+            isset($lists[$position + 1]) => implode(':', $lists[$position + 1]).':0',
+            default => null,
+        };
+
+        return new ProviderPage($records, $next, null);
+    }
+
+    /**
+     * Reader counts of a work under the names Open Library's search index uses.
+     *
+     * @return array<string, int|float>
+     */
+    private function stats(string $id): array
+    {
+        $summary = $this->asArray($this->asArray($this->get("/works/{$id}/ratings.json")->json())['summary'] ?? null);
+        $counts = $this->asArray($this->asArray($this->get("/works/{$id}/bookshelves.json")->json())['counts'] ?? null);
+        $count = fn (string $key): int => is_int($counts[$key] ?? null) ? max(0, $counts[$key]) : 0;
+        $stats = [];
+
+        if (is_int($summary['count'] ?? null) && $summary['count'] > 0 && is_numeric($summary['average'] ?? null)) {
+            $stats['ratings_count'] = $summary['count'];
+            $stats['ratings_average'] = round((float) $summary['average'], 2);
+        }
+
+        if ($count('want_to_read') > 0) {
+            $stats['want_to_read_count'] = $count('want_to_read');
+        }
+
+        $log = $count('want_to_read') + $count('currently_reading') + $count('already_read');
+
+        return $log > 0 ? [...$stats, 'readinglog_count' => $log] : $stats;
+    }
+
+    /**
+     * @param  array<mixed>  $stats
+     * @return array<string, int|float>
+     */
+    private function metrics(array $stats): array
+    {
+        $metrics = [];
+
+        foreach (['want_to_read_count' => 'follows', 'readinglog_count' => 'popularity', 'ratings_count' => 'ratings_count'] as $from => $to) {
+            if (is_int($stats[$from] ?? null) && $stats[$from] > 0) {
+                $metrics[$to] = $stats[$from];
+            }
+        }
+
+        $average = $stats['ratings_average'] ?? null;
+
+        if (is_numeric($average) && $average > 0 && $average <= 5) {
+            $metrics['average_rating'] = round((float) $average, 2);
+        }
+
+        return $metrics;
     }
 
     /**
@@ -167,6 +278,7 @@ class OpenLibraryProvider implements MetadataProvider
             coverUrl: $this->safeUrl($this->coverUrl($work['covers'] ?? null)),
             externalDeweyCode: $this->deweyCode($editions),
             sourceUrl: $this->safeUrl($record->sourceUrl),
+            metrics: $this->metrics($this->asArray($record->payload['stats'] ?? null)),
         );
     }
 

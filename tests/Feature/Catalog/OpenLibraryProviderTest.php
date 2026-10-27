@@ -158,3 +158,49 @@ test('seeding gives a new source its starting state from config and never overwr
         ->and(ExternalSource::firstWhere('key', 'openlibrary')->enabled)->toBeTrue()
         ->and(ExternalSource::count())->toBe(9);
 });
+
+function fakeDiscovery(): void
+{
+    $works = ['works' => [['key' => '/works/OL893415W', 'title' => 'Dune'], ['key' => '/works/OL893415W', 'title' => 'Dune again']]];
+
+    Http::fake([
+        'openlibrary.org/trending/*' => Http::response($works),
+        'openlibrary.org/subjects/*' => Http::response($works),
+        'openlibrary.org/works/OL893415W.json' => Http::response(providerFixture('openlibrary/work-dune.json')),
+        'openlibrary.org/works/OL893415W/editions.json*' => Http::response(providerFixture('openlibrary/edition-dune.json')),
+        'openlibrary.org/works/OL893415W/ratings.json' => Http::response(['summary' => ['average' => 4.2345, 'count' => 321]]),
+        'openlibrary.org/works/OL893415W/bookshelves.json' => Http::response(['counts' => ['want_to_read' => 100, 'currently_reading' => 20, 'already_read' => 30]]),
+        'openlibrary.org/authors/OL79034A.json' => Http::response(providerFixture('openlibrary/author-herbert.json')),
+    ]);
+}
+
+test('a full sync starts at the weekly trending list and captures reader metrics', function () {
+    fakeDiscovery();
+    $provider = app(OpenLibraryProvider::class);
+
+    $page = $provider->page(null, null);
+
+    expect($page->records)->toHaveCount(1)
+        ->and($page->nextPageToken)->toBe('trending:daily:0')
+        ->and($provider->normalize($page->records[0])->metrics)->toBe(['follows' => 100, 'popularity' => 150, 'ratings_count' => 321, 'average_rating' => 4.23]);
+    Http::assertSent(fn ($r) => str_contains($r->url(), '/trending/weekly.json') && $r['limit'] === 10 && $r['page'] === 1);
+    Http::assertNotSent(fn ($r) => str_contains($r->url(), '/recentchanges'));
+});
+
+test('discovery tokens advance by page, then list', function () {
+    Http::fake(['openlibrary.org/*' => Http::response(['works' => array_map(fn (int $i) => ['key' => '/not-a-work'], range(0, 9))])]);
+    $provider = app(OpenLibraryProvider::class);
+
+    expect($provider->page(null, 'trending:weekly:2')->nextPageToken)->toBe('trending:weekly:3')
+        ->and($provider->page(null, 'trending:weekly:4')->nextPageToken)->toBe('trending:daily:0')
+        ->and($provider->page(null, 'trending:yearly:4')->nextPageToken)->toBe('subject:fantasy:0')
+        ->and($provider->page(null, 'subject:fantasy:4')->nextPageToken)->toBe('subject:science_fiction:0')
+        ->and($provider->page(null, 'subject:classic_literature:4')->nextPageToken)->toBeNull();
+    Http::assertSent(fn ($r) => str_contains($r->url(), '/subjects/fantasy.json') && $r['offset'] === 40 && $r['limit'] === 10);
+});
+
+test('a short list page moves straight on to the next list', function () {
+    Http::fake(['openlibrary.org/*' => Http::response(['works' => []])]);
+
+    expect(app(OpenLibraryProvider::class)->page(null, 'trending:weekly:0')->nextPageToken)->toBe('trending:daily:0');
+});
