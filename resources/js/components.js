@@ -89,6 +89,18 @@ export default function components(Alpine) {
 
             init() {
                 root = this.$root;
+
+                // The desktop centrepiece is one 3D book: its CSS cover follows `active` (bound in the markup), and when the three.js
+                // scene is live it turns its cover like a leaf to the new one.
+                this.$watch('current', (index) => {
+                    const src = this.cards[index]?.scene;
+
+                    src && root.querySelector('[data-hero-books] [data-scene-cover]')?.dispatchEvent(new CustomEvent('book-scene:turn', { detail: { src } }));
+                });
+            },
+
+            get active() {
+                return this.cards[this.current];
             },
 
             get count() {
@@ -125,7 +137,8 @@ export default function components(Alpine) {
                 }
 
                 const first = cardPositions();
-                const source = root.querySelector(`[data-card="${this.cards[index].id}"] img`);
+                const listed = root.querySelector(`[data-card="${this.cards[index].id}"] img`);
+                const source = listed?.offsetParent ? listed : null; // the desktop fan has no flat card to morph
 
                 const swap = async () => {
                     this.current = index;

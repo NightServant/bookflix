@@ -3,7 +3,7 @@
 use App\Models\Media;
 
 beforeEach(function () {
-    $this->media = Media::factory()->count(5)->sequence(fn ($s) => ['title' => 'Slide Title '.($s->index + 1), 'cover_url' => '/favicon.svg'])->create()
+    $this->media = Media::factory()->count(5)->sequence(fn ($s) => ['title' => 'Slide Title '.($s->index + 1), 'cover_url' => '/favicon.svg?n='.($s->index + 1)])->create()
         ->map(fn ($media) => $media->fresh(['mediaType', 'genres']));
 
     $this->path = componentPage('<x-hero :slides="$slides" />', ['slides' => $this->media]);
@@ -12,6 +12,7 @@ beforeEach(function () {
     $this->counter = 'document.querySelector("main section p[aria-hidden]").textContent.replace(/\s+/g, " ").trim()';
     $this->title = 'Array.from(document.querySelectorAll("main article[data-slide]")).filter((a) => a.offsetParent !== null).map((a) => a.querySelector("h1").textContent.replace(/\s+/g, " ").trim()).join("|")';
     $this->cards = 'Array.from(document.querySelectorAll("[data-card] button")).map((b) => b.textContent.trim()).join("|")';
+    $this->phone = ['viewport' => ['width' => 375, 'height' => 812]]; // the flat card list is the phone's; a desktop shows the book fan
     $this->settle = 1; // seconds: the 400ms morph plus the title stagger
 });
 
@@ -20,13 +21,17 @@ test('a hero carousel passes the shared checks and keeps working after wire:navi
         $page->assertScript($this->counter, '01 / 05')
             ->assertScript($this->title, 'Slide Title 1')
             ->assertScript($this->cards, 'Slide Title 2|Slide Title 3|Slide Title 4');
-    });
+    }, $this->phone);
+});
+
+test('a desktop hero with its book fan passes the shared checks, contrast included', function () {
+    assertComponentAcceptance($this->path, fn ($page) => $page->assertScript($this->counter, '01 / 05'), ['viewport' => ['width' => 1440, 'height' => 900]]);
 });
 
 test('clicking a card makes it the current slide, updates the counter and shifts the cards', function () {
-    $page = visit($this->path)->wait(1);
+    $page = visit($this->path, $this->phone)->wait(1);
 
-    $page->click('[aria-label="Show Slide Title 3"]')
+    $page->click('ul[aria-label="Up next"] [aria-label="Show Slide Title 3"]')
         ->wait($this->settle)
         ->assertScript($this->title, 'Slide Title 3')
         ->assertScript($this->counter, '03 / 05')
@@ -35,7 +40,7 @@ test('clicking a card makes it the current slide, updates the counter and shifts
 });
 
 test('next, previous and the arrow keys walk the slides and wrap around', function () {
-    $page = visit($this->path)->wait(1);
+    $page = visit($this->path, $this->phone)->wait(1);
 
     $page->keys('[aria-label="Next slide"]', 'Enter')->wait($this->settle)
         ->assertScript($this->counter, '02 / 05')
@@ -52,18 +57,18 @@ test('next, previous and the arrow keys walk the slides and wrap around', functi
 });
 
 test('a card is a button reachable and activated from the keyboard, and focus is handed on when it leaves', function () {
-    $page = visit($this->path)->wait(1);
+    $page = visit($this->path, $this->phone)->wait(1);
 
-    $page->keys('[aria-label="Show Slide Title 2"]', 'Enter')->wait($this->settle)
+    $page->keys('ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]', 'Enter')->wait($this->settle)
         ->assertScript($this->title, 'Slide Title 2')
         ->assertScript('document.activeElement.closest("[data-card]") !== null || document.activeElement.hasAttribute("data-hero-next")', true);
 });
 
 test('a change runs as a view transition, naming the cover that morphs, and cleans up after', function () {
-    $page = visit($this->path)->wait(1);
+    $page = visit($this->path, $this->phone)->wait(1);
     $page->script('(() => { window.__vt = 0; const start = document.startViewTransition.bind(document); document.startViewTransition = (cb) => { window.__vt++; window.__flag = document.documentElement.hasAttribute("data-hero-transition"); return start(cb); }; })()');
 
-    $page->click('[aria-label="Show Slide Title 2"]')->wait($this->settle)
+    $page->click('ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]')->wait($this->settle)
         ->assertScript('window.__vt', 1)
         ->assertScript('window.__flag', true)
         ->assertScript('document.documentElement.hasAttribute("data-hero-transition")', false)
@@ -72,11 +77,11 @@ test('a change runs as a view transition, naming the cover that morphs, and clea
 });
 
 test('the new title rises word by word out of its mask, and the cards glide one place', function () {
-    $page = visit($this->path)->wait(1);
+    $page = visit($this->path, $this->phone)->wait(1);
 
     // Sample on the first frame the new slide is on screen: its last word (80ms stagger) and the sliding cards are mid-flight.
     $page->assertScript('(async () => {
-        document.querySelector(\'[aria-label="Show Slide Title 2"]\').click();
+        document.querySelector(\'ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]\').click();
         const article = document.querySelector(\'article[data-slide="1"]\');
         for (let frame = 0; frame < 60 && article.offsetParent === null; frame++) {
             await new Promise(requestAnimationFrame);
@@ -93,7 +98,7 @@ test('the new title rises word by word out of its mask, and the cards glide one 
 });
 
 test('without the view transitions api the backdrop crossfades with motion instead', function () {
-    $page = visit($this->path)->wait(1);
+    $page = visit($this->path, $this->phone)->wait(1);
     $page->script('(() => { delete Document.prototype.startViewTransition; })()');
 
     $page->assertScript('(async () => {
@@ -112,7 +117,7 @@ test('reduced motion swaps slides at once: no view transition, no stagger, no in
     assertComponentAcceptance($this->path, function ($page) {
         $page->script('(() => { window.__vt = 0; if (document.startViewTransition) { const start = document.startViewTransition.bind(document); document.startViewTransition = (cb) => { window.__vt++; return start(cb); }; } })()');
 
-        $page->click('[aria-label="Show Slide Title 3"]')
+        $page->click('ul[aria-label="Up next"] [aria-label="Show Slide Title 3"]')
             ->assertScript($this->counter, '03 / 05')
             ->assertScript($this->title, 'Slide Title 3')
             ->assertScript('window.__vt', 0)
@@ -120,19 +125,20 @@ test('reduced motion swaps slides at once: no view transition, no stagger, no in
             ->assertScript('document.querySelectorAll("main section [style*=\"transition\"], main section [style*=\"transform\"], main section [style*=\"opacity\"], main section [style*=\"view-transition-name\"]").length', 0)
             ->click('[aria-label="Previous slide"]')
             ->assertScript($this->counter, '02 / 05');
-    }, ['reducedMotion' => 'reduce']);
+    }, $this->phone + ['reducedMotion' => 'reduce']);
 });
 
-test('on a desktop the cards sit beside the text over a full-bleed backdrop', function () {
+test('on a desktop the cover backdrop fills the right 60% unblurred under a left scrim, and the book fan sits beside the text', function () {
     visit($this->path, ['viewport' => ['width' => 1280, 'height' => 800]])->wait(1)
         ->assertScript('(() => {
             const section = document.querySelector("main section").getBoundingClientRect();
-            const backdrop = document.querySelector("[data-backdrop=\"0\"]").getBoundingClientRect();
+            const backdrop = document.querySelector("[data-backdrop=\"0\"]");
+            const box = backdrop.getBoundingClientRect();
             const text = document.querySelector("article[data-slide=\"0\"]").getBoundingClientRect();
-            const card = document.querySelector("[data-card]").getBoundingClientRect();
+            const books = document.querySelector("[data-hero-books]").getBoundingClientRect();
+            const blur = parseFloat(getComputedStyle(backdrop).filter.replace(/[^0-9.]/g, "") || "0");
 
-            // The backdrop is scaled up 10% so its blurred edges never show.
-            return backdrop.width >= section.width - 1 && backdrop.width <= section.width * 1.11 && backdrop.height >= section.height - 1 && backdrop.height <= section.height * 1.11 && card.left >= text.right;
+            return Math.abs(box.width - section.width * 0.6) < 2 && Math.abs(box.right - section.right) < 1 && blur <= 8 && books.left >= text.right && getComputedStyle(document.querySelector("[data-hero-scrim]")).backgroundImage.includes("to right");
         })()', true);
 });
 
@@ -148,4 +154,19 @@ test('on a phone the text and backdrop stack, the cards scroll-snap under the te
         ->assertScript('Array.from(document.querySelectorAll("main section button")).filter((b) => b.offsetParent !== null).every((b) => { const r = b.getBoundingClientRect(); return r.width >= 44 && r.height >= 44; })', true)
         ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true)
         ->assertNoAccessibilityIssues();
+});
+
+test('on a desktop the active story is a 3D book with the next two fanned behind it, and it follows the slide', function () {
+    $page = visit($this->path, ['viewport' => ['width' => 1280, 'height' => 800], 'reducedMotion' => 'reduce'])->wait(1);
+    $cover = 'document.querySelector("[data-hero-books] [data-size=xl] img").getAttribute("src")';
+    $fan = 'Array.from(document.querySelectorAll("[data-fan]")).map((button) => button.getAttribute("aria-label")).join("|")';
+
+    $page->assertScript($cover, '/favicon.svg?n=1')
+        ->assertScript($fan, 'Show Slide Title 2|Show Slide Title 3')
+        ->assertScript('document.querySelector("[data-hero-books] [data-size=xl]").dataset.scene', 'skipped')
+        ->click('[data-fan="0"]')
+        ->assertScript($cover, '/favicon.svg?n=2')
+        ->assertScript('getComputedStyle(document.querySelector("[data-hero-books] [data-size=xl]")).getPropertyValue("--cover")', 'url("/favicon.svg?n=2")')
+        ->assertScript($fan, 'Show Slide Title 3|Show Slide Title 4')
+        ->assertScript($this->title, 'Slide Title 2');
 });

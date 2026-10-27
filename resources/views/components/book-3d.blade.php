@@ -5,6 +5,7 @@
     'tilt' => '-18deg',
     'interactive' => false,
     'scene' => false,
+    'bind' => null,
     'title' => null,
     'alt' => '',
 ])
@@ -17,6 +18,8 @@
     pointer, up to 10deg, on fine pointers only; with reduced motion it stays at its resting angle. A missing or broken cover shows
     <x-cover-fallback> on the front face. `scene` progressively upgrades it to a three.js book (resources/js/book-scene.js) on
     capable devices: the CSS book renders first and stays as the fallback. The scene reads the cover through the same-origin proxy (`covers.show`). The cover is decorative (`alt` is empty unless set): the title is always written out next to it.
+    `bind` is an Alpine expression for the cover URL that follows state (the hero's active slide): it drives the front image and
+    `--cover` (so the spine and back follow). The scene is turned separately, by a `book-scene:turn` event.
     The geometry and the lighting are in resources/css/app.css (`.book3d`); resources/js/book-3d.js drives the lean and the fallback.
 --}}
 @php
@@ -33,6 +36,7 @@
     data-size="{{ $size }}"
     {{ $cover ? '' : 'data-broken' }}
     x-data="book3d(@js((bool) $interactive))"
+    @if ($bind) x-bind:style="{ '--cover': 'url(' + JSON.stringify({{ $bind }}) + ')' }" @endif
     @if ($sceneCover) data-scene-cover="{{ $sceneCover }}" x-book-scene @endif
     {{ $attributes->class('book3d')->merge(['style' => $style]) }}
 >
@@ -41,7 +45,7 @@
     <span class="book3d__body" x-ref="body">
         <span class="book3d__face book3d__front">
             @if ($cover)
-                <img x-ref="cover" src="{{ $cover }}" alt="{{ $alt }}" decoding="async" draggable="false" x-on:error="broken()">
+                <img x-ref="cover" src="{{ $cover }}" @if ($bind) x-bind:src="{{ $bind }}" @endif alt="{{ $alt }}" decoding="async" draggable="false" x-on:error="broken()">
             @endif
 
             <span class="book3d__fallback" data-book-fallback><x-cover-fallback :title="$title" /></span>

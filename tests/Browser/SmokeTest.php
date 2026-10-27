@@ -107,7 +107,7 @@ test('landing to login to home to search to a story works on desktop and on a ph
         ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
 })->with([[1440, 900], [390, 844]]);
 
-test('Tab walks Home in reading order: header, hero, search panel, then the first shelf', function () {
+test('Tab walks Home in reading order: header, hero (text, controls, the book fan), search panel, then the first shelf', function () {
     $this->actingAs($this->user);
 
     $page = visit($this->paths['home'], $this->desktop)->wait(1.5);
@@ -115,14 +115,14 @@ test('Tab walks Home in reading order: header, hero, search panel, then the firs
 
     $stops = [];
 
-    foreach (range(1, 18) as $stop) {
+    foreach (range(1, 17) as $stop) {
         $stops[] = $page->script($this->focused);
         $page->keys(':focus', 'Tab');
     }
 
     expect($stops)->toBe([
         'a:Bookflix', 'a:Home', 'a:Discover', 'a:Search', 'a:Profile', 'button:Search', 'button:GR Gabe Reader',
-        'a:View story', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3', 'button:Show Panel Tale 4', 'button:Previous slide', 'button:Next slide',
+        'a:View story', 'button:Previous slide', 'button:Next slide', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3',
         'input:combobox', 'a:Browse Discover',
         'a:See all in Trending Now', 'button:Next in Trending Now', 'a:Dune',
     ]);
