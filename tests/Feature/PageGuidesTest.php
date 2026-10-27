@@ -61,13 +61,13 @@ test('story, series and class pages guide the reader right after the h1', functi
         ->and(guideAfterH1($this->actingAs($user)->get(route('explore.show', '800'))->getContent()))->not->toBe('');
 });
 
-test('the search page names the query in its h1 and shows the count once beside it', function () {
+test('the search page names the query in its h1 and shows the count once, above its results', function () {
     Media::factory()->create(['title' => 'Love Hina']);
 
     $html = $this->actingAs(User::factory()->create())->get(route('search', ['q' => 'Love']))->getContent();
 
     expect(trim(htmlQuery($html, '//h1')->item(0)->textContent))->toBe('Results for “Love”')
-        ->and(htmlQuery($html, '//header[.//h1]//*[@data-test="result-count"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//header[.//h1]//*[@data-test="result-count"]')->length)->toBe(0)
         ->and(htmlQuery($html, '//*[@data-test="result-count"]')->length)->toBe(1);
 });
 

@@ -297,37 +297,41 @@ new #[Title('Search')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
+<section class="pb-12">
     <x-page-header
         :title="filled(trim($q)) ? __('Results for “:q”', ['q' => trim($q)]) : __('Search')"
         :description="__('Search titles, authors, series and subjects. Narrow the results with the filters.')"
-    >
-        <x-slot:actions>
-            <p role="status" data-test="result-count" class="text-meta tabular-nums text-ink-subtle">
-                @if ($this->isSearching && ! $this->throttled)
-                    @if ($this->results instanceof SearchResults && $this->results->hasMore)
-                        {{ __(':count+ stories', ['count' => $this->results->total()]) }}
-                    @else
-                        {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
-                    @endif
-                @endif
-            </p>
-        </x-slot:actions>
-    </x-page-header>
+    />
 
-    <x-search-panel wire:model.live.debounce.300ms="q" :placeholder="__('Titles, authors, series and subjects')" class="mt-6" />
+    <x-search-panel wire:model.live.debounce.300ms="q" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-6" />
 
     <div class="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-10">
-        <aside aria-labelledby="search-filters-title" class="hidden lg:block">
-            <h2 id="search-filters-title" class="text-lead text-ink">{{ __('Filters') }}</h2>
+        <aside aria-labelledby="search-filters-title" class="hidden self-start lg:sticky lg:top-20 lg:block">
+            <div class="flex min-h-11 items-center justify-between gap-4">
+                <h2 id="search-filters-title" class="text-lead text-ink">{{ __('Filters') }}</h2>
 
-            <div class="mt-4">
+                @if ($this->chips !== [])
+                    <button type="button" wire:click="clearFilters" class="focus-ring inline-flex min-h-11 items-center rounded-control px-2 -mx-2 text-meta text-link hover:underline">{{ __('Clear all') }}</button>
+                @endif
+            </div>
+
+            <div class="mt-2">
                 @include('pages.search.filters', ['facets' => $this->facets])
             </div>
         </aside>
 
         <div class="min-w-0">
-            <div class="flex flex-wrap items-center justify-end gap-3">
+            <div class="flex min-h-11 flex-wrap items-center justify-between gap-3">
+                <p role="status" data-test="result-count" class="text-meta tabular-nums text-ink-subtle">
+                    @if ($this->isSearching && ! $this->throttled)
+                        @if ($this->results instanceof SearchResults && $this->results->hasMore)
+                            {{ __(':count+ stories', ['count' => $this->results->total()]) }}
+                        @else
+                            {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
+                        @endif
+                    @endif
+                </p>
+
                 <div class="flex items-center gap-3">
                     <x-filter-sheet>
                         @include('pages.search.filters', ['facets' => $this->facets])
@@ -360,6 +364,9 @@ new #[Title('Search')] class extends Component {
             @endif
 
             @if ($this->results->isNotEmpty())
+                {{-- Every story of one format makes the format badge noise: it is shown only when the page mixes formats. --}}
+                @php $mixed = collect($this->results->items())->pluck('media_type_id')->unique()->count() > 1; @endphp
+
                 @if ($this->layout === 'list')
                     <ul data-view="list" class="mt-6 flex flex-col gap-4">
                         @foreach ($this->results as $media)
@@ -369,16 +376,16 @@ new #[Title('Search')] class extends Component {
                         @endforeach
                     </ul>
                 @else
-                    <ul data-view="grid" class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                    <ul data-view="grid" class="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]">
                         @foreach ($this->results as $media)
                             <li wire:key="result-{{ $media->id }}">
-                                <x-cover-tile :media="$media" badge fluid />
+                                <x-cover-tile :media="$media" :badge="$mixed" fluid />
                             </li>
                         @endforeach
                     </ul>
                 @endif
 
-                <flux:pagination :paginator="$this->results" class="mt-8" />
+                <flux:pagination :paginator="$this->results" class="mt-8 [&>:first-child]:hidden [&>:not(:first-child)]:mx-auto" />
             @elseif ($this->throttled)
                 <div class="mt-12 max-w-prose">
                     <h2 class="text-section text-ink">{{ __('Searching a little too fast') }}</h2>

@@ -298,3 +298,27 @@ test('the year bounds are kept ten minutes as two numbers', function () {
 
     expect(Cache::get('search:year-bounds:v1'))->toBe([1962, 2021]);
 });
+
+test('the type badge shows only when the results mix formats', function () {
+    Media::factory()->manga()->create(['title' => 'Berserk Manga', 'search_text' => 'berserk']);
+    Media::factory()->manga()->create(['title' => 'Berserk Deluxe', 'search_text' => 'berserk']);
+    $this->actingAs(User::factory()->create());
+
+    $one = Livewire::test('pages::search.index')->set('q', 'berserk')->html();
+    expect(htmlQuery($one, '//ul[@data-view="grid"]//li//a//span[contains(@class,"bg-canvas/80")]')->length)->toBe(0);
+
+    Media::factory()->novel()->create(['title' => 'Berserk Novel', 'search_text' => 'berserk']);
+
+    $mixed = Livewire::test('pages::search.index')->set('q', 'berserk')->html();
+    expect(htmlQuery($mixed, '//ul[@data-view="grid"]//li//a//span[contains(@class,"bg-canvas/80")]')->length)->toBe(3);
+});
+
+test('the panel does not send readers away from their results, and the pager does not repeat the count', function () {
+    Media::factory()->count(30)->create(['search_text' => 'berserk']);
+    $this->actingAs(User::factory()->create());
+
+    $html = Livewire::test('pages::search.index')->set('q', 'berserk')->html();
+
+    expect($html)->not->toContain('Browse Discover')
+        ->and(htmlQuery($html, '//*[@data-flux-pagination][contains(@class,"first-child]:hidden")]')->length)->toBe(1);
+});
