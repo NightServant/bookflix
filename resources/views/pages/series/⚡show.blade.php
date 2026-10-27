@@ -195,7 +195,7 @@ new #[Title('Series')] class extends Component {
 
             @if ($hasAbout)
                 <aside aria-labelledby="series-about" class="order-first mb-10 min-w-0 lg:order-none lg:mb-0">
-                    <h2 id="series-about" class="text-lead text-ink">{{ __('About this series') }}</h2>
+                    <h2 id="series-about" class="text-lead text-ink">{{ __('About This Series') }}</h2>
 
                     @if ($longDescription)
                         <x-clamped-text :lines="6" class="mt-2">{{ $series->description }}</x-clamped-text>

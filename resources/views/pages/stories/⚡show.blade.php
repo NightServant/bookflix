@@ -263,7 +263,7 @@ new #[Title('Story')] class extends Component {
             <div class="flex max-w-prose flex-col gap-8">
                 @if ($this->secondaryClasses->isNotEmpty())
                     <section>
-                        <h2 class="text-lead text-ink">{{ __('Also shelved in') }}</h2>
+                        <h2 class="text-lead text-ink">{{ __('Also Shelved In') }}</h2>
                         <p class="mt-1 text-meta text-ink-subtle">{{ __('Other places this story fits. Open a class to see its neighbours.') }}</p>
                         <ul class="mt-2 flex flex-col">
                             @foreach ($this->secondaryClasses as $class)
@@ -300,7 +300,7 @@ new #[Title('Story')] class extends Component {
                 </div>
 
                 @if ($media->content_warnings !== [])
-                    <x-accordion :title="__('Content warnings')">
+                    <x-accordion :title="__('Content Warnings')">
                         <ul class="list-disc ps-6">
                             @foreach ($media->content_warnings as $warning)
                                 <li wire:key="warning-{{ $loop->index }}">{{ $warning }}</li>
@@ -351,7 +351,7 @@ new #[Title('Story')] class extends Component {
         @if ($media->relations->isNotEmpty())
             <x-slot:related>
                 <div class="max-w-prose">
-                    <h2 class="text-lead text-ink">{{ __('Related stories') }}</h2>
+                    <h2 class="text-lead text-ink">{{ __('Related Stories') }}</h2>
                     <p class="mt-1 text-meta text-ink-subtle">{{ __('Sequels, spin-offs and other titles connected to this one.') }}</p>
 
                     <ul class="mt-2">

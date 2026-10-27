@@ -137,7 +137,7 @@ new #[Title('Profile settings')] class extends Component {
     <flux:heading level="2" class="sr-only">{{ __('Profile settings') }}</flux:heading>
 
     <x-pages::settings.layout>
-        <x-settings-card :title="__('Name and email')" :description="__('How you appear on Bookflix, and where we reach you.')">
+        <x-settings-card :title="__('Name and Email')" :description="__('How you appear on Bookflix, and where we reach you.')">
         <form wire:submit="updateProfileInformation" class="w-full space-y-6">
             <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
 
@@ -169,7 +169,7 @@ new #[Title('Profile settings')] class extends Component {
         </form>
         </x-settings-card>
 
-        <x-settings-card :title="__('Reading profile')" :description="__('Your avatar, a short bio and how you like to read. This shapes what we suggest.')">
+        <x-settings-card :title="__('Reading Profile')" :description="__('Your avatar, a short bio and how you like to read. This shapes what we suggest.')">
         <form wire:submit="updateReadingProfile" class="w-full space-y-6">
             <div class="flex items-center gap-4">
                 <flux:avatar

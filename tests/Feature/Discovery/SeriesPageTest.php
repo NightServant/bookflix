@@ -180,14 +180,14 @@ test('the header stacks the first four volumes as books, the first one the LCP c
         ->and(htmlQuery($html, '//header//*[@data-series-stack]//img[@fetchpriority="high"]')->length)->toBe(1);
 });
 
-test('a long description and the credits with their roles sit in "About this series", a short blurb stays in the header', function () {
+test('a long description and the credits with their roles sit in "About This Series", a short blurb stays in the header', function () {
     $long = seriesWith([[1, 'Vol One', ['publication_year' => 1994]]], ['description' => str_repeat('A long tale of many words. ', 12), 'status' => 'completed']);
     $short = seriesWith([[1, 'Vol One']], ['description' => 'A short blurb.']);
     $long->media->first()->creators()->attach(Creator::factory()->create(['name' => 'Naoki Urasawa']), ['role' => 'author', 'position' => 0]);
     $user = User::factory()->create();
 
     $html = $this->actingAs($user)->get(route('series.show', $long->slug))->getContent();
-    $about = '//aside[.//h2[normalize-space()="About this series"]]';
+    $about = '//aside[.//h2[normalize-space()="About This Series"]]';
 
     expect(htmlQuery($html, $about.'//p[contains(., "A long tale")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//header//*[contains(., "A long tale")]')->length)->toBe(0)

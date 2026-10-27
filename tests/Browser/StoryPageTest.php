@@ -40,7 +40,7 @@ test('the tabs switch between overview, series and related', function () {
         ->assertScript($this->visiblePanel, 'Dune Chronicles')
         ->assertSee('Dune Messiah')
         ->click('[role=tab]:has-text("Related")')->wait(0.5)
-        ->assertScript($this->visiblePanel, 'Related stories')
+        ->assertScript($this->visiblePanel, 'Related Stories')
         ->assertSee('Dune: The Movie')
         ->assertNoJavaScriptErrors();
 });
@@ -57,7 +57,7 @@ test('the series links walk to the next story and back, and the content warnings
         ->assertNoJavaScriptErrors();
 
     $page->assertDontSee('Violence')
-        ->click('summary:has-text("Content warnings")')->wait(0.6)
+        ->click('summary:has-text("Content Warnings")')->wait(0.6)
         ->assertSee('Violence');
 });
 

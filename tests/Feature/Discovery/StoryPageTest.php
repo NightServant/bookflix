@@ -48,7 +48,7 @@ test('the story page renders its sections', function () {
         ->assertSee('Desert')
         ->assertSee('A desert planet and the spice that rules it.')
         ->assertSee('American Fiction')
-        ->assertSee('Content warnings')
+        ->assertSee('Content Warnings')
         ->assertSee('Violence')
         ->assertSee('Data from')
         ->assertSee('Book data from Open Library (openlibrary.org).')
@@ -110,7 +110,7 @@ test('genres and themes link to search with that filter, tags to a text search',
         ->and(htmlQuery($html, '//a[@href="'.e(route('search', ['q' => 'Desert'])).'"]')->length)->toBeGreaterThan(0);
 });
 
-test('the primary class is the breadcrumb, only the secondary public classes are listed under "Also shelved in"', function () {
+test('the primary class is the breadcrumb, only the secondary public classes are listed under "Also Shelved In"', function () {
     $m = fullMedia();
     classified($m, '823', type: 'secondary');
     classified($m, '833', type: 'secondary', status: 'rejected');
@@ -118,8 +118,8 @@ test('the primary class is the breadcrumb, only the secondary public classes are
     $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->getContent();
 
     expect(htmlQuery($html, '//nav[@aria-label="Breadcrumb"]//*[@aria-current="page"][contains(., "813")]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//section[h2[normalize-space()="Also shelved in"]]//a[@href="'.route('explore.show', '823').'"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//section[h2[normalize-space()="Also shelved in"]]//a[@href="'.route('explore.show', '813').'"]')->length)->toBe(0)
+        ->and(htmlQuery($html, '//section[h2[normalize-space()="Also Shelved In"]]//a[@href="'.route('explore.show', '823').'"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//section[h2[normalize-space()="Also Shelved In"]]//a[@href="'.route('explore.show', '813').'"]')->length)->toBe(0)
         ->and($html)->not->toContain('German Fiction');
 });
 
@@ -139,7 +139,7 @@ test('the breadcrumb sits above the title', function () {
 
 test('the content warnings accordion is absent when there are none', function () {
     $m = Media::factory()->create(['content_warnings' => []]);
-    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertDontSee('Content warnings');
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertDontSee('Content Warnings');
 });
 
 test('attribution is left out for a source without one', function () {

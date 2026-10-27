@@ -210,7 +210,7 @@ test('on a phone every page settles with nothing sticking out sideways, so the p
     $page->assertScript($this->sticksOut, '|true')->assertNoJavaScriptErrors();
 
     if ($name === 'story') {
-        $page->click('summary:has-text("Content warnings")')->wait(0.5)->assertScript($this->sticksOut, '|true')
+        $page->click('summary:has-text("Content Warnings")')->wait(0.5)->assertScript($this->sticksOut, '|true')
             ->click('[role=tab]:has-text("Series")')->wait(0.5)->assertScript($this->sticksOut, '|true')
             ->click('[role=tab]:has-text("Related")')->wait(0.5)->assertScript($this->sticksOut, '|true');
     }
