@@ -57,3 +57,12 @@ test('the first Tab reaches the skip link and Enter moves focus to main, before 
         ->keys(':focus', 'Enter')
         ->assertScript('document.activeElement.id', 'main');
 });
+
+test('a long account name never pushes the header past a phone screen', function () {
+    $this->actingAs(User::factory()->create(['name' => 'Maximiliana Wolfeschlegelsteinhausen-Bergerdorff']));
+
+    visit(route('discover'), ['viewport' => ['width' => 375, 'height' => 812], 'reducedMotion' => 'reduce'])->wait(1)
+        ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true)
+        ->assertScript('document.querySelector("header [data-flux-sidebar-profile]").getBoundingClientRect().right <= window.innerWidth', true)
+        ->assertAriaAttribute('header [data-flux-sidebar-profile]', 'label', 'Account menu for Maximiliana Wolfeschlegelsteinhausen-Bergerdorff');
+});
