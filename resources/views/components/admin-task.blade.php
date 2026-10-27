@@ -11,7 +11,7 @@
         </span>
         @if ($stat)
             <span @class([
-                'rounded-full px-3 py-1 text-legal tabular-nums',
+                'rounded-control px-2.5 py-1 text-legal tabular-nums',
                 'bg-ink text-canvas font-medium' => $attention,
                 'border border-hairline text-ink-subtle' => ! $attention,
             ])>{{ $stat }}</span>
