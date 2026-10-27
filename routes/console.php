@@ -13,6 +13,7 @@ Artisan::command('inspire', function () {
 Schedule::command('bookflix:purge-deactivated-accounts')->daily();
 Schedule::command('bookflix:prune-covers')->weekly();
 Schedule::command('bookflix:score-popularity')->daily();
+Schedule::command('bookflix:sync-signals')->daily();
 
 $sourceIsEnabled = fn (string $key): Closure => fn (): bool => ExternalSource::where('key', $key)->where('enabled', true)->exists();
 

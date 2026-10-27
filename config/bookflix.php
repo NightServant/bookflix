@@ -168,6 +168,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Signal Sources
+    |--------------------------------------------------------------------------
+    |
+    | `bookflix:sync-signals` checks this many media per run, least recently checked first:
+    | Wikidata lookups share one SPARQL query per run, each Wikipedia pageview check is one request.
+    |
+    */
+
+    'signals' => [
+        'wikidata_batch' => 50,
+        'wikipedia_batch' => 100,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Sync Cursor
     |--------------------------------------------------------------------------
     |
