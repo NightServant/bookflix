@@ -398,10 +398,10 @@ test('redis retry_after outlasts the longest horizon supervisor timeout', functi
 });
 
 test('a configured provider without a class is unknown to the sync command and skipped by the job', function () {
-    ExternalSource::factory()->create(['key' => 'mangadex', 'enabled' => true]);
+    ExternalSource::factory()->create(['key' => 'comicvine', 'enabled' => true]);
 
-    $this->artisan('bookflix:sync', ['provider' => 'mangadex'])->assertFailed();
-    (new SyncProvider('mangadex'))->handle();
+    $this->artisan('bookflix:sync', ['provider' => 'comicvine'])->assertFailed();
+    (new SyncProvider('comicvine'))->handle();
 
     expect(IngestionRun::count())->toBe(0);
 });
