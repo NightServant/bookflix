@@ -138,6 +138,19 @@ test('home keeps its DOM light: one preview and one quick view per shelf, filled
         ->assertScript('document.querySelector("[data-story-card]:not([style*=\"display: none\"]) h2").textContent.trim()', 'Panel Tale 2');
 });
 
+test('a shelf that loads lazily fades its end edge without being scrolled', function () {
+    $page = visit(route('home'), $this->desktop)->wait(0.3);
+
+    foreach ([400, 900, 1500] as $offset) {
+        $page->script("window.scrollTo(0, {$offset})");
+        $page->wait(1);
+    }
+
+    $page->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
+        ->assertScript('Array.from(document.querySelectorAll("main section[aria-labelledby^=shelf-] ul[x-edge-fade]")).filter((track) => track.scrollWidth > track.clientWidth + 1 && ! track.hasAttribute("data-fade-end")).length', 0)
+        ->assertScript('document.querySelector("main section[aria-labelledby=shelf-new-releases] ul").hasAttribute("data-fade-end")', true);
+});
+
 test('lazy shelves swap in without shifting the page', function () {
     $page = visit(route('home'), $this->desktop)->wait(0.3);
 

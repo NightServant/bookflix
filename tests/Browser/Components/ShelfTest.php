@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Media;
+use Livewire\Livewire;
+use Tests\Fixtures\Livewire\ShelfFixture;
 
 beforeEach(function () {
     $media = Media::factory()->count(14)->create(['cover_url' => '/favicon.svg'])->each->refresh();
@@ -153,4 +155,17 @@ test('the focus ring of the outermost tile on a bleed track is not clipped by th
             ->wait(0.6)
             ->assertScript($ringFits("{$tiles}:last-child a"), true);
     }
+});
+
+test('a shelf whose track a Livewire update fills fades its end edge without being scrolled', function () {
+    Livewire::component('shelf-fixture', ShelfFixture::class);
+    $path = componentPage('<livewire:shelf-fixture />');
+
+    $page = visit($path)->wait(1);
+
+    $page->assertScript('document.querySelector("section ul").hasAttribute("data-fade-end")', false)
+        ->click('Load more')->wait(1)
+        ->assertScript('document.querySelectorAll("section ul > li").length', 14)
+        ->assertScript('document.querySelector("section ul").hasAttribute("data-fade-end")', true)
+        ->assertNoJavaScriptErrors();
 });

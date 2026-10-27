@@ -10,7 +10,7 @@ export default function components(Alpine) {
     // x-edge-fade: marks a horizontally scrolling element with `data-fade-start` once it has been scrolled away from its start and
     // `data-fade-end` while there is more to scroll to; the `edge-fade` utility (app.css) turns them into a mask that dissolves
     // that edge. Decorative only: it changes no markup assistive tech reads. Updated on scroll (passive, one frame at a time)
-    // and when the element is resized. ponytail: a Livewire morph of the element drops the attributes until the next scroll.
+    // and when the element is resized or Livewire morphs it (tiles added or removed change what there is to scroll to without resizing it).
     Alpine.directive('edge-fade', (el, _, { cleanup }) => {
         let frame = 0;
 
@@ -23,6 +23,7 @@ export default function components(Alpine) {
             frame ||= requestAnimationFrame(update);
         };
         const observer = new ResizeObserver(queue);
+        const unhook = window.Livewire?.hook('morph.updated', ({ el: morphed }) => morphed === el && queue());
 
         el.addEventListener('scroll', queue, { passive: true });
         observer.observe(el);
@@ -31,6 +32,7 @@ export default function components(Alpine) {
         cleanup(() => {
             cancelAnimationFrame(frame);
             observer.disconnect();
+            unhook?.();
             el.removeEventListener('scroll', queue);
         });
     });
