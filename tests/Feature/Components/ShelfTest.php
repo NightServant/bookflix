@@ -69,7 +69,7 @@ test('a bleed shelf is a full-width band without a card, its header and its trac
     expect(htmlQuery($html, '//section[contains(@class,"py-8")][contains(@class,"from-featured-from")]')->length)->toBe(1)
         ->and($html)->not->toContain('rounded-card p-4')
         ->and(htmlQuery($html, '//section/div[contains(@class,"px-gutter")]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//ul[contains(@class,"mx-gutter")][contains(@class,"overflow-x-auto")][not(contains(@class,"px-gutter"))]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//ul[contains(@class,"mx-[calc(var(--spacing-gutter)_-_0.25rem)]")][contains(@class,"overflow-x-auto")][not(contains(@class,"px-gutter"))]')->length)->toBe(1)
         ->and(htmlQuery(renderShelf('title="Staff Picks"'), '//section[contains(@class,"rounded-card")][contains(@class,"p-4")]')->length)->toBe(1);
 });
 
@@ -78,6 +78,6 @@ test('the track carries the state-aware edge fade, and on a bleed shelf keeps th
     $bleed = renderShelf('title="Trending Now" bleed');
 
     expect(htmlQuery($boxed, '//ul[@*[name()="x-edge-fade"]][contains(@class,"edge-fade")][contains(@class,"[--fade-width:2rem]")]')->length)->toBe(1)
-        ->and(htmlQuery($bleed, '//ul[@*[name()="x-edge-fade"]][contains(@class,"edge-fade")][contains(@class,"[--fade-width:clamp(3rem,4vw,4rem)]")][contains(@class,"mx-gutter")][not(contains(@class,"px-gutter"))]')->length)->toBe(1)
+        ->and(htmlQuery($bleed, '//ul[@*[name()="x-edge-fade"]][contains(@class,"edge-fade")][contains(@class,"[--fade-width:clamp(3rem,4vw,4rem)]")][contains(@class,"mx-[calc(var(--spacing-gutter)_-_0.25rem)]")][not(contains(@class,"px-gutter"))]')->length)->toBe(1)
         ->and(htmlQuery($bleed, '//button[@aria-label="Next in Trending Now"][contains(@class,"edge-fade")]')->length)->toBe(0);
 });

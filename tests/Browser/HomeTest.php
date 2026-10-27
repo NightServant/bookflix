@@ -62,7 +62,7 @@ test('the hero sits flush under the header and every band spans the page, conten
         ->assertScript('(() => { const logo = document.querySelector("header a").getBoundingClientRect().left; return ["main section[aria-roledescription=carousel] h1", "main section[aria-labelledby=shelf-trending] h2", "main section[aria-labelledby=shelf-trending] ul li:first-child a", "main search label"].every((selector) => { const el = Array.from(document.querySelectorAll(selector)).find((node) => node.offsetParent !== null); return Math.abs(el.getBoundingClientRect().left - logo) < 1.5; }); })()', true);
 });
 
-test('every shelf track is contained to the header margins, nothing shows in the side margins, and the fades are state-aware', function () {
+test('every shelf track is contained to the header margins (plus the ring room), nothing shows in the side margins, and the fades are state-aware', function () {
     foreach ([$this->desktop, $this->phone] as $viewport) {
         $page = visit(route('home'), $viewport + ['reducedMotion' => 'reduce'])->wait(1);
 
@@ -83,7 +83,8 @@ test('every shelf track is contained to the header margins, nothing shows in the
             return { left, right };
         })()';
 
-        $page->assertScript("(() => { const { left, right } = {$edges}; const tracks = Array.from(document.querySelectorAll('main section[aria-labelledby^=shelf-] ul[x-edge-fade]')); return tracks.length === 3 && tracks.every((track) => { const box = track.getBoundingClientRect(); return Math.abs(box.left - left) < 1.5 && Math.abs(box.right - right) < 1.5; }); })()", true)
+        // The track reaches 4px (the focus ring's room) past each gutter and pads it back in, so the tiles sit on the gutter.
+        $page->assertScript("(() => { const ring = 4; const { left, right } = {$edges}; const tracks = Array.from(document.querySelectorAll('main section[aria-labelledby^=shelf-] ul[x-edge-fade]')); return tracks.length === 3 && tracks.every((track) => { const box = track.getBoundingClientRect(); return Math.abs(box.left - (left - ring)) < 1.5 && Math.abs(box.right - (right + ring)) < 1.5; }); })()", true)
             // The tiles that spill past a track are clipped to it: nothing is hit in either side margin of a track.
             ->assertScript("(() => { const { left, right } = {$edges}; return Array.from(document.querySelectorAll('main section[aria-labelledby^=shelf-] ul[x-edge-fade]')).every((track) => { const box = track.getBoundingClientRect(); const y = box.top + 60; return [left / 2, right + (window.innerWidth - right) / 2].every((x) => ! document.elementsFromPoint(x, y).some((el) => el.closest('ul') === track || el.closest('li') ?.parentElement === track)); }); })()", true)
             ->assertScript("(() => { const track = document.querySelector('main section[aria-labelledby=shelf-trending] ul'); return [getComputedStyle(track).getPropertyValue('--fade-start'), track.matches('[data-fade-start]'), track.matches('[data-fade-end]')].join('|'); })()", '0px|false|true');

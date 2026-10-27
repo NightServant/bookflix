@@ -108,19 +108,49 @@ test('a track fades only the edges that have more to scroll to, and the arrows s
         ->assertScript("{$this->track}.matches('[data-fade-end]')", false);
 });
 
-test('a bleed track keeps the gutters as its margins and fades 3 to 4rem, left only after a scroll', function () {
+test('a bleed track keeps the gutters as its margins (less the 4px ring room it pads back in) and fades 3 to 4rem, left only after a scroll', function () {
     $bleed = "document.querySelectorAll('section ul')[2]";
     $fade = fn (string $side) => "getComputedStyle({$bleed}).getPropertyValue('--fade-{$side}')";
 
-    foreach ([['width' => 1440, 'height' => 800, 'fade' => '57.6px', 'gutter' => '148px'], ['width' => 375, 'height' => 812, 'fade' => '48px', 'gutter' => '16px']] as $viewport) {
+    foreach ([['width' => 1440, 'height' => 800, 'fade' => '57.6px', 'gutter' => '144px'], ['width' => 375, 'height' => 812, 'fade' => '48px', 'gutter' => '12px']] as $viewport) {
         $page = visit($this->path, ['viewport' => ['width' => $viewport['width'], 'height' => $viewport['height']]])->wait(1);
 
         $page->assertScript("getComputedStyle({$bleed}).marginLeft + '|' + getComputedStyle({$bleed}).marginRight", $viewport['gutter'].'|'.$viewport['gutter'])
-            ->assertScript("getComputedStyle({$bleed}).paddingLeft", '0px')
+            ->assertScript("getComputedStyle({$bleed}).paddingLeft + '|' + getComputedStyle({$bleed}).scrollPaddingLeft", '4px|4px')
             ->assertScript($fade('start'), '0px')
             ->assertScript($fade('end'), $viewport['fade']);
 
         $page->script("{$bleed}.scrollLeft = 300");
         $page->wait(0.6)->assertScript($fade('start'), $viewport['fade']);
+    }
+});
+
+test('the focus ring of the outermost tile on a bleed track is not clipped by the track', function () {
+    // The ring is the box-shadow pair (offset, then ring) `focus-ring` paints; its reach is the widest spread. The track clips at its padding box, so the ring must fit inside the track's rect.
+    $ringFits = fn (string $tile) => "(() => {
+        const el = document.querySelector('{$tile}');
+        const track = el.closest('ul').getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        const reach = Math.max(0, ...Array.from(getComputedStyle(el).boxShadow.matchAll(/(\\d+)px(?=,|\$)/g), (m) => Number(m[1])));
+
+        return reach > 0 && document.activeElement === el
+            && box.left - reach >= track.left && box.right + reach <= track.right
+            && box.top - reach >= track.top && box.bottom + reach <= track.bottom;
+    })()";
+    $tiles = 'section:nth-of-type(3) ul > li';
+
+    foreach ([['width' => 1440, 'height' => 800], ['width' => 375, 'height' => 812]] as $viewport) {
+        $page = visit($this->path, ['viewport' => $viewport])->wait(1);
+
+        // Shift+Tab from the second tile lands on the first (a real keyboard move, so :focus-visible paints the ring).
+        $page->keys("{$tiles}:nth-child(2) a", 'Shift+Tab')
+            ->wait(0.6)
+            ->assertScript($ringFits("{$tiles}:first-child a"), true);
+
+        $page->script("document.querySelectorAll('section ul')[2].scrollLeft = 1e6");
+        $page->wait(0.6)
+            ->keys("{$tiles}:nth-last-child(2) a", 'Tab')
+            ->wait(0.6)
+            ->assertScript($ringFits("{$tiles}:last-child a"), true);
     }
 });

@@ -14,7 +14,8 @@
     The track dissolves at an edge that has more to scroll to (the `edge-fade` mask, driven by `x-edge-fade`): the left only once it has
     been scrolled, the right until the end, 2rem wide in a card and 3 to 4rem on a bleed shelf.
     On a bleed shelf only the band is full width: the track keeps the header's gutters as its margins and clips there, so no cover
-    ever shows in the side margins, and the first tile sits on the logo's edge. (A focus ring on an outermost tile is clipped there.)
+    ever shows in the side margins, and the first tile sits on the logo's edge. The track reaches 0.25rem past each gutter and pads that
+    much back in (with a matching `scroll-padding`), so the 4px focus ring of an outermost tile is inside the clip box while the tiles stay on the gutter.
     The mask makes the track a stacking context, so it sits at `z-10`, and at `z-20` while one of its tiles has a preview open: the preview then lands over the shelf beneath.
     The arrows sit outside the track and stay opaque.
     `bleed` makes it a band that spans the whole page (in a `flush` layout): the title, controls and the first tile line up with the
@@ -76,7 +77,7 @@
         @class([
             'edge-fade relative z-10 has-[a[aria-expanded=true]]:z-20 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>li]:shrink-0 [&>li]:snap-start',
             '[--fade-width:2rem] -mx-1 scroll-px-1 p-1' => ! $bleed,
-            '[--fade-width:clamp(3rem,4vw,4rem)] mx-gutter py-1' => $bleed,
+            '[--fade-width:clamp(3rem,4vw,4rem)] mx-[calc(var(--spacing-gutter)_-_0.25rem)] scroll-px-1 p-1' => $bleed,
         ])
     >
         {{ $slot }}
