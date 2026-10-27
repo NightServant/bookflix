@@ -4,6 +4,7 @@
     'size' => 'md',
     'tilt' => '-18deg',
     'interactive' => false,
+    'scene' => false,
     'title' => null,
     'alt' => '',
 ])
@@ -14,7 +15,8 @@
     `size` is sm|md|lg|xl (the width: 5, 8, 12 and 17rem; a book is always 2:3 and as thick as 20% of its width). `tilt` is the resting
     yaw (-18deg turns the fore-edge towards the reader; a positive angle shows the spine). `interactive` leans the book towards the
     pointer, up to 10deg, on fine pointers only; with reduced motion it stays at its resting angle. A missing or broken cover shows
-    <x-cover-fallback> on the front face. The cover is decorative (`alt` is empty unless set): the title is always written out next to it.
+    <x-cover-fallback> on the front face. `scene` progressively upgrades it to a three.js book (resources/js/book-scene.js) on
+    capable devices: the CSS book renders first and stays as the fallback. The scene reads the cover through the same-origin proxy (`covers.show`). The cover is decorative (`alt` is empty unless set): the title is always written out next to it.
     The geometry and the lighting are in resources/css/app.css (`.book3d`); resources/js/book-3d.js drives the lean and the fallback.
 --}}
 @php
@@ -22,6 +24,7 @@
     $tilt = preg_match('/^-?\d+(\.\d+)?deg$/', (string) $tilt) ? $tilt : '-18deg';
     $cover = $src ?? $media?->cover_url;
     $title ??= $media?->title ?? '';
+    $sceneCover = $scene && $cover ? ($media?->exists && $src === null ? route('covers.show', $media) : $src) : null;
     $style = '--tilt: '.$tilt.';'.($cover ? ' --cover: url("'.addcslashes($cover, '"\\').'");' : '');
 @endphp
 
@@ -30,6 +33,7 @@
     data-size="{{ $size }}"
     {{ $cover ? '' : 'data-broken' }}
     x-data="book3d(@js((bool) $interactive))"
+    @if ($sceneCover) data-scene-cover="{{ $sceneCover }}" x-book-scene @endif
     {{ $attributes->class('book3d')->merge(['style' => $style]) }}
 >
     <span class="book3d__shadow"></span>

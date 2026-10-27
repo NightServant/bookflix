@@ -8,7 +8,7 @@ beforeEach(function () {
 
     Route::middleware('web')->group(function () {
         Route::get('/_test/cover/{n}', fn (int $n) => response()->file(base_path("tests/Fixtures/covers/{$n}.jpg")))->whereNumber('n');
-        Route::get('/_test/books', fn () => view('book-fixture', ['covers' => array_map(fn ($n) => "/_test/cover/{$n}", [1, 2, 3, 4]), 'scene' => (bool) request('scene')]));
+        Route::get('/_test/books', fn () => view('book-fixture', ['covers' => array_map(fn ($n) => "/_test/cover/{$n}", [1, 2, 3, 4]), 'scene' => request('scene', '')]));
         Route::get('/_test/elsewhere', fn () => '<!DOCTYPE html><html><body><a href="/_test/books" wire:navigate>Back to books</a></body></html>');
     });
 
@@ -60,4 +60,40 @@ test('books survive a wire:navigate round trip', function () {
         ->click('Back to books')->wait(1)
         ->assertNoJavaScriptErrors()
         ->assertScript('document.querySelectorAll("[data-book-3d]").length', 9);
+});
+
+test('with motion allowed a canvas fades in over the CSS book, which then steps aside, and three.js arrives as its own chunk', function () {
+    visit($this->path.'?scene=1')
+        ->assertScript('performance.getEntriesByType("resource").some((r) => r.name.includes("three.module"))', false)
+        ->wait(4)
+        ->assertNoJavaScriptErrors()
+        ->assertScript('document.querySelectorAll("canvas.book3d__canvas[data-ready]").length', 1)
+        ->assertScript('document.querySelector("[data-test=book-xl]").dataset.scene', 'ready')
+        ->assertScript('document.querySelectorAll("canvas").length', 1)
+        ->assertScript('document.querySelector("[data-test=book-xl]").hasAttribute("data-scene-live")', true)
+        ->assertScript('getComputedStyle(document.querySelector("[data-test=book-xl] .book3d__body")).visibility', 'hidden')
+        ->assertScript('getComputedStyle(document.querySelector("[data-test=book-xl] canvas")).opacity', '1')
+        ->assertScript('performance.getEntriesByType("resource").some((r) => r.name.includes("three.module"))', true);
+});
+
+test('with reduced motion there is no canvas, no three.js, and no running animation', function () {
+    visit($this->path.'?scene=1', ['reducedMotion' => 'reduce'])->wait(3)
+        ->assertNoJavaScriptErrors()
+        ->assertScript('document.querySelectorAll("canvas").length', 0)
+        ->assertScript('document.querySelector("[data-test=book-xl]").dataset.scene', 'skipped')
+        ->assertScript('getComputedStyle(document.querySelector("[data-test=book-xl] .book3d__body")).visibility', 'visible')
+        ->assertScript('performance.getEntriesByType("resource").some((r) => r.name.includes("three.module"))', false)
+        ->assertScript('document.getAnimations().length', 0);
+});
+
+test('navigating away disposes the scene: the canvas is gone and its WebGL context is released', function () {
+    $page = visit($this->path.'?scene=1')->wait(4)
+        ->assertScript('document.querySelectorAll("canvas").length > 0', true);
+
+    $page->script('window.__canvas = document.querySelector("[data-test=book-xl] canvas"); window.__host = document.querySelector("[data-test=book-xl]"); window.__gl = window.__canvas.getContext("webgl2") ?? window.__canvas.getContext("webgl");');
+    $page->click('Go elsewhere')->assertSee('Back to books')
+        ->assertScript('window.__canvas.isConnected', false)
+        ->assertScript('window.__gl.isContextLost()', true)
+        ->assertScript('window.__host.dataset.scene', 'disposed')
+        ->assertScript('document.querySelectorAll("canvas").length', 0);
 });

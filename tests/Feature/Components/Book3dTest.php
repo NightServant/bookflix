@@ -37,3 +37,19 @@ test('only an interactive book gets the pointer lean', function () {
     expect(renderedComponent('<x-book-3d src="/c.png" interactive />'))->toContain('x-data="book3d(true)"')
         ->and(renderedComponent('<x-book-3d src="/c.png" />'))->toContain('x-data="book3d(false)"');
 });
+
+test('the scene prop hands the scene the proxied cover of a media, or the src as given', function () {
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/dune.jpg']);
+
+    $html = renderedComponent('<x-book-3d :media="$media" scene />', ['media' => $media]);
+
+    expect(htmlQuery($html, '//span[@data-book-3d][@data-scene-cover="'.route('covers.show', $media).'"][@x-book-scene]')->length)->toBe(1)
+        ->and(htmlQuery(renderedComponent('<x-book-3d src="/cover.png" scene />'), '//span[@data-scene-cover="/cover.png"]')->length)->toBe(1);
+});
+
+test('without the scene prop, or without a cover, nothing upgrades the CSS book', function () {
+    $media = Media::factory()->create(['cover_url' => null]);
+
+    expect(renderedComponent('<x-book-3d src="/cover.png" />'))->not->toContain('x-book-scene')
+        ->and(renderedComponent('<x-book-3d :media="$media" scene />', ['media' => $media]))->not->toContain('x-book-scene');
+});

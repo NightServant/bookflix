@@ -535,3 +535,27 @@ select:focus[data-flux-control] {
         linear-gradient(180deg, color-mix(in srgb, var(--k) 55%, transparent), color-mix(in srgb, var(--k) 40%, transparent)),
         repeating-linear-gradient(180deg, var(--color-paper) 0 calc(var(--ln) * 0.58), var(--leaf) calc(var(--ln) * 0.58) var(--ln));
 }
+
+/* The three.js scene (resources/js/book-scene.js) is a canvas over the CSS book, larger than it by the room the book turns and floats in. */
+.book3d__canvas {
+    position: absolute;
+    left: -40%;
+    top: -20%;
+    width: 180%;
+    height: 140%;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 400ms var(--ease-out-bookflix);
+
+    &[data-ready] {
+        opacity: 1;
+    }
+}
+
+/* Once the canvas has faded in, the CSS book behind it steps aside (it stays in the layout, and comes back if the scene is disposed). */
+.book3d[data-scene-live] {
+    .book3d__body,
+    .book3d__shadow {
+        visibility: hidden;
+    }
+}
