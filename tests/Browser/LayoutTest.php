@@ -16,8 +16,8 @@ test('contained pages and the full-bleed ones start their content on the header 
     // The first thing in the page's own content, per page: the container's content box, or for a flush page the band's own padded container or its heading.
     $pages = [
         'search' => [route('search'), 'main > div'],
-        'discover' => [route('discover'), 'main > div'],
-        'explore' => [route('explore.index'), 'main > div'],
+        'discover' => [route('discover'), 'main h1'],
+        'explore' => [route('explore.index'), 'main h1'],
         'story' => [route('stories.show', $story->slug), 'main > div'],
         'profile' => [route('profile.edit'), 'main > div'],
         'series' => [route('series.show', $series->slug), 'main header > div.px-gutter'],
