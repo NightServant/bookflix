@@ -30,6 +30,9 @@ test('the cover wraps the whole jacket: the spine and the back use it, and a mis
     visit($this->path)->wait(1)
         ->assertScript($face('book-interactive', 'spine').'.includes("/_test/cover/3")', true)
         ->assertScript($face('book-interactive', 'back').'.includes("/_test/cover/3")', true)
+        ->assertScript($face('book-interactive', 'spine', 'transform'), 'none') // never a mirrored copy of the cover's letters
+        ->assertScript('parseFloat('.$face('book-interactive', 'spine', 'filter').'.match(/blur\\(([\\d.]+)px/)[1]) > 8', true) // blurred into colour
+        ->assertScript('parseFloat('.$face('book-interactive', 'back', 'filter').'.match(/blur\\(([\\d.]+)px/)[1]) > 15', true) // the back's title is not readable
         ->assertScript($face('book-missing', 'spine', 'display'), 'none')
         ->assertScript($face('book-broken', 'back', 'display'), 'none');
 });

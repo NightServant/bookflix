@@ -95,6 +95,53 @@ export default function bookScene(Alpine) {
                 return track(texture);
             };
 
+            // The jacket round the hinge and the back are made from the cover, never copied from it: a mirrored copy would show
+            // mirrored letters, and a sharp one a readable title on the back. So both are heavily blurred colour fields.
+            const surface = (width, height) => {
+                const art = document.createElement('canvas');
+                art.width = width;
+                art.height = height;
+
+                return [art, art.getContext('2d')];
+            };
+            // Blur by repeated smooth upscaling of a tiny sample (canvas `filter` is missing in Safari).
+            const soften = (image, sx, sy, sw, sh, tinyW, tinyH, width, height) => {
+                let [art, context] = surface(tinyW, tinyH);
+                context.drawImage(image, sx, sy, sw, sh, 0, 0, tinyW, tinyH);
+
+                while (art.width < width || art.height < height) {
+                    const [bigger, biggerContext] = surface(Math.min(width, art.width * 3), Math.min(height, art.height * 3));
+                    biggerContext.imageSmoothingQuality = 'high';
+                    biggerContext.drawImage(art, 0, 0, bigger.width, bigger.height);
+                    art = bigger;
+                    context = biggerContext;
+                }
+
+                return [art, context];
+            };
+            const wrapMaps = (image, renderer) => {
+                // Spine: the cover's left edge, stretched across the spine and blurred; the right edge (u = 1) meets the front.
+                const edge = Math.max(2, image.width * 0.05);
+                const [spineArt, spineContext] = soften(image, 0, 0, edge, image.height, 1, 28, 96, 384);
+                const crease = spineContext.createLinearGradient(0, 0, 96, 0);
+                crease.addColorStop(0, 'rgba(0,0,0,0.38)');
+                crease.addColorStop(0.1, 'rgba(0,0,0,0.02)');
+                crease.addColorStop(0.9, 'rgba(0,0,0,0.02)');
+                crease.addColorStop(0.96, 'rgba(0,0,0,0.22)');
+                crease.addColorStop(1, 'rgba(0,0,0,0.42)');
+                spineContext.fillStyle = crease;
+                spineContext.fillRect(0, 0, 96, 384);
+                spineContext.fillStyle = 'rgba(255,255,255,0.16)'; // Two blind-stamped bands, as on a bound spine.
+                [0.075, 0.095, 0.905, 0.925].forEach((at) => spineContext.fillRect(14, Math.round(384 * at), 68, 2));
+
+                // Back: the whole cover, blurred past reading, and darkened.
+                const [backArt, backContext] = soften(image, 0, 0, image.width, image.height, 10, 15, 160, 240);
+                backContext.fillStyle = 'rgba(0,0,0,0.34)';
+                backContext.fillRect(0, 0, 160, 240);
+
+                return [spineArt, backArt].map((art) => prepare(new THREE.CanvasTexture(art), renderer));
+            };
+
             const canvas = document.createElement('canvas');
             canvas.className = 'book3d__canvas';
             canvas.setAttribute('aria-hidden', 'true');
@@ -176,20 +223,16 @@ export default function bookScene(Alpine) {
             front.position.z = DEPTH / 2 + 0.0006;
             book.add(front);
 
-            const back = new THREE.Mesh(faceGeometry, jacket(cover, 0x45404a));
+            let [spineMap, backMap] = wrapMaps(cover.image, renderer);
+
+            const back = new THREE.Mesh(faceGeometry, jacket(backMap));
             back.position.z = -DEPTH / 2 - 0.0006;
             back.rotation.y = Math.PI;
             book.add(back);
 
             const spineGeometry = track(new THREE.CylinderGeometry(DEPTH / 2, DEPTH / 2, HEIGHT - 0.012, 32, 1, true, Math.PI, Math.PI));
-            const strip = 0.2;
-            const uv = spineGeometry.attributes.uv;
 
-            for (let i = 0; i < uv.count; i++) {
-                uv.setX(i, strip * (1 - uv.getX(i)));
-            }
-
-            const spine = new THREE.Mesh(spineGeometry, jacket(cover, 0xd8d8d8));
+            const spine = new THREE.Mesh(spineGeometry, jacket(spineMap));
             spine.position.x = -WIDTH / 2;
             spine.scale.x = 0.22; // A hardcover spine bulges a little, it does not widen the book.
             book.add(spine);
@@ -264,15 +307,17 @@ export default function bookScene(Alpine) {
             blob.width = blob.height = 128;
             const blobContext = blob.getContext('2d');
             const glow = blobContext.createRadialGradient(64, 64, 0, 64, 64, 64);
-            glow.addColorStop(0, 'rgba(0,0,0,0.75)');
+            glow.addColorStop(0, 'rgba(0,0,0,0.78)');
+            glow.addColorStop(0.55, 'rgba(0,0,0,0.42)');
             glow.addColorStop(1, 'rgba(0,0,0,0)');
             blobContext.fillStyle = glow;
             blobContext.fillRect(0, 0, 128, 128);
             const shadow = new THREE.Mesh(
-                track(new THREE.PlaneGeometry(1.5, 0.36)),
-                track(new THREE.MeshBasicMaterial({ map: track(new THREE.CanvasTexture(blob)), transparent: true, depthWrite: false, opacity: 0.8 })),
+                track(new THREE.PlaneGeometry(1.2, 0.42)),
+                track(new THREE.MeshBasicMaterial({ map: track(new THREE.CanvasTexture(blob)), transparent: true, depthWrite: false, opacity: 1 })),
             );
-            shadow.position.set(0.02, -HEIGHT / 2 - 0.07, -0.3);
+            // The same pool as the CSS book's (.book3d__shadow): 78% of the width, 0.2 wide deep, centred just below the bottom edge.
+            shadow.position.set(0.02, -HEIGHT / 2 - 0.05, -0.3);
             scene.add(shadow);
 
             // Sizing: the canvas is the book plus its margins; the renderer follows the element and the device pixel ratio.
@@ -375,7 +420,9 @@ export default function bookScene(Alpine) {
             run();
 
             // el.bookScene.turnTo(url): the old cover swings open on its hinge and the new one is underneath.
-            const turnTo = async (url) => {
+            let queue = Promise.resolve();
+            const turnTo = (url) => (queue = queue.then(() => turnNow(url)).catch(() => {}));
+            const turnNow = async (url) => {
                 if (disposed || turn) return;
 
                 const next = prepare(await load(url), renderer);
@@ -387,8 +434,11 @@ export default function bookScene(Alpine) {
                 leafFront.material.transparent = leafBack.material.transparent = true;
                 leafFront.material.needsUpdate = true;
                 front.material.map = next;
-                back.material.map = next;
-                spine.material.map = next;
+                const [nextSpine, nextBack] = wrapMaps(next.image, renderer);
+                const oldWrap = [spineMap, backMap];
+                [spineMap, backMap] = [nextSpine, nextBack];
+                back.material.map = backMap;
+                spine.material.map = spineMap;
                 front.material.needsUpdate = back.material.needsUpdate = spine.material.needsUpdate = true;
                 leaf.rotation.y = 0;
                 leaf.visible = true;
@@ -399,6 +449,7 @@ export default function bookScene(Alpine) {
                 });
 
                 old.dispose();
+                oldWrap.forEach((map) => map.dispose());
             };
 
             el.bookScene = { turnTo };

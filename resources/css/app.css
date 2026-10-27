@@ -411,14 +411,13 @@ select:focus[data-flux-control] {
     border-radius: calc(var(--w) * 0.03) calc(var(--w) * 0.01) calc(var(--w) * 0.01) calc(var(--w) * 0.03);
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-surface-card) 80%, var(--k)), var(--case));
 
-    /* The jacket carries on round the back: the cover again, blurred and darkened, as a printed back panel. */
+    /* The jacket carries on round the back: the cover again, blurred and darkened until its title cannot be read. */
     &::before {
         content: '';
         position: absolute;
-        inset: calc(var(--w) * -0.05);
+        inset: calc(var(--w) * -0.12);
         background: var(--cover, none) center / cover;
-        filter: blur(calc(var(--w) * 0.03)) brightness(0.5) saturate(0.85);
-        transform: scaleX(-1);
+        filter: blur(calc(var(--w) * 0.09)) brightness(0.42) saturate(0.8);
     }
 
     &::after {
@@ -430,8 +429,9 @@ select:focus[data-flux-control] {
 }
 
 /*
- * The spine is the jacket wrapping round the hinge: the cover's own left edge, mirrored so the art meets the front without a seam
- * (the spine's right edge is the cover's left edge), then rounded with light and shadow and a crease where it meets each board.
+ * The spine is the jacket wrapping round the hinge: the cover's own left edge, stretched and blurred into a soft band of the cover's
+ * colours (so no letter is ever mirrored on it, and it still meets the front without a seam), then rounded with light and shadow and
+ * a crease where it meets each board.
  */
 .book3d__spine {
     left: calc((var(--w) - var(--t)) / 2);
@@ -446,10 +446,9 @@ select:focus[data-flux-control] {
     &::before {
         content: '';
         position: absolute;
-        inset: 0;
-        background: var(--cover, none) left top / auto 100% no-repeat;
-        filter: blur(calc(var(--w) * 0.006)) brightness(0.85);
-        transform: scaleX(-1);
+        inset: calc(var(--w) * -0.06) 0;
+        background: var(--cover, none) left center / calc(var(--w) * 8) 100% no-repeat;
+        filter: blur(calc(var(--w) * 0.045)) brightness(0.8) saturate(1.1);
     }
 
     &::after {
