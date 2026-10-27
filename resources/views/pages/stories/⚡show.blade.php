@@ -28,7 +28,7 @@ new #[Title('Story')] class extends Component {
         $media = Media::resolveSlug($slug) ?? abort(404);
 
         if ($media->slug !== $slug) {
-            abort(redirect()->route('stories.show', ['slug' => $media->slug, ...request()->query()], 301));
+            abort(redirect()->route('stories.show', [...request()->query(), 'slug' => $media->slug], 301));
         }
 
         $this->mediaId = $media->id;

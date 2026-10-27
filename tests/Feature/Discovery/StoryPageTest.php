@@ -195,7 +195,8 @@ test('a soft deleted story is a 404', function () {
 test('a merged slug redirects with 301', function () {
     [$winner, $loser] = Media::factory()->count(2)->create();
     app(Deduplicator::class)->merge($winner, $loser);
-    $this->actingAs(User::factory()->create())->get(route('stories.show', $loser->slug))->assertStatus(301)->assertRedirect(route('stories.show', $winner->slug));
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $loser->slug).'?sq=5&slug=x')
+        ->assertStatus(301)->assertRedirect(route('stories.show', [$winner->slug, 'sq' => 5]));
 });
 
 test('a slug merged into a deleted story is a 404', function () {
