@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Catalog\Ingestion\IngestionPipeline;
+use App\Catalog\Providers\MissingProviderCredentials;
 use App\Catalog\Providers\RateLimitedByProvider;
 use App\Enums\IngestionMode;
 use App\Enums\IngestionStatus;
@@ -12,6 +13,7 @@ use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\RateLimited;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -74,6 +76,11 @@ class FetchProviderPage implements ShouldQueue
             $page = $provider->page($this->since($run), $this->pageToken);
         } catch (RateLimitedByProvider $exception) {
             $this->release($exception->retryAfter);
+
+            return;
+        } catch (MissingProviderCredentials $exception) {
+            Log::warning($exception->getMessage(), ['provider' => $run->externalSource->key]);
+            $run->fail($exception->getMessage());
 
             return;
         }

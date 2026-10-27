@@ -1,6 +1,7 @@
 <?php
 
 use App\Catalog\Providers\AniList\AniListProvider;
+use App\Catalog\Providers\ComicVine\ComicVineProvider;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
 use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
@@ -125,7 +126,8 @@ return [
         ],
 
         'comicvine' => [
-            'class' => null,
+            'class' => ComicVineProvider::class,
+            'api_key' => env('BOOKFLIX_COMICVINE_API_KEY'),
             'enabled' => (bool) env('BOOKFLIX_COMICVINE_ENABLED', false),
             'rate_per_minute' => 3,
             'max_pages_per_run' => 20,
