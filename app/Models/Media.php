@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Classification\DeweyCounts;
+use App\Discovery\Search\SearchTextBuilder;
 use App\Enums\AgeRating;
 use App\Enums\ClassificationType;
 use App\Enums\PublicationStatus;
@@ -19,8 +20,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Scout\Attributes\SearchUsingFullText;
+use Laravel\Scout\Searchable;
 
 /**
  * @property int $id
@@ -85,7 +89,7 @@ use Illuminate\Support\Str;
 class Media extends Model
 {
     /** @use HasFactory<MediaFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, Searchable, SoftDeletes;
 
     /**
      * The model's default attribute values.
@@ -120,6 +124,14 @@ class Media extends Model
     /**
      * A slug no media (soft-deleted included) uses yet: the title slug, then with the year, then numbered.
      */
+    /**
+     * The same-origin cover URL the 3D scene textures. `v` changes with `cover_url`, so a replaced cover busts the immutable cache.
+     */
+    public function coverProxyUrl(): string
+    {
+        return route('covers.show', [$this, 'v' => substr(sha1((string) $this->cover_url), 0, 8)]);
+    }
+
     public static function uniqueSlug(string $title, ?int $year = null): string
     {
         $slug = Str::slug($title) ?: 'untitled';
@@ -158,25 +170,72 @@ class Media extends Model
     }
 
     /**
-     * Phase 4 search reads this: every name that can find the media, lowercased.
+     * A few of the most-rated stories with a cover, as plain arrays cached for an hour, for decoration (the auth panel, empty states):
+     * a decorative book must never cost a query per visit.
+     *
+     * @return list<array{title: string, cover: string}>
+     */
+    public static function showcaseCovers(): array
+    {
+        return Cache::remember('media:showcase-covers:v1', now()->addHour(), fn (): array => array_values(static::query()
+            ->trending()
+            ->whereNotNull('media.cover_url')
+            ->limit(3)
+            ->get(['media.id', 'media.title', 'media.cover_url'])
+            ->map(fn (self $media): array => ['title' => $media->title, 'cover' => (string) $media->cover_url])
+            ->all()));
+    }
+
+    /**
+     * Rebuild the lowercased, accent-folded names that search reads (see SearchTextBuilder), after the relations may have changed.
      */
     public function refreshSearchText(): void
     {
-        $this->load(['creators', 'series', 'genres', 'themes', 'tags', 'characters', 'publishers']);
+        $this->load(SearchTextBuilder::RELATIONS);
 
-        $terms = array_merge(
-            [$this->title],
-            $this->alternative_titles,
-            $this->creators->pluck('name')->all(),
-            $this->series->pluck('title')->all(),
-            $this->genres->pluck('name')->all(),
-            $this->themes->pluck('name')->all(),
-            $this->tags->pluck('name')->all(),
-            $this->characters->pluck('name')->all(),
-            $this->publishers->pluck('name')->all(),
-        );
+        $this->update(['search_text' => app(SearchTextBuilder::class)->build($this)]);
+    }
 
-        $this->update(['search_text' => Str::lower(implode(' ', array_unique(array_filter($terms))))]);
+    /**
+     * Scout's database engine searches the table itself, and only this column, through the `media_search_fts` index.
+     *
+     * @return array{search_text: string}
+     */
+    #[SearchUsingFullText(['search_text'], ['language' => 'simple'])]
+    public function toSearchableArray(): array
+    {
+        return ['search_text' => $this->search_text];
+    }
+
+    /**
+     * Merged and deleted media stay out of every index.
+     */
+    public function shouldBeSearchable(): bool
+    {
+        return ! $this->trashed() && $this->merged_into_id === null;
+    }
+
+    /**
+     * Media that is not a merge loser: the live, public catalogue (deleted media is already hidden by the soft-delete scope).
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeUnmerged(Builder $query): void
+    {
+        $query->whereNull('media.merged_into_id');
+    }
+
+    /**
+     * The stories readers rate most, the newest breaking ties. Interim: Phase 6 redefines it over `media_popularity`.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeTrending(Builder $query): void
+    {
+        $query->unmerged()
+            ->orderByDesc('media.ratings_count')
+            ->orderByRaw('media.published_on desc nulls last')
+            ->orderByDesc('media.id');
     }
 
     /**
@@ -301,6 +360,16 @@ class Media extends Model
         return $this->hasOne(MediaDeweyClass::class)
             ->where('classification_type', ClassificationType::Primary)
             ->where('review_status', '!=', ReviewStatus::Rejected);
+    }
+
+    /**
+     * The primary class a reader may see on the story (accepted, or pending with enough confidence).
+     *
+     * @return HasOne<MediaDeweyClass, $this>
+     */
+    public function publicPrimaryDewey(): HasOne
+    {
+        return $this->hasOne(MediaDeweyClass::class)->publicPrimary();
     }
 
     /**

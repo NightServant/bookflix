@@ -32,14 +32,14 @@
             <div x-show="!showRecoveryInput">
                 <x-auth-header
                     :title="__('Authentication code')"
-                    :description="__('Enter the authentication code provided by your authenticator application.')"
+                    :description="__('Enter the 6-digit code from your authenticator app to finish logging in.')"
                 />
             </div>
 
             <div x-show="showRecoveryInput">
                 <x-auth-header
                     :title="__('Recovery code')"
-                    :description="__('Please confirm access to your account by entering one of your emergency recovery codes.')"
+                    :description="__('Enter one of your emergency recovery codes to finish logging in. Each code works once.')"
                 />
             </div>
 
@@ -79,18 +79,19 @@
                         @enderror
                     </div>
 
-                    <flux:button
-                        variant="primary"
+                    <x-cta
                         type="submit"
+                        icon="arrow-right"
+                        icon:variant="outline"
                         class="w-full"
                     >
                         {{ __('Continue') }}
-                    </flux:button>
+                    </x-cta>
                 </div>
 
-                <div class="mt-5 space-x-0.5 text-sm leading-5 text-center">
-                    <span class="opacity-50">{{ __('or you can') }}</span>
-                    <div class="inline font-medium underline cursor-pointer opacity-80">
+                <div class="mt-5 space-x-0.5 text-center text-meta text-ink-subtle">
+                    <span>{{ __('or you can') }}</span>
+                    <div class="inline font-medium text-ink underline cursor-pointer">
                         <span x-show="!showRecoveryInput" @click="toggleInput()">{{ __('login using a recovery code') }}</span>
                         <span x-show="showRecoveryInput" @click="toggleInput()">{{ __('login using an authentication code') }}</span>
                     </div>

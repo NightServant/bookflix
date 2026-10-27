@@ -1,7 +1,10 @@
 <?php
 
+use App\Models\DuplicateCandidate;
 use App\Models\Media;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 test('guests are redirected away from admin', function () {
@@ -29,3 +32,26 @@ test('a demoted admin is refused on the next livewire request', function (string
 
     $page->call('$refresh')->assertForbidden();
 })->with(['pages::admin.providers.index', 'pages::admin.media.index', 'pages::admin.media.edit', 'pages::admin.duplicates.index']);
+
+test('the admin dashboard shows live counts within a small query budget and caches them', function () {
+    Cache::forget('admin.dashboard-counts');
+    DuplicateCandidate::factory()->count(2)->create();
+    $admin = User::factory()->admin()->create();
+
+    DB::enableQueryLog();
+    $this->actingAs($admin)->get(route('admin.index'))->assertOk()->assertSee('2 pairs waiting')->assertSee('Never synced');
+    $cold = count(DB::getQueryLog());
+
+    DB::flushQueryLog();
+    $this->actingAs($admin)->get(route('admin.index'))->assertOk();
+    $warm = count(DB::getQueryLog());
+
+    expect($cold)->toBeLessThanOrEqual(12)->and($warm)->toBeLessThan($cold);
+});
+
+test('the dashboard stat pills group thousands', function () {
+    Cache::put('admin.dashboard-counts', ['media' => 12345, 'users' => 3, 'duplicates' => 1200, 'classifications' => 1305, 'sources' => 1, 'lastRun' => null], 60);
+
+    $this->actingAs(User::factory()->admin()->create())->get(route('admin.index'))->assertOk()
+        ->assertSee('1,305 to review')->assertSee('1,200 pairs waiting')->assertSee('12,345 stories');
+});

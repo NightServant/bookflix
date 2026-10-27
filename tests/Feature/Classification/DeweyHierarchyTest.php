@@ -3,6 +3,7 @@
 use App\Classification\Dewey\DeweyHierarchy;
 use App\Models\DeweyClass;
 use Database\Seeders\DeweySeeder;
+use Illuminate\Support\Facades\Cache;
 
 beforeEach(fn () => $this->seed(DeweySeeder::class));
 
@@ -10,6 +11,18 @@ test('there are ten roots and 800 has 810 as a child', function () {
     $h = app(DeweyHierarchy::class);
     expect($h->roots())->toHaveCount(10)
         ->and($h->children($h->findByCode('800'))->pluck('code'))->toContain('810');
+});
+
+test('roots read back from a cache that refuses to unserialize objects', function () {
+    config(['cache.default' => 'file', 'cache.serializable_classes' => false]);
+    Cache::forget('dewey:roots');
+    $h = app(DeweyHierarchy::class);
+
+    $h->roots();
+
+    expect($h->roots())->toHaveCount(10)->each->toBeInstanceOf(DeweyClass::class);
+
+    Cache::forget('dewey:roots');
 });
 
 test('ancestors of 813 are 800 then 810', function () {

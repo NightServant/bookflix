@@ -101,12 +101,12 @@ new #[Title('Edit media')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
-    <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.media.index')" wire:navigate>{{ __('Media') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ $media->title }}</h1>
-    <p class="mt-1 text-meta text-ink-muted">{{ $media->mediaType->name }} · {{ $media->slug }}</p>
+<section class="py-8">
+    <x-admin-header :back="route('admin.media.index')" :back-label="__('Media')" :eyebrow="$media->mediaType->name.' · '.$media->slug" :title="$media->title" :description="__('Edit this record’s details and save. A field you change is locked, so the next sync will not overwrite it.')" />
 
-    <form wire:submit="save" class="mt-6 max-w-2xl space-y-6">
+    <div class="mt-6 max-w-2xl space-y-6">
+    <x-settings-card :title="__('Details')" :description="__('What readers see on the story page.')">
+    <form wire:submit="save" class="space-y-6">
         <flux:input wire:model="title" :label="__('Title')" required />
         <flux:textarea wire:model="description" :label="__('Description')" rows="6" />
 
@@ -122,30 +122,27 @@ new #[Title('Edit media')] class extends Component {
             @endforeach
         </flux:select>
 
-        <flux:button variant="filled" type="submit" data-test="save-media-button">{{ __('Save') }}</flux:button>
+        <flux:button variant="filled" type="submit" icon="check" icon:variant="outline" data-test="save-media-button">{{ __('Save') }}</flux:button>
     </form>
+    </x-settings-card>
 
-    <div class="mt-12 max-w-2xl">
-        <h2 class="text-lead text-ink">{{ __('Locked fields') }}</h2>
-        <p class="mt-1 text-meta text-ink-muted">{{ __('A provider sync never overwrites these.') }}</p>
-
-        <ul class="mt-4 space-y-2">
+    <x-settings-card :title="__('Locked Fields')" :description="__('A provider sync never overwrites these.')">
+        <ul class="space-y-2">
             @forelse ($media->locked_fields as $field)
-                <li wire:key="locked-{{ $field }}" class="flex items-center justify-between rounded-lg bg-surface-card px-4 py-2">
+                <li wire:key="locked-{{ $field }}" class="flex items-center justify-between gap-3 rounded-card bg-surface-input px-4 py-2">
                     <span class="text-body text-ink">{{ str($field)->headline() }}</span>
-                    <flux:button size="sm" variant="filled" wire:click="unlock('{{ $field }}')">{{ __('Unlock') }}</flux:button>
+                    <flux:button size="sm" variant="filled" icon="lock-open" icon:variant="outline" wire:click="unlock('{{ $field }}')">{{ __('Unlock') }}</flux:button>
                 </li>
             @empty
-                <li class="text-body text-ink-muted">{{ __('None.') }}</li>
+                <li class="text-body text-ink-subtle">{{ __('None.') }}</li>
             @endforelse
         </ul>
-    </div>
+    </x-settings-card>
 
-    <div class="mt-12 max-w-2xl">
-        <h2 class="text-lead text-ink">{{ __('Remove invalid record') }}</h2>
-        <p class="mt-1 text-meta text-ink-muted">{{ __('Hides the record from the catalogue. It stays in the database.') }}</p>
-        <flux:button class="mt-4" variant="filled" wire:click="remove" wire:confirm="{{ __('Remove this record from the catalogue?') }}" data-test="remove-media-button">
+    <x-settings-card danger :title="__('Remove invalid record')" :description="__('Hides the record from the catalogue. It stays in the database.')">
+        <flux:button variant="filled" icon="trash" icon:variant="outline" wire:click="remove" wire:confirm="{{ __('Remove this record from the catalogue?') }}" data-test="remove-media-button">
             {{ __('Remove') }}
         </flux:button>
+    </x-settings-card>
     </div>
 </section>

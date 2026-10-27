@@ -13,20 +13,37 @@ use Livewire\Livewire;
 
 beforeEach(fn () => $this->seed(DeweySeeder::class));
 
-test('explore lists the ten classes with story counts', function () {
+test('explore lists the classes that hold stories as subject tiles and leaves the empty ones out', function () {
     classified(Media::factory()->count(2)->create(), '813');
 
-    $html = $this->actingAs(User::factory()->create())->get(route('explore.index'))->assertOk()->assertSeeInOrder(['000', '100'])->getContent();
+    $html = $this->actingAs(User::factory()->create())->get(route('explore.index'))->assertOk()->getContent();
 
     expect($html)
-        ->toMatch('#href="[^"]*/explore/800"[^>]*>\s*<span[^>]*>800</span>\s*<span[^>]*>Literature</span>\s*<span[^>]*>2 stories</span>#')
-        ->toMatch('#href="[^"]*/explore/100"[^>]*>\s*<span[^>]*>100</span>\s*<span[^>]*>[^<]*</span>\s*<span[^>]*>0 stories</span>#');
+        ->toMatch('#href="[^"]*/explore/800"[^>]*>\s*<span[^>]*>\[800\]</span>\s*<span[^>]*>\s*<span[^>]*>Literature</span>\s*<span[^>]*>2 stories</span>#')
+        ->not->toContain('/explore/100"')
+        ->and(htmlQuery($html, '//main//header[contains(@class,"bg-surface-deep")]//h1')->length)->toBe(1);
+});
+
+test('explore headings are Title Case', function () {
+    classified(Media::factory()->create(), '813');
+
+    $this->actingAs(User::factory()->create())->get(route('explore.index'))->assertOk()
+        ->assertSee('Browse by Subject')->assertDontSee('Browse by subject');
 });
 
 test('drilling down 800 to 810 to 813 shows breadcrumbs and children', function () {
+    classified(Media::factory()->create(), '813');
     $this->actingAs(User::factory()->create());
     $this->get(route('explore.show', '800'))->assertOk()->assertSee('810');
     $this->get(route('explore.show', '813'))->assertOk()->assertSeeInOrder(['800', '810', '813']);
+});
+
+test('a class page leaves out the sections that hold no story', function () {
+    classified(Media::factory()->create(), '813');
+
+    $html = $this->actingAs(User::factory()->create())->get(route('explore.show', '800'))->assertOk()->getContent();
+
+    expect($html)->toContain('/explore/810"')->not->toContain('/explore/820"');
 });
 
 test('a section lists the stories in its subtree', function () {
@@ -91,7 +108,7 @@ test('a page past the end shows the last page instead of an empty one', function
     $last = Media::orderBy('title')->orderBy('id')->get()->last();
 
     $this->actingAs(User::factory()->create())->get(route('explore.show', ['code' => '813', 'page' => 5]))
-        ->assertOk()->assertSee($last->title)->assertDontSee('No stories here yet.');
+        ->assertOk()->assertSee($last->title)->assertDontSee('No stories here yet');
 });
 
 test('the class code of an explore page cannot be changed from the browser', function () {

@@ -10,13 +10,14 @@ use Illuminate\Support\Facades\Cache;
 class DeweyHierarchy
 {
     /**
-     * The main classes, cached for an hour (the seeder clears the cache).
+     * The main classes, cached for an hour as plain rows, because the cache refuses to unserialize objects
+     * (`cache.serializable_classes`). The seeder clears the cache.
      *
      * @return Collection<int, DeweyClass>
      */
     public function roots(): Collection
     {
-        return Cache::remember('dewey:roots', 3600, fn () => DeweyClass::whereNull('parent_id')->orderBy('code')->get());
+        return DeweyClass::hydrate(Cache::remember('dewey:roots', 3600, fn (): array => DeweyClass::whereNull('parent_id')->orderBy('code')->get()->map->getAttributes()->all()));
     }
 
     /**

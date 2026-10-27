@@ -58,7 +58,7 @@ test('only accepted and confident pending classes are public, and rejected ones 
     $row('833', .70, ReviewStatus::Pending);
     $row('843', .95, ReviewStatus::Rejected);
 
-    expect(MediaDeweyClass::public()->get()->map(fn (MediaDeweyClass $r) => $r->deweyClass->code)->sort()->values()->all())->toBe(['813', '823']);
+    expect(MediaDeweyClass::public()->with('deweyClass')->get()->map(fn (MediaDeweyClass $r) => $r->deweyClass->code)->sort()->values()->all())->toBe(['813', '823']);
 });
 
 test('a removed class stays as a rejected row, so classification never brings it back or shows it', function () {

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PublicationStatus;
 use Database\Factories\SeriesFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -53,5 +54,35 @@ class Series extends Model
     public function media(): BelongsToMany
     {
         return $this->belongsToMany(Media::class, 'media_series')->withPivot(['position', 'label'])->withTimestamps();
+    }
+
+    /**
+     * The volumes in reading order: by position, those without one last, then by title.
+     *
+     * @return BelongsToMany<Media, $this, Pivot, 'pivot'>
+     */
+    public function orderedMedia(): BelongsToMany
+    {
+        return $this->media()->orderByRaw('media_series.position asc nulls last')->orderBy('media.title')->orderBy('media.id');
+    }
+
+    /**
+     * The volumes `$radius` either side of `$media` in reading order (the first `2 * $radius + 1` when it is not in the series), in one
+     * query. Positioned in SQL, so a 1,000 volume series never hydrates more than the window.
+     *
+     * @return Collection<int, Media>
+     */
+    public function window(Media $media, int $radius = 5): Collection
+    {
+        $ranked = $this->media()->select('media.id')
+            ->selectRaw('row_number() over (order by media_series.position asc nulls last, media.title, media.id) as rank')
+            ->toBase();
+
+        return $this->orderedMedia()
+            ->whereIn('media.id', fn ($ids) => $ids->select('r.id')->fromSub($ranked, 'r')->whereRaw(
+                'abs(r.rank - coalesce((select x.rank from ('.$ranked->toSql().') x where x.id = ?), ?)) <= ?',
+                [...$ranked->getBindings(), $media->id, $radius + 1, $radius],
+            ))
+            ->get();
     }
 }

@@ -84,7 +84,7 @@ class OpenLibraryProvider implements MetadataProvider
 
                 $seen[$id] = true;
 
-                if ($record = $this->find($id)) {
+                if (($record = $this->find($id)) && $this->hasCoverOrDescription($record)) {
                     $records[] = $record;
                 }
             }
@@ -97,6 +97,16 @@ class OpenLibraryProvider implements MetadataProvider
         };
 
         return new ProviderPage($records, $next, $newest);
+    }
+
+    /**
+     * The feed is mostly brand-new, sparse works: one with neither a cover nor a description is not worth showing, so the sync skips it.
+     */
+    private function hasCoverOrDescription(ProviderRecord $record): bool
+    {
+        $media = $this->normalize($record);
+
+        return $media->coverUrl !== null || filled($media->description);
     }
 
     public function find(string $externalId): ?ProviderRecord

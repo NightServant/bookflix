@@ -78,29 +78,27 @@ new #[Title('Duplicates')] class extends Component {
     }
 }; ?>
 
-<section class="py-12">
-    <flux:button variant="ghost" size="sm" icon="arrow-left" :href="route('admin.index')" wire:navigate>{{ __('Admin') }}</flux:button>
-    <h1 class="mt-2 text-section text-ink">{{ __('Duplicate review') }}</h1>
-    <p class="mt-1 text-body text-ink-subtle">{{ __('Pairs the sync found similar but not certain. Merging moves ids and relations to the record you keep; the other record\'s URL redirects to it.') }}</p>
+<section class="py-8">
+    <x-admin-header :back="route('admin.index')" :title="__('Duplicate review')" :description="__('Pairs the sync found similar but not certain. Keep one record to merge the other into it, or mark the pair as not a duplicate.')" />
 
     <div class="mt-6 space-y-6">
         @forelse ($this->candidates as $candidate)
-            <article wire:key="candidate-{{ $candidate->id }}" class="rounded-lg bg-surface-card p-6">
+            <article wire:key="candidate-{{ $candidate->id }}" class="rounded-card bg-surface-card p-5 sm:p-6">
                 <div class="flex items-center justify-between">
                     <flux:badge size="sm" color="amber">{{ __(':score% similar', ['score' => round($candidate->score * 100)]) }}</flux:badge>
-                    <flux:button size="sm" variant="filled" wire:click="dismiss({{ $candidate->id }})">{{ __('Not a duplicate') }}</flux:button>
+                    <flux:button size="sm" variant="filled" icon="x-mark" icon:variant="outline" wire:click="dismiss({{ $candidate->id }})">{{ __('Not a duplicate') }}</flux:button>
                 </div>
 
                 <div class="mt-4 grid gap-6 md:grid-cols-2">
                     @foreach ([$candidate->media, $candidate->duplicateMedia] as $side)
                         <div wire:key="candidate-{{ $candidate->id }}-{{ $side->id }}" class="flex flex-col">
                             <h2 class="text-lead text-ink">{{ $side->title }}</h2>
-                            <p class="mt-1 text-meta text-ink-muted">
+                            <p class="mt-1 text-meta text-ink-subtle">
                                 {{ $side->mediaType->name }}@if ($side->publication_year) · {{ $side->publication_year }}@endif
                                 @if ($side->creators->isNotEmpty()) · {{ $side->creators->pluck('name')->join(', ') }}@endif
                             </p>
                             <p class="mt-2 line-clamp-4 text-body text-ink-subtle">{{ $side->description }}</p>
-                            <flux:button class="mt-4 self-start" size="sm" variant="filled" wire:click="merge({{ $candidate->id }}, {{ $side->id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}">
+                            <flux:button class="mt-4 self-start" size="sm" variant="filled" icon="arrows-pointing-in" icon:variant="outline" wire:click="merge({{ $candidate->id }}, {{ $side->id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}">
                                 {{ __('Keep this one') }}
                             </flux:button>
                         </div>
@@ -108,11 +106,11 @@ new #[Title('Duplicates')] class extends Component {
                 </div>
             </article>
         @empty
-            <p class="text-body text-ink-muted">{{ __('No pending duplicates.') }}</p>
+            <x-admin-empty class="rounded-card bg-surface-card" icon="square-2-stack" :title="__('No pending duplicates')" :description="__('Every similar pair has been reviewed. New ones appear here after the next sync.')" />
         @endforelse
     </div>
 
     <div class="mt-6">
-        <flux:pagination :paginator="$this->candidates" />
+        <x-pager :paginator="$this->candidates" />
     </div>
 </section>

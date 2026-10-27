@@ -7,7 +7,7 @@
         <header class="flex items-center justify-between px-gutter py-6">
             <x-app-logo href="{{ route('landing') }}" />
 
-            <flux:button :href="route('login')" variant="ghost">{{ __('Sign in') }}</flux:button>
+            <flux:button :href="route('login')" variant="ghost" icon="arrow-right-end-on-rectangle" icon:variant="outline">{{ __('Sign in') }}</flux:button>
         </header>
 
         <main class="px-gutter py-24 text-center">
@@ -18,10 +18,12 @@
 
             <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
                 @if (Route::has('register'))
-                    <flux:button :href="route('register')" variant="primary" size="base">{{ __('Get started') }}</flux:button>
+                    <flux:button :href="route('register')" variant="primary" size="base" icon:trailing="arrow-right" icon-trailing:variant="outline">{{ __('Get started') }}</flux:button>
                 @endif
-                <flux:button :href="route('login')" size="base">{{ __('Sign in') }}</flux:button>
+                <flux:button :href="route('login')" size="base" icon="arrow-right-end-on-rectangle" icon:variant="outline">{{ __('Sign in') }}</flux:button>
             </div>
         </main>
+
+        @livewireScriptConfig
     </body>
 </html>

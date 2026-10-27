@@ -27,7 +27,7 @@ test('the discover item is current on every explore page', function (string $rou
     $response = $this->actingAs(User::factory()->create())->get(route($routeName, $parameters))->assertOk();
 
     $navs = primaryNavs($response->getContent());
-    $discover = preg_quote(route('explore.index'), '#');
+    $discover = preg_quote(route('discover'), '#');
     $home = preg_quote(route('home'), '#');
 
     expect($navs['header'])
@@ -52,4 +52,26 @@ test('non admins do not see the admin link in the user menu', function () {
         ->get(route('home'))
         ->assertOk()
         ->assertDontSee('href="'.route('admin.index').'"', false);
+});
+
+test('pages sit in the shared gutter container, and home runs its bands edge to edge', function () {
+    $this->actingAs(User::factory()->create());
+
+    $settings = $this->get(route('profile.edit'))->getContent();
+    $home = $this->get(route('home'))->getContent();
+
+    expect(htmlQuery($settings, '//main/div[contains(@class,"px-gutter")]')->length)->toBe(1)
+        ->and(htmlQuery($home, '//main/div[contains(@class,"px-gutter")]')->length)->toBe(0)
+        ->and(htmlQuery($home, '//main[not(contains(@class,"px-gutter"))]')->length)->toBe(1)
+        ->and(htmlQuery($settings, '//main[not(contains(@class,"px-gutter"))]')->length)->toBe(1);
+});
+
+test('search is in the bottom nav only: the desktop header has the palette trigger instead', function () {
+    $response = $this->actingAs(User::factory()->create())->get(route('home'))->assertOk();
+
+    $navs = primaryNavs($response->getContent());
+    $search = preg_quote(route('search'), '#');
+
+    expect($navs['header'])->not->toMatch('#<a href="'.$search.'"#')
+        ->and($navs['bottom'])->toMatch('#<a\s+href="'.$search.'"#');
 });

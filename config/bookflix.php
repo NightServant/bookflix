@@ -45,13 +45,15 @@ return [
     |--------------------------------------------------------------------------
     |
     | Rendered by the desktop header and the mobile bottom nav. `active` lists
-    | the route name patterns that mark the item as current.
+    | the route name patterns that mark the item as current; `desktop => false`
+    | leaves it out of the desktop header (the palette trigger covers it there).
     |
     */
 
     'navigation' => [
         ['label' => 'Home', 'icon' => 'home', 'route' => 'home', 'active' => ['home']],
-        ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'explore.index', 'active' => ['explore.*']],
+        ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'discover', 'active' => ['discover', 'explore.*']],
+        ['label' => 'Search', 'icon' => 'magnifying-glass', 'route' => 'search', 'active' => ['search'], 'desktop' => false],
         ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit']],
     ],
 
@@ -134,6 +136,21 @@ return [
         'auto_title_similarity' => 0.90,
         'review_min_similarity' => 0.75,
         'year_window' => 1,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Length Buckets
+    |--------------------------------------------------------------------------
+    |
+    | The length filter: up to `short` is short, up to `medium` is medium, more is
+    | long. A media with a page count is bucketed by pages, otherwise by chapters.
+    |
+    */
+
+    'length_buckets' => [
+        'pages' => ['short' => 200, 'medium' => 500],
+        'chapters' => ['short' => 30, 'medium' => 100],
     ],
 
     /*

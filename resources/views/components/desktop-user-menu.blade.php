@@ -1,13 +1,15 @@
-<flux:dropdown position="bottom" align="start">
+<flux:dropdown position="bottom" align="start" class="min-w-0">
     <flux:sidebar.profile
         :name="auth()->user()->name"
         :initials="auth()->user()->initials()"
         :avatar="auth()->user()->avatarUrl()"
         icon:trailing="chevrons-up-down"
         data-test="sidebar-menu-button"
+        class="max-w-56 max-sm:[&>span]:hidden"
+        :aria-label="__('Account menu for :name', ['name' => auth()->user()->name])"
     />
 
-    <flux:menu>
+    <flux:menu class="shadow-overlay!">
         <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
             <flux:avatar
                 :name="auth()->user()->name"

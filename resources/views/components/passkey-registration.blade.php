@@ -71,18 +71,18 @@
 
     <template x-if="supported && !showForm">
         <div>
-            <flux:button
-                variant="primary"
+            <x-cta
                 icon="plus"
+                icon:variant="outline"
                 x-on:click="showForm = true"
             >
                 {{ __('Add passkey') }}
-            </flux:button>
+            </x-cta>
         </div>
     </template>
 
     <template x-if="supported && showForm">
-        <div class="space-y-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4">
+        <div class="space-y-4 rounded-card border border-hairline bg-surface-deep p-4">
             <flux:input
                 label="{{ __('Passkey name') }}"
                 x-model="name"
@@ -96,20 +96,22 @@
             <p x-show="error" x-text="error" x-cloak class="text-sm text-red-600 dark:text-red-400"></p>
 
             <div class="flex gap-2">
-                <flux:button
-                    variant="primary"
+                <x-cta
+                    icon="check"
+                    icon:variant="outline"
                     x-on:click="register()"
                     x-bind:disabled="loading || !name.trim()"
                 >
                     <span x-show="!loading">{{ __('Register passkey') }}</span>
                     <span x-show="loading" x-cloak>{{ __('Registering...') }}</span>
-                </flux:button>
-                <flux:button
-                    variant="ghost"
+                </x-cta>
+                <x-cta variant="secondary"
+                    icon="x-mark"
+                    icon:variant="outline"
                     x-on:click="cancel()"
                 >
                     {{ __('Cancel') }}
-                </flux:button>
+                </x-cta>
             </div>
         </div>
     </template>

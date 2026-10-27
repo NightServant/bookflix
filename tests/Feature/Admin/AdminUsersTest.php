@@ -45,7 +45,7 @@ test('search narrows by email and name', function () {
     Livewire::test('pages::admin.users.index')
         ->set('search', 'findme')->assertSee('Zed Findme')->assertDontSee('Other Person')->assertDontSee('Bystander')
         ->set('search', 'NEEDLE@')->assertSee('Other Person')->assertDontSee('Zed Findme')
-        ->set('search', '%')->assertSee('No users found.');
+        ->set('search', '%')->assertSee('No users found');
 });
 
 test('the list is paginated at 25', function () {

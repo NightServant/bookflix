@@ -11,6 +11,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('bookflix:purge-deactivated-accounts')->daily();
+Schedule::command('bookflix:prune-covers')->weekly();
 
 $sourceIsEnabled = fn (string $key): Closure => fn (): bool => ExternalSource::where('key', $key)->where('enabled', true)->exists();
 

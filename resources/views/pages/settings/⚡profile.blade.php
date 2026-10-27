@@ -132,12 +132,13 @@ new #[Title('Profile settings')] class extends Component {
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading')
+    @include('partials.settings-heading', ['title' => __('Profile'), 'description' => __('Update the name and email on your account, then tell us how you like to read. Save each section when you are done.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Profile settings') }}</flux:heading>
 
-    <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Update your name and email address')">
-        <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
+    <x-pages::settings.layout>
+        <x-settings-card :title="__('Name and Email')" :description="__('How you appear on Bookflix, and where we reach you.')">
+        <form wire:submit="updateProfileInformation" class="w-full space-y-6">
             <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
 
             <div>
@@ -162,24 +163,14 @@ new #[Title('Profile settings')] class extends Component {
                 @endif
             </div>
 
-            <div class="flex items-center gap-4">
-                <div class="flex items-center justify-end">
-                    <flux:button variant="filled" type="submit" class="w-full" data-test="update-profile-button">
-                        {{ __('Save') }}
-                    </flux:button>
-                </div>
-
-            </div>
+            <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="update-profile-button">
+                {{ __('Save') }}
+            </x-cta>
         </form>
+        </x-settings-card>
 
-        <flux:separator class="my-8" />
-
-        <form wire:submit="updateReadingProfile" class="my-6 w-full space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Reading profile') }}</flux:heading>
-                <flux:subheading>{{ __('Tell us how you like to read') }}</flux:subheading>
-            </div>
-
+        <x-settings-card :title="__('Reading Profile')" :description="__('Your avatar, a short bio and how you like to read. This shapes what we suggest.')">
+        <form wire:submit="updateReadingProfile" class="w-full space-y-6">
             <div class="flex items-center gap-4">
                 <flux:avatar
                     size="lg"
@@ -210,10 +201,11 @@ new #[Title('Profile settings')] class extends Component {
                 @endforeach
             </flux:radio.group>
 
-            <flux:button variant="filled" type="submit" data-test="update-reading-profile-button">
+            <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="update-reading-profile-button">
                 {{ __('Save') }}
-            </flux:button>
+            </x-cta>
         </form>
+        </x-settings-card>
 
         @if ($this->showDeactivateAccount)
             <livewire:pages::settings.deactivate-account-form />

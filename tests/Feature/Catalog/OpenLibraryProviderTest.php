@@ -92,6 +92,14 @@ test('a full slice points at the next offset of the same feed', function () {
     Http::assertSent(fn ($r) => str_contains($r->url(), '/recentchanges/add-book.json') && $r['offset'] === 10);
 });
 
+test('works with neither a cover nor a description are skipped', function () {
+    Http::fake(['openlibrary.org/recentchanges*' => Http::response(recentChanges(10)), 'openlibrary.org/works/*' => Http::response(['title' => 'A bare work', 'type' => ['key' => '/type/work']])]);
+
+    $page = app(OpenLibraryProvider::class)->page(CarbonImmutable::parse('2026-10-01'), null);
+
+    expect($page->records)->toBeEmpty()->and($page->nextPageToken)->toBe('add-book:10');
+});
+
 test('a slice that reaches the cursor stops reading that feed', function () {
     Http::fake(['openlibrary.org/recentchanges*' => Http::response(recentChanges(10)), 'openlibrary.org/works/*' => Http::response(providerFixture('openlibrary/work-dune.json'))]);
 
