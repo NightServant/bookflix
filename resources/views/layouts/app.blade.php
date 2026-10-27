@@ -8,7 +8,7 @@
         @if ($flush ?? false)
             {{ $slot }}
         @else
-            <div class="px-gutter pt-6">
+            <div class="px-gutter pt-6 lg:pt-10">
                 {{ $slot }}
             </div>
         @endif
