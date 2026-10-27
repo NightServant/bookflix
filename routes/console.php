@@ -18,3 +18,4 @@ $sourceIsEnabled = fn (string $key): Closure => fn (): bool => ExternalSource::w
 
 Schedule::job(new SyncProvider('openlibrary'))->name('sync:openlibrary')->hourly()->when($sourceIsEnabled('openlibrary'));
 Schedule::job(new SyncProvider('anilist'))->name('sync:anilist')->everySixHours()->when($sourceIsEnabled('anilist'));
+Schedule::job(new SyncProvider('mangadex'))->name('sync:mangadex')->everySixHours()->when($sourceIsEnabled('mangadex'));

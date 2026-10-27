@@ -1,6 +1,7 @@
 <?php
 
 use App\Catalog\Providers\AniList\AniListProvider;
+use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
 
 return [
@@ -107,11 +108,11 @@ return [
         ],
 
         'mangadex' => [
-            'class' => null,
+            'class' => MangaDexProvider::class,
             'enabled' => (bool) env('BOOKFLIX_MANGADEX_ENABLED', false),
             'rate_per_minute' => 30,
             'max_pages_per_run' => 20,
-            'allowed_hosts' => ['api.mangadex.org', 'uploads.mangadex.org'],
+            'allowed_hosts' => ['mangadex.org', 'api.mangadex.org', 'uploads.mangadex.org'],
         ],
 
         'mangaupdates' => [
