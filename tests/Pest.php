@@ -34,6 +34,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
+use Pest\Browser\Api\AwaitableWebpage;
+use Pest\Browser\Api\Webpage;
 use Tests\TestCase;
 
 /*
@@ -303,4 +305,24 @@ function assertComponentAcceptance(string $path, ?Closure $interact = null, arra
     $page->click('Back to component')->wait(1)->assertNoJavaScriptErrors();
 
     $interact?->__invoke($page);
+}
+
+/**
+ * Scroll a browser page top to bottom in viewport steps (so lazy shelves load and reveals run), then back to the top.
+ *
+ * @param  AwaitableWebpage|Webpage  $page
+ */
+function scrolledThrough($page): void
+{
+    for ($step = 1; $step <= 8; $step++) {
+        $page->script("window.scrollTo(0, window.innerHeight * {$step})");
+        $page->wait(0.7);
+
+        if ($page->script("window.innerHeight * {$step} >= document.documentElement.scrollHeight")) {
+            break;
+        }
+    }
+
+    $page->script('window.scrollTo(0, 0)');
+    $page->wait(0.3);
 }
