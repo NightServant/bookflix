@@ -92,11 +92,11 @@ test('a search that arrives in the url is run and logged', function () {
     expect(SearchQuery::sole()->query)->toBe('berserk');
 });
 
-test('result links carry the search query id', function () {
+test('result links carry no tracking parameter', function () {
     $m = Media::factory()->create(['title' => 'Berserk', 'search_text' => 'berserk']);
     $this->actingAs(User::factory()->create());
     $html = Livewire::test('pages::search.index')->set('q', 'berserk')->html();
-    expect($html)->toContain(route('stories.show', $m->slug).'?sq='.SearchQuery::sole()->id);
+    expect($html)->toContain('href="'.route('stories.show', $m->slug).'"')->not->toContain('sq=');
 });
 
 test('results render without lazy loading in both layouts', function (string $view) {

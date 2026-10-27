@@ -217,12 +217,6 @@ test('guests are redirected to login', function () {
     $this->get(route('stories.show', $m->slug))->assertRedirect(route('login'));
 });
 
-test('the click-through parameter does not change the page', function () {
-    $m = Media::factory()->create();
-
-    $this->actingAs(User::factory()->create())->get(route('stories.show', [$m->slug, 'sq' => 5]))->assertOk()->assertSee($m->title);
-});
-
 test('similar media prefers series then shared genres and excludes itself', function () {
     [$base, $sibling, $sharesGenre, $unrelated] = similarFixture();
     expect(app(SimilarMedia::class)->for($base)->pluck('id')->all())->toBe([$sibling->id, $sharesGenre->id]);

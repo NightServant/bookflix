@@ -211,17 +211,6 @@ new #[Title('Search')] class extends Component {
     }
 
     /**
-     * The extra query-string parameters that credit a click on a result to the search that showed it.
-     *
-     * @return array<string, int>
-     */
-    #[Computed]
-    public function resultLinkQuery(): array
-    {
-        return $this->lastQueryId === null ? [] : ['sq' => $this->lastQueryId];
-    }
-
-    /**
      * What each control offers.
      *
      * @return array{types: array<string, string>, statuses: array<string, string>, genres: array<string, string>, themes: array<string, string>, languages: array<string, string>, lengths: array<string, string>, ratings: array<string, string>, years: array{0: int, 1: int}}
@@ -350,7 +339,7 @@ new #[Title('Search')] class extends Component {
                     <ul data-view="list" class="mt-6 flex flex-col gap-4">
                         @foreach ($this->results as $media)
                             <li wire:key="result-{{ $media->id }}">
-                                <x-result-row :media="$media" :query="$this->resultLinkQuery" />
+                                <x-result-row :media="$media" />
                             </li>
                         @endforeach
                     </ul>
@@ -358,7 +347,7 @@ new #[Title('Search')] class extends Component {
                     <ul data-view="grid" class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                         @foreach ($this->results as $media)
                             <li wire:key="result-{{ $media->id }}">
-                                <x-cover-tile :media="$media" :query="$this->resultLinkQuery" badge fluid />
+                                <x-cover-tile :media="$media" badge fluid />
                             </li>
                         @endforeach
                     </ul>

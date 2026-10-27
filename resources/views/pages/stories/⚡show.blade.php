@@ -20,7 +20,7 @@ new #[Title('Story')] class extends Component {
     public int $mediaId;
 
     /**
-     * A merged-away slug answers 301 to the story it became (keeping the query string, so a search click-through survives);
+     * A merged-away slug answers 301 to the story it became (keeping the query string);
      * an unknown or deleted one is a 404.
      */
     public function mount(string $slug): void

@@ -1,4 +1,4 @@
-@props(['media', 'query' => []])
+@props(['media'])
 
 {{--
     One search result in list view: a small 2:3 cover, the linked title, creators, the facts line, a two-line blurb and up to four
@@ -6,11 +6,10 @@
     pointers: it is out of the tab order and hidden from screen readers, so the title is the one link.
     Rows are rendered from fetched media, and `preventLazyLoading` is on, so eager-load these first:
     `mediaType`, `publicPrimaryDewey.deweyClass` (story-info), `creators` and `genres`. Give each row a `wire:key` in the loop.
-    `query` adds query-string parameters to both story links (search results pass `['sq' => $searchQueryId]`).
 --}}
 @php
     $creators = $media->creators->sortBy('pivot.position')->pluck('name')->unique()->implode(', ');
-    $story = route('stories.show', ['slug' => $media->slug, ...$query]);
+    $story = route('stories.show', $media->slug);
 @endphp
 
 <article {{ $attributes->class('flex gap-4 rounded-card bg-surface-deep p-3 sm:p-4') }}>

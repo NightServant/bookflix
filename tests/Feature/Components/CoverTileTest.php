@@ -19,14 +19,6 @@ test('a tile is a lazy 2:3 cover linking to the story page', function () {
         ->and($html)->toContain('focus-ring');
 });
 
-test('query adds parameters to the story link', function () {
-    $media = Media::factory()->create(['slug' => 'dune']);
-
-    $html = renderedComponent('<x-cover-tile :media="$media" :query="[\'sq\' => 7]" />', ['media' => $media]);
-
-    expect(htmlQuery($html, '//a[@href="'.route('stories.show', 'dune').'?sq=7"]')->length)->toBe(1);
-});
-
 test('sizes set the width and the intrinsic dimensions, and fluid fills the cell', function (string $size, string $width, string $height) {
     $html = renderTile(Media::factory()->create(['cover_url' => 'https://covers.test/a.jpg']), "size=\"{$size}\"");
 

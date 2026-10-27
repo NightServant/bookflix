@@ -61,11 +61,11 @@ test('the series links walk to the next story and back, and the content warnings
         ->assertSee('Violence');
 });
 
-test('a result clicked on the search page opens the story with the search id in the url', function () {
+test('a result clicked on the search page opens the story at its plain url', function () {
     visit(route('search', ['q' => 'dune echo']), $this->desktop)->wait(1)
         ->click('Dune Echo 1')->wait(1)
         ->assertPathBeginsWith('/stories/dune-echo-1')
-        ->assertQueryStringHas('sq')
+        ->assertQueryStringMissing('sq')
         ->assertSee('Dune Echo 1')
         ->assertNoJavaScriptErrors();
 });
