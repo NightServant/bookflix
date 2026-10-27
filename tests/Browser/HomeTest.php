@@ -47,7 +47,7 @@ test('home passes the shared checks on desktop and on a phone with its shelves l
     }
 });
 
-test('the hero sits flush under the header and every band spans the page, content on the header gutter', function () {
+test('the hero runs under the translucent header, its content clears it, and every band spans the page, content on the header gutter', function () {
     $page = visit(route('home'), $this->desktop + ['reducedMotion' => 'reduce'])->wait(1);
 
     foreach ([0, 600, 1400] as $offset) {
@@ -57,7 +57,9 @@ test('the hero sits flush under the header and every band spans the page, conten
 
     $page->script('window.scrollTo(0, 0)');
     $page->wait(0.5)
-        ->assertScript('Math.abs(document.querySelector("main section[aria-roledescription=carousel]").getBoundingClientRect().top - document.querySelector("header").getBoundingClientRect().bottom) < 1.5', true)
+        ->assertScript('Math.abs(document.querySelector("main section[aria-roledescription=carousel]").getBoundingClientRect().top) < 1.5', true)
+        ->assertScript('getComputedStyle(document.querySelector("header")).backdropFilter.includes("blur")', true)
+        ->assertScript('document.querySelector("main section[aria-roledescription=carousel] h1").getBoundingClientRect().top > document.querySelector("header").getBoundingClientRect().bottom', true)
         ->assertScript('Array.from(document.querySelectorAll("main section[aria-roledescription=carousel], main section[aria-labelledby^=shelf-]")).every((band) => { const r = band.getBoundingClientRect(); return r.left === 0 && Math.abs(r.width - document.documentElement.clientWidth) < 1; })', true)
         ->assertScript('(() => { const logo = document.querySelector("header a").getBoundingClientRect().left; return ["main section[aria-roledescription=carousel] h1", "main section[aria-labelledby=shelf-trending] h2", "main section[aria-labelledby=shelf-trending] ul li:first-child a", "main search label"].every((selector) => { const el = Array.from(document.querySelectorAll(selector)).find((node) => node.offsetParent !== null); return Math.abs(el.getBoundingClientRect().left - logo) < 1.5; }); })()', true);
 });
