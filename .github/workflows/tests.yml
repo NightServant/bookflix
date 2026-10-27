@@ -85,9 +85,9 @@ jobs:
           fi
 
   # Pest browser tests (Playwright, headless Chromium) against the built assets; `composer test` does not run tests/Browser (phpunit.xml lists only
-  # Unit and Feature). The job always runs, but the test step's `continue-on-error` keeps a flaky browser from failing the check unless the pull request touches
-  # package*.json or composer.lock, where it blocks. The repository owner must mark `browser` as a required status check in the branch protection
-  # (Settings > Branches > main > Require status checks > add `browser`): when it is not blocking it still reports success, so required is safe.
+  # Unit and Feature). This job reports honestly: it goes red whenever a browser test fails. Do NOT mark `browser` as a required status check (it would
+  # block every pull request on a flaky browser run); mark `browser-gate` instead (Settings > Branches > main > Require status checks > add `browser-gate`),
+  # which fails only when the pull request touches package*.json or composer.lock and `browser` did not succeed.
   browser:
     needs: changes
     runs-on: ubuntu-latest
@@ -150,10 +150,21 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium --only-shell
 
-      # On the step, not the job: a job-level `continue-on-error` still reports the `browser` check as failed, which a required check would block on.
       - name: Run browser tests
-        continue-on-error: ${{ needs.changes.outputs.dependencies != 'true' }}
         run: vendor/bin/pest tests/Browser
+
+  # The required check: always runs (even when `browser` fails or is skipped) and blocks only dependency pull requests.
+  browser-gate:
+    needs: [changes, browser]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require the browser suite when dependencies changed
+        env:
+          DEPENDENCIES: ${{ needs.changes.outputs.dependencies }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: test "$DEPENDENCIES" != "true" || test "$BROWSER_RESULT" = "success"
 
   ml:
     runs-on: ubuntu-latest
