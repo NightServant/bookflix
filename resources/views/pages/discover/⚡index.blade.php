@@ -141,6 +141,15 @@ new #[Title('Discover')] class extends Component {
     }
 
     /**
+     * How many genres have at least one story, for the intro (the chips show only the top few).
+     */
+    #[Computed]
+    public function genreTotal(): int
+    {
+        return Genre::query()->whereHas('media', fn ($media) => $media->unmerged())->count();
+    }
+
+    /**
      * @return Collection<int, \App\Models\DeweyClass>
      */
     #[Computed]
@@ -235,7 +244,7 @@ new #[Title('Discover')] class extends Component {
             <p class="mt-2 max-w-prose text-body tabular-nums text-ink-subtle">
                 {{ trans_choice(':count story|:count stories', $total) }}
                 {{ trans_choice('in :count format|in :count formats', $this->types->count()) }}
-                {{ trans_choice('and :count genre|and :count genres', $this->genres->count()) }}.
+                {{ trans_choice('and :count genre|and :count genres', $this->genreTotal) }}.
             </p>
         @endif
     </header>

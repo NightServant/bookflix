@@ -156,3 +156,13 @@ test('discover runs a bounded number of queries without lazy loading', function 
 
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(30);
 });
+
+test('the intro counts every genre with stories, not just the top chips', function () {
+    Genre::factory()->count(13)->create()->each(fn (Genre $genre) => Media::factory()->manga()->create()->genres()->attach($genre));
+    Genre::factory()->create();
+
+    $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
+
+    expect(preg_replace('/\s+/', ' ', htmlQuery($html, '//header/p')->item(0)->textContent))->toContain('and 13 genres')
+        ->and(htmlQuery($html, '//a[@data-genre-chip]')->length)->toBe(12);
+});
