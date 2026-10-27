@@ -83,3 +83,12 @@ These follow review items 3, 10, 15, 17 and 19, unchanged, plus:
 - The existing browser accessibility and reduced-motion tests stay green. New 3D and motion code adds no running animation under reduced motion.
 - No new runtime dependencies. Icons come from Flux's bundled Heroicons.
 - Every visual change ships with before/after screenshots at 1440 and 390 px.
+
+## 7. Cover wraps the book (user, 2026-10-27)
+
+"If the book has a cover, that cover must wrap the 3D book." The cover behaves like a printed dust jacket in both the CSS and the WebGL book:
+- **Front:** the full cover.
+- **Spine:** continues from the front around the hinge, using the cover's own edge strip with a hinge crease. Never a flat colour block.
+- **Back:** the cover continues, mirrored and darkened, so a turned book never shows a bare box.
+- **Page block:** paper only. The jacket leaves the top, bottom and fore-edge uncovered, with a slight overhang.
+- **No cover:** the fallback art wraps the same way.
