@@ -59,9 +59,31 @@ test('type tiles show counts', function () {
     Media::factory()->manga()->create()->delete();
 
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
-    $tiles = collect(htmlQuery($html, '//a[@data-format-tile]'))->map(fn ($tile) => trim(preg_replace('/\s+/', ' ', $tile->textContent)));
+    $tiles = collect(htmlQuery($html, '//a[@data-format-tile]/span[1]'))->map(fn ($tile) => trim(preg_replace('/\s+/', ' ', $tile->textContent)));
 
     expect($tiles->all())->toBe(['Manga 3 stories', 'Novel 1 story']);
+});
+
+test('a format with no covers shows fallback covers instead of a hole, up to three', function () {
+    Media::factory()->manga()->count(3)->create(['cover_url' => null]);
+    Media::factory()->novel()->create(['cover_url' => null]);
+
+    $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
+    $tiles = htmlQuery($html, '//a[@data-format-tile]');
+
+    expect($tiles->length)->toBe(2)
+        ->and(htmlQuery($html, '//a[@data-format-tile][contains(.,"Manga")]//*[@data-cover-fallback]')->length)->toBe(3)
+        ->and(htmlQuery($html, '//a[@data-format-tile][contains(.,"Novel")]//*[@data-cover-fallback]')->length)->toBe(1);
+});
+
+test('the header is a full-bleed band holding the h1 and a collage of the formats', function () {
+    Media::factory()->manga()->create(['cover_url' => 'https://example.test/a.jpg']);
+    Media::factory()->novel()->create(['cover_url' => 'https://example.test/b.jpg']);
+
+    $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
+
+    expect(htmlQuery($html, '//main/div/header[contains(@class,"bg-surface-deep")]//h1')->length)->toBe(1)
+        ->and(htmlQuery($html, '//header//*[@data-test="collage"]//*[@data-book-3d]')->length)->toBeGreaterThan(0);
 });
 
 test('the tiles link to the filtered view and the active one is marked and clears itself', function () {

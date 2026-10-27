@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
+use Illuminate\Contracts\View\View;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -36,6 +37,14 @@ new #[Title('Discover')] class extends Component {
     /** A genre slug; an unknown one is ignored. */
     #[Url]
     public ?string $genre = null;
+
+    /**
+     * The header is a band across the whole page, so the layout leaves `<main>` bare (see layouts/app).
+     */
+    public function render(): View
+    {
+        return $this->view()->layoutData(['flush' => true]);
+    }
 
     #[Computed]
     public function activeFamily(): ?MediaFamily
@@ -121,6 +130,17 @@ new #[Title('Discover')] class extends Component {
             ->groupBy('media_type_id')
             ->map(fn (SupportCollection $rows): array => $rows->pluck('cover_url')->all())
             ->all());
+    }
+
+    /**
+     * Up to three covers for the header's collage: the most rated story of each of the biggest formats, so the three look different.
+     *
+     * @return list<string>
+     */
+    #[Computed]
+    public function collage(): array
+    {
+        return $this->types->map(fn (MediaType $type): ?string => $this->covers[$type->id][0] ?? null)->filter()->take(3)->values()->all();
     }
 
     /**
@@ -251,19 +271,34 @@ new #[Title('Discover')] class extends Component {
     ])->filter(fn (array $link): bool => Route::has($link['route']))->values()->all();
 @endphp
 
-<section class="pt-2 pb-12 lg:pt-6">
-    <x-page-header :title="__('Discover')" :description="__('Browse the whole catalog by format, genre and subject. Pick a shelf to start, or search for something specific.')" />
+<div class="pb-12">
+    <header class="relative isolate overflow-hidden bg-surface-deep">
+        <div class="flex items-center justify-between gap-12 px-gutter py-8 lg:py-12">
+            <div class="min-w-0 flex-1">
+                <x-page-header :title="__('Discover')" :description="__('Browse the whole catalog by format, genre and subject. Pick a shelf to start, or search for something specific.')" />
 
-    @if ($hasCatalog)
-        <p data-test="catalog-stats" class="mt-3 max-w-prose text-meta tabular-nums text-ink-subtle">
-            {{ trans_choice(':count story|:count stories', $total) }}
-            {{ trans_choice('in :count format|in :count formats', $this->types->count()) }}
-            {{ trans_choice('and :count genre|and :count genres', $this->genreTotal) }}.
-        </p>
-    @endif
+                @if ($hasCatalog)
+                    <p data-test="catalog-stats" class="mt-3 max-w-prose text-meta tabular-nums text-ink-subtle">
+                        {{ trans_choice(':count story|:count stories', $total) }}
+                        {{ trans_choice('in :count format|in :count formats', $this->types->count()) }}
+                        {{ trans_choice('and :count genre|and :count genres', $this->genreTotal) }}.
+                    </p>
+                @endif
 
-    <x-search-panel :action="route('search')" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-8" />
+                <x-search-panel :action="route('search')" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-8" />
+            </div>
 
+            @if ($this->collage !== [])
+                <div aria-hidden="true" data-test="collage" class="hidden shrink-0 items-end md:flex">
+                    @foreach ($this->collage as $cover)
+                        <x-book-3d :src="$cover" size="md" :tilt="['-22deg', '-12deg', '-4deg'][$loop->index]" class="-ms-12 first:ms-0 {{ ['mb-0', 'mb-6', 'mb-12'][$loop->index] }}" />
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    </header>
+
+    <div class="px-gutter">
     @if ($quickLinks !== [])
         <x-quick-links :links="$quickLinks" class="mt-8" />
     @endif
@@ -288,7 +323,7 @@ new #[Title('Discover')] class extends Component {
                 </nav>
             @endif
 
-            <ul x-data x-motion-reveal data-stagger="30" class="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fit,minmax(13.5rem,1fr))]">
+            <ul x-data x-motion-reveal data-stagger="30" class="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
                 @foreach ($this->tiles as $tile)
                     @php $isActive = $this->activeType?->is($tile) ?? false; @endphp
                     <li wire:key="format-{{ $tile->id }}">
@@ -304,13 +339,17 @@ new #[Title('Discover')] class extends Component {
                                 <span class="mt-1 block text-meta tabular-nums text-ink-subtle">{{ trans_choice(':count story|:count stories', $tile->stories_count) }}</span>
                             </span>
 
-                            @if (($this->covers[$tile->id] ?? []) !== [])
-                                <span aria-hidden="true" class="flex gap-1">
-                                    @foreach ($this->covers[$tile->id] as $cover)
-                                        <img src="{{ $cover }}" alt="" width="48" height="72" loading="lazy" decoding="async" class="aspect-[2/3] w-10 rounded-control sm:w-12 bg-surface-card object-cover motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:ease-out-bookflix motion-safe:group-hover:scale-105">
-                                    @endforeach
-                                </span>
-                            @endif
+                            <span aria-hidden="true" class="flex -space-x-3">
+                                @foreach (array_pad(array_slice($this->covers[$tile->id] ?? [], 0, 3), min(3, $tile->stories_count), null) as $cover)
+                                    <span class="relative block aspect-[2/3] w-12 overflow-hidden rounded-control bg-surface-card ring-2 {{ $isActive ? 'ring-surface-card' : 'ring-surface-deep group-hover:ring-surface-card' }} motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:ease-out-bookflix motion-safe:group-hover:-translate-y-0.5 sm:w-16" style="z-index: {{ 3 - $loop->index }}">
+                                        @if ($cover)
+                                            <img src="{{ $cover }}" alt="" width="64" height="96" loading="lazy" decoding="async" class="size-full object-cover">
+                                        @else
+                                            <x-cover-fallback :title="$tile->name" compact />
+                                        @endif
+                                    </span>
+                                @endforeach
+                            </span>
                         </a>
                     </li>
                 @endforeach
@@ -369,13 +408,15 @@ new #[Title('Discover')] class extends Component {
 
     <section aria-labelledby="subjects-title" class="mt-12 lg:mt-16">
         <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
-            <h2 id="subjects-title" class="text-section text-ink">{{ __('Explore by Subject') }}</h2>
-            <p class="mt-1 text-meta text-ink-subtle">{{ __('Dewey classes, from the 000s to the 900s.') }}</p>
-            <a href="{{ route('explore.index') }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control px-2 text-meta text-link hover:underline">{{ __('Explore the Library') }}</a>
+            <div>
+                <h2 id="subjects-title" class="text-section text-ink">{{ __('Explore by Subject') }}</h2>
+                <p class="mt-1 text-meta text-ink-subtle">{{ __('Dewey classes, from the 000s to the 900s.') }}</p>
+            </div>
+            <a href="{{ route('explore.index') }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control px-2 -mx-2 text-meta text-link hover:underline">{{ __('Explore the Library') }}<flux:icon name="arrow-right" variant="micro" class="size-4" /></a>
         </div>
 
         @if ($this->subjects->isNotEmpty())
-            <ul x-data x-motion-reveal data-stagger="30" class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fit,minmax(13.5rem,1fr))]">
+            <ul x-data x-motion-reveal data-stagger="30" class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fill,minmax(13rem,16rem))]">
                 @foreach ($this->subjects as $subject)
                     <li wire:key="subject-{{ $subject->id }}">
                         <x-subject-tile :dewey-class="$subject" fluid />
@@ -386,4 +427,5 @@ new #[Title('Discover')] class extends Component {
             <p class="mt-2 max-w-prose text-body text-ink-subtle">{{ __('Stories are shelved by subject in a Dewey-inspired library. The shelves fill as stories are classified.') }}</p>
         @endif
     </section>
-</section>
+    </div>
+</div>
