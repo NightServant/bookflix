@@ -157,7 +157,7 @@ test('the desktop centrepiece is the first story as a scene book with the next t
     $slides = heroSlides();
     $html = renderHero(slides: $slides);
 
-    expect(htmlQuery($html, '//*[@data-hero-books]//*[@data-book-3d][@data-size="xl"][@data-scene-cover="'.route('covers.show', $slides[0]).'"][@x-book-scene]')->length)->toBe(1)
+    expect(htmlQuery($html, '//*[@data-hero-books]//*[@data-book-3d][@data-size="xl"][@data-scene-cover="'.$slides[0]->coverProxyUrl().'"][@x-book-scene]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@data-hero-books]//button[@data-fan]//*[@data-book-3d][not(@x-book-scene)]')->length)->toBe(2)
         ->and(htmlQuery($html, '//*[@data-hero-books]//*[@data-book-3d]')->length)->toBe(3);
 });

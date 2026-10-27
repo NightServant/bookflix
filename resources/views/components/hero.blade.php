@@ -32,7 +32,7 @@
         'id' => $slide->id,
         'title' => $slide->title,
         'cover' => $slide->cover_url,
-        'scene' => $slide->cover_url ? route('covers.show', $slide) : null,
+        'scene' => $slide->cover_url ? $slide->coverProxyUrl() : null,
     ])->all();
     $first = $items->first();
     // Ghost buttons: a bright icon in a 44px hit area, no fill. Hover draws a faint ring; they never get a solid background.

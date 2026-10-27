@@ -103,3 +103,35 @@ test('guests are redirected to login', function () {
 
     Http::assertNothingSent();
 });
+
+test('the 121st cover request in a minute is throttled', function () {
+    Http::fake(['s4.anilist.co/*' => Http::response($this->png, 200, ['Content-Type' => 'image/png'])]);
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
+
+    foreach (range(1, 120) as $i) {
+        $this->actingAs($this->user)->get(route('covers.show', $media))->assertOk();
+    }
+
+    $this->actingAs($this->user)->get(route('covers.show', $media))->assertStatus(429);
+});
+
+test('the proxy url changes when the cover url changes', function () {
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/a.png']);
+    $before = $media->coverProxyUrl();
+
+    $media->cover_url = 'https://s4.anilist.co/file/b.png';
+
+    expect($media->coverProxyUrl())->not->toBe($before)->and($before)->toContain('v=');
+});
+
+test('pruning removes only covers older than the cutoff', function () {
+    $disk = Storage::disk('local');
+    $disk->put('covers/old', 'x');
+    $disk->put('covers/new', 'x');
+    touch($disk->path('covers/old'), now()->subDays(40)->getTimestamp());
+
+    $this->artisan('bookflix:prune-covers')->assertSuccessful();
+
+    $disk->assertMissing('covers/old');
+    $disk->assertExists('covers/new');
+});

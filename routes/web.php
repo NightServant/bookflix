@@ -13,7 +13,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('explore/{code}', 'pages::explore.show')->name('explore.show')->where('code', '[0-9]{3}(\.[0-9]+)?');
     Route::livewire('stories/{slug}', 'pages::stories.show')->name('stories.show');
     Route::livewire('series/{slug}', 'pages::series.show')->name('series.show');
-    Route::get('covers/{media}', [CoverController::class, 'show'])->name('covers.show');
+    Route::get('covers/{media}', [CoverController::class, 'show'])->middleware('throttle:120,1')->name('covers.show');
 });
 
 require __DIR__.'/settings.php';

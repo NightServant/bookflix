@@ -28,7 +28,7 @@
     $tilt = preg_match('/^-?\d+(\.\d+)?deg$/', (string) $tilt) ? $tilt : '-18deg';
     $cover = $src ?? $media?->cover_url;
     $title ??= $media?->title ?? '';
-    $sceneCover = $scene && $cover ? ($media?->exists && $src === null ? route('covers.show', $media) : $src) : null;
+    $sceneCover = $scene && $cover ? ($media?->exists && $src === null ? $media->coverProxyUrl() : $src) : null;
     $style = '--tilt: '.$tilt.';'.($cover ? ' --cover: url("'.addcslashes($cover, '"\\').'");' : '');
 @endphp
 

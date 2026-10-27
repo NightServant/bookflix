@@ -123,6 +123,14 @@ class Media extends Model
     /**
      * A slug no media (soft-deleted included) uses yet: the title slug, then with the year, then numbered.
      */
+    /**
+     * The same-origin cover URL the 3D scene textures. `v` changes with `cover_url`, so a replaced cover busts the immutable cache.
+     */
+    public function coverProxyUrl(): string
+    {
+        return route('covers.show', [$this, 'v' => substr(sha1((string) $this->cover_url), 0, 8)]);
+    }
+
     public static function uniqueSlug(string $title, ?int $year = null): string
     {
         $slug = Str::slug($title) ?: 'untitled';

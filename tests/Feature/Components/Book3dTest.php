@@ -43,7 +43,7 @@ test('the scene prop hands the scene the proxied cover of a media, or the src as
 
     $html = renderedComponent('<x-book-3d :media="$media" scene />', ['media' => $media]);
 
-    expect(htmlQuery($html, '//span[@data-book-3d][@data-scene-cover="'.route('covers.show', $media).'"][@x-book-scene]')->length)->toBe(1)
+    expect(htmlQuery($html, '//span[@data-book-3d][@data-scene-cover="'.$media->coverProxyUrl().'"][@x-book-scene]')->length)->toBe(1)
         ->and(htmlQuery(renderedComponent('<x-book-3d src="/cover.png" scene />'), '//span[@data-scene-cover="/cover.png"]')->length)->toBe(1);
 });
 
@@ -52,4 +52,14 @@ test('without the scene prop, or without a cover, nothing upgrades the CSS book'
 
     expect(renderedComponent('<x-book-3d src="/cover.png" />'))->not->toContain('x-book-scene')
         ->and(renderedComponent('<x-book-3d :media="$media" scene />', ['media' => $media]))->not->toContain('x-book-scene');
+});
+
+test('the scene cover url changes when the cover url changes', function () {
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/a.png']);
+    $first = htmlQuery(renderedComponent('<x-book-3d :media="$media" scene />', ['media' => $media]), '//span[@data-scene-cover]')->item(0)->getAttribute('data-scene-cover');
+
+    $media->cover_url = 'https://s4.anilist.co/file/b.png';
+    $second = htmlQuery(renderedComponent('<x-book-3d :media="$media" scene />', ['media' => $media]), '//span[@data-scene-cover]')->item(0)->getAttribute('data-scene-cover');
+
+    expect($second)->not->toBe($first);
 });
