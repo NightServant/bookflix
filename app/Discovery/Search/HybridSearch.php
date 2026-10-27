@@ -8,6 +8,7 @@ use App\Models\Media;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\RateLimiter;
 
 class HybridSearch
 {
@@ -16,10 +17,14 @@ class HybridSearch
     /** Each leg's ranking ceiling; a leg that reaches it has more hits than it listed. */
     public const LEG_LIMIT = 100;
 
+    /** Text searches allowed per reader per minute; each one runs several queries. */
+    public const PER_MINUTE = 120;
+
     public function __construct(private KeywordLeg $keyword, private SubjectLeg $subject) {}
 
     /**
      * Every leg's hits, fused by reciprocal rank, one page of media in rank order. A blank or punctuation-only query runs nothing.
+     * Past 120 searches a minute the page comes back empty and `throttled`, without touching the database.
      *
      * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
      */
@@ -27,6 +32,14 @@ class HybridSearch
     {
         $page = Paginator::resolveCurrentPage();
         $query = $this->normalize($query);
+
+        $throttleKey = 'search:'.($user === null ? request()->ip() : $user->id);
+
+        if ($query !== '' && RateLimiter::tooManyAttempts($throttleKey, self::PER_MINUTE)) {
+            return new SearchResults(collect(), 0, $perPage, $page, ['path' => Paginator::resolveCurrentPath()], throttled: true);
+        }
+
+        $query === '' || RateLimiter::hit($throttleKey, 60);
 
         $lists = $query === '' ? [] : array_map(
             fn (SearchLeg $leg): array => $leg->ids($query, $filters, self::LEG_LIMIT),

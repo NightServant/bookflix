@@ -6,6 +6,7 @@ use App\Models\Media;
 use App\Models\SearchQuery;
 use App\Models\User;
 use Database\Seeders\MediaTypeSeeder;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 
 test('searching shows results and logs one query row', function () {
@@ -233,4 +234,16 @@ test('a capped total reads as a lower bound', function () {
 
     Livewire::test('pages::search.index')->set('q', 'zebra')->assertSeeHtml('100+ stories')
         ->set('q', 'berserk')->assertSee('1 story')->assertDontSee('1+ stor');
+});
+
+test('a throttled search says so instead of showing a blank', function () {
+    Media::factory()->create(['title' => 'Berserk', 'search_text' => 'berserk']);
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    RateLimiter::increment('search:'.$user->id, 60, HybridSearch::PER_MINUTE);
+
+    Livewire::test('pages::search.index')->set('q', 'berserk')
+        ->assertSee('Searching a little too fast')->assertDontSee('No stories found')->assertDontSee('Berserk');
+
+    expect(SearchQuery::count())->toBe(0);
 });

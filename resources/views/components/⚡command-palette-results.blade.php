@@ -2,6 +2,7 @@
 
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
+use App\Discovery\Search\SearchResults;
 use App\Models\Media;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
@@ -15,15 +16,19 @@ use Livewire\Component;
 new class extends Component {
     public string $query = '';
 
+    #[Computed]
+    public function page(): SearchResults
+    {
+        return app(HybridSearch::class)->search($this->query, new SearchFilters, auth()->user(), 8);
+    }
+
     /**
      * @return Collection<int, Media>
      */
     #[Computed]
     public function results(): Collection
     {
-        $page = app(HybridSearch::class)->search($this->query, new SearchFilters, auth()->user(), 8);
-
-        return (new Collection($page->items()))->load('mediaType');
+        return (new Collection($this->page->items()))->load('mediaType');
     }
 }; ?>
 
@@ -95,7 +100,9 @@ new class extends Component {
         @if (trim($query) !== '')
             <p role="status" class="sr-only">{{ trans_choice('{0} No results|{1} 1 result|[2,*] :count results', $this->results->count()) }}</p>
 
-            @if ($this->results->isEmpty())
+            @if ($this->page->throttled)
+                <p class="px-4 py-4 text-meta text-ink-subtle">{{ __('Searching a little too fast. Give it a moment, then try again.') }}</p>
+            @elseif ($this->results->isEmpty())
                 <p aria-hidden="true" class="px-4 py-4 text-meta text-ink-subtle">{{ __('No stories match “:query”.', ['query' => $query]) }}</p>
             @endif
         @else

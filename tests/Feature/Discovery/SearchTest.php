@@ -5,6 +5,7 @@ use App\Discovery\Search\SearchTextBuilder;
 use App\Models\Media;
 use Database\Seeders\DeweySeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 
 beforeEach(function () {
     $this->seed(DeweySeeder::class);
@@ -122,4 +123,30 @@ test('a search that fills a leg reports more results than it counts', function (
 
     expect(search('zebra')->hasMore)->toBeTrue()
         ->and(search('berserk')->hasMore)->toBeFalse();
+});
+
+test('the 121st search in a minute returns an empty throttled page without touching the database', function () {
+    RateLimiter::clear('search:'.request()->ip());
+
+    foreach (range(1, 120) as $attempt) {
+        expect(search('berserk')->throttled)->toBeFalse();
+    }
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $page = search('berserk');
+    $queries = DB::getQueryLog();
+    DB::disableQueryLog();
+
+    expect($page->throttled)->toBeTrue()->and($page->total())->toBe(0)->and($page->items())->toBe([])->and($queries)->toBe([]);
+});
+
+test('a blank query never counts against the limit', function () {
+    RateLimiter::clear('search:'.request()->ip());
+
+    foreach (range(1, 130) as $attempt) {
+        search('   ');
+    }
+
+    expect(search('berserk')->throttled)->toBeFalse();
 });

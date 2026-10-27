@@ -1,6 +1,7 @@
 <?php
 
 use App\Discovery\Search\HybridSearch;
+use App\Discovery\Search\SearchResults;
 use App\Discovery\Search\SearchFilters;
 use App\Discovery\Search\SearchLogger;
 use App\Enums\PublicationStatus;
@@ -130,6 +131,10 @@ new #[Title('Search')] class extends Component {
             return;
         }
 
+        if ($this->throttled) {
+            return;
+        }
+
         $this->lastQueryId = $logger->log(trim($this->q), $filters, $this->results->total(), auth()->user(), $this->lastQueryId)->id;
         $this->loggedSignature = $signature;
     }
@@ -208,6 +213,15 @@ new #[Title('Search')] class extends Component {
             : ['mediaType']);
 
         return $page;
+    }
+
+    /**
+     * Whether the reader has searched too often to be served this page.
+     */
+    #[Computed]
+    public function throttled(): bool
+    {
+        return $this->results instanceof SearchResults && $this->results->throttled;
     }
 
     /**
@@ -295,7 +309,7 @@ new #[Title('Search')] class extends Component {
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <p role="status" data-test="result-count" class="text-meta text-ink-subtle">
                     @if ($this->isSearching)
-                        @if ($this->results instanceof \App\Discovery\Search\SearchResults && $this->results->hasMore)
+                        @if ($this->results instanceof SearchResults && $this->results->hasMore)
                             {{ __(':count+ stories', ['count' => $this->results->total()]) }}
                         @else
                             {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
@@ -354,6 +368,11 @@ new #[Title('Search')] class extends Component {
                 @endif
 
                 <flux:pagination :paginator="$this->results" class="mt-8" />
+            @elseif ($this->throttled)
+                <div class="mt-12 max-w-prose">
+                    <h2 class="text-section text-ink">{{ __('Searching a little too fast') }}</h2>
+                    <p class="mt-2 text-body text-ink-subtle">{{ __('Give it a moment, then try again. Your search is still here.') }}</p>
+                </div>
             @elseif ($this->isSearching)
                 <div class="mt-12 max-w-prose">
                     <h2 class="text-section text-ink">{{ __('No stories found') }}</h2>

@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 
 /**
  * A page of ranked search hits. `total()` is the fused list's size, a floor when `hasMore` says a leg stopped at its limit.
+ * `throttled` marks the empty page returned when the reader searched too often.
  *
  * @extends LengthAwarePaginator<int, Media>
  */
@@ -17,7 +18,7 @@ class SearchResults extends LengthAwarePaginator
      * @param  Collection<int, Media>  $items
      * @param  array<string, mixed>  $options
      */
-    public function __construct($items, int $total, int $perPage, int $currentPage, array $options = [], public readonly bool $hasMore = false)
+    public function __construct($items, int $total, int $perPage, int $currentPage, array $options = [], public readonly bool $hasMore = false, public readonly bool $throttled = false)
     {
         parent::__construct($items, $total, $perPage, $currentPage, $options);
     }

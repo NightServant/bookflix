@@ -1,8 +1,10 @@
 <?php
 
+use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchTextBuilder;
 use App\Models\Media;
 use App\Models\User;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 
 /**
@@ -112,4 +114,13 @@ test('the card is one piece: icon, borderless field and close button share a hea
 
 test('a blank palette hints at what to type', function () {
     expect(htmlQuery(renderPalette(), '//*[@data-palette-panel]//p[contains(.,"Type a title, an author or a subject.")]')->length)->toBe(1);
+});
+
+test('a throttled palette search says so instead of claiming nothing matched', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    RateLimiter::increment('search:'.$user->id, 60, HybridSearch::PER_MINUTE);
+
+    Livewire::test('command-palette-results')->set('query', 'berserk')
+        ->assertSee('Searching a little too fast')->assertDontSee('No stories match');
 });
