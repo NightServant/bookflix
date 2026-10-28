@@ -1,6 +1,7 @@
 {{--
     The landing page's top bar: the logo, a few in-page links on a wide screen, and the two ways in. Transparent over the hero, and a
-    blurred canvas with a hairline once the page has scrolled. A phone keeps just "Sign in" (the hero has both buttons).
+    blurred canvas with a hairline once the page has scrolled. The hero has no buttons of its own, so a phone keeps both here: "Sign in" as plain text
+    beside "Get started" (and only "Get started" on the narrowest screens).
 --}}
 <header
     x-data="{ scrolled: false }"
@@ -21,8 +22,8 @@
         </nav>
 
         <div class="flex items-center gap-3">
-            <x-cta variant="secondary" :href="route('login')">{{ __('Sign in') }}</x-cta>
-            <x-cta :href="route('register')" class="max-sm:hidden">{{ __('Get started') }}</x-cta>
+            <x-cta variant="secondary" :href="route('login')" class="max-sm:bg-transparent! max-sm:px-3! max-[22rem]:hidden">{{ __('Sign in') }}</x-cta>
+            <x-cta :href="route('register')">{{ __('Get started') }}</x-cta>
         </div>
     </div>
 </header>

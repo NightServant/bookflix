@@ -4,45 +4,41 @@
  * every animation is switched off under prefers-reduced-motion at the end of its own block.
  */
 
-/* Hero: a soft light from the top right, so the black is a room and not a hole. Neutral, never a second accent. */
-.landing-hero__light {
-    position: absolute;
-    inset: -20% -10% auto auto;
-    width: 70%;
-    height: 90%;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-ink) 9%, transparent), transparent);
+/*
+ * Hero: centred copy over a stage of books, picked out as a bowl. The stage is one picture drawn in container units (1cqw = 1% of its
+ * width; a position is a percentage of its box), so every book scales with it. Each book (`.landing-book`, one per `data-slot`) has its
+ * centre (`--x`, `--y`), its width (`--bw`), its yaw (`--yaw`: positive shows the spine, so the books on the left face the centre), a
+ * little roll (`--roll`), its stacking (`--z`) and how far back it stands (`--dim` darkens it, `--blur` softens it). The float inside it
+ * drifts. Slot 0 is the book at the front: the three.js one on capable devices.
+ *
+ * Below lg the stage is a compact fan under the copy. From lg up it is a bowl: the stage is only as tall as the front book, in the
+ * middle, and the others stand on either side of it and rise past its top edge (negative `--y`) to flank the text, so no book is ever
+ * behind a word and the bowl follows the width whatever the height of the window.
+ */
+.landing-hero__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6rem var(--spacing-gutter) 2.5rem;
 }
 
-/*
- * The stage is one picture drawn in container units (1cqw = 1% of its width), so every book scales with it. A book's width is
- * set on <x-book-3d> as `--w`; the wrapper places its centre (`--x`, `--y`), and the float inside it drifts. `--dim` darkens the
- * books that are further back; the book at the front (`--dim: 0`) is the three.js one on capable devices.
- */
+.landing-hero__copy {
+    max-width: 40rem;
+}
+
 .landing-stage {
     position: relative;
-    container-type: inline-size;
-    aspect-ratio: 100 / 88;
+    isolation: isolate;
+    container-type: size;
+    width: calc(100% + 2 * var(--spacing-gutter));
+    max-width: 44rem;
+    aspect-ratio: 100 / 58;
+    margin-top: 1.5rem;
 }
 
-.landing-stage__rings {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    fill: none;
-    stroke: color-mix(in srgb, var(--color-ink) 12%, transparent);
-    stroke-width: 1px;
-
-    ellipse {
-        vector-effect: non-scaling-stroke;
-    }
-}
-
-.landing-stage__glow {
-    position: absolute;
-    inset: 12% 8% 2%;
-    border-radius: 50%;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-ink) 11%, transparent), transparent);
+.landing-hero__caption {
+    max-width: 100%;
+    margin-top: 1.25rem;
 }
 
 .landing-book {
@@ -56,9 +52,32 @@
 }
 
 .landing-book__float {
-    filter: brightness(calc(1 - var(--dim)));
+    filter: brightness(calc(1 - var(--dim))) blur(var(--blur, 0px));
     animation: landing-float var(--dur) ease-in-out infinite;
     animation-delay: var(--delay);
+}
+
+/* The fan on a phone and a tablet: three books in front and a pair at the edges, cropped by the screen. The last two stay out of it. */
+.landing-book[data-slot='0'] { --x: 50%; --y: 52%; --bw: 38cqw; --yaw: -10deg; --roll: 0deg; --z: 50; }
+.landing-book[data-slot='1'] { --x: 21%; --y: 51%; --bw: 28cqw; --yaw: 30deg; --roll: -4deg; --z: 40; }
+.landing-book[data-slot='2'] { --x: 79%; --y: 51%; --bw: 28cqw; --yaw: -30deg; --roll: 4deg; --z: 40; }
+.landing-book[data-slot='3'] { --x: 2%; --y: 56%; --bw: 23cqw; --yaw: 36deg; --roll: -7deg; --z: 30; --blur: 0.6px; }
+.landing-book[data-slot='4'] { --x: 98%; --y: 56%; --bw: 23cqw; --yaw: -36deg; --roll: 7deg; --z: 30; --blur: 0.6px; }
+.landing-book[data-slot='5'],
+.landing-book[data-slot='6'] { --x: 50%; --y: 50%; --bw: 10cqw; --yaw: 0deg; --roll: 0deg; --z: 20; }
+
+@media (min-width: 64rem) {
+    .landing-hero__inner { min-height: min(100svh, 62rem); justify-content: center; padding: 6.5rem 0 2rem; }
+    .landing-hero__caption { margin-top: 1rem; padding-inline: var(--spacing-gutter); }
+    .landing-stage { width: 100%; max-width: 100rem; aspect-ratio: 100 / 25; margin-top: 1.5rem; }
+
+    .landing-book[data-slot='0'] { --x: 50%; --y: 50%; --bw: 16cqw; --yaw: -10deg; --roll: 0deg; --z: 50; }
+    .landing-book[data-slot='1'] { --x: 30%; --y: 38%; --bw: 12cqw; --yaw: 28deg; --roll: -3deg; --z: 40; }
+    .landing-book[data-slot='2'] { --x: 70%; --y: 38%; --bw: 12cqw; --yaw: -28deg; --roll: 3deg; --z: 40; }
+    .landing-book[data-slot='3'] { --x: 14%; --y: -8%; --bw: 10.5cqw; --yaw: 34deg; --roll: -5deg; --z: 30; --blur: 0.6px; }
+    .landing-book[data-slot='4'] { --x: 86%; --y: -8%; --bw: 10.5cqw; --yaw: -34deg; --roll: 5deg; --z: 30; --blur: 0.6px; }
+    .landing-book[data-slot='5'] { --x: 4%; --y: -52%; --bw: 9cqw; --yaw: 38deg; --roll: -6deg; --z: 20; --blur: 1.2px; }
+    .landing-book[data-slot='6'] { --x: 96%; --y: -52%; --bw: 9cqw; --yaw: -38deg; --roll: 6deg; --z: 20; --blur: 1.2px; }
 }
 
 @keyframes landing-arrive {
@@ -75,7 +94,7 @@
     }
 
     50% {
-        transform: translateY(calc(var(--bob) * -1.6cqw)) rotate(calc(var(--roll) * 0.6));
+        transform: translateY(calc(var(--bob) * -1.2cqw)) rotate(calc(var(--roll) * 0.6));
     }
 }
 
