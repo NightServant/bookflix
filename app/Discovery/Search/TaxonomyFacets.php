@@ -4,12 +4,7 @@ namespace App\Discovery\Search;
 
 use App\Enums\AgeRating;
 use App\Enums\PublicationStatus;
-use App\Models\ContentWarning;
-use App\Models\Demographic;
 use App\Models\Genre;
-use App\Models\MediaType;
-use App\Models\Theme;
-use App\Models\Trope;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -26,7 +21,7 @@ class TaxonomyFacets
 
     /** Every cache key this class and the pages built on the taxonomy use, so seeding can drop them together. */
     public const KEYS = [
-        'taxonomy:genres:v2:public', 'taxonomy:genres:v2:all', 'taxonomy:types:v1', 'taxonomy:themes:v1', 'taxonomy:tropes:v1', 'taxonomy:demographics:v1', 'taxonomy:warnings:v1',
+        'taxonomy:genres:v2:public', 'taxonomy:genres:v2:all', 'taxonomy:flat:v1',
         'discover:genre-counts:v3:gated', 'discover:genre-counts:v3:mature',
     ];
 
@@ -49,8 +44,7 @@ class TaxonomyFacets
     {
         return Cache::remember('taxonomy:genres:v2:'.($includeMature ? 'all' : 'public'), self::TTL, function () use ($includeMature): array {
             $genres = Genre::query()->visible($includeMature)->orderBy('sort')->orderBy('name')->get(['id', 'name', 'slug', 'parent_id', 'group', 'sort', 'is_mature'])->keyBy('id');
-            $familyCounts = Genre::familyCounts($includeMature);
-            $tagCounts = Genre::tagCounts($includeMature);
+            ['families' => $familyCounts, 'tags' => $tagCounts] = Genre::counts($includeMature);
             $items = [];
 
             foreach ($genres as $genre) {
@@ -85,11 +79,49 @@ class TaxonomyFacets
     }
 
     /**
+     * The five small facets in one query, kept ten minutes: media types and themes by name, tropes, editorial demographics and content warnings in spec
+     * order. A cold page pays for one statement, not five.
+     *
+     * @return array{types: array<string, string>, themes: array<string, string>, tropes: list<array{name: string|null, items: array<string, string>}>, demographics: array<string, string>, warnings: array<string, string>}
+     */
+    private function flat(): array
+    {
+        return Cache::remember('taxonomy:flat:v1', self::TTL, function (): array {
+            $rows = DB::query()->fromSub(
+                DB::table('media_types')->selectRaw("'type' as kind, slug, name, cast(null as text) as grp, 0 as sort")
+                    ->unionAll(DB::table('themes')->selectRaw("'theme', slug, name, cast(null as text), 0"))
+                    ->unionAll(DB::table('tropes')->selectRaw("'trope', slug, name, \"group\", sort"))
+                    ->unionAll(DB::table('demographics')->selectRaw("'demographic', slug, name, cast(null as text), sort"))
+                    ->unionAll(DB::table('content_warnings')->selectRaw("'warning', slug, name, cast(null as text), sort")),
+                'flat',
+            )->orderBy('kind')->orderBy('sort')->orderBy('name')->get();
+
+            $flat = ['types' => [], 'themes' => [], 'tropes' => [], 'demographics' => [], 'warnings' => []];
+
+            foreach ($rows as $row) {
+                ['kind' => $kind, 'slug' => $slug, 'name' => $name, 'grp' => $group] = (array) $row;
+
+                match ($kind) {
+                    'type' => $flat['types'][$slug] = $name,
+                    'theme' => $flat['themes'][$slug] = $name,
+                    'demographic' => $flat['demographics'][$slug] = $name,
+                    'warning' => $flat['warnings'][$slug] = $name,
+                    default => $flat['tropes'][$group ?? ''] = ['name' => $group, 'items' => [...($flat['tropes'][$group ?? '']['items'] ?? []), $slug => $name]],
+                };
+            }
+
+            $flat['tropes'] = array_values($flat['tropes']);
+
+            return $flat;
+        });
+    }
+
+    /**
      * @return array<string, string> media type slug to name, by name
      */
     public function types(): array
     {
-        return Cache::remember('taxonomy:types:v1', self::TTL, fn (): array => MediaType::query()->orderBy('name')->pluck('name', 'slug')->all());
+        return $this->flat()['types'];
     }
 
     /**
@@ -97,7 +129,7 @@ class TaxonomyFacets
      */
     public function themes(): array
     {
-        return Cache::remember('taxonomy:themes:v1', self::TTL, fn (): array => Theme::query()->orderBy('name')->pluck('name', 'slug')->all());
+        return $this->flat()['themes'];
     }
 
     /**
@@ -105,16 +137,7 @@ class TaxonomyFacets
      */
     public function tropes(): array
     {
-        return Cache::remember('taxonomy:tropes:v1', self::TTL, function (): array {
-            $groups = [];
-
-            foreach (Trope::query()->orderBy('sort')->get(['name', 'slug', 'group']) as $trope) {
-                $groups[$trope->group ?? ''] ??= ['name' => $trope->group, 'items' => []];
-                $groups[$trope->group ?? '']['items'][$trope->slug] = $trope->name;
-            }
-
-            return array_values($groups);
-        });
+        return $this->flat()['tropes'];
     }
 
     /**
@@ -122,7 +145,7 @@ class TaxonomyFacets
      */
     public function demographics(): array
     {
-        return Cache::remember('taxonomy:demographics:v1', self::TTL, fn (): array => Demographic::query()->orderBy('sort')->pluck('name', 'slug')->all());
+        return $this->flat()['demographics'];
     }
 
     /**
@@ -130,7 +153,7 @@ class TaxonomyFacets
      */
     public function warnings(): array
     {
-        return Cache::remember('taxonomy:warnings:v1', self::TTL, fn (): array => ContentWarning::query()->orderBy('sort')->pluck('name', 'slug')->all());
+        return $this->flat()['warnings'];
     }
 
     /**
