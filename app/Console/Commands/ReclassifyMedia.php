@@ -80,22 +80,16 @@ class ReclassifyMedia extends Command
         $transitions = [];
 
         foreach ($outcomes as $outcome) {
-            if ($outcome->typeChanged()) {
-                $key = "{$outcome->oldType} → {$outcome->newType}";
-                $transitions[$key] = ($transitions[$key] ?? 0) + 1;
-            }
+            $key = "{$outcome->oldType} → {$outcome->newType}";
+            $transitions[$key] = ($transitions[$key] ?? 0) + 1;
         }
 
         ksort($transitions);
         $this->newLine();
         $this->info($dryRun ? 'Dry run: nothing was written.' : 'Done.');
         $this->line('Looked at '.count($outcomes).' media; '.count(array_filter($outcomes, fn (ReclassifyOutcome $outcome): bool => $outcome->changedAnything())).' changed.');
-
-        if ($transitions === []) {
-            $this->line('No media type changed.');
-        } else {
-            $this->table(['Old type', 'New type', 'Media'], array_map(fn (string $key, int $count): array => [...explode(' → ', $key), $count], array_keys($transitions), $transitions));
-        }
+        $this->table(['Old type', 'New type', 'Media'], array_map(fn (string $key, int $count): array => [...explode(' → ', $key), $count], array_keys($transitions), $transitions));
+        $this->line(count(array_filter($outcomes, fn (ReclassifyOutcome $outcome): bool => $outcome->typeChanged())) === 0 ? 'No media type changed.' : 'Rows whose old and new type differ were '.($dryRun ? 'not ' : '').'corrected.');
 
         $sum = fn (string $key): int => array_sum(array_map(fn (ReclassifyOutcome $outcome): int => $outcome->attached[$key], $outcomes));
 

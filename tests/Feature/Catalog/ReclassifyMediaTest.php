@@ -49,13 +49,15 @@ test('a novel stored as a comic book is reclassified, and its Dewey class is que
     Bus::assertDispatchedTimes(ClassifyMedia::class, 1);
 });
 
-test('the summary counts each old type to new type', function () {
+test('the summary counts each old type to new type, the unchanged ones too', function () {
     sourced('comicvine', 'comic-book', ['title' => 'Superman: The Novel']);
     sourced('comicvine', 'comic-book', ['title' => 'Flash: The Novel']);
+    sourced('comicvine', 'comic-book', ['title' => 'Batman']);
     sourced('openlibrary', 'graphic-novel', ['title' => 'Sword Art Online (Light Novel)']);
+    sourced('anilist', 'manga');
 
     $this->artisan('bookflix:reclassify')->assertSuccessful()
-        ->expectsTable(['Old type', 'New type', 'Media'], [['comic-book', 'novel', 2], ['graphic-novel', 'light-novel', 1]]);
+        ->expectsTable(['Old type', 'New type', 'Media'], [['comic-book', 'comic-book', 1], ['comic-book', 'novel', 2], ['graphic-novel', 'light-novel', 1], ['manga', 'manga', 1]]);
 });
 
 test('a dry run reports and writes nothing', function () {
