@@ -5,23 +5,10 @@ use App\Models\Media;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Stories with a cover, ranked by popularity: the first has the highest score.
- */
-function popularStories(int $count, array $overrides = []): array
-{
-    return Media::factory()->count($count)->sequence(fn ($sequence) => [
-        'title' => 'Popular Tale '.($sequence->index + 1),
-        'cover_url' => 'https://s4.anilist.co/file/cover-'.($sequence->index + 1).'.png',
-        'popularity_score' => 1 - ($sequence->index / 100),
-        ...$overrides,
-    ])->create()->all();
-}
-
 beforeEach(fn () => Cache::flush());
 
 test('the pool holds the forty most popular stories that have a cover, most popular first', function () {
-    popularStories(45);
+    popularStories(45, cover: 'https://s4.anilist.co/file/cover-{n}.png');
     Media::factory()->create(['title' => 'No Cover Hit', 'cover_url' => null, 'popularity_score' => 5]);
 
     $pool = app(LandingShowcase::class)->pool();
@@ -33,7 +20,7 @@ test('the pool holds the forty most popular stories that have a cover, most popu
 });
 
 test('merged, deleted and adult stories stay out of the pool', function () {
-    $stories = popularStories(4);
+    $stories = popularStories(4, cover: 'https://s4.anilist.co/file/cover-{n}.png');
     $stories[0]->update(['merged_into_id' => $stories[3]->id]);
     $stories[1]->delete();
     $stories[2]->update(['age_rating' => 'adult']);
@@ -42,7 +29,7 @@ test('merged, deleted and adult stories stay out of the pool', function () {
 });
 
 test('a pool entry carries what a book needs and a relative proxy path for the scene', function () {
-    [$story] = popularStories(1);
+    [$story] = popularStories(1, cover: 'https://s4.anilist.co/file/cover-{n}.png');
 
     expect(app(LandingShowcase::class)->pool()[0])->toBe([
         'id' => $story->id,

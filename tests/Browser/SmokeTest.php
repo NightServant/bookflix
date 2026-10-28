@@ -89,7 +89,7 @@ beforeEach(function () {
 test('landing to login to home to search to a story works on desktop and on a phone', function (int $width, int $height) {
 
     $page = visit(route('landing'), ['viewport' => ['width' => $width, 'height' => $height]])
-        ->click('Sign in')->assertPathIs('/login')
+        ->click('[data-section=hero] a[href$="/login"]')->assertPathIs('/login')
         ->fill('email', $this->user->email)->fill('password', 'password')
         ->press('Log in')->wait(1.5)
         ->assertPathIs('/home')->assertSee('View story');

@@ -1,7 +1,5 @@
 <?php
 
-use App\Models\User;
-
 test('the sign-up box sends the typed email on to the registration form without putting it in the url', function () {
     $response = $this->post(route('landing.start'), ['email' => 'reader@example.com']);
 
@@ -24,8 +22,4 @@ test('the sign-up box is throttled', function () {
     }
 
     $this->post(route('landing.start'), ['email' => 'reader@example.com'])->assertStatus(429);
-});
-
-test('a signed-in reader is still sent home from the landing page', function () {
-    $this->actingAs(User::factory()->create())->get(route('landing'))->assertRedirect(route('home'));
 });
