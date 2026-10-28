@@ -663,3 +663,19 @@
         }
     }
 }
+
+/* The footer wordmark: as wide as the page, its lower part cut off by the bottom edge, in a gray only just above the canvas. */
+.landing-wordmark {
+    display: block;
+    width: 100%;
+    margin-top: 1rem;
+    margin-bottom: -2.2vw;
+    fill: var(--color-surface-card);
+    user-select: none;
+
+    text {
+        font-family: var(--font-sans);
+        font-size: 190px;
+        font-weight: 900;
+    }
+}
