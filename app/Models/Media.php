@@ -8,6 +8,7 @@ use App\Enums\AgeRating;
 use App\Enums\ClassificationType;
 use App\Enums\PublicationStatus;
 use App\Enums\ReviewStatus;
+use App\Enums\WarningStatus;
 use Database\Factories\MediaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,8 +44,8 @@ use Laravel\Scout\Searchable;
  * @property string|null $chapter_number
  * @property string|null $issue_number
  * @property string|null $format
- * @property AgeRating $age_rating
- * @property list<string> $content_warnings
+ * @property AgeRating $age_rating The audience rating (all ages, children, teen, mature teen, mature, adult); the editorial demographic is a separate facet.
+ * @property list<string> $content_warnings Deprecated: the pre-taxonomy list of warning names, kept readable until the filters switch over. Warnings live in `media_content_warnings` (see warnings()).
  * @property PublicationStatus $status
  * @property int|null $page_count
  * @property int|null $chapter_count
@@ -241,6 +242,36 @@ class Media extends Model
     }
 
     /**
+     * Media with any of these genres, or any genre below them: selecting a family includes its subgenres.
+     * Several slugs mean any of them. An unknown slug matches nothing.
+     *
+     * @param  Builder<Media>  $query
+     * @param  list<string>  $slugs
+     */
+    public function scopeInGenres(Builder $query, array $slugs): void
+    {
+        $query->whereRaw(
+            'exists (select 1 from media_genres where media_genres.media_id = media.id and media_genres.genre_id in ('.Genre::TREE_IDS_SQL.'))',
+            [Genre::slugArray($slugs)],
+        );
+    }
+
+    /**
+     * Media without any of these warnings recorded as present or disputed. Verified absent and unknown media stay in: unknown is never treated as a warning, nor as safe.
+     *
+     * @param  Builder<Media>  $query
+     * @param  list<string>  $slugs
+     */
+    public function scopeWithoutWarnings(Builder $query, array $slugs): void
+    {
+        $query->whereNotExists(fn ($rows) => $rows->select(DB::raw(1))
+            ->from('media_content_warnings')
+            ->whereColumn('media_content_warnings.media_id', 'media.id')
+            ->whereIn('media_content_warnings.status', WarningStatus::shownValues())
+            ->whereIn('media_content_warnings.content_warning_id', ContentWarning::query()->whereIn('slug', $slugs)->select('id')));
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -314,6 +345,48 @@ class Media extends Model
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'media_tags')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Trope, $this, Pivot, 'pivot'>
+     */
+    public function tropes(): BelongsToMany
+    {
+        return $this->belongsToMany(Trope::class, 'media_tropes')->withTimestamps();
+    }
+
+    /**
+     * The editorial demographics (shonen, seinen, young adult...). Not an age rating.
+     *
+     * @return BelongsToMany<Demographic, $this, Pivot, 'pivot'>
+     */
+    public function demographics(): BelongsToMany
+    {
+        return $this->belongsToMany(Demographic::class, 'media_demographics')->withTimestamps();
+    }
+
+    /**
+     * Every warning this media has a recorded status for (present, absent, unknown or disputed). A warning with no row is unknown, not absent.
+     *
+     * @return BelongsToMany<ContentWarning, $this, MediaContentWarning, 'pivot'>
+     */
+    public function warnings(): BelongsToMany
+    {
+        return $this->belongsToMany(ContentWarning::class, 'media_content_warnings')
+            ->using(MediaContentWarning::class)
+            ->withPivot(['status', 'source'])
+            ->withTimestamps()
+            ->orderBy('content_warnings.sort');
+    }
+
+    /**
+     * The warnings a reader is shown: present or disputed. Verified absent and unknown ones are never listed.
+     *
+     * @return BelongsToMany<ContentWarning, $this, MediaContentWarning, 'pivot'>
+     */
+    public function shownWarnings(): BelongsToMany
+    {
+        return $this->warnings()->wherePivotIn('status', WarningStatus::shownValues());
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Catalog\Data\NormalizedMedia;
 use App\Enums\ClassificationType;
 use App\Enums\DuplicateStatus;
 use App\Enums\ReviewStatus;
+use App\Enums\WarningStatus;
 use App\Models\DuplicateCandidate;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
@@ -25,7 +26,7 @@ class Deduplicator
      *
      * @var list<string>
      */
-    private const PIVOTS = ['media_creators', 'media_publishers', 'media_series', 'media_genres', 'media_themes', 'media_tags', 'media_characters'];
+    private const PIVOTS = ['media_creators', 'media_publishers', 'media_series', 'media_genres', 'media_themes', 'media_tropes', 'media_demographics', 'media_tags', 'media_characters'];
 
     /**
      * Trigram similarity between a stored title and the bound incoming one, both lowercased, unaccented,
@@ -136,6 +137,7 @@ class Deduplicator
                 DB::table($table)->where('media_id', $loser->id)->delete();
             }
 
+            $this->moveWarnings($winner, $loser);
             $this->moveRelations($winner, $loser);
             $this->moveClassifications($winner, $loser);
             $this->movePendingCandidates($winner, $loser, $resolvedBy);
@@ -148,6 +150,31 @@ class Deduplicator
             $loser->delete();
             $winner->refreshSearchText();
         });
+    }
+
+    /**
+     * The loser's content warnings follow it to the winner. When both have a status for the same warning they are reconciled
+     * (a repeat changes nothing, unknown gives way, present against absent is disputed), so a merge never drops a warning.
+     */
+    private function moveWarnings(Media $winner, Media $loser): void
+    {
+        $kept = DB::table('media_content_warnings')->where('media_id', $winner->id)->pluck('status', 'content_warning_id');
+
+        foreach (DB::table('media_content_warnings')->where('media_id', $loser->id)->get() as $row) {
+            $current = $kept->get($row->content_warning_id);
+
+            if ($current === null) {
+                DB::table('media_content_warnings')->insert([...(array) $row, 'media_id' => $winner->id]);
+
+                continue;
+            }
+
+            DB::table('media_content_warnings')
+                ->where('media_id', $winner->id)->where('content_warning_id', $row->content_warning_id)
+                ->update(['status' => WarningStatus::from($current)->reconcile(WarningStatus::from($row->status))->value]);
+        }
+
+        DB::table('media_content_warnings')->where('media_id', $loser->id)->delete();
     }
 
     /**
