@@ -137,7 +137,8 @@ test('a secondary class does not satisfy a dewey filter', function () {
 });
 
 test('a crafted payload cannot flood a list filter past the cap', function () {
-    $filters = SearchFilters::fromArray(['genres' => range(1, 500), 'creatorIds' => range(1, 500)]);
+    $filters = SearchFilters::fromArray(['genres' => range(1, 900), 'creatorIds' => range(1, 500)]);
 
-    expect($filters->genres)->toHaveCount(SearchFilters::MAX_VALUES)->and($filters->creatorIds)->toHaveCount(SearchFilters::MAX_VALUES);
+    // The genre tree has about six hundred nodes, so a reader may pick that many; anything past it is dropped.
+    expect($filters->genres)->toHaveCount(SearchFilters::MAX_GENRES)->and($filters->creatorIds)->toHaveCount(SearchFilters::MAX_VALUES);
 });

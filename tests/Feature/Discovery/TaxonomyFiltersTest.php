@@ -135,10 +135,10 @@ test('the filters round trip through toArray and fromArray', function () {
 });
 
 test('a crafted payload cannot flood the new lists either', function () {
-    $filters = SearchFilters::fromArray(['tropes' => range(1, 500), 'demographics' => range(1, 500), 'excludeWarnings' => range(1, 500), 'genres' => range(1, 500)]);
+    $filters = SearchFilters::fromArray(['tropes' => range(1, 500), 'demographics' => range(1, 500), 'excludeWarnings' => range(1, 500), 'genres' => range(1, 900)]);
 
     expect($filters->tropes)->toHaveCount(SearchFilters::MAX_VALUES)->and($filters->demographics)->toHaveCount(SearchFilters::MAX_VALUES)
-        ->and($filters->excludeWarnings)->toHaveCount(SearchFilters::MAX_VALUES)->and($filters->genres)->toHaveCount(SearchFilters::MAX_VALUES);
+        ->and($filters->excludeWarnings)->toHaveCount(SearchFilters::MAX_VALUES)->and($filters->genres)->toHaveCount(SearchFilters::MAX_GENRES);
 });
 
 test('every taxonomy filter at once is one statement per leg, not one per value', function () {

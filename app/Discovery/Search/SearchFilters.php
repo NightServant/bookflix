@@ -34,6 +34,9 @@ final readonly class SearchFilters
     /** The most values one list filter keeps, so a crafted payload cannot exceed the database's bind-parameter limit. */
     public const MAX_VALUES = 50;
 
+    /** The most genres a reader can pick: the tree has about six hundred nodes, and a family and everything under it is one value to the query (one array binding), so this is no bind-parameter risk. */
+    public const MAX_GENRES = 600;
+
     /**
      * @param  list<string>  $mediaTypes  media type slugs
      * @param  list<string>  $genres  genre or genre family slugs; a family includes its descendants
@@ -87,11 +90,11 @@ final readonly class SearchFilters
     public static function fromArray(array $input): self
     {
         // Slugs from before the taxonomy (a bookmarked ?filters[genres][]=action) are upgraded to the nodes that replaced them.
-        $legacy = app(LegacySlugs::class)->upgrade(['genres' => self::strings($input['genres'] ?? []), 'themes' => self::strings($input['themes'] ?? [])]);
+        $legacy = app(LegacySlugs::class)->upgrade(['genres' => self::strings($input['genres'] ?? [], self::MAX_GENRES), 'themes' => self::strings($input['themes'] ?? [])]);
 
         return new self(
             mediaTypes: self::strings($input['mediaTypes'] ?? []),
-            genres: array_slice($legacy['genres'], 0, self::MAX_VALUES),
+            genres: array_slice($legacy['genres'], 0, self::MAX_GENRES),
             themes: array_slice($legacy['themes'], 0, self::MAX_VALUES),
             languages: self::strings($input['languages'] ?? []),
             yearFrom: filter_var($input['yearFrom'] ?? null, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
@@ -189,12 +192,12 @@ final readonly class SearchFilters
     /**
      * @return list<string>
      */
-    private static function strings(mixed $value): array
+    private static function strings(mixed $value, int $limit = self::MAX_VALUES): array
     {
         // Invalid UTF-8 would reach json_encode and Postgres as a 500; a value that does not survive mb_scrub is dropped.
         $strings = array_map(fn (mixed $item): string => is_scalar($item) && mb_scrub((string) $item) === (string) $item ? trim((string) $item) : '', Arr::wrap($value));
 
-        return array_slice(array_values(array_unique(array_filter($strings, fn (string $item): bool => $item !== ''))), 0, self::MAX_VALUES);
+        return array_slice(array_values(array_unique(array_filter($strings, fn (string $item): bool => $item !== ''))), 0, $limit);
     }
 
     /**
