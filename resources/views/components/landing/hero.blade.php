@@ -46,7 +46,7 @@
         </div>
 
         @if (count($books))
-            <div class="relative max-lg:-mx-[20%] lg:col-start-2 lg:row-start-1 lg:-me-gutter lg:self-center">
+            <div class="relative max-lg:left-1/2 max-lg:w-[min(140%,46rem)] max-lg:-translate-x-1/2 lg:col-start-2 lg:row-start-1 lg:-me-gutter lg:self-center">
                 <div class="landing-stage" aria-hidden="true">
                     <svg class="landing-stage__rings" viewBox="0 0 100 88" preserveAspectRatio="none" focusable="false">
                         <ellipse cx="47" cy="56" rx="43" ry="19" transform="rotate(-12 47 56)" />

@@ -47,7 +47,7 @@
             </ol>
 
             @if (count($covers))
-                <div class="landing-heap max-lg:order-first" aria-hidden="true">
+                <div class="landing-heap max-lg:order-first max-lg:mx-auto max-lg:w-full max-lg:max-w-[34rem]" aria-hidden="true">
                     @foreach ($heap as $index => $spot)
                         @php($cover = $covers[$index] ?? null)
                         @if ($cover)
