@@ -1,0 +1,91 @@
+/*
+ * The public landing page (resources/views/welcome.blade.php and resources/views/components/landing/*). Only what Tailwind utilities
+ * cannot say lives here: the hero's stage of books, the Top 10 marquee and its outlined numerals. Everything is tokens from app.css;
+ * every animation is switched off under prefers-reduced-motion at the end of its own block.
+ */
+
+/* Hero: a soft light from the top right, so the black is a room and not a hole. Neutral, never a second accent. */
+.landing-hero__light {
+    position: absolute;
+    inset: -20% -10% auto auto;
+    width: 70%;
+    height: 90%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-ink) 9%, transparent), transparent);
+}
+
+/*
+ * The stage is one picture drawn in container units (1cqw = 1% of its width), so every book scales with it. A book's width is
+ * set on <x-book-3d> as `--w`; the wrapper places its centre (`--x`, `--y`), and the float inside it drifts. `--dim` darkens the
+ * books that are further back; the book at the front (`--dim: 0`) is the three.js one on capable devices.
+ */
+.landing-stage {
+    position: relative;
+    container-type: inline-size;
+    aspect-ratio: 100 / 88;
+}
+
+.landing-stage__rings {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: color-mix(in srgb, var(--color-ink) 12%, transparent);
+    stroke-width: 1px;
+
+    ellipse {
+        vector-effect: non-scaling-stroke;
+    }
+}
+
+.landing-stage__glow {
+    position: absolute;
+    inset: 12% 8% 2%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-ink) 11%, transparent), transparent);
+}
+
+.landing-book {
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    z-index: var(--z);
+    translate: -50% -50%;
+    animation: landing-arrive 900ms var(--ease-out-bookflix) both;
+    animation-delay: calc(var(--i) * 90ms + 120ms);
+}
+
+.landing-book__float {
+    filter: brightness(calc(1 - var(--dim)));
+    animation: landing-float var(--dur) ease-in-out infinite;
+    animation-delay: var(--delay);
+}
+
+@keyframes landing-arrive {
+    from {
+        opacity: 0;
+        transform: translateY(5cqw) scale(0.97);
+    }
+}
+
+@keyframes landing-float {
+    0%,
+    100% {
+        transform: translateY(0) rotate(var(--roll));
+    }
+
+    50% {
+        transform: translateY(calc(var(--bob) * -1.6cqw)) rotate(calc(var(--roll) * 0.6));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-book,
+    .landing-book__float {
+        animation: none;
+    }
+
+    .landing-book__float {
+        transform: rotate(var(--roll));
+    }
+}
