@@ -34,6 +34,11 @@ new #[Title('Story')] class extends Component {
             abort(redirect()->route('stories.show', [...request()->query(), 'slug' => $media->slug], 301));
         }
 
+        // A mature or adult title is behind the same gate as every list of stories: opened directly, it answers with a page that says so and shows nothing of the title.
+        if ($media->isGatedFor(auth()->user())) {
+            abort(response()->view('stories.gated', status: 403));
+        }
+
         $this->mediaId = $media->id;
         $this->resolved = $media;
     }
@@ -58,8 +63,8 @@ new #[Title('Story')] class extends Component {
             'themes',
             'tags',
             'shownWarnings',
-            'series' => fn ($series) => $series->withCount('media as volumes_count'),
-            'relations',
+            'series' => fn ($series) => $series->withCount(['media as volumes_count' => fn ($volumes) => $volumes->visibleTo(auth()->user())]),
+            'relations' => fn ($relations) => $relations->visibleTo(auth()->user()),
             'externalIds.externalSource',
         ]);
 
@@ -104,7 +109,7 @@ new #[Title('Story')] class extends Component {
     #[Computed]
     public function seriesWindows(): array
     {
-        return $this->media->series->mapWithKeys(fn (Series $series): array => [$series->id => $series->window($this->media)])->all();
+        return $this->media->series->mapWithKeys(fn (Series $series): array => [$series->id => $series->window($this->media, viewer: auth()->user())])->all();
     }
 
     /**
@@ -137,7 +142,7 @@ new #[Title('Story')] class extends Component {
     #[Computed]
     public function similar(): Collection
     {
-        return app(SimilarMedia::class)->for($this->media);
+        return app(SimilarMedia::class)->for($this->media, viewer: auth()->user());
     }
 
     /**

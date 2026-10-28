@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Access\MatureAccess;
 use App\Models\Media;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\Client\ConnectionException;
@@ -26,6 +27,11 @@ class CoverController extends Controller
 
         abort_unless(is_string($url) && $this->isAllowed($url), 404);
 
+        // The cover of a mature or adult title is behind the same gate as the title, and is never kept in a shared cache.
+        $restricted = $media->isRestricted();
+
+        abort_if($restricted && ! MatureAccess::allows(auth()->user()), 404);
+
         $disk = Storage::disk('local');
         $path = 'covers/'.sha1($url);
 
@@ -40,7 +46,7 @@ class CoverController extends Controller
 
         return $disk->response($path, null, [
             'Content-Type' => $info['mime'],
-            'Cache-Control' => 'public, max-age=86400, immutable',
+            'Cache-Control' => ($restricted ? 'private' : 'public').', max-age=86400, immutable',
             'X-Content-Type-Options' => 'nosniff',
             'Content-Security-Policy' => "default-src 'none'; sandbox",
         ]);

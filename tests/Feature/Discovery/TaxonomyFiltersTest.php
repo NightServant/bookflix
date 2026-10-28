@@ -180,8 +180,9 @@ test('the facets give the genre tree with groups, linked subgenres under both pa
         ->and($public->flatMap(fn ($family) => collect($family['groups'])->flatMap(fn ($group) => collect($group['items'])->pluck('slug')))->all())->not->toContain('erotica')
         ->and($everything->firstWhere('is_mature', true)['slug'])->toBe('mature-erotic-and-controversial-categories')
         ->and(array_keys($facets->demographics()))->toBe(['kodomomuke', 'shonen', 'shojo', 'seinen', 'josei', 'young-adult', 'new-adult', 'adult-literary-audience'])
-        ->and(array_keys($facets->ratings()))->toBe(['all', 'children', 'teen', 'mature_teen', 'mature', 'adult'])
-        ->and($facets->ratings()['adult'])->toBe('Adult (18+)')
+        ->and(array_keys($facets->ratings(true)))->toBe(['all', 'children', 'teen', 'mature_teen', 'mature', 'adult'])
+        ->and($facets->ratings(true)['adult'])->toBe('Adult (18+)')
+        ->and(array_keys($facets->ratings()))->toBe(['all', 'children', 'teen', 'mature_teen', 'mature'])
         ->and($facets->warnings())->toHaveCount(30)
         ->and(collect($facets->tropes())->pluck('name')->all())->toBe(['Romance tropes', 'Fantasy and progression tropes', 'Mystery and psychological tropes'])
         ->and($facets->themes())->toHaveKey('found-family');
@@ -197,9 +198,9 @@ test('the facets are cached as plain arrays and dropped by a re-seed', function 
     $facets->genres();
     $facets->themes();
 
-    expect(DB::getQueryLog())->toBeEmpty()->and(Cache::get('taxonomy:genres:v1:public'))->toBeArray();
+    expect(DB::getQueryLog())->toBeEmpty()->and(Cache::get('taxonomy:genres:v2:public'))->toBeArray();
 
     $this->seed(TaxonomySeeder::class);
 
-    expect(Cache::has('taxonomy:genres:v1:public'))->toBeFalse();
+    expect(Cache::has('taxonomy:genres:v2:public'))->toBeFalse();
 });

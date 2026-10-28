@@ -89,14 +89,26 @@ class Genre extends Model
     }
 
     /**
+     * SQL that keeps a media row (joined as `media`) out of a count when the reader may not see it: adult-rated, or tagged with a mature genre.
+     * Takes one boolean binding, true for a reader who opted in to mature titles. The same rule as Media::scopeWithoutMature.
+     */
+    private const GATED_MEDIA_SQL = <<<'SQL'
+        (? or (media.age_rating <> 'adult' and not exists (
+            select 1 from media_genres gated_tags join genres gated on gated.id = gated_tags.genre_id
+            where gated_tags.media_id = media.id and gated.is_mature
+        )))
+        SQL;
+
+    /**
      * How many live stories each genre family has, counting its subgenres and the ones linked under it: `[family id => count]`, biggest first.
-     * A story in several subgenres of one family counts once for it. Mature-gated families are left out unless asked for.
+     * A story in several subgenres of one family counts once for it. Without `$includeMature` the mature-gated families are left out and so are
+     * the gated stories (adult-rated, or tagged with a mature genre), so the numbers a gated reader sees match the stories they can reach.
      *
      * @return array<int, int>
      */
     public static function familyCounts(bool $includeMature = false): array
     {
-        $rows = DB::select(<<<'SQL'
+        $rows = DB::select(str_replace('{gate}', self::GATED_MEDIA_SQL, <<<'SQL'
             with recursive edges(parent_id, genre_id) as (
                 select parent_id, id from genres where parent_id is not null
                 union all
@@ -110,10 +122,34 @@ class Genre extends Model
             select tree.root_id as id, count(distinct media_genres.media_id) as media_count
             from tree
             join media_genres on media_genres.genre_id = tree.genre_id
-            join media on media.id = media_genres.media_id and media.merged_into_id is null and media.deleted_at is null
+            join media on media.id = media_genres.media_id and media.merged_into_id is null and media.deleted_at is null and {gate}
             group by tree.root_id
             order by media_count desc, tree.root_id
-            SQL, [$includeMature ? 't' : 'f']);
+            SQL), [$includeMature ? 't' : 'f', $includeMature ? 't' : 'f']);
+
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $counts[(int) $row->id] = (int) $row->media_count;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * How many live stories carry each genre itself, subgenres and families alike: `[genre id => count]`. Gated stories are left out unless
+     * `$includeMature` (see familyCounts). A family's own number here is only the stories tagged with the family directly; use familyCounts() for its whole tree.
+     *
+     * @return array<int, int>
+     */
+    public static function tagCounts(bool $includeMature = false): array
+    {
+        $rows = DB::select(str_replace('{gate}', self::GATED_MEDIA_SQL, <<<'SQL'
+            select media_genres.genre_id as id, count(distinct media_genres.media_id) as media_count
+            from media_genres
+            join media on media.id = media_genres.media_id and media.merged_into_id is null and media.deleted_at is null and {gate}
+            group by media_genres.genre_id
+            SQL), [$includeMature ? 't' : 'f']);
 
         $counts = [];
 

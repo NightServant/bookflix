@@ -227,7 +227,7 @@ new #[Title('Search')] class extends Component {
         $filters = $this->searchFilters();
         $fetch = fn (): LengthAwarePaginator => $this->hasQuery
             ? $search->search(trim($this->q), $filters, auth()->user(), self::PER_PAGE)
-            : $search->browse($filters, self::PER_PAGE);
+            : $search->browse($filters, self::PER_PAGE, auth()->user());
 
         $page = $fetch();
 

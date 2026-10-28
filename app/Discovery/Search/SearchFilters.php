@@ -2,11 +2,13 @@
 
 namespace App\Discovery\Search;
 
+use App\Access\MatureAccess;
 use App\Catalog\Taxonomy\LegacySlugs;
 use App\Enums\PublicationStatus;
 use App\Models\DeweyClass;
 use App\Models\Media;
 use App\Models\MediaType;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 
@@ -18,7 +20,9 @@ use Illuminate\Support\Arr;
  * Warnings are only ever excluded: a work is dropped when the warning is present or disputed, and stays when it is unknown or verified absent,
  * because no record of a warning is not a promise that it is absent.
  *
- * Nothing here is an access rule: a filter narrows what a reader may already see, it never unlocks mature or gated content.
+ * A filter is not an access rule: it narrows what a reader may already see and never unlocks mature or gated content. The access gate travels
+ * beside the filters as `matureAccess`, shut by default and opened only by forViewer() for a reader who opted in (see MatureAccess). Input never
+ * reaches it: fromArray() does not read it and toArray() does not write it, so no URL, query string or Livewire payload can set it.
  */
 final readonly class SearchFilters
 {
@@ -44,6 +48,7 @@ final readonly class SearchFilters
      * @param  list<string>  $demographics  editorial demographic slugs (shonen, seinen, young-adult...); not an age rating
      * @param  list<string>  $ratings  AgeRating values (all, children, teen, mature_teen, mature, adult); `unknown` is not a rating
      * @param  list<string>  $excludeWarnings  content warning slugs: media with any of them present or disputed are left out
+     * @param  bool  $matureAccess  the reader may see mature and adult titles; false (gated) unless forViewer() says otherwise
      */
     public function __construct(
         public array $mediaTypes = [],
@@ -62,7 +67,17 @@ final readonly class SearchFilters
         public array $demographics = [],
         public array $ratings = [],
         public array $excludeWarnings = [],
+        public bool $matureAccess = false,
     ) {}
+
+    /**
+     * The same filters seen by this reader: mature and adult titles are in reach only when they opted in and confirmed they are 18 or older.
+     * A guest (null) is always gated.
+     */
+    public function forViewer(?User $viewer): self
+    {
+        return new self(...[...get_object_vars($this), 'matureAccess' => MatureAccess::allows($viewer)]);
+    }
 
     /**
      * Build filters from untrusted input (a query string, a Livewire property): unknown keys are ignored, values are coerced, and invalid ones dropped.
@@ -101,7 +116,7 @@ final readonly class SearchFilters
      */
     public function toArray(): array
     {
-        return array_filter(get_object_vars($this), fn (mixed $value): bool => $value !== null && $value !== []);
+        return array_filter(Arr::except(get_object_vars($this), 'matureAccess'), fn (mixed $value): bool => $value !== null && $value !== []);
     }
 
     public function isEmpty(): bool
@@ -110,7 +125,8 @@ final readonly class SearchFilters
     }
 
     /**
-     * Narrow a media query, in SQL, so a search leg ranks only what the reader can see.
+     * Narrow a media query, in SQL, so a search leg ranks only what the reader can see: the access gate first (unless the reader opted in to
+     * mature titles), then every filter.
      *
      * @param  Builder<Media>  $query
      * @return Builder<Media>
@@ -118,6 +134,7 @@ final readonly class SearchFilters
     public function apply(Builder $query): Builder
     {
         return $query
+            ->unless($this->matureAccess, fn (Builder $media) => $media->withoutMature())
             ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $slugs)->select('id')))
             ->when($this->genres, fn (Builder $media, array $slugs) => $media->inGenres($slugs))
             ->when($this->themes, fn (Builder $media, array $slugs) => $media->whereHas('themes', fn (Builder $themes) => $themes->whereIn('themes.slug', $slugs)))

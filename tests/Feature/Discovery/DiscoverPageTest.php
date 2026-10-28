@@ -207,8 +207,8 @@ test('a second discover render reads the counts from the cache and stays within 
     $second = $this->get(route('discover'))->assertOk()->getContent();
 
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(6)
-        ->and(Cache::get('discover:type-counts:v1'))->toBeArray()->each->toBeInt()
-        ->and(Cache::get('discover:genre-counts:v2'))->toHaveCount(3)->each->toBeInt()
+        ->and(Cache::get('discover:type-counts:v2:gated'))->toBeArray()->each->toBeInt()
+        ->and(Cache::get('discover:genre-counts:v3:gated'))->toHaveCount(3)->each->toBeInt()
         ->and(htmlQuery($second, '//a[@data-genre-chip]')->length)->toBe(htmlQuery($first, '//a[@data-genre-chip]')->length);
 });
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Access\MatureAccess;
 use App\Classification\DeweyCounts;
 use App\Discovery\Search\SearchTextBuilder;
 use App\Enums\AgeRating;
@@ -179,8 +180,10 @@ class Media extends Model
      */
     public static function showcaseCovers(): array
     {
-        return Cache::remember('media:showcase-covers:v1', now()->addHour(), fn (): array => array_values(static::query()
+        // Seen by guests (the sign-in panel) and kept for an hour, so it is the gated list.
+        return Cache::remember('media:showcase-covers:v2', now()->addHour(), fn (): array => array_values(static::query()
             ->trending()
+            ->visibleTo(null)
             ->whereNotNull('media.cover_url')
             ->limit(3)
             ->get(['media.id', 'media.title', 'media.cover_url'])
@@ -225,6 +228,50 @@ class Media extends Model
     public function scopeUnmerged(Builder $query): void
     {
         $query->whereNull('media.merged_into_id');
+    }
+
+    /**
+     * The access gate: media a reader who has not opted in to mature titles may not see, left out. An adult-rated work is gated, and so is any work
+     * tagged with a mature genre (a genre whose primary parent is the mature family). Applied by the query layer wherever media is listed
+     * (see scopeVisibleTo), never by a filter, so no URL or filter value can lift it.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeWithoutMature(Builder $query): void
+    {
+        $query->where('media.age_rating', '!=', AgeRating::Adult->value)
+            ->whereNotExists(fn ($rows) => $rows->select(DB::raw(1))
+                ->from('media_genres')
+                ->join('genres', 'genres.id', '=', 'media_genres.genre_id')
+                ->whereColumn('media_genres.media_id', 'media.id')
+                ->where('genres.is_mature', true));
+    }
+
+    /**
+     * Media this reader may see: everything for a reader who turned on mature titles and confirmed they are 18 or older (see MatureAccess),
+     * everything but gated media for any other reader, and for a guest (null) always. Use it on every query that lists media to a reader.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeVisibleTo(Builder $query, ?User $viewer): void
+    {
+        $query->unless(MatureAccess::allows($viewer), fn (Builder $media) => $media->withoutMature());
+    }
+
+    /**
+     * Whether this work is behind the access gate: it is adult-rated or tagged with a mature genre (one query unless it is adult-rated).
+     */
+    public function isRestricted(): bool
+    {
+        return $this->age_rating === AgeRating::Adult || $this->genres()->where('genres.is_mature', true)->exists();
+    }
+
+    /**
+     * Whether the reader is kept from this work: it is restricted and they have not opted in. Skips the lookup for a reader who may see everything.
+     */
+    public function isGatedFor(?User $viewer): bool
+    {
+        return ! MatureAccess::allows($viewer) && $this->isRestricted();
     }
 
     /**

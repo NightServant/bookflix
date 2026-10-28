@@ -1,5 +1,6 @@
 <?php
 
+use App\Access\MatureAccess;
 use App\Catalog\Taxonomy\LegacyTaxonomy;
 use App\Classification\DeweyCounts;
 use App\Discovery\Search\HybridSearch;
@@ -85,8 +86,9 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function types(): SupportCollection
     {
-        // Kept ten minutes as `[type id => count]` (the cache refuses to unserialize models).
-        $counts = Cache::remember('discover:type-counts:v1', 600, fn (): array => Media::query()->unmerged()->selectRaw('media.media_type_id, count(*) as total')->groupBy('media.media_type_id')->pluck('total', 'media_type_id')->map(fn (mixed $total): int => (int) $total)->all());
+        // Kept ten minutes as `[type id => count]` (the cache refuses to unserialize models), once for readers who may see mature titles and once for the rest.
+        $viewer = auth()->user();
+        $counts = Cache::remember('discover:type-counts:v2:'.MatureAccess::cacheKey($viewer), 600, fn (): array => Media::query()->unmerged()->visibleTo($viewer)->selectRaw('media.media_type_id, count(*) as total')->groupBy('media.media_type_id')->pluck('total', 'media_type_id')->map(fn (mixed $total): int => (int) $total)->all());
 
         return MediaType::query()->orderBy('name')->get()
             ->each(fn (MediaType $type) => $type->setAttribute('stories_count', $counts[$type->id] ?? 0))
@@ -125,9 +127,11 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function covers(): array
     {
-        return Cache::remember('discover:covers:v1', 600, fn (): array => DB::query()
+        $viewer = auth()->user();
+
+        return Cache::remember('discover:covers:v2:'.MatureAccess::cacheKey($viewer), 600, fn (): array => DB::query()
             ->fromSub(
-                Media::query()->unmerged()->whereNotNull('media.cover_url')->selectRaw('media.media_type_id, media.cover_url, row_number() over (partition by media.media_type_id order by media.ratings_count desc, media.id) as position')->toBase(),
+                Media::query()->unmerged()->visibleTo($viewer)->whereNotNull('media.cover_url')->selectRaw('media.media_type_id, media.cover_url, row_number() over (partition by media.media_type_id order by media.ratings_count desc, media.id) as position')->toBase(),
                 'ranked',
             )
             ->where('position', '<=', 3)
@@ -183,7 +187,9 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function genreCounts(): array
     {
-        return Cache::remember('discover:genre-counts:v2', 600, fn (): array => Genre::familyCounts());
+        $mature = MatureAccess::allows(auth()->user());
+
+        return Cache::remember('discover:genre-counts:v3:'.($mature ? 'mature' : 'gated'), 600, fn (): array => Genre::familyCounts($mature));
     }
 
     /**
@@ -192,7 +198,7 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function subjects(): Collection
     {
-        return app(DeweyCounts::class)->rootsWithCounts();
+        return app(DeweyCounts::class)->rootsWithCounts(auth()->user());
     }
 
     /**
@@ -213,7 +219,7 @@ new #[Title('Discover')] class extends Component {
             default => [],
         };
 
-        $page = app(HybridSearch::class)->browse(new SearchFilters(mediaTypes: $slugs, genres: $this->activeGenre ? [$this->activeGenre->slug] : []), self::PER_PAGE);
+        $page = app(HybridSearch::class)->browse(new SearchFilters(mediaTypes: $slugs, genres: $this->activeGenre ? [$this->activeGenre->slug] : []), self::PER_PAGE, auth()->user());
 
         (new Collection($page->items()))->load('mediaType');
 

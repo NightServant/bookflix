@@ -50,7 +50,7 @@ new #[Title('Explore the Library')] class extends Component {
         $counts = app(DeweyCounts::class);
 
         return app(DeweyHierarchy::class)->children($this->deweyClass)
-            ->each(fn (DeweyClass $child) => $child->setAttribute('stories_count', $counts->forClass($child)))
+            ->each(fn (DeweyClass $child) => $child->setAttribute('stories_count', $counts->forClass($child, auth()->user())))
             ->filter(fn (DeweyClass $child): bool => $child->stories_count > 0)
             ->values();
     }
@@ -63,7 +63,7 @@ new #[Title('Explore the Library')] class extends Component {
     #[Computed]
     public function stories(): LengthAwarePaginator
     {
-        $query = Media::query()->inDeweySubtree($this->deweyClass)->orderBy('title')->orderBy('id');
+        $query = Media::query()->visibleTo(auth()->user())->inDeweySubtree($this->deweyClass)->orderBy('title')->orderBy('id');
         $stories = $query->paginate(24);
 
         if ($stories->isEmpty() && $stories->currentPage() > 1) {
