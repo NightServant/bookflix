@@ -27,7 +27,7 @@ test('the dialog is named by its visible heading', function () {
 
     expect($heading)->not->toBeNull()
         ->and($heading->getAttribute('id'))->not->toBeEmpty()
-        ->and($html)->toContain("closest('dialog').setAttribute('aria-labelledby', '{$heading->getAttribute('id')}')");
+        ->and($html)->toContain("dialog.setAttribute('aria-labelledby', '{$heading->getAttribute('id')}')");
 });
 
 test('there is a visible 44px close button and a show results cta that closes the sheet', function () {
@@ -47,6 +47,15 @@ test('tab wraps around inside the sheet', function () {
 
 test('resizing up to a desktop width closes it, so the page is never left inert behind a hidden dialog', function () {
     expect(renderFilterSheet())->toContain('$flux.modal(')->toContain('innerWidth >= 1024');
+});
+
+test('a footer slot replaces the show results button and a badge slot sits in the trigger', function () {
+    $html = renderedComponent('<x-filter-sheet><p>Genre filters</p><x-slot:badge><span data-test="badge">3</span></x-slot:badge><x-slot:footer><button data-test="apply">Apply filters</button></x-slot:footer></x-filter-sheet>');
+
+    expect(htmlQuery($html, '//*[@data-flux-modal-trigger]//*[@data-test="badge"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//dialog//*[@data-test="apply"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//dialog//*[@data-flux-button][normalize-space()="Show results"]')->length)->toBe(0)
+        ->and($html)->toContain('filter-sheet-close');
 });
 
 test('attributes land on the wrapper', function () {
