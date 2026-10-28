@@ -2,10 +2,12 @@
 
 namespace App\Catalog\Providers\MangaDex;
 
+use App\Catalog\Classification\ClassificationSignals;
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\ProviderUnavailable;
 use App\Catalog\Providers\RateLimitedByProvider;
@@ -19,7 +21,7 @@ use Illuminate\Http\Client\Response;
 
 class MangaDexProvider implements MetadataProvider
 {
-    use SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
 
     private const API = 'https://api.mangadex.org';
 
@@ -39,11 +41,6 @@ class MangaDexProvider implements MetadataProvider
         'hiatus' => PublicationStatus::Hiatus,
         'cancelled' => PublicationStatus::Cancelled,
     ];
-
-    /**
-     * @var array<string, string>
-     */
-    private const TYPES = ['ja' => 'manga', 'ko' => 'manhwa', 'zh' => 'manhua', 'zh-hk' => 'manhua'];
 
     /**
      * @var array<string, string>
@@ -126,12 +123,22 @@ class MangaDexProvider implements MetadataProvider
         $cover = $this->coverUrl($id, $payload['relationships'] ?? null);
         $chapters = $this->text($attributes['lastChapter'] ?? null);
         [$genres, $themes, $tags] = $this->tags($attributes['tags'] ?? null);
+        $description = $this->plainText($this->localized($attributes['description'] ?? null));
 
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: self::TYPES[$language] ?? '',
+            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
+                provider: $this->key(),
+                title: $title,
+                alternativeTitles: $titles,
+                description: $description,
+                subjects: [...$genres, ...$themes, ...$tags],
+                chapterCount: ctype_digit($chapters) && (int) $chapters > 0 ? (int) $chapters : null,
+                country: self::COUNTRIES[$language] ?? null,
+                language: $language,
+            )),
             alternativeTitles: array_slice(array_values(array_diff($titles, [$title])), 0, 25),
-            description: $this->plainText($this->localized($attributes['description'] ?? null)),
+            description: $description,
             creators: $this->creators($payload['relationships'] ?? null),
             genres: $genres,
             themes: $themes,

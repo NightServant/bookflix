@@ -7,6 +7,7 @@ use App\Enums\AgeRating;
 use App\Enums\PublicationStatus;
 use App\Models\ExternalSource;
 use App\Models\Media;
+use App\Models\MediaType;
 
 class Enricher
 {
@@ -27,6 +28,8 @@ class Enricher
         $authoritative = $media->primary_external_source_id === $source->id;
 
         $values = [
+            // Only the media's own provider can change its type, and an admin can lock it: a re-sync with a better classifier corrects it.
+            'media_type_id' => MediaType::where('slug', $incoming->mediaTypeSlug)->value('id'),
             'title' => trim($incoming->title),
             'alternative_titles' => $incoming->alternativeTitles,
             'description' => $incoming->description,

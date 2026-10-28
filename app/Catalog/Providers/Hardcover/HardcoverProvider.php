@@ -2,10 +2,12 @@
 
 namespace App\Catalog\Providers\Hardcover;
 
+use App\Catalog\Classification\ClassificationSignals;
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\MissingProviderCredentials;
 use App\Catalog\Providers\ProviderUnavailable;
@@ -17,7 +19,7 @@ use Carbon\CarbonImmutable;
 
 class HardcoverProvider implements MetadataProvider
 {
-    use SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
 
     private const API = 'https://api.hardcover.app/v1/graphql';
 
@@ -93,16 +95,23 @@ class HardcoverProvider implements MetadataProvider
         $year = $book['release_year'] ?? null;
         $pages = $book['pages'] ?? null;
         $genreSlugs = array_map('strtolower', $tags['Genre']);
+        $description = $this->plainText($book['description'] ?? null);
+        $alternativeTitles = $subtitle !== '' && $title !== '' ? ["{$title}: {$subtitle}"] : [];
 
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: match (true) {
-                (bool) array_intersect($genreSlugs, ['graphic novels', 'graphic novel', 'manga']) => 'graphic-novel',
-                (bool) array_intersect($genreSlugs, ['comics', 'comic books']) => 'comic-book',
-                default => 'novel',
-            },
-            alternativeTitles: $subtitle !== '' && $title !== '' ? ["{$title}: {$subtitle}"] : [],
-            description: $this->plainText($book['description'] ?? null),
+            // Hardcover files prose tie-ins of comics under "Graphic Novels" too, so the tag is weighed against the credits, the page count and the blurb.
+            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
+                provider: $this->key(),
+                title: $title,
+                alternativeTitles: $alternativeTitles,
+                description: $description,
+                subjects: [...$tags['Genre'], ...$tags['Tag']],
+                creatorRoles: $this->roles($book['contributions'] ?? null),
+                pageCount: is_int($pages) && $pages > 0 ? $pages : null,
+            )),
+            alternativeTitles: $alternativeTitles,
+            description: $description,
             creators: $this->creators($book['contributions'] ?? null),
             series: $this->series($book['book_series'] ?? null),
             genres: $tags['Genre'],
@@ -168,6 +177,22 @@ class HardcoverProvider implements MetadataProvider
         }
 
         return $out;
+    }
+
+    /**
+     * The roles credited on the book, as Hardcover names them ("author" when none is given).
+     *
+     * @return list<string>
+     */
+    private function roles(mixed $contributions): array
+    {
+        $roles = [];
+
+        foreach (is_array($contributions) ? $contributions : [] as $contribution) {
+            $roles[] = strtolower($this->text(is_array($contribution) ? ($contribution['contribution'] ?? null) : null) ?: 'author');
+        }
+
+        return array_values(array_unique($roles));
     }
 
     /**

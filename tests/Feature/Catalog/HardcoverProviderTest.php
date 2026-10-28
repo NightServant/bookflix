@@ -124,11 +124,20 @@ test('find queries one book by id and returns null when absent', function () {
     expect(app(HardcoverProvider::class)->find('10'))->toBeNull();
 });
 
-test('graphic novel and comic tags change the media type', function (string $tag, string $slug) {
-    $book = hardcoverBook(1, ['cached_tags' => ['Genre' => [['tag' => $tag, 'count' => 1]]]]);
+test('graphic novel, comic and manga tags change the media type once the rest of the book agrees', function (array $genres, array $overrides, string $slug) {
+    $book = hardcoverBook(1, ['cached_tags' => ['Genre' => array_map(fn (string $tag) => ['tag' => $tag, 'count' => 1], $genres)], ...$overrides]);
 
     expect(app(HardcoverProvider::class)->normalize(new ProviderRecord('hardcover', '1', $book, null, now()->toImmutable()))->mediaTypeSlug)->toBe($slug);
-})->with([['Graphic Novels', 'graphic-novel'], ['Comics', 'comic-book'], ['Fantasy', 'novel']]);
+})->with([
+    'a graphic novel' => [['Graphic Novels'], ['pages' => 192, 'contributions' => [['contribution' => null, 'author' => ['name' => 'Brian K. Vaughan']], ['contribution' => 'Colorist', 'author' => ['name' => 'Fiona Staples']]]], 'graphic-novel'],
+    'comics are bound books here' => [['Comics'], ['pages' => null, 'contributions' => []], 'graphic-novel'],
+    'a single issue' => [['Comics'], ['pages' => 32, 'contributions' => []], 'comic-book'],
+    'manga' => [['Manga', 'Fantasy'], ['pages' => 224, 'contributions' => []], 'manga'],
+    'a novel' => [['Fantasy'], [], 'novel'],
+    'a novel filed under Graphic Novels' => [['Graphic Novels', 'Fantasy'], ['title' => 'Batman: Fear Itself', 'pages' => 380, 'contributions' => [['contribution' => null, 'author' => ['name' => 'Michael Reaves']]]], 'novel'],
+    'a light novel' => [['Light Novels', 'Fantasy'], ['pages' => 260], 'light-novel'],
+    'a visual novel' => [['Visual Novel'], ['pages' => null, 'contributions' => []], 'visual-novel'],
+]);
 
 test('missing credentials fail readably without a request and the run ends failed', function () {
     config(['bookflix.providers.hardcover.api_token' => null]);

@@ -249,11 +249,12 @@ class MediaTypeClassifier
         $plain = fn (string $words): bool => preg_match('/graphic|visual|light|web|comic|manga/', $words) === 0;
 
         if (preg_match('/\b(?:novelizations?|novelisations?|prose (?:novel|adaptation|edition|retelling))\b/', $text) === 1) {
-            $add(self::PROSE, 6.0, 'description says novelization');
+            $add(self::PROSE, 8.0, 'description says novelization');
             $novelization = true;
-        } elseif ((preg_match('/\b(?:is|was) an? ((?:[a-z0-9\'-]+ ){0,4}?)novel\b/', $text, $match) === 1 && $plain($match[1]))
-            || (preg_match('/^(?:an? |the )?((?:[a-z0-9\'-]+ ){0,3}?)novel\b/', $text, $match) === 1 && $plain($match[1]))) {
-            $add(self::PROSE, 3.0, 'description calls it a novel');
+        } elseif (preg_match('/^(?:an? |the )?((?:[a-z0-9\'-]+ ){0,3}?)novel\b/', $text, $match) === 1 && $plain($match[1])) {
+            $add(self::PROSE, 5.0, 'description opens with a novel');
+        } elseif (preg_match('/\b(?:is|was) an? ((?:[a-z0-9\'-]+ ){0,4}?)novel\b/', $text, $match) === 1 && $plain($match[1])) {
+            $add(self::PROSE, 3.5, 'description calls it a novel');
         }
 
         if (preg_match('/\b(?:is|was) an? ((?:[a-z0-9\'-]+ ){0,4}?)light novel\b/', $text, $match) === 1 && preg_match($adapts, $match[0]) === 0) {
