@@ -89,3 +89,141 @@
         transform: rotate(var(--roll));
     }
 }
+
+/* One scale for the section headings on this page, and the quiet line above or under one. */
+.landing-h2 {
+    @apply text-[clamp(1.875rem,3.6vw,3.25rem)] leading-[1.08] font-extrabold tracking-tight text-balance text-ink;
+}
+
+/*
+ * Top 10: a marquee of posters in front of outlined numerals. The track holds the list twice; moving it by exactly one list (-50%)
+ * loops without a seam, because each list ends in the same gap it is separated by. The size of everything is in rem, so the track
+ * has its final height before any poster loads (no layout shift). Hover or focus inside, or `data-paused`, stops it.
+ */
+.landing-marquee {
+    --gap: 1.25rem;
+    --poster: 11rem;
+    --duration: 90s;
+    overflow: hidden;
+    mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+
+    &:hover .landing-marquee__track,
+    &:focus-within .landing-marquee__track,
+    &[data-paused] .landing-marquee__track {
+        animation-play-state: paused;
+    }
+}
+
+.landing-marquee__track {
+    display: flex;
+    width: max-content;
+    animation: landing-marquee var(--duration) linear infinite;
+}
+
+@keyframes landing-marquee {
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+.landing-top {
+    display: flex;
+    flex-shrink: 0;
+    gap: var(--gap);
+    padding-inline-end: var(--gap);
+    padding-block: 1rem;
+}
+
+.landing-top__item {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+/* Dark fill, light-gray outline. `paint-order` puts the fill over the inside half of the stroke, so the outline is crisp and even. */
+.landing-top__rank {
+    --stroke: color-mix(in srgb, var(--color-ink) 38%, var(--color-canvas));
+    position: relative;
+    z-index: 0;
+    margin-inline-end: -0.26em;
+    font-size: calc(var(--poster) * 1.52);
+    font-weight: 900;
+    line-height: 0.74;
+    letter-spacing: -0.07em;
+    color: var(--color-canvas);
+    -webkit-text-stroke: 6px var(--stroke);
+    paint-order: stroke fill;
+    user-select: none;
+}
+
+.landing-top__poster {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: var(--poster);
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: var(--radius-card);
+    background: var(--color-surface-card);
+    box-shadow: var(--shadow-raised);
+
+    img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform var(--motion-base) var(--ease-out-bookflix);
+    }
+}
+
+/* The title shows over the foot of the poster on hover, on a scrim of the canvas colour. */
+.landing-top__title {
+    position: absolute;
+    inset: auto 0 0;
+    padding: 2.5rem 0.75rem 0.75rem;
+    background: linear-gradient(to top, color-mix(in srgb, var(--color-canvas) 92%, transparent), transparent);
+    font-size: var(--text-meta);
+    font-weight: 600;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--ease-out-bookflix);
+}
+
+@media (hover: hover) {
+    .landing-top__item:hover {
+        .landing-top__title {
+            opacity: 1;
+        }
+
+        img {
+            transform: scale(1.04);
+        }
+    }
+}
+
+/* Reduced motion: the loop stops, the copy goes, and the list is scrolled by hand (it is focusable, so the keyboard can). */
+@media (prefers-reduced-motion: reduce) {
+    .landing-marquee {
+        overflow-x: auto;
+        mask-image: none;
+        scrollbar-width: thin;
+    }
+
+    .landing-marquee__track {
+        animation: none;
+        padding-inline: var(--spacing-gutter);
+    }
+
+    .landing-top[aria-hidden='true'] {
+        display: none;
+    }
+
+    .landing-top__item:hover img {
+        transform: none;
+    }
+}
