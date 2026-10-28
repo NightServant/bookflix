@@ -95,11 +95,18 @@ test('an image-typed response whose bytes are not a raster image is a 404 and is
     'svg' => '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
 ]);
 
-test('guests are redirected to login', function () {
-    Http::fake();
+test('guests can load a cover too, for the landing page book', function () {
+    Http::fake(['s4.anilist.co/*' => Http::response($this->png, 200, ['Content-Type' => 'image/png'])]);
     $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
 
-    $this->get(route('covers.show', $media))->assertRedirect(route('login'));
+    $this->get(route('covers.show', $media))->assertOk()->assertHeader('Content-Type', 'image/png');
+});
+
+test('a guest still cannot make it fetch a host the providers do not allow', function () {
+    Http::fake();
+    $media = Media::factory()->create(['cover_url' => 'https://evil.example/cover.png']);
+
+    $this->get(route('covers.show', $media))->assertNotFound();
 
     Http::assertNothingSent();
 });
