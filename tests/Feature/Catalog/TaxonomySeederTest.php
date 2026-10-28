@@ -61,20 +61,35 @@ test('a subgenre listed twice under the same family is not linked to its own par
     expect($genre->parent->slug)->toBe('romance')->and($genre->secondaryParents)->toHaveCount(0);
 });
 
-test('everything listed in the mature section is mature-gated, wherever its primary parent is', function () {
+test('a genre is mature-gated only when its primary parent is the mature family', function () {
     $mature = fn (string $slug): bool => Genre::where('slug', $slug)->value('is_mature');
 
     expect($mature('mature-erotic-and-controversial-categories'))->toBeTrue()
         ->and($mature('erotica'))->toBeTrue()
-        ->and($mature('dark-romance'))->toBeTrue()
-        ->and($mature('erotic-thriller'))->toBeTrue()
-        ->and($mature('splatterpunk'))->toBeTrue()
+        ->and($mature('forbidden-romance'))->toBeTrue()
+        ->and($mature('non-consensual-acts-depicted-in-fiction'))->toBeTrue()
         ->and($mature('romance'))->toBeFalse()
         ->and($mature('fantasy'))->toBeFalse()
         ->and($mature('slow-burn'))->toBeFalse()
         ->and(Genre::visible()->where('slug', 'erotica')->exists())->toBeFalse()
         ->and(Genre::visible(true)->where('slug', 'erotica')->exists())->toBeTrue();
 });
+
+test('a genre listed first elsewhere stays visible in its family, and the mature family still lists it', function (string $slug, string $primary) {
+    $genre = Genre::where('slug', $slug)->with(['parent', 'secondaryParents'])->sole();
+
+    expect($genre->is_mature)->toBeFalse()
+        ->and($genre->parent->slug)->toBe($primary)
+        ->and($genre->secondaryParents->pluck('slug')->all())->toBe(['mature-erotic-and-controversial-categories'])
+        ->and(Genre::visible()->where('slug', $slug)->exists())->toBeTrue();
+})->with([
+    'betrayal' => ['betrayal', 'drama-and-human-relationships'],
+    'dark romance' => ['dark-romance', 'romance'],
+    'villain romance' => ['villain-romance', 'romance'],
+    'obsessive romance' => ['obsessive-romance', 'romance'],
+    'erotic thriller' => ['erotic-thriller', 'mystery-crime-and-thriller'],
+    'splatterpunk' => ['splatterpunk', 'horror'],
+]);
 
 test('themes, tropes, demographics and warnings are seeded as their own facets', function () {
     expect(Theme::where('slug', 'found-family')->exists())->toBeTrue()
@@ -167,4 +182,27 @@ test('the vocabulary file holds every item of the spec', function () {
     }
 
     expect(count($expected))->toBe(5);
+});
+
+test('the data migration corrects a database seeded with the over-broad mature flag', function () {
+    Genre::whereIn('slug', ['dark-romance', 'betrayal', 'splatterpunk'])->update(['is_mature' => true]);
+    Genre::where('slug', 'erotica')->update(['is_mature' => false]);
+
+    (require database_path('migrations/2026_10_31_000001_limit_mature_flag_to_the_mature_family.php'))->up();
+
+    $mature = Genre::where('is_mature', true)->pluck('slug');
+
+    expect($mature)->not->toContain('dark-romance', 'betrayal', 'splatterpunk')
+        ->and($mature)->toContain('erotica', 'mature-erotic-and-controversial-categories')
+        ->and(Genre::where('is_mature', true)->count())->toBe(30)
+        ->and(Genre::where('parent_id', Genre::where('slug', 'mature-erotic-and-controversial-categories')->value('id'))->where('is_mature', false)->count())->toBe(0);
+});
+
+test('the data migration leaves the flags alone on a database without the mature family', function () {
+    Genre::where('slug', 'mature-erotic-and-controversial-categories')->update(['slug' => 'renamed']);
+    $before = Genre::where('is_mature', true)->count();
+
+    (require database_path('migrations/2026_10_31_000001_limit_mature_flag_to_the_mature_family.php'))->up();
+
+    expect(Genre::where('is_mature', true)->count())->toBe($before);
 });

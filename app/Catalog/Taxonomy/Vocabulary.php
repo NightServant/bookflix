@@ -15,7 +15,8 @@ use RuntimeException;
  * - Slugs are the slugified names and unique across the whole tree. A subgenre listed under several families ("Courtroom Drama", "Techno-Thriller")
  *   is one genre: the first listing in spec order is its primary parent (`parent_id`), and every later one under a different family is an
  *   extra parent link (`genre_secondary_parents`). Selecting either family includes it; nothing is stored twice.
- * - A genre listed anywhere in the mature section (19) is `is_mature`, wherever its primary parent is. The gate is conservative on purpose.
+ * - A genre is `is_mature` only when its primary parent is the mature family (section 19). One listed first elsewhere ("Betrayal" under Drama,
+ *   "Dark Romance" under Romance) stays visible in its own family; the mature family still lists it through its extra parent link while that family is visible.
  * - A name may appear once per facet: "Found Family" is a genre, a theme and a trope, three rows in three tables.
  */
 final class Vocabulary
@@ -94,8 +95,6 @@ final class Vocabulary
 
                 continue;
             }
-
-            $genres[$slug]['is_mature'] = $genres[$slug]['is_mature'] || $mature;
 
             if ($genres[$slug]['family'] !== $familySlug && ! in_array($familySlug, array_column($genres[$slug]['also'], 'family'), true)) {
                 $genres[$slug]['also'][] = ['family' => $familySlug, 'group' => $group, 'sort' => $position[$familySlug]];
