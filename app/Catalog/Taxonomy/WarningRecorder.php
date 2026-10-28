@@ -16,11 +16,12 @@ class WarningRecorder
 {
     /**
      * @param  list<string>  $slugs  Warning slugs; a slug missing from the vocabulary is created, named after itself.
+     * @param  bool  $respectLock  Leave a media whose warnings an admin locked alone (a provider sync does; moving the old list over does not).
      * @return int How many media/warning rows were inserted or changed.
      */
-    public function record(Media $media, array $slugs, WarningStatus $status, ?string $source = null): int
+    public function record(Media $media, array $slugs, WarningStatus $status, ?string $source = null, bool $respectLock = true): int
     {
-        if ($slugs === [] || in_array('content_warnings', $media->locked_fields, true)) {
+        if ($slugs === [] || ($respectLock && in_array('content_warnings', $media->locked_fields, true))) {
             return 0;
         }
 

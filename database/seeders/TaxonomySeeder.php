@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Catalog\Taxonomy\LegacyTaxonomyMigrator;
 use App\Catalog\Taxonomy\Vocabulary;
 use App\Models\ContentWarning;
 use App\Models\Demographic;
@@ -18,6 +19,9 @@ class TaxonomySeeder extends Seeder
      * Seed the genre tree, themes, tropes, demographics and content warnings from `database/data/taxonomy/vocabulary.csv`
      * (see App\Catalog\Taxonomy\Vocabulary for how listings become rows). Safe to run again: rows are matched on their slug,
      * and only names, structure and order are refreshed, so an edited description is kept and a row dropped from the file is left alone.
+     *
+     * It then moves the pre-taxonomy data over (LegacyTaxonomyMigrator): retired genre and theme slugs are re-pointed at the nodes that
+     * replaced them and the old content warning lists become present warnings. Nothing to move on a fresh database.
      */
     public function run(): void
     {
@@ -28,6 +32,8 @@ class TaxonomySeeder extends Seeder
             $this->upsertNamed(Demographic::class, Vocabulary::plain('demographic'), ['name', 'sort']);
             $this->upsertNamed(ContentWarning::class, Vocabulary::plain('warning'), ['name', 'sort']);
         });
+
+        app(LegacyTaxonomyMigrator::class)->run();
     }
 
     /**
