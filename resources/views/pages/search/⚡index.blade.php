@@ -174,7 +174,7 @@ new #[Title('Search')] class extends FilteredPage {
                 <button type="button" x-show="activeCount > 0 || dirty" style="display: none" @click="clear()" class="focus-ring -mx-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
             </div>
 
-            <div wire:ignore x-html="desktop ? panelHtml : ''" class="mt-2 max-h-[calc(100dvh-9rem)] overflow-y-auto overscroll-contain pe-2"></div>
+            <div wire:ignore data-filter-mount x-html="desktop ? panelHtml : ''" class="mt-2 max-h-[calc(100dvh-9rem)] overflow-y-auto overscroll-contain pe-2"></div>
         </aside>
 
         <div class="min-w-0">
@@ -195,7 +195,7 @@ new #[Title('Search')] class extends FilteredPage {
                             <span x-show="activeCount > 0" style="display: none" class="tabular-nums text-ink-subtle" wire:ignore><span aria-hidden="true" class="mx-1.5">·</span><span x-text="activeCount"></span><span class="sr-only"> {{ __('applied') }}</span></span>
                         </x-slot:badge>
 
-                        <div wire:ignore x-html="desktop ? '' : panelHtml"></div>
+                        <div wire:ignore data-filter-mount x-html="desktop ? '' : panelHtml"></div>
 
                         <x-slot:footer>
                             <div class="flex items-center gap-3">

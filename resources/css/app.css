@@ -262,16 +262,21 @@ html[data-hero-transition]::view-transition-new(hero-cover) {
 }
 
 .filter-check {
-    --filter-mark: none;
     @apply focus-ring relative size-5 shrink-0 cursor-pointer appearance-none rounded-control border border-border-input bg-surface-input;
 }
 
 .filter-check::after {
     content: '';
+    display: none;
     position: absolute;
     inset: 0;
     background-color: var(--color-canvas);
     mask: var(--filter-mark) center / 0.875rem no-repeat;
+}
+
+.filter-check:checked::after,
+.filter-check:indeterminate::after {
+    display: block;
 }
 
 .filter-check:checked,

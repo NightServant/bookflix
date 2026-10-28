@@ -58,6 +58,7 @@ export default function filterPanel(Alpine) {
         const meta = new Map();
         let media;
         let listen;
+        let leave;
 
         return {
             data: { types: [], genres: [], themes: [], tropes: [], demographics: [], ratings: [], warnings: [], statuses: [], languages: [], lengths: [], minRatings: [] },
@@ -80,6 +81,10 @@ export default function filterPanel(Alpine) {
                 listen = (event) => (this.desktop = event.matches);
                 media.addEventListener('change', listen);
 
+                // Livewire keeps a copy of the page for the back button, taken right after this event: without the panel built in it, the copy restores clean and the panel is built again.
+                leave = () => document.querySelectorAll('[data-filter-mount]').forEach((mount) => mount.replaceChildren());
+                document.addEventListener('livewire:navigating', leave);
+
                 this.draft = this.fromWire();
                 this.applied = this.fromWire();
                 this.reveal();
@@ -94,6 +99,7 @@ export default function filterPanel(Alpine) {
             destroy() {
                 clearTimeout(this.timer);
                 media?.removeEventListener('change', listen);
+                document.removeEventListener('livewire:navigating', leave);
             },
 
             // The tree as lookups: every slug (families and subgenres) with its name, parents, leaves and where it is listed.

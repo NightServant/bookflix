@@ -343,3 +343,17 @@ test('the result count is announced: a polite status region that changes with th
         ->click('[data-genre=litrpg]')->wait(1.5)
         ->assertScript($this->count, '1 story');
 });
+
+test('leaving the page and coming back with the back button builds the panel again, without errors', function () {
+    $page = visit(route('search', ['q' => 'dune']), $this->desktop)->wait(1);
+
+    $page->script('Livewire.navigate('.json_encode(route('discover')).')');
+    $page->wait(2)->assertSee('Find Stories')
+        ->script('history.back()');
+    $page->wait(2)
+        ->assertScript('document.querySelectorAll("aside [data-family-toggle]").length', 16)
+        ->click('[data-family-toggle][data-slug=fantasy]')
+        ->click('[data-genre=litrpg]')->wait(1.5)
+        ->assertScript($this->chips, 'LitRPG')
+        ->assertNoJavaScriptErrors();
+});

@@ -131,7 +131,7 @@
     <x-filter-section name="themes" :title="__('Themes')">
         <p class="mb-3 text-meta text-ink-subtle">{{ __('What a story explores, apart from its genre.') }}</p>
         <x-filter-search model="themes" :label="__('Search themes')" status="searchStatus('themes')" />
-        <div class="mt-2 max-h-72 overflow-y-auto overscroll-contain">
+        <div class="mt-2">
             <x-filter-checks model="themes" source="themes" search="themes" />
         </div>
     </x-filter-section>
@@ -139,7 +139,7 @@
     <x-filter-section name="tropes" :title="__('Tropes')">
         <p class="mb-3 text-meta text-ink-subtle">{{ __('Recurring story devices, searchable on their own.') }}</p>
         <x-filter-search model="tropes" :label="__('Search tropes')" status="searchStatus('tropes')" />
-        <div class="mt-2 max-h-72 overflow-y-auto overscroll-contain" @keydown="navigate($event)">
+        <div class="mt-2" @keydown="navigate($event)">
             <template x-for="group in tropeGroups" :key="group.name ?? ''">
                 <div role="group" :aria-label="group.name ?? @js(__('Tropes'))" class="pt-2">
                     <p x-show="group.name" x-text="group.name" class="px-2 pb-1 text-legal tracking-wide text-ink-subtle uppercase"></p>
@@ -173,7 +173,7 @@
         <p id="fp-warnings-help" class="text-meta text-ink">{{ __('Hide works with:') }}</p>
         <p class="mb-3 mt-1 text-meta text-ink-subtle">{{ __('Works whose warning status is unknown are not hidden: unknown does not mean absent.') }}</p>
         <x-filter-search model="warnings" :label="__('Search content warnings')" status="searchStatus('warnings')" />
-        <div class="mt-2 max-h-72 overflow-y-auto overscroll-contain" role="group" aria-labelledby="fp-warnings-help">
+        <div class="mt-2" role="group" aria-labelledby="fp-warnings-help">
             <x-filter-checks model="excludeWarnings" source="warnings" search="warnings" />
         </div>
     </x-filter-section>
