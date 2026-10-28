@@ -16,10 +16,11 @@ final readonly class NormalizedMedia
      * @param  list<string>  $genres  Raw provider terms; TaxonomyMapper resolves them.
      * @param  list<string>  $themes
      * @param  list<string>  $tags
+     * @param  list<string>  $demographics  Raw provider terms for the editorial demographic (shounen, seinen...); not an age rating.
      * @param  list<string>  $characters
      * @param  list<string>  $isbns  ISBN-13 only.
      * @param  array<string, string>  $crossIds  Other providers' ids, keyed by provider.
-     * @param  list<string>  $contentWarnings
+     * @param  list<string>  $contentWarnings  Raw provider terms the provider labels as content warnings.
      * @param  array<string, int|float>  $metrics  Popularity signals by name (popularity, favourites, follows, ratings_count, average_rating on a 0-5 scale, pageviews_30d).
      */
     public function __construct(
@@ -33,6 +34,7 @@ final readonly class NormalizedMedia
         public array $genres = [],
         public array $themes = [],
         public array $tags = [],
+        public array $demographics = [],
         public array $characters = [],
         public array $isbns = [],
         public array $crossIds = [],

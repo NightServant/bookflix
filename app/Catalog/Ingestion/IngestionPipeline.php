@@ -5,10 +5,13 @@ namespace App\Catalog\Ingestion;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Providers\MetadataProvider;
+use App\Catalog\Taxonomy\WarningRecorder;
 use App\Enums\ImportOutcome;
+use App\Enums\WarningStatus;
 use App\Jobs\ClassifyMedia;
 use App\Models\Character;
 use App\Models\Creator;
+use App\Models\Demographic;
 use App\Models\ExternalSource;
 use App\Models\Genre;
 use App\Models\Media;
@@ -18,6 +21,7 @@ use App\Models\Publisher;
 use App\Models\Series;
 use App\Models\Tag;
 use App\Models\Theme;
+use App\Models\Trope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +34,7 @@ class IngestionPipeline
         private TaxonomyMapper $taxonomy,
         private Deduplicator $deduplicator,
         private Enricher $enricher,
+        private WarningRecorder $warnings,
     ) {}
 
     /**
@@ -80,9 +85,11 @@ class IngestionPipeline
                 ['media_id' => $media->id, 'dewey_code' => $incoming->externalDeweyCode, 'source_url' => $incoming->sourceUrl, 'payload_hash' => $hash, 'last_synced_at' => now()],
             );
 
+            $mapped = $this->taxonomy->map($source->key, $incoming);
+
             $this->recordIsbns($media, $incoming, $hash);
-            $this->attachRelations($media, $incoming, $source->key);
-            $this->enricher->apply($media, $incoming, $source);
+            $this->attachRelations($media, $incoming, $mapped, $source->key);
+            $this->enricher->apply($media, $incoming, $source, $mapped->rating);
             $this->recordMetrics($media, $incoming, $source);
             $media->refreshSearchText();
             $this->deduplicator->recordCandidates($media, $candidates);
@@ -162,9 +169,9 @@ class IngestionPipeline
 
     /**
      * Add the record's creators, publishers, series, characters and mapped taxonomy to the media. Nothing is detached:
-     * terms from another provider stay.
+     * terms from another provider stay. A relation an admin locked (`locked_fields`) is left alone.
      */
-    private function attachRelations(Media $media, NormalizedMedia $incoming, string $provider): void
+    private function attachRelations(Media $media, NormalizedMedia $incoming, MappedTaxonomy $mapped, string $provider): void
     {
         foreach ($incoming->creators as $position => $creator) {
             DB::table('media_creators')->insertOrIgnore([
@@ -187,11 +194,21 @@ class IngestionPipeline
         $media->publishers()->syncWithoutDetaching($this->ids(Publisher::class, $this->named($incoming->publishers)));
         $media->characters()->syncWithoutDetaching($this->ids(Character::class, $this->named($incoming->characters)));
 
-        $mapped = $this->taxonomy->map($provider, $incoming);
+        $named = fn (array $slugs): array => array_combine($slugs, array_map(Str::headline(...), $slugs));
 
-        foreach (['genres' => Genre::class, 'themes' => Theme::class, 'tags' => Tag::class] as $relation => $model) {
-            $media->{$relation}()->syncWithoutDetaching($this->ids($model, array_combine($mapped[$relation], array_map(Str::headline(...), $mapped[$relation]))));
+        foreach ([
+            'genres' => [Genre::class, $named($mapped->genres)],
+            'themes' => [Theme::class, $named($mapped->themes)],
+            'tropes' => [Trope::class, $named($mapped->tropes)],
+            'demographics' => [Demographic::class, $named($mapped->demographics)],
+            'tags' => [Tag::class, $mapped->tags],
+        ] as $relation => [$model, $names]) {
+            if (! in_array($relation, $media->locked_fields, true)) {
+                $media->{$relation}()->syncWithoutDetaching($this->ids($model, $names));
+            }
         }
+
+        $this->warnings->record($media, $mapped->warnings, WarningStatus::Present, $provider);
     }
 
     /**

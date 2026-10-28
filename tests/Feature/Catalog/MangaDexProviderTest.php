@@ -1,6 +1,7 @@
 <?php
 
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Ingestion\MappedTaxonomy;
 use App\Catalog\Ingestion\TaxonomyMapper;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\ProviderUnavailable;
@@ -86,7 +87,7 @@ test('page maps titles, type, taxonomy, creators, links and urls', function () {
         ->and($media->coverUrl)->toBe('https://uploads.mangadex.org/covers/'.MD_ID.'/cover.jpg.512.jpg')
         ->and($media->sourceUrl)->toBe('https://mangadex.org/title/'.MD_ID)
         ->and($media->metrics)->toBe(['follows' => 320768, 'average_rating' => 4.66])
-        ->and($mapped)->toBe(['genres' => ['action'], 'themes' => ['isekai'], 'tags' => ['long-strip']])
+        ->and($mapped)->toEqual(new MappedTaxonomy(genres: ['action-and-adventure', 'isekai'], tags: ['long-strip' => 'Long Strip']))
         ->and($page->maxUpdatedAt->toIso8601String())->toBe('2026-10-01T10:00:00+00:00');
 });
 

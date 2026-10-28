@@ -35,6 +35,29 @@ enum AgeRating: string
     }
 
     /**
+     * How restrictive the rating is, for choosing the stricter of two: all ages and children are the least, adult the most, unknown below them all.
+     */
+    public function severity(): int
+    {
+        return match ($this) {
+            self::Unknown => -1,
+            self::All, self::Children => 0,
+            self::Teen => 2,
+            self::MatureTeen => 3,
+            self::Mature => 4,
+            self::Adult => 5,
+        };
+    }
+
+    /**
+     * The more restrictive of two ratings; an unknown one gives way to the other.
+     */
+    public function stricter(self $other): self
+    {
+        return $other->severity() > $this->severity() ? $other : $this;
+    }
+
+    /**
      * The ratings a reader can filter by: every case but Unknown.
      *
      * @return list<self>

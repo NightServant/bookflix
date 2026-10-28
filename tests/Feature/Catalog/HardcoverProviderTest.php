@@ -2,6 +2,7 @@
 
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
+use App\Catalog\Ingestion\MappedTaxonomy;
 use App\Catalog\Ingestion\TaxonomyMapper;
 use App\Catalog\Providers\Hardcover\HardcoverProvider;
 use App\Catalog\Providers\MissingProviderCredentials;
@@ -77,7 +78,7 @@ test('page maps a book to a novel with creators, series, taxonomy, isbn, metrics
         ->and($media->sourceUrl)->toBe('https://hardcover.app/books/dune')
         ->and($media->contentWarnings)->toBe(['Violence'])
         ->and($media->metrics)->toBe(['popularity' => 150000, 'follows' => 90000, 'ratings_count' => 40000, 'average_rating' => 4.28])
-        ->and(app(TaxonomyMapper::class)->map('hardcover', $media))->toBe(['genres' => ['science-fiction', 'fantasy'], 'themes' => [], 'tags' => ['adventurous', 'space-opera']])
+        ->and(app(TaxonomyMapper::class)->map('hardcover', $media))->toEqual(new MappedTaxonomy(genres: ['science-fiction', 'fantasy', 'space-opera'], warnings: ['violence'], tags: ['adventurous' => 'Adventurous']))
         ->and($page->maxUpdatedAt->toIso8601String())->toBe('2026-10-03T12:00:00+00:00');
 });
 

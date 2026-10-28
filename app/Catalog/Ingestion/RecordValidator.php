@@ -16,14 +16,15 @@ class RecordValidator
     private const MAX_LENGTH = 255;
 
     /**
-     * Whether a record is fit to store: a title, an external id, a media type we know, not adult (Q15),
-     * and names that fit their columns, so one oversized value skips the record instead of failing the import.
+     * Whether a record is fit to store: a title, an external id, a media type we know, not adult (Q15), no term that names sexual content
+     * involving minors, and names that fit their columns, so one oversized value skips the record instead of failing the import.
      */
     public function validate(ProviderRecord $record, NormalizedMedia $media): bool
     {
         return trim($media->title) !== ''
             && trim($record->externalId) !== ''
             && ! $media->isAdult
+            && ! ProhibitedContent::inRecord($media)
             && $this->fitsColumns($media)
             && MediaType::where('slug', $media->mediaTypeSlug)->exists();
     }
