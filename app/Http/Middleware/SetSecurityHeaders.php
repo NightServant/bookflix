@@ -12,9 +12,11 @@ class SetSecurityHeaders
     {
         $response = $next($request);
 
+        // `same-origin`: other sites get no Referer at all. Hotlink-protected cover hosts (MangaDex) answer a foreign Referer with a
+        // placeholder image, and the CSS backgrounds of the 3D books can't carry a per-image referrerpolicy.
         $response->headers->add([
             'X-Content-Type-Options' => 'nosniff',
-            'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            'Referrer-Policy' => 'same-origin',
             'X-Frame-Options' => 'DENY',
             'Permissions-Policy' => 'camera=(), microphone=(), geolocation=()',
         ]);
