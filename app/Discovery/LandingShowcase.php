@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Cache;
  * stay off a page anyone can open). One query when cold and none when warm; everything else is picked from the cached arrays, so a
  * decorative book never costs a query per visit. The hero's books, the cover pictures on the cards and the Top 10 all draw from it.
  *
- * @phpstan-type Cover array{id: int, title: string, cover: string, scene: string}
+ * @phpstan-type Cover array{id: int, title: string, cover: string, scene: string, popularity: float}
  */
 class LandingShowcase
 {
@@ -30,16 +30,17 @@ class LandingShowcase
      */
     public function pool(): array
     {
-        return Cache::remember('landing:pool:v1', now()->addMinutes(self::CACHE_MINUTES), fn (): array => array_values(Media::query()
+        return Cache::remember('landing:pool:v2', now()->addMinutes(self::CACHE_MINUTES), fn (): array => array_values(Media::query()
             ->trending()
             ->whereNotNull('media.cover_url')
             ->whereNot('media.age_rating', AgeRating::Adult->value)
             ->limit(self::POOL)
-            ->get(['media.id', 'media.title', 'media.cover_url'])
+            ->get(['media.id', 'media.title', 'media.cover_url', 'media.popularity_score'])
             ->map(fn (Media $media): array => [
                 'id' => $media->id,
                 'title' => $media->title,
                 'cover' => (string) $media->cover_url,
+                'popularity' => round((float) $media->popularity_score, 3),
                 'scene' => route('covers.show', ['media' => $media->id, 'v' => substr(sha1((string) $media->cover_url), 0, 8)], false),
             ])
             ->all()));

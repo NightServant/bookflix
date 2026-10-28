@@ -11,8 +11,7 @@
         id="top-10"
         data-section="top-ten"
         aria-labelledby="top-ten-title"
-        x-data="{ paused: false, reduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches }"
-        x-init="window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (event) => reduced = event.matches)"
+        x-data="landingMarquee"
         class="scroll-mt-16 py-16 lg:py-24"
     >
         <div class="mx-auto flex max-w-[100rem] flex-wrap items-end justify-between gap-x-8 gap-y-4 px-gutter">

@@ -48,6 +48,7 @@ test('a pool entry carries what a book needs and a relative proxy path for the s
         'id' => $story->id,
         'title' => 'Popular Tale 1',
         'cover' => 'https://s4.anilist.co/file/cover-1.png',
+        'popularity' => 1.0,
         'scene' => route('covers.show', ['media' => $story->id, 'v' => substr(sha1('https://s4.anilist.co/file/cover-1.png'), 0, 8)], false),
     ])->and($story->coverProxyUrl())->toBe(url(app(LandingShowcase::class)->pool()[0]['scene']));
 });
