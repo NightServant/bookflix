@@ -308,3 +308,266 @@
         animation: none;
     }
 }
+
+/*
+ * The walkthrough (components/landing/together.blade.php, resources/js/landing.js). Without the script, on a phone, and under reduced
+ * motion it is plain content: every statement above its own preview on a phone, a statement beside its preview on a wide screen, all of
+ * them on the page. The two wrappers are `display: contents`, so statements and previews are grid items of one grid and can interleave.
+ * Once the script has switched `data-live` on (wide screen, motion allowed) the wrappers become real boxes: the previews pin in one place
+ * and swap as the statements (each as tall as most of a screen) pass the middle of the viewport.
+ */
+.landing-walk {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem 0;
+}
+
+.landing-steps,
+.landing-previews {
+    display: contents;
+}
+
+.landing-step {
+    grid-column: 1;
+    grid-row: calc(var(--n) * 2 - 1);
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--color-hairline);
+}
+
+.landing-preview {
+    grid-column: 1;
+    grid-row: calc(var(--n) * 2);
+    margin-bottom: 2rem;
+}
+
+@media (min-width: 64rem) {
+    .landing-walk {
+        grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+        gap: 3rem 5rem;
+    }
+
+    .landing-step {
+        grid-row: var(--n);
+        align-self: start;
+    }
+
+    .landing-preview {
+        grid-column: 2;
+        grid-row: var(--n);
+        margin-bottom: 0;
+    }
+}
+
+.landing-walk[data-live] {
+    row-gap: 0;
+
+    .landing-steps {
+        display: block;
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .landing-previews {
+        position: sticky;
+        top: 7rem;
+        display: block;
+        grid-column: 2;
+        grid-row: 1;
+        align-self: start;
+        height: min(36rem, calc(100svh - 9rem));
+    }
+
+    .landing-step {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 72svh;
+        padding-block: 2rem;
+        border-top: 0;
+
+        /* The statements out of view step back in colour, not in opacity: every state still reads at 4.5:1 or better. */
+        h3,
+        p {
+            color: var(--color-ink-muted);
+            transition: color var(--motion-slow) var(--ease-out-bookflix);
+        }
+
+        &[data-current] {
+            h3 {
+                color: var(--color-ink);
+            }
+
+            p {
+                color: var(--color-ink-subtle);
+            }
+        }
+    }
+
+    .landing-preview {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        transform: translateY(1.25rem) scale(0.985);
+        transition: opacity var(--motion-slow) var(--ease-out-bookflix), transform var(--motion-slow) var(--ease-out-bookflix);
+
+        &[data-current] {
+            opacity: 1;
+            transform: none;
+        }
+    }
+}
+
+/* A preview frame: the product's own surface (deep, hairline, rounded) with a quiet title bar. A container, so what is inside scales with it. */
+.landing-frame {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    height: 100%;
+    padding: 1.5rem;
+    overflow: hidden;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-brand);
+    background: var(--color-surface-deep);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 5%, transparent);
+}
+
+.landing-frame__bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-hairline);
+    color: var(--color-ink-subtle);
+    font-size: var(--text-legal);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+/* Step 1: two rows of books standing on a shelf. */
+.landing-shelf {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-around;
+    gap: 1rem;
+}
+
+.landing-shelf__row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 3cqw 1.1cqw;
+    border-bottom: 3px solid color-mix(in srgb, var(--color-ink) 16%, var(--color-canvas));
+    box-shadow: 0 10px 14px -10px rgb(0 0 0 / 0.9);
+}
+
+/* Step 2: the class tree. A node is its code and its name, indented one step per level, with the open branch drawn in ink. */
+.landing-tree {
+    display: grid;
+    gap: 0.125rem;
+}
+
+.landing-tree--shut {
+    opacity: 0.55;
+}
+
+.landing-tree__node {
+    display: grid;
+    grid-template-columns: 4.25rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-inline-start: calc(var(--d) * 1.1rem);
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-control);
+    color: var(--color-ink);
+    font-size: var(--text-body);
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.landing-tree__node--here {
+    background: var(--color-surface-input);
+}
+
+.landing-tree__code {
+    color: var(--color-ink-subtle);
+    font-size: var(--text-meta);
+    font-variant-numeric: tabular-nums;
+}
+
+.landing-tree__covers {
+    display: flex;
+    gap: 2.4cqw;
+    margin: 0.6rem 0 0.4rem calc(3 * 1.1rem + 0.6rem + 4.25rem + 0.75rem);
+
+    @container (max-width: 26rem) {
+        margin-inline-start: 0.6rem;
+    }
+
+    img {
+        display: block;
+        width: 14cqw;
+        aspect-ratio: 2 / 3;
+        object-fit: cover;
+        border-radius: var(--radius-control);
+        background: var(--color-surface-card);
+        box-shadow: var(--shadow-raised);
+    }
+}
+
+/* Step 4 uses the same cover row, flush left under the chips. */
+.landing-frame > .landing-tree__covers {
+    margin: auto 0 0;
+}
+
+/* Step 3: a ranked list, each row a rank, a cover, a title and a bar. */
+.landing-ranked {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.landing-ranked__row {
+    display: grid;
+    grid-template-columns: 1.5rem 3.25rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.9rem;
+
+    img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 2 / 3;
+        object-fit: cover;
+        border-radius: var(--radius-control);
+        background: var(--color-surface-card);
+    }
+}
+
+.landing-ranked__rank {
+    color: var(--color-ink-subtle);
+    font-size: var(--text-lead);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.landing-ranked__bar {
+    margin-top: 0.5rem;
+    height: 0.25rem;
+    border-radius: 999px;
+    background: var(--color-surface-input);
+
+    span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--color-ink);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-walk[data-live] .landing-step h3,
+    .landing-walk[data-live] .landing-step p,
+    .landing-walk[data-live] .landing-preview {
+        transition: none;
+    }
+}
