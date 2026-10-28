@@ -227,3 +227,84 @@
         transform: none;
     }
 }
+
+/* The oversized statement the first argument section opens with: a running sentence, each clause on its own line and a step dimmer. */
+.landing-statement {
+    font-size: clamp(2.25rem, 5.6vw, 5.75rem);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+    color: var(--color-ink);
+
+    span {
+        display: block;
+    }
+}
+
+/*
+ * The heap: covers spilled across a square, each knocked off true, overlapping and a little dim, tagged with the place it lives.
+ * Drawn in container units like the hero's stage, so it scales as a whole. The drift is slow and tiny and stops under reduced motion.
+ */
+.landing-heap {
+    position: relative;
+    container-type: inline-size;
+    aspect-ratio: 1 / 1.02;
+}
+
+.landing-heap__item {
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    z-index: var(--z);
+    width: var(--w);
+    translate: -50% -50%;
+    rotate: var(--r);
+    animation: landing-drift calc(16s + var(--i) * 2.5s) ease-in-out infinite alternate;
+    animation-delay: calc(var(--i) * -3s);
+
+    img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 2 / 3;
+        object-fit: cover;
+        border-radius: var(--radius-card);
+        background: var(--color-surface-card);
+        box-shadow: var(--shadow-raised);
+        filter: brightness(0.78) saturate(0.85);
+    }
+}
+
+.landing-heap__tag {
+    position: absolute;
+    z-index: 20;
+    left: calc(var(--x) - var(--w) / 2 - 1.5cqw);
+    top: calc(var(--y) + var(--w) * 0.78);
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-control);
+    background: var(--color-canvas);
+    color: var(--color-ink-subtle);
+    font-size: var(--text-legal);
+    line-height: 1.2;
+    white-space: nowrap;
+    rotate: calc(var(--r) * -0.5);
+}
+
+/* A cover near the right edge hangs its tag from the cover's right edge, so it never leaves the heap. */
+.landing-heap__tag--end {
+    left: auto;
+    right: calc(100% - var(--x) - var(--w) / 2 - 1.5cqw);
+}
+
+@keyframes landing-drift {
+    to {
+        transform: translate(calc(var(--i) % 2 * 1.4cqw - 0.7cqw), -1.2cqw);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-heap__item {
+        animation: none;
+    }
+}

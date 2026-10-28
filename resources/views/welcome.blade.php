@@ -6,4 +6,5 @@
 >
     <x-landing.hero :books="$books" />
     <x-landing.top-ten :items="$topTen" />
+    <x-landing.scattered :covers="$covers" />
 </x-layouts::landing>
