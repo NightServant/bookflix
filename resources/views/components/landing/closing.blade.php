@@ -24,7 +24,7 @@
         <div class="landing-standing mt-16 lg:mt-24" aria-hidden="true">
             @foreach (array_slice($covers, 0, 9) as $index => $cover)
                 <div @class(['max-md:hidden' => $index >= 5])>
-                    <x-book-3d :src="$cover['cover']" :title="$cover['title']" tilt="-14deg" lazy style="--w: {{ $widths[$index] }}cqw" />
+                    <x-book-3d :src="$cover['cover']" :title="$cover['title']" tilt="-14deg" lazy style="--w: calc(var(--k, 1) * {{ $widths[$index] }}cqw)" />
                 </div>
             @endforeach
         </div>
