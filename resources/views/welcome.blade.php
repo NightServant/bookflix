@@ -8,4 +8,5 @@
     <x-landing.top-ten :items="$topTen" />
     <x-landing.scattered :covers="$covers" />
     <x-landing.together :covers="$covers" :top-ten="$topTen" />
+    <x-landing.faq />
 </x-layouts::landing>

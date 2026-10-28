@@ -571,3 +571,79 @@
         transition: none;
     }
 }
+
+/*
+ * The FAQ: stacked full-width buttons on the input gray, the answer in the same gray under a hairline of canvas, a plus that turns
+ * into a close. The panel opens by animating its grid row from 0fr to 1fr (no JavaScript height maths); closed, it is hidden from
+ * everything (visibility, delayed until the close has finished) so the answer is never read or tabbed into while shut.
+ */
+.landing-faq__item {
+    background: var(--color-surface-input);
+}
+
+.landing-faq__button {
+    display: flex;
+    width: 100%;
+    min-height: 4.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.1rem 1.5rem;
+    color: var(--color-ink);
+    font-size: clamp(1.125rem, 2.2vw, 1.5rem);
+    font-weight: 400;
+    line-height: 1.25;
+    text-align: start;
+    transition: background-color var(--motion-fast) var(--ease-out-bookflix);
+
+    &:hover {
+        background: var(--color-hairline);
+    }
+}
+
+.landing-faq__icon {
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    transition: transform var(--motion-base) var(--ease-out-bookflix);
+}
+
+.landing-faq__icon--open {
+    transform: rotate(45deg);
+}
+
+.landing-faq__panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows var(--motion-base) var(--ease-out-bookflix), visibility 0s linear var(--motion-base);
+
+    &[data-open] {
+        grid-template-rows: 1fr;
+        visibility: visible;
+        transition-delay: 0s;
+    }
+
+    > div {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    p {
+        margin-top: 1px;
+        padding: 1.25rem 1.5rem 1.5rem;
+        border-top: 1px solid var(--color-canvas);
+        color: var(--color-ink);
+        font-size: clamp(1.0625rem, 2vw, 1.375rem);
+        line-height: 1.5;
+        text-wrap: pretty;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-faq__icon,
+    .landing-faq__panel,
+    .landing-faq__button {
+        transition: none;
+    }
+}
