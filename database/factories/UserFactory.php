@@ -67,6 +67,14 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the reader turned on mature and adult titles and confirmed they are 18 or older.
+     */
+    public function showsMature(): static
+    {
+        return $this->afterCreating(fn (User $user) => $user->profile()->updateOrCreate([], ['show_mature' => true, 'adult_confirmed_at' => now()]));
+    }
+
+    /**
      * Indicate that the model has two-factor authentication configured.
      */
     public function withTwoFactor(): static
