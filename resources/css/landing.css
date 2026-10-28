@@ -647,3 +647,19 @@
         transition: none;
     }
 }
+
+/* The closing shelf: books standing in a row on a line, in container units like the hero's stage (five wider ones on a phone). */
+.landing-standing {
+    container-type: inline-size;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 6cqw 0.9cqw;
+    border-bottom: 4px solid color-mix(in srgb, var(--color-ink) 16%, var(--color-canvas));
+
+    @media (max-width: 47.99rem) {
+        .book3d {
+            --w: 15cqw;
+        }
+    }
+}

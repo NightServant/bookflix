@@ -9,4 +9,5 @@
     <x-landing.scattered :covers="$covers" />
     <x-landing.together :covers="$covers" :top-ten="$topTen" />
     <x-landing.faq />
+    <x-landing.closing :covers="array_reverse($covers)" />
 </x-layouts::landing>
