@@ -98,12 +98,36 @@ test('the hero shows seven books picked at random from the forty most popular, t
     $html = $this->get(route('landing'))->getContent();
 
     $books = landingTexts($html, '//section[@data-section="hero"]//*[contains(@class,"landing-book__float")]//*[@data-book-fallback]');
+    $slots = collect(iterator_to_array(htmlQuery($html, '//section[@data-section="hero"]//*[@data-slot]')))->map(fn (DOMElement $book): string => $book->getAttribute('data-slot'))->all();
 
     expect($books)->toHaveCount(7)->and(collect($books)->unique())->toHaveCount(7)
         ->and(collect($books)->diff($top))->toBeEmpty()
+        ->and($slots)->toBe(['0', '1', '2', '3', '4', '5', '6'])
         ->and(htmlQuery($html, '//section[@data-section="hero"]//*[@data-scene-cover]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//section[@data-section="hero"]//*[@data-scene-cover]/ancestor::*[contains(@class,"landing-book")]')->item(0)?->getAttribute('style'))->toContain('--z: 50')
+        ->and(htmlQuery($html, '//section[@data-section="hero"]//*[@data-scene-cover]/ancestor::*[contains(@class,"landing-book")]')->item(0)?->getAttribute('data-slot'))->toBe('0')
         ->and(htmlQuery($html, '//section[@data-section="hero"]//*[@data-scene-cover]')->item(0)?->getAttribute('data-scene-cover'))->toStartWith('/covers/');
+});
+
+test('the hero has no links or buttons of its own, and its copy is centred', function () {
+    popularStories(45);
+
+    $html = $this->get(route('landing'))->getContent();
+
+    expect(htmlQuery($html, '//section[@data-section="hero"]//a | //section[@data-section="hero"]//button | //section[@data-section="hero"]//*[@href or @tabindex]')->length)->toBe(0)
+        ->and(landingTexts($html, '//section[@data-section="hero"]//h1'))->toBe(['Your Library. Every Story.'])
+        ->and(htmlQuery($html, '//section[@data-section="hero"]//*[contains(@class,"landing-hero__copy")][contains(@class,"text-center")]//h1')->length)->toBe(1)
+        ->and(htmlQuery($html, '//section[@data-section="hero"]//*[contains(@class,"landing-hero__copy")]/p')->length)->toBe(2)
+        ->and(landingTexts($html, '//section[@data-section="hero"]//*[contains(@class,"landing-hero__copy")]/p')[1])->toStartWith('Bookflix keeps every comic, manga, novel and webcomic');
+});
+
+test('the hero names three of its books in a caption under the stage, and no title in it is long', function () {
+    popularStories(45);
+
+    $caption = landingTexts($this->get(route('landing'))->getContent(), '//section[@data-section="hero"]//p[contains(@class,"landing-hero__caption")]');
+
+    expect($caption)->toHaveCount(1)
+        ->and($caption[0])->toStartWith('Popular right now: Popular Tale ')
+        ->and(substr_count($caption[0], 'Popular Tale '))->toBe(3);
 });
 
 test('the hero picks other books on another visit', function () {
@@ -147,17 +171,15 @@ test('the FAQ is exactly five questions, each a button over a region it names', 
     }
 });
 
-test('the call to action buttons go to register and login', function () {
+test('the call to action buttons go to register and login: the header, the closing section and the footer, never the hero', function () {
     popularStories(12);
 
     $html = $this->get(route('landing'))->getContent();
 
-    foreach (['hero', 'closing'] as $section) {
-        expect(htmlQuery($html, "//section[@data-section='{$section}']//a[@href='".route('register')."']")->length)->toBe(1)
-            ->and(htmlQuery($html, "//section[@data-section='{$section}']//a[@href='".route('login')."']")->length)->toBe(1);
-    }
-
-    expect(htmlQuery($html, '//header//a[@href="'.route('login').'"]')->length)->toBe(1)
+    expect(htmlQuery($html, "//section[@data-section='hero']//a[@href='".route('register')."' or @href='".route('login')."']")->length)->toBe(0)
+        ->and(htmlQuery($html, "//section[@data-section='closing']//a[@href='".route('register')."']")->length)->toBe(1)
+        ->and(htmlQuery($html, "//section[@data-section='closing']//a[@href='".route('login')."']")->length)->toBe(1)
+        ->and(htmlQuery($html, '//header//a[@href="'.route('login').'"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//header//a[@href="'.route('register').'"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//footer//a[@href="'.route('register').'"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//footer//a[@href="'.route('login').'"]')->length)->toBe(1);

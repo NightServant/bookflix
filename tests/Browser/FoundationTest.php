@@ -11,7 +11,7 @@ beforeEach(function () {
 
 test('the landing page links through to the login page', function () {
     visit(route('landing'))
-        ->click('[data-section=hero] a[href$="/login"]')
+        ->click('header a[href$="/login"]')
         ->assertPathIs('/login')
         ->assertNoJavaScriptErrors();
 });
