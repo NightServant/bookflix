@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A genre family (no parent: Fantasy, Romance...) or a subgenre of one. Selecting a family includes everything below it;
@@ -85,6 +86,42 @@ class Genre extends Model
     public static function slugArray(array $slugs): string
     {
         return '{'.implode(',', array_map(fn (string $slug): string => '"'.addcslashes(str_replace("\0", '', $slug), '\\"').'"', $slugs)).'}';
+    }
+
+    /**
+     * How many live stories each genre family has, counting its subgenres and the ones linked under it: `[family id => count]`, biggest first.
+     * A story in several subgenres of one family counts once for it. Mature-gated families are left out unless asked for.
+     *
+     * @return array<int, int>
+     */
+    public static function familyCounts(bool $includeMature = false): array
+    {
+        $rows = DB::select(<<<'SQL'
+            with recursive edges(parent_id, genre_id) as (
+                select parent_id, id from genres where parent_id is not null
+                union all
+                select parent_id, genre_id from genre_secondary_parents
+            ),
+            tree(root_id, genre_id) as (
+                select id, id from genres where parent_id is null and (is_mature = false or ?)
+                union
+                select tree.root_id, edges.genre_id from tree join edges on edges.parent_id = tree.genre_id
+            )
+            select tree.root_id as id, count(distinct media_genres.media_id) as media_count
+            from tree
+            join media_genres on media_genres.genre_id = tree.genre_id
+            join media on media.id = media_genres.media_id and media.merged_into_id is null and media.deleted_at is null
+            group by tree.root_id
+            order by media_count desc, tree.root_id
+            SQL, [$includeMature ? 't' : 'f']);
+
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $counts[(int) $row->id] = (int) $row->media_count;
+        }
+
+        return $counts;
     }
 
     /**

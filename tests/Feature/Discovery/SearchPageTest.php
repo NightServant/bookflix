@@ -8,6 +8,7 @@ use App\Models\SearchQuery;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
+use Database\Seeders\TaxonomySeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -361,4 +362,43 @@ test('the no-results and throttled states each show the tilted book and a way ou
     $throttled = Livewire::test('pages::search.index')->set('q', 'berserk')->html();
     expect(htmlQuery($throttled, '//*[@data-book-3d]')->length)->toBe(1)
         ->and(htmlQuery($throttled, '//button[@*[name()="wire:click"]="$refresh"][normalize-space()="Try again"]')->length)->toBe(1);
+});
+
+test('the genre control offers the families, and a subgenre chosen from a story page still shows as a chip', function () {
+    $this->seed(TaxonomySeeder::class);
+    $isekai = Media::factory()->manga()->create(['title' => 'Isekai Hero']);
+    $isekai->genres()->attach(Genre::where('slug', 'isekai')->first());
+    Media::factory()->manga()->create(['title' => 'Unrelated']);
+    $this->actingAs(User::factory()->create());
+
+    $page = Livewire::withQueryParams(['filters' => ['genres' => ['isekai']]])->test('pages::search.index');
+    $genres = $page->get('facets')['genres'];
+
+    expect($genres)->toHaveKey('fantasy')->toHaveKey('mystery-crime-and-thriller')->toHaveKey('isekai')->not->toHaveKey('litrpg')
+        ->and(count($genres))->toBe(17);
+
+    $page->assertSee('Isekai Hero')->assertDontSee('Unrelated')->assertSee('Remove filter Isekai');
+});
+
+test('selecting a family in the search page includes its subgenres', function () {
+    $this->seed(TaxonomySeeder::class);
+    Media::factory()->manga()->create(['title' => 'Isekai Hero'])->genres()->attach(Genre::where('slug', 'isekai')->first());
+    Media::factory()->manga()->create(['title' => 'Courtroom'])->genres()->attach(Genre::where('slug', 'courtroom-drama')->first());
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test('pages::search.index')->set('filters.genres', ['fantasy'])->assertSee('Isekai Hero')->assertDontSee('Courtroom');
+});
+
+test('an old bookmarked genre or theme slug is upgraded to the node that replaced it, and its chip can be removed', function () {
+    $this->seed(TaxonomySeeder::class);
+    Media::factory()->manga()->create(['title' => 'Action Story'])->genres()->attach(Genre::where('slug', 'action-and-adventure')->first());
+    Media::factory()->manga()->create(['title' => 'School Story'])->genres()->attach(Genre::where('slug', 'school-life')->first());
+    $this->actingAs(User::factory()->create());
+
+    $page = Livewire::withQueryParams(['filters' => ['genres' => ['action'], 'themes' => ['school']]])->test('pages::search.index');
+
+    $page->assertSet('filters.genres', ['action-and-adventure', 'school-life'])->assertSet('filters.themes', [])
+        ->assertSee('Remove filter Action and Adventure')
+        ->call('removeFilter', 'genres', 'action-and-adventure')
+        ->assertSet('filters.genres', ['school-life']);
 });

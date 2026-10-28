@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Catalog\Taxonomy\LegacyTaxonomyMigrator;
 use App\Catalog\Taxonomy\Vocabulary;
+use App\Discovery\Search\TaxonomyFacets;
 use App\Models\ContentWarning;
 use App\Models\Demographic;
 use App\Models\Genre;
@@ -34,6 +35,8 @@ class TaxonomySeeder extends Seeder
         });
 
         app(LegacyTaxonomyMigrator::class)->run();
+
+        TaxonomyFacets::flush();
     }
 
     /**

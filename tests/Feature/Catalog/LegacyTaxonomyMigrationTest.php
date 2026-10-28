@@ -1,5 +1,6 @@
 <?php
 
+use App\Catalog\Taxonomy\LegacySlugs;
 use App\Catalog\Taxonomy\LegacyTaxonomy;
 use App\Catalog\Taxonomy\LegacyTaxonomyMigrator;
 use App\Enums\WarningStatus;
@@ -126,11 +127,27 @@ test('a retired slug stays until its target is seeded, so no data is dropped on 
     expect($media->genres()->pluck('slug')->all())->toBe(['action']);
 });
 
-test('old filter slugs are upgraded to the nodes that replaced them', function () {
-    expect(LegacyTaxonomy::upgrade(['genres' => ['action', 'fantasy'], 'themes' => ['school', 'war', 'politics']]))
+test('old filter slugs are upgraded to the nodes that replaced them once the old rows are gone', function () {
+    $this->seed(TaxonomySeeder::class);
+
+    expect(app(LegacySlugs::class)->upgrade(['genres' => ['action', 'fantasy'], 'themes' => ['school', 'war', 'politics']]))
         ->toBe(['genres' => ['action-and-adventure', 'fantasy', 'school-life'], 'themes' => ['war', 'political-intrigue']])
-        ->and(LegacyTaxonomy::upgrade(['genres' => ['ecchi']]))->toBe(['genres' => ['ecchi'], 'themes' => []])
-        ->and(LegacyTaxonomy::resolve('genre', 'fantasy'))->toBeNull();
+        ->and(app(LegacySlugs::class)->upgrade(['genres' => ['ecchi'], 'themes' => []]))->toBe(['genres' => ['ecchi'], 'themes' => []])
+        ->and(LegacyTaxonomy::resolve('genre', 'fantasy'))->toBeNull()
+        ->and(LegacyTaxonomy::genreSlug('action'))->toBe('action-and-adventure')
+        ->and(LegacyTaxonomy::genreSlug('ecchi'))->toBe('ecchi');
+});
+
+test('a retired slug that still has a row is left alone, and nothing is queried for current slugs', function () {
+    Genre::factory()->create(['slug' => 'action']);
+
+    DB::enableQueryLog();
+    $untouched = app(LegacySlugs::class)->upgrade(['genres' => ['fantasy', 'isekai'], 'themes' => ['war']]);
+    $queries = count(DB::getQueryLog());
+    $kept = app(LegacySlugs::class)->upgrade(['genres' => ['action'], 'themes' => []]);
+
+    expect($untouched)->toBe(['genres' => ['fantasy', 'isekai'], 'themes' => ['war']])->and($queries)->toBe(0)
+        ->and($kept)->toBe(['genres' => ['action'], 'themes' => []]);
 });
 
 test('every retired slug points at a node of the vocabulary', function () {

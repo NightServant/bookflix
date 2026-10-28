@@ -51,29 +51,13 @@ final class LegacyTaxonomy
     }
 
     /**
-     * Filter slugs rewritten to the nodes that replaced them, as `[facet => slugs]`: a retired genre slug is the genre that replaced it, a retired
-     * theme slug the genre (or theme) that replaced it. A slug that points at a warning or a tag has no filter to move to, so it stays as it is and matches nothing, rather than silently widening the search.
-     *
-     * @param  array<string, list<string>>  $filters  `genres` and `themes` lists.
-     * @return array{genres: list<string>, themes: list<string>}
+     * The genre slug a genre slug stands for now: itself when it is current, the genre that replaced it when it is retired.
+     * A retired genre that became a warning or tag stays as it is (it matches no genre).
      */
-    public static function upgrade(array $filters): array
+    public static function genreSlug(string $slug): string
     {
-        $upgraded = ['genres' => [], 'themes' => []];
+        $target = self::resolve('genre', $slug);
 
-        foreach (['genre' => 'genres', 'theme' => 'themes'] as $kind => $facet) {
-            foreach ($filters[$facet] ?? [] as $slug) {
-                $target = self::resolve($kind, $slug);
-
-                match (true) {
-                    $target === null => $upgraded[$facet][] = $slug,
-                    $target['kind'] === 'genre' => $upgraded['genres'][] = $target['slug'],
-                    $target['kind'] === 'theme' => $upgraded['themes'][] = $target['slug'],
-                    default => $upgraded[$facet][] = $slug,
-                };
-            }
-        }
-
-        return ['genres' => array_values(array_unique($upgraded['genres'])), 'themes' => array_values(array_unique($upgraded['themes']))];
+        return $target !== null && $target['kind'] === 'genre' ? $target['slug'] : $slug;
     }
 }
