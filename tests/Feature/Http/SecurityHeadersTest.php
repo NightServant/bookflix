@@ -5,9 +5,13 @@ use App\Models\User;
 test('security headers are present', function () {
     $this->get(route('landing'))
         ->assertHeader('X-Content-Type-Options', 'nosniff')
-        ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+        ->assertHeader('Referrer-Policy', 'same-origin')
         ->assertHeader('X-Frame-Options', 'DENY')
         ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+});
+
+test('no page sends its address to another site, so hotlink-protected covers (MangaDex) are served, not their placeholder', function () {
+    $this->get(route('landing'))->assertHeader('Referrer-Policy', 'same-origin');
 });
 
 test('headers and request id also cover the deactivated-account redirect', function () {
