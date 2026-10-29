@@ -312,7 +312,7 @@ test('a score that is not a whole number from 1 to 10 is refused by the controls
     Livewire::test('library-controls', ['media' => Media::factory()->create()])->set('rating', $value)->call('saveRating')->assertHasErrors(['rating']);
 
     expect(Rating::count())->toBe(0);
-})->with([0, 11, -1, 5.5, 'abc', '', null, [[3]], '7; drop table ratings']);
+})->with([0, 11, -1, 5.5, 'abc', '', null, [[3]], '7; drop table ratings', true]);
 
 test('clearing from the controls removes only the readers own rating', function () {
     $media = Media::factory()->create();
