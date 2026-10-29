@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\Visibility;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -31,6 +32,10 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
+
+        // A reader's library is theirs; others (guests too) may see it only when its owner made it public and is still active. Phase 10 builds the public page on this.
+        Gate::define('view-library', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
+            || ($owner->profile->library_visibility === Visibility::Public && ! $owner->isDeactivated()));
 
         foreach (config('bookflix.providers') as $key => $provider) {
             if ($provider['class'] === null) {

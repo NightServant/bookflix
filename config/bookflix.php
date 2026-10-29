@@ -59,6 +59,7 @@ return [
         ['label' => 'Home', 'icon' => 'home', 'route' => 'home', 'active' => ['home']],
         ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'discover', 'active' => ['discover', 'explore.*']],
         ['label' => 'Search', 'icon' => 'magnifying-glass', 'route' => 'search', 'active' => ['search'], 'desktop' => false],
+        ['label' => 'Library', 'icon' => 'book-open', 'route' => 'library.index', 'active' => ['library.*', 'collections.*', 'history.*']],
         ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit']],
     ],
 

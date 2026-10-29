@@ -20,6 +20,7 @@ dataset('signed in pages', [
     'discover' => fn () => route('discover'),
     'explore' => fn () => route('explore.index'),
     'search' => fn () => route('search'),
+    'library' => fn () => route('library.index'),
     'profile settings' => fn () => route('profile.edit'),
     'privacy settings' => fn () => route('privacy.edit'),
 ]);

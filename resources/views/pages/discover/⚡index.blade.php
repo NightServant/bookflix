@@ -358,7 +358,7 @@ new #[Title('Discover')] class extends FilteredPage {
     $total = $this->types->sum('stories_count');
     $hasCatalog = $total > 0;
     $quickLinks = collect([
-        ['label' => __('Continue reading'), 'route' => 'library', 'icon' => 'book-open'],
+        ['label' => __('My library'), 'route' => 'library.index', 'icon' => 'book-open'],
         ['label' => __('My collections'), 'route' => 'collections.index', 'icon' => 'rectangle-stack'],
     ])->filter(fn (array $link): bool => Route::has($link['route']))->values()->all();
 @endphp
