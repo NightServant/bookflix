@@ -37,6 +37,17 @@ test('adding twice keeps one row and one library_add', function () {
         ->and(UserInteraction::where('event', 'library_add')->count())->toBe(1);
 });
 
+test('the surface a story is added from is kept in the interaction context, and only the keys the recorder allows', function () {
+    $user = User::factory()->create();
+    [$added, $moved] = Media::factory()->count(2)->create();
+
+    app(AddToLibrary::class)->handle($user, $added, ReadingStatus::Completed, ['surface' => 'onboarding', 'ip' => '10.0.0.1']);
+    app(SetLibraryStatus::class)->handle($user, $moved, ReadingStatus::Reading, ['surface' => 'import']);
+    app(AddToLibrary::class)->handle($user, $added, ReadingStatus::Completed, ['surface' => 'again']);
+
+    expect(UserInteraction::orderBy('id')->get()->map(fn (UserInteraction $row) => $row->context)->all())->toBe([['surface' => 'onboarding'], ['surface' => 'import']]);
+});
+
 test('adding is idempotent: a second add with another status leaves the entry as it was', function () {
     $user = User::factory()->create();
     $media = Media::factory()->create();

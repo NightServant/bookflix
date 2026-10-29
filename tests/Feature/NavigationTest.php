@@ -20,7 +20,7 @@ test('the profile item is current on every settings page', function (string $rou
         ->and($navs['bottom'])
         ->toMatch('#<a\s+href="'.$profile.'"[^>]*aria-current="page"#')
         ->not->toMatch('#<a\s+href="'.$home.'"[^>]*aria-current="page"#');
-})->with(['profile.edit', 'security.edit', 'privacy.edit']);
+})->with(['profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']);
 
 test('the discover item is current on every explore page', function (string $routeName, array $parameters) {
     $this->seed(DeweySeeder::class);

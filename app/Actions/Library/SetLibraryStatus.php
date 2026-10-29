@@ -22,12 +22,15 @@ class SetLibraryStatus
         private readonly InteractionRecorder $interactions,
     ) {}
 
-    public function handle(User $user, Media $media, ReadingStatus $status): LibraryEntry
+    /**
+     * @param  array<string, mixed>  $context  where the change came from, kept on the library_add when this adds the story (see AddToLibrary)
+     */
+    public function handle(User $user, Media $media, ReadingStatus $status, array $context = []): LibraryEntry
     {
         $entry = LibraryEntry::where('user_id', $user->id)->where('media_id', $media->id)->first();
 
         if ($entry === null) {
-            $entry = $this->add->handle($user, $media, $status);
+            $entry = $this->add->handle($user, $media, $status, $context);
             $status === ReadingStatus::Abandoned && $this->interactions->record($user, InteractionEvent::Abandon, $media);
 
             return $entry;

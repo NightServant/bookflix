@@ -7,12 +7,12 @@ use App\Models\User;
 use App\Notifications\DataExportReady;
 use Generator;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 use ZipArchive;
@@ -130,19 +130,33 @@ class ExportUserData implements ShouldQueue
     }
 
     /**
-     * The reader's saved tastes. The table arrives with onboarding (Phase 5.8), so until it exists the file is an empty list. 5.8 replaces the raw
-     * rows with labelled ones (the genre, theme or type a row points at) here, in this method.
+     * The reader's saved tastes, each one labelled with what it points at: its kind (the morph alias: `genre`, `theme`, `media_type`...), the slug
+     * and name of the genre, theme, format or creator, and the weight. All of their rows, including a mature genre chosen while they could see
+     * them; one whose target has been deleted since has no slug or name. A reader holds a few dozen at most, so they are read at once.
      *
      * @return Generator<int, array<string, mixed>>
      */
     private function preferences(User $user): Generator
     {
-        if (! Schema::hasTable('user_preferences')) {
-            return;
-        }
+        $rows = DB::table('user_preferences')->where('user_id', $user->id)->orderBy('id')->get();
 
-        foreach (DB::table('user_preferences')->where('user_id', $user->id)->cursor() as $row) {
-            yield Arr::except((array) $row, ['user_id']);
+        $labels = $rows->groupBy('preferable_type')->map(function (Collection $group, string $type): Collection {
+            $class = Relation::getMorphedModel($type);
+
+            return $class === null
+                ? collect()
+                : DB::table((new $class)->getTable())->whereIn('id', $group->pluck('preferable_id'))->get(['id', 'slug', 'name'])->keyBy('id');
+        });
+
+        foreach ($rows as $row) {
+            $target = $labels->get($row->preferable_type)?->get($row->preferable_id);
+
+            yield [
+                'type' => $row->preferable_type,
+                'slug' => $target?->slug,
+                'name' => $target?->name,
+                'weight' => $row->weight,
+            ];
         }
     }
 

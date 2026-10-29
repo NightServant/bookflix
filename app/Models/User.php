@@ -126,6 +126,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->hasMany(Rating::class);
     }
 
+    /**
+     * What the reader said they like (see App\Actions\Preferences\SavePreferences for the only writer).
+     *
+     * @return HasMany<UserPreference, $this>
+     */
+    public function preferences(): HasMany
+    {
+        return $this->hasMany(UserPreference::class);
+    }
+
     public function isDeactivated(): bool
     {
         return $this->deactivated_at !== null;

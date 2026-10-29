@@ -5,6 +5,7 @@
 @php
     $items = [
         ['route' => 'profile.edit', 'icon' => 'user-circle', 'label' => __('Profile')],
+        ['route' => 'preferences.edit', 'icon' => 'sparkles', 'label' => __('Preferences')],
         ['route' => 'privacy.edit', 'icon' => 'eye', 'label' => __('Privacy')],
         ['route' => 'security.edit', 'icon' => 'shield-check', 'label' => __('Security')],
     ];

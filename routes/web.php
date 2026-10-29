@@ -14,7 +14,9 @@ Route::post('start', [LandingController::class, 'start'])->middleware('throttle:
 Route::get('covers/{media}', [CoverController::class, 'show'])->middleware('throttle:120,1')->name('covers.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::livewire('home', 'pages::home.index')->name('home');
+    // The one page a reader who has not onboarded is sent away from; everything else stays open to them (see EnsureOnboarded).
+    Route::livewire('home', 'pages::home.index')->middleware('onboarded')->name('home');
+    Route::livewire('onboarding', 'pages::onboarding.index')->name('onboarding');
     Route::livewire('search', 'pages::search.index')->name('search');
     Route::livewire('discover', 'pages::discover.index')->name('discover');
     Route::livewire('explore', 'pages::explore.index')->name('explore.index');

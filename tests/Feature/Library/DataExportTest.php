@@ -5,21 +5,24 @@ use App\Enums\ReadingStatus;
 use App\Jobs\ExportUserData;
 use App\Models\Collection;
 use App\Models\CollectionItem;
+use App\Models\Creator;
+use App\Models\Genre;
 use App\Models\LibraryEntry;
 use App\Models\Media;
-use App\Models\Profile;
+use App\Models\MediaType;
 use App\Models\Rating;
 use App\Models\ReadingProgress;
 use App\Models\ReadingSession;
+use App\Models\Theme;
 use App\Models\User;
 use App\Models\UserInteraction;
+use App\Models\UserPreference;
 use App\Notifications\DataExportReady;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
@@ -32,7 +35,8 @@ const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'colle
 function exportFixture(string $label = 'Mine'): User
 {
     $user = User::factory()->create(['name' => "{$label} Reader", 'email' => strtolower($label).'-reader@example.test']);
-    Profile::factory()->for($user)->create(['bio' => "{$label} bio", 'avatar_path' => "avatars/{$user->id}/secret-name.jpg"]);
+    $user->profile()->updateOrCreate([], ['bio' => "{$label} bio", 'avatar_path' => "avatars/{$user->id}/secret-name.jpg"]);
+    UserPreference::factory()->for($user)->create(['preferable_type' => 'genre', 'preferable_id' => Genre::factory()->create(['name' => "{$label} Genre", 'slug' => strtolower($label).'-genre'])->id]);
 
     $story = Media::factory()->create(['title' => "{$label} Story"]);
     $gated = matureStory("{$label} Gated Tale");
@@ -123,7 +127,7 @@ test('the export zip holds the eight files, with every one of the readers own ro
         ->and($files['progress.json'])->toHaveCount(1)
         ->and($files['history.json'])->toHaveCount(2)
         ->and($files['interactions.json'])->toHaveCount(1)
-        ->and($files['preferences.json'])->toBe([]);
+        ->and($files['preferences.json'])->toBe([['type' => 'genre', 'slug' => 'mine-genre', 'name' => 'Mine Genre', 'weight' => 1]]);
 
     $text = exportText($user);
     expect($text)->not->toContain('Theirs')->not->toContain($other->email)->not->toContain("avatars/{$other->id}")
@@ -210,20 +214,36 @@ test('a long history is written in pieces and still reads back whole', function 
     expect(exportContents($user)['interactions.json'])->toHaveCount(1250);
 });
 
-test('preferences are included once the user_preferences table exists', function () {
+test('preferences are labelled rows: the kind, slug, name and weight of what each one points at, and only the readers own', function () {
     $user = User::factory()->create();
-    Schema::create('user_preferences', function ($table) {
-        $table->id();
-        $table->foreignId('user_id');
-        $table->string('kind');
-        $table->string('value');
-    });
-    DB::table('user_preferences')->insert([['user_id' => $user->id, 'kind' => 'genre', 'value' => 'isekai'], ['user_id' => $user->id + 1000, 'kind' => 'genre', 'value' => 'someone-elses']]);
+    $other = User::factory()->create();
+    $genre = Genre::factory()->create(['name' => 'Isekai', 'slug' => 'isekai']);
+    $mature = Genre::factory()->mature()->create(['name' => 'Mature Family', 'slug' => 'mature-family']);
+    $theme = Theme::factory()->create(['name' => 'Found Family', 'slug' => 'found-family']);
+    $type = MediaType::factory()->create(['name' => 'Manga', 'slug' => 'manga']);
+    $creator = Creator::factory()->create(['name' => 'Naoki Urasawa', 'slug' => 'naoki-urasawa']);
+    $gone = Genre::factory()->create();
+
+    foreach ([['media_type', $type->id, 3], ['genre', $genre->id, 1], ['genre', $mature->id, 1], ['theme', $theme->id, 2], ['creator', $creator->id, 1], ['genre', $gone->id, 1]] as [$kind, $id, $weight]) {
+        UserPreference::factory()->for($user)->create(['preferable_type' => $kind, 'preferable_id' => $id, 'weight' => $weight]);
+    }
+
+    UserPreference::factory()->for($other)->create(['preferable_type' => 'genre', 'preferable_id' => Genre::factory()->create(['name' => 'Someone Elses', 'slug' => 'someone-elses'])->id]);
+    $gone->delete();
 
     (new ExportUserData($user->id))->handle();
 
-    $preferences = exportContents($user)['preferences.json'];
-    expect($preferences)->toHaveCount(1)->and($preferences[0])->toMatchArray(['kind' => 'genre', 'value' => 'isekai'])->and(exportText($user))->not->toContain('someone-elses');
+    $preferences = collect(exportContents($user)['preferences.json']);
+
+    expect($preferences)->toHaveCount(6)
+        ->and($preferences->map(fn (array $row) => array_keys($row))->unique()->all())->toBe([['type', 'slug', 'name', 'weight']])
+        ->and($preferences->firstWhere('type', 'media_type'))->toBe(['type' => 'media_type', 'slug' => 'manga', 'name' => 'Manga', 'weight' => 3])
+        ->and($preferences->firstWhere('slug', 'isekai'))->toBe(['type' => 'genre', 'slug' => 'isekai', 'name' => 'Isekai', 'weight' => 1])
+        ->and($preferences->firstWhere('slug', 'mature-family'))->not->toBeNull() // behind the gate, still the reader's own
+        ->and($preferences->firstWhere('type', 'theme'))->toBe(['type' => 'theme', 'slug' => 'found-family', 'name' => 'Found Family', 'weight' => 2])
+        ->and($preferences->firstWhere('type', 'creator'))->toBe(['type' => 'creator', 'slug' => 'naoki-urasawa', 'name' => 'Naoki Urasawa', 'weight' => 1])
+        ->and($preferences->firstWhere('slug', null))->toBe(['type' => 'genre', 'slug' => null, 'name' => null, 'weight' => 1]) // its genre was deleted since
+        ->and(exportText($user))->not->toContain('Someone Elses')->not->toContain('someone-elses');
 });
 
 test('the reader is mailed a link that expires after 24 hours', function () {

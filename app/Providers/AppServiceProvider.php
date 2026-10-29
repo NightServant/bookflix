@@ -3,10 +3,17 @@
 namespace App\Providers;
 
 use App\Enums\Visibility;
+use App\Models\Creator;
+use App\Models\Demographic;
+use App\Models\Genre;
+use App\Models\MediaType;
+use App\Models\Theme;
+use App\Models\Trope;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -30,6 +37,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // What a preference points at (user_preferences.preferable_type). A plain map, not an enforced one: notifications and the rest keep their class names.
+        Relation::morphMap([
+            'genre' => Genre::class,
+            'theme' => Theme::class,
+            'trope' => Trope::class,
+            'demographic' => Demographic::class,
+            'media_type' => MediaType::class,
+            'creator' => Creator::class,
+        ]);
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
 
