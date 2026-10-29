@@ -157,6 +157,15 @@ test('only the media of the given source are looked at', function () {
     expect($comic->fresh()->mediaType->slug)->toBe('novel')->and($book->fresh()->mediaType->slug)->toBe('graphic-novel');
 });
 
+test('the Dewey class stored on an external id is weighed, so stored nonfiction becomes nonfiction', function () {
+    $media = sourced('openlibrary', 'novel', ['title' => 'Atomic Habits', 'description' => null]);
+    $media->externalIds()->update(['dewey_code' => '155.24']);
+
+    $this->artisan('bookflix:reclassify')->assertSuccessful();
+
+    expect($media->fresh()->mediaType->slug)->toBe('nonfiction');
+});
+
 test('a source that does not exist is refused', function () {
     $this->artisan('bookflix:reclassify', ['--source' => 'nope'])->assertFailed();
 });

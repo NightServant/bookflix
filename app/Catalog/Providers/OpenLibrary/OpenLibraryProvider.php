@@ -277,6 +277,7 @@ class OpenLibraryProvider implements MetadataProvider
                 publishers: $this->publishers($editions),
                 pageCount: $pages,
                 language: $language,
+                deweyCode: $this->deweyCode($editions),
             )),
             description: $description,
             creators: array_map(
@@ -375,7 +376,8 @@ class OpenLibraryProvider implements MetadataProvider
     }
 
     /**
-     * The first Dewey class an edition carries, as `813.54` (Open Library stores `813/.54`).
+     * The first Dewey class an edition carries, as `813.54` (Open Library stores `813/.54`). Prime marks can sit anywhere in the number
+     * (`741.5/952`), and the digits after one are the place, so they are all dropped rather than cutting the class short.
      *
      * @param  list<array<string, mixed>>  $editions
      */
@@ -383,7 +385,7 @@ class OpenLibraryProvider implements MetadataProvider
     {
         foreach ($editions as $edition) {
             foreach ($this->asArray($edition['dewey_decimal_class'] ?? null) as $class) {
-                if (is_string($class) && preg_match('#^(\d{3})(?:/?\.(\d+))?#', trim($class), $match)) {
+                if (is_string($class) && preg_match('#^(\d{3})(?:\.(\d+))?#', str_replace(['/', "'"], '', trim($class)), $match)) {
                     return $match[1].(isset($match[2]) ? ".{$match[2]}" : '');
                 }
             }

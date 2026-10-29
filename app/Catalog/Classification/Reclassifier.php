@@ -162,6 +162,7 @@ class Reclassifier
             chapterCount: $media->chapter_count,
             country: $media->country_of_origin,
             language: $media->language,
+            deweyCode: $media->externalIds->whereNotNull('dewey_code')->first()?->dewey_code,
         );
     }
 
