@@ -7,6 +7,9 @@
     The mobile filters: a "Filters" button (hidden from the lg breakpoint, where the page shows the filters inline) opens a
     right-hand flyout (flux:modal variant="flyout", a native modal <dialog>: focus is trapped, Escape closes, focus goes back to the button).
     The slot holds the filter controls. Pass `name` when a page has more than one sheet.
+    Two optional slots: `footer` replaces the "Show results" button (a page that applies filters on its own button puts its Clear all and Apply
+    there; they sit at the foot of the sheet however far the filters scroll), and `badge` goes inside the trigger, after its label (the count of
+    applied filters). Closing the sheet by any means fires `filter-sheet-close` on the sheet's body, which bubbles, so a page can drop a draft.
     Flux does not name its dialog or honour reduced motion; the heading names it below and resources/css/app.css snaps the transition.
 --}}
 @php
@@ -20,12 +23,12 @@
     {{ $attributes->class('lg:hidden') }}
 >
     <flux:modal.trigger :name="$name">
-        <x-cta variant="secondary" icon="adjustments-horizontal">{{ $title }}</x-cta>
+        <x-cta variant="secondary" icon="adjustments-horizontal">{{ $title }}{{ $badge ?? '' }}</x-cta>
     </flux:modal.trigger>
 
     <flux:modal :name="$name" variant="flyout" :closable="false" class="w-full max-w-sm text-ink shadow-overlay!">
         <div
-            x-init="$el.closest('dialog').setAttribute('aria-labelledby', '{{ $headingId }}')"
+            x-init="const dialog = $el.closest('dialog'); dialog.setAttribute('aria-labelledby', '{{ $headingId }}'); dialog.addEventListener('close', () => $el.dispatchEvent(new CustomEvent('filter-sheet-close', { bubbles: true })))"
             @keydown.tab.prevent="$focus.wrap().next()"
             @keydown.shift.tab.prevent="$focus.wrap().previous()"
             class="flex min-h-full flex-col gap-6"
@@ -45,10 +48,14 @@
             </div>
 
             {{-- Stays at the foot of the sheet however far the filters scroll. --}}
-            <div class="sticky bottom-0 -mb-px bg-surface-card pb-1 pt-3">
-                <flux:modal.close>
-                    <x-cta icon="check" class="w-full">{{ __('Show results') }}</x-cta>
-                </flux:modal.close>
+            <div class="sticky -bottom-8 -mx-8 -mb-8 border-t border-hairline bg-surface-card px-8 pt-4 pb-8">
+                @isset($footer)
+                    {{ $footer }}
+                @else
+                    <flux:modal.close>
+                        <x-cta icon="check" class="w-full">{{ __('Show results') }}</x-cta>
+                    </flux:modal.close>
+                @endisset
             </div>
         </div>
     </flux:modal>

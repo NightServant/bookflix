@@ -300,7 +300,8 @@ test('the year bounds are kept ten minutes as two numbers', function () {
     expect(Cache::get('search:year-bounds:v1'))->toBe([1962, 2021]);
 });
 
-test('the type, genre and theme lists are cached: a second render runs three fewer queries', function () {
+test('the taxonomy lists are cached: a first render reads each table once, a second render none', function () {
+    $this->seed(TaxonomySeeder::class);
     Media::factory()->create();
     $this->actingAs(User::factory()->create());
     $facetQueries = function (): int {
@@ -308,13 +309,14 @@ test('the type, genre and theme lists are cached: a second render runs three few
         DB::enableQueryLog();
         Livewire::test('pages::search.index')->assertOk();
 
-        return collect(DB::getQueryLog())->filter(fn (array $q): bool => preg_match('/from "(media_types|genres|themes)"/', $q['query']) === 1)->count();
+        return collect(DB::getQueryLog())->filter(fn (array $q): bool => preg_match('/(from|join) "?(media_types|genres|themes|tropes|demographics|content_warnings|genre_secondary_parents)"?/', $q['query']) === 1)->count();
     };
 
     $first = $facetQueries();
     $second = $facetQueries();
 
-    expect($first - $second)->toBe(3)->and($second)->toBe(0);
+    // the genre tree is three statements (the nodes, the extra parent links, the live counts) and the five small lists one
+    expect($first)->toBe(4)->and($second)->toBe(0);
 });
 
 test('invalid UTF-8 in a filter value is dropped instead of a 500', function () {
@@ -364,7 +366,7 @@ test('the no-results and throttled states each show the tilted book and a way ou
         ->and(htmlQuery($throttled, '//button[@*[name()="wire:click"]="$refresh"][normalize-space()="Try again"]')->length)->toBe(1);
 });
 
-test('the genre control offers the families, and a subgenre chosen from a story page still shows as a chip', function () {
+test('the genre labels cover the tree, and a subgenre chosen from a story page shows as a chip', function () {
     $this->seed(TaxonomySeeder::class);
     $isekai = Media::factory()->manga()->create(['title' => 'Isekai Hero']);
     $isekai->genres()->attach(Genre::where('slug', 'isekai')->first());
@@ -374,8 +376,9 @@ test('the genre control offers the families, and a subgenre chosen from a story 
     $page = Livewire::withQueryParams(['filters' => ['genres' => ['isekai']]])->test('pages::search.index');
     $genres = $page->get('facets')['genres'];
 
-    expect($genres)->toHaveKey('fantasy')->toHaveKey('mystery-crime-and-thriller')->toHaveKey('isekai')->not->toHaveKey('litrpg')
-        ->and(count($genres))->toBe(17);
+    // the labels cover every family and subgenre the reader may be offered, the mature ones apart
+    expect($genres)->toHaveKey('fantasy')->toHaveKey('mystery-crime-and-thriller')->toHaveKey('isekai')->toHaveKey('litrpg')
+        ->not->toHaveKey('erotica')->not->toHaveKey('mature-erotic-and-controversial-categories');
 
     $page->assertSee('Isekai Hero')->assertDontSee('Unrelated')->assertSee('Remove filter Isekai');
 });

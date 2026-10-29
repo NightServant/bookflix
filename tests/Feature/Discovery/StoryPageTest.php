@@ -312,7 +312,7 @@ test('the story page runs a bounded number of queries', function () {
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
 });
 
-test('the story page runs at most twenty queries once the similar ids are cached', function () {
+test('the story page runs at most twenty one queries once the similar ids are cached', function () {
     $m = fullMedia();
     $this->actingAs(User::factory()->create());
     $this->get(route('stories.show', $m->slug))->assertOk();
@@ -321,14 +321,15 @@ test('the story page runs at most twenty queries once the similar ids are cached
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
 
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(20);
+    // One of the twenty one is the mature access gate: whether this story is behind it for the reader.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(21);
 });
 
 test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {
     [$base, $sibling, $sharesGenre] = similarFixture();
 
     expect(app(SimilarMedia::class)->for($base)->pluck('id')->all())->toBe([$sibling->id, $sharesGenre->id])
-        ->and(Cache::get("similar:v1:{$base->id}:12"))->toBe([$sibling->id, $sharesGenre->id]);
+        ->and(Cache::get("similar:v2:gated:{$base->id}:12"))->toBe([$sibling->id, $sharesGenre->id]);
 
     $sibling->delete();
 

@@ -2,8 +2,10 @@
 
 namespace App\Discovery;
 
+use App\Access\MatureAccess;
 use App\Classification\DeweyCounts;
 use App\Models\Media;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -35,21 +37,22 @@ class HomeShelves
      *
      * @return Collection<int, Shelf>
      */
-    public function guestSafe(int $perShelf = 20): Collection
+    public function guestSafe(int $perShelf = 20, ?User $viewer = null): Collection
     {
-        return collect(array_keys(self::SHELVES))->map(fn (string $key): Shelf => $this->shelf($key, $perShelf))->values();
+        return collect(array_keys(self::SHELVES))->map(fn (string $key): Shelf => $this->shelf($key, $perShelf, $viewer))->values();
     }
 
     /**
      * One shelf by key (a `SHELVES` key). The story picks are kept ten minutes as ids (the cache refuses to unserialize models), then
      * loaded fresh, so a story merged or deleted in the meantime drops out; each story comes with what a tile, preview or quick view
      * reads. The subject shelf holds the main Dewey classes that have stories, with their `stories_count`.
+     * Mature and adult titles are on a shelf only for a reader who opted in (see MatureAccess); the picks are kept per access level.
      */
-    public function shelf(string $key, int $perShelf = 20): Shelf
+    public function shelf(string $key, int $perShelf = 20, ?User $viewer = null): Shelf
     {
         $definition = self::SHELVES[$key] ?? throw new InvalidArgumentException("Unknown home shelf [{$key}].");
 
-        return new Shelf($key, __($definition['title']), $key === 'explore-by-subject' ? app(DeweyCounts::class)->rootsWithCounts()->toBase() : $this->stories($key, $perShelf), $definition['featured']);
+        return new Shelf($key, __($definition['title']), $key === 'explore-by-subject' ? app(DeweyCounts::class)->rootsWithCounts($viewer)->toBase() : $this->stories($key, $perShelf, $viewer), $definition['featured']);
     }
 
     /**
@@ -57,9 +60,9 @@ class HomeShelves
      *
      * @return EloquentCollection<int, Media>
      */
-    public function hero(int $count = self::HERO_SLIDES): EloquentCollection
+    public function hero(int $count = self::HERO_SLIDES, ?User $viewer = null): EloquentCollection
     {
-        $ids = array_slice($this->picks(20)['hero'], 0, $count);
+        $ids = array_slice($this->picks(20, $viewer)['hero'], 0, $count);
         $media = Media::query()->whereIn('id', $ids)->with(['mediaType', 'genres'])->get()->keyBy('id');
 
         return new EloquentCollection(array_values(array_filter(array_map(fn (int $id): ?Media => $media->get($id), $ids))));
@@ -68,9 +71,9 @@ class HomeShelves
     /**
      * @return Collection<int, Media>
      */
-    private function stories(string $key, int $perShelf): Collection
+    private function stories(string $key, int $perShelf, ?User $viewer): Collection
     {
-        $picks = $this->picks($perShelf);
+        $picks = $this->picks($perShelf, $viewer);
 
         $media = Media::query()->whereIn('id', $picks[$key])->with(['mediaType', 'publicPrimaryDewey.deweyClass'])->get()->keyBy('id');
 
@@ -82,20 +85,20 @@ class HomeShelves
      *
      * @return array{trending: list<int>, new-releases: list<int>, hero: list<int>}
      */
-    private function picks(int $perShelf): array
+    private function picks(int $perShelf, ?User $viewer): array
     {
-        return Cache::remember("home:shelves:v1:{$perShelf}", now()->addMinutes(self::CACHE_MINUTES), fn (): array => $this->pick($perShelf));
+        return Cache::remember('home:shelves:v2:'.MatureAccess::cacheKey($viewer).":{$perShelf}", now()->addMinutes(self::CACHE_MINUTES), fn (): array => $this->pick($perShelf, $viewer));
     }
 
     /**
      * @return array{trending: list<int>, new-releases: list<int>, hero: list<int>}
      */
-    private function pick(int $perShelf): array
+    private function pick(int $perShelf, ?User $viewer): array
     {
-        $trending = array_values(Media::trending()->limit($perShelf)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
+        $trending = array_values(Media::trending()->visibleTo($viewer)->limit($perShelf)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
 
         // Until ratings exist the two story shelves would rank alike, so the stories already trending go to the back of the line.
-        $releases = Media::query()->unmerged()
+        $releases = Media::query()->unmerged()->visibleTo($viewer)
             ->whereNotNull('media.published_on')
             ->where('media.published_on', '<=', now()->addMonth())
             ->orderByRaw('media.published_on desc')
@@ -107,7 +110,7 @@ class HomeShelves
             ->take($perShelf)
             ->values();
 
-        $hero = array_values(Media::trending()->whereNotNull('media.cover_url')->limit(self::HERO_SLIDES)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
+        $hero = array_values(Media::trending()->visibleTo($viewer)->whereNotNull('media.cover_url')->limit(self::HERO_SLIDES)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
 
         return ['trending' => $trending, 'new-releases' => array_values($releases->all()), 'hero' => $hero];
     }

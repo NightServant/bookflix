@@ -2,8 +2,10 @@
 
 namespace App\Discovery;
 
+use App\Access\MatureAccess;
 use App\Models\DeweyClass;
 use App\Models\Media;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -16,14 +18,15 @@ class SimilarMedia
 {
     /**
      * The same series first (in reading order), then the stories sharing the most genres and themes, then the rest of the
-     * same primary-class division, most rated first. Never the story itself; merged and deleted stories are skipped.
+     * same primary-class division, most rated first. Never the story itself; merged and deleted stories are skipped, and so are
+     * mature and adult ones unless the reader opted in (see MatureAccess; the ids are kept per access level).
      * Each comes with the `mediaType` and `publicPrimaryDewey.deweyClass` a cover tile, preview or quick view reads.
      *
      * @return Collection<int, Media>
      */
-    public function for(Media $media, int $limit = 12): Collection
+    public function for(Media $media, int $limit = 12, ?User $viewer = null): Collection
     {
-        $ids = Cache::remember("similar:v1:{$media->id}:{$limit}", now()->addHour(), fn (): array => $this->idsFor($media, $limit));
+        $ids = Cache::remember('similar:v2:'.MatureAccess::cacheKey($viewer).":{$media->id}:{$limit}", now()->addHour(), fn (): array => $this->idsFor($media, $limit, $viewer));
 
         if ($ids === []) {
             return new Collection;
@@ -40,12 +43,12 @@ class SimilarMedia
      *
      * @return list<int>
      */
-    private function idsFor(Media $media, int $limit): array
+    private function idsFor(Media $media, int $limit, ?User $viewer): array
     {
         $ids = [];
 
         foreach ([$this->siblings(...), $this->sharedTaxonomy(...), $this->sameDivision(...)] as $tier) {
-            $ids = array_slice(array_values(array_unique([...$ids, ...$tier($media, $limit)])), 0, $limit);
+            $ids = array_slice(array_values(array_unique([...$ids, ...$tier($media, $limit, $viewer)])), 0, $limit);
 
             if (count($ids) >= $limit) {
                 break;
@@ -58,9 +61,9 @@ class SimilarMedia
     /**
      * @return list<int>
      */
-    private function siblings(Media $media, int $limit): array
+    private function siblings(Media $media, int $limit, ?User $viewer): array
     {
-        return $this->ids(Media::query()->unmerged()
+        return $this->ids(Media::query()->unmerged()->visibleTo($viewer)
             ->join('media_series', 'media_series.media_id', '=', 'media.id')
             ->whereIn('media_series.series_id', DB::table('media_series')->where('media_id', $media->id)->select('series_id'))
             ->where('media.id', '!=', $media->id)
@@ -71,7 +74,7 @@ class SimilarMedia
     /**
      * @return list<int>
      */
-    private function sharedTaxonomy(Media $media, int $limit): array
+    private function sharedTaxonomy(Media $media, int $limit, ?User $viewer): array
     {
         $genres = DB::table('media_genres')->select('media_id')
             ->whereIn('genre_id', DB::table('media_genres')->where('media_id', $media->id)->select('genre_id'));
@@ -82,7 +85,7 @@ class SimilarMedia
             ->selectRaw('media_id, count(*) as score')
             ->groupBy('media_id');
 
-        return $this->ids(Media::query()->unmerged()
+        return $this->ids(Media::query()->unmerged()->visibleTo($viewer)
             ->joinSub($shared, 'shared', 'shared.media_id', '=', 'media.id')
             ->where('media.id', '!=', $media->id)
             ->orderByDesc('shared.score')
@@ -95,7 +98,7 @@ class SimilarMedia
      *
      * @return list<int>
      */
-    private function sameDivision(Media $media, int $limit): array
+    private function sameDivision(Media $media, int $limit, ?User $viewer): array
     {
         $class = $media->loadMissing('publicPrimaryDewey.deweyClass.parent')->publicPrimaryDewey?->deweyClass;
 
@@ -110,7 +113,7 @@ class SimilarMedia
             return [];
         }
 
-        return $this->ids(Media::query()->unmerged()->inDeweySubtree($division)
+        return $this->ids(Media::query()->unmerged()->visibleTo($viewer)->inDeweySubtree($division)
             ->where('media.id', '!=', $media->id)
             ->orderByDesc('media.ratings_count')
             ->orderBy('media.id'), $limit);

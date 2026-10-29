@@ -24,20 +24,19 @@ beforeEach(function () {
     $this->panel = 'search input[role=combobox]';
     $this->count = 'document.querySelector("[data-test=result-count]").textContent.trim()';
     $this->titles = 'Array.from(document.querySelectorAll("[data-view] li a span.line-clamp-2")).map((title) => title.textContent.trim()).join("|")';
-    $this->chips = 'Array.from(document.querySelectorAll("[aria-label=\'Active filters\'] li > span")).map((span) => span.textContent.trim()).join("|")';
+    $this->chips = 'Array.from(document.querySelectorAll("ul[aria-label=\'Active filters\'] ul > li > span:first-child")).map((span) => span.textContent.trim()).join("|")';
 });
 
-test('a combobox keeps aria-controls when livewire re-renders the page', function () {
-    $genres = 'document.querySelector("aside [data-test=filter-genres] input[role=combobox]")';
+test('the search panel keeps its combobox wiring when livewire re-renders the page', function () {
+    $input = 'main search input[role=combobox]';
 
     $page = visit(route('search', ['q' => 'dune']), $this->desktop)->wait(1);
 
-    $page->assertScript($genres.'.getAttribute("aria-controls") !== null', true)
-        ->keys('aside [data-test=filter-genres] input[role=combobox]', ['f', 'a', 'n'])->wait(0.5)
-        ->keys('aside [data-test=filter-genres] input[role=combobox]', 'Enter')->wait(1.5)
-        ->assertScript('document.querySelector("[data-test=result-count]").textContent.trim()', '1 story')
-        ->assertScript($genres.'.getAttribute("aria-controls") !== null', true)
-        ->assertScript('document.getElementById('.$genres.'.getAttribute("aria-controls")) !== null', true);
+    $page->assertScript('document.querySelector("'.$input.'").getAttribute("aria-controls") !== null', true)
+        ->click('aside [data-filter=mediaTypes][value=manga]')->wait(1.5)
+        ->assertScript('document.querySelector("[data-test=result-count]").textContent.trim()', '2 stories')
+        ->assertScript('document.querySelector("'.$input.'").getAttribute("aria-controls") !== null', true)
+        ->assertScript('document.getElementById(document.querySelector("'.$input.'").getAttribute("aria-controls")) !== null', true);
 });
 
 test('the page passes the shared checks with results, with none, and on a phone', function () {
@@ -75,7 +74,7 @@ test('the view toggle switches grid and list and the choice is in the url', func
 test('a filter shows as a removable chip and narrows the results', function () {
     $page = visit(route('search', ['q' => 'dune']), $this->desktop)->wait(1);
 
-    $page->click('aside ui-checkbox[value=comic-book]')->wait(1.5)
+    $page->click('aside [data-filter=mediaTypes][value=comic-book]')->wait(1.5)
         ->assertScript($this->chips, 'Comic Book')
         ->assertScript($this->count, 'No stories')
         ->click('[aria-label="Remove filter Comic Book"]')->wait(1.5)
@@ -83,17 +82,18 @@ test('a filter shows as a removable chip and narrows the results', function () {
         ->assertScript($this->count, '2 stories');
 });
 
-test('on a phone the filter sheet applies a filter without closing, and Show results closes it', function () {
+test('on a phone the filter sheet applies nothing until Apply filters, and closes with it', function () {
     $isOpen = 'document.querySelector("dialog").open';
     $page = visit(route('search', ['q' => 'dune']), $this->phone)->wait(1);
 
     $page->click('[data-flux-modal-trigger] button')->wait(0.8)
         ->assertScript($isOpen, true)
-        ->click('dialog ui-checkbox[value=comic-book]')->wait(1.5)
+        ->click('dialog [data-filter=mediaTypes][value=comic-book]')->wait(1.5)
         ->assertScript($isOpen, true)
-        ->assertScript('document.querySelector("dialog ui-checkbox[value=comic-book]").getAttribute("aria-checked")', 'true')
+        ->assertScript('document.querySelector("dialog [data-filter=mediaTypes][value=comic-book]").checked', true)
+        ->assertScript($this->chips, '')
         ->assertNoAccessibilityIssues()
-        ->click('dialog button:has-text("Show results")')->wait(0.6)
+        ->click('dialog button:has-text("Apply filters")')->wait(1.5)
         ->assertScript($isOpen, false)
         ->assertScript($this->chips, 'Comic Book')
         ->assertNoJavaScriptErrors();

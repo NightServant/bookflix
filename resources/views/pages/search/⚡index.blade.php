@@ -1,55 +1,24 @@
 <?php
 
-use App\Catalog\Taxonomy\LegacySlugs;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchResults;
-use App\Discovery\Search\SearchFilters;
 use App\Discovery\Search\SearchLogger;
-use App\Enums\PublicationStatus;
-use App\Models\Genre;
+use App\Livewire\FilteredPage;
 use App\Models\Media;
-use App\Models\MediaType;
-use App\Models\Theme;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
-use Livewire\Component;
-use Livewire\WithPagination;
 
-new #[Title('Search')] class extends Component {
-    use WithPagination;
-
+new #[Title('Search')] class extends FilteredPage {
     private const MIN_QUERY_LENGTH = 2;
 
     private const PER_PAGE = 24;
 
-    /**
-     * Every filter the page offers, empty. The controls bind to these keys, so they always exist.
-     *
-     * @var array<string, mixed>
-     */
-    private const NO_FILTERS = [
-        'mediaTypes' => [],
-        'statuses' => [],
-        'genres' => [],
-        'themes' => [],
-        'languages' => [],
-        'years' => [],
-        'minRating' => '',
-        'length' => '',
-    ];
-
     #[Url]
     public string $q = '';
-
-    /** @var array<string, mixed> */
-    #[Url]
-    public array $filters = [];
 
     #[Url]
     public string $view = 'grid';
@@ -65,9 +34,7 @@ new #[Title('Search')] class extends Component {
     public function mount(): void
     {
         $this->q = $this->cleanQuery($this->q);
-        $this->filters = $this->cleanFilters([...self::NO_FILTERS, ...Arr::only($this->filters, array_keys(self::NO_FILTERS))]);
-        // A bookmarked genre or theme slug from before the taxonomy becomes the slug that replaced it, so its chip can be shown and removed.
-        $this->filters = [...$this->filters, ...app(LegacySlugs::class)->upgrade(['genres' => $this->strings($this->filters['genres']), 'themes' => $this->strings($this->filters['themes'])])];
+        $this->initFilters();
         $this->recordSearch();
     }
 
@@ -78,19 +45,9 @@ new #[Title('Search')] class extends Component {
         $this->recordSearch();
     }
 
-    public function updatedFilters(): void
+    protected function filtersChanged(): void
     {
-        $this->filters = $this->cleanFilters($this->filters);
-        $this->resetPage();
         $this->recordSearch();
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function strings(mixed $value): array
-    {
-        return array_values(array_filter(Arr::wrap($value), 'is_string'));
     }
 
     /**
@@ -99,43 +56,6 @@ new #[Title('Search')] class extends Component {
     private function cleanQuery(string $text): string
     {
         return mb_substr(mb_scrub($text), 0, HybridSearch::MAX_QUERY_LENGTH);
-    }
-
-    /**
-     * Filter values arrive from the URL: a string that is not valid UTF-8 is emptied (and then dropped), so the page can always be serialized and logged.
-     *
-     * @param  array<array-key, mixed>  $filters
-     * @return array<array-key, mixed>
-     */
-    private function cleanFilters(array $filters): array
-    {
-        return array_map(fn (mixed $value): mixed => match (true) {
-            is_array($value) => $this->cleanFilters($value),
-            is_string($value) => mb_check_encoding($value, 'UTF-8') ? $value : '',
-            default => $value,
-        }, $filters);
-    }
-
-    /**
-     * Drop one chip: a single value of a list filter, or the whole of a single-value one.
-     */
-    public function removeFilter(string $group, ?string $value = null): void
-    {
-        if (! array_key_exists($group, self::NO_FILTERS)) {
-            return;
-        }
-
-        $this->filters[$group] = is_array(self::NO_FILTERS[$group]) && $group !== 'years'
-            ? array_values(array_filter(Arr::wrap($this->filters[$group] ?? []), fn (mixed $item): bool => (string) $item !== $value))
-            : self::NO_FILTERS[$group];
-
-        $this->updatedFilters();
-    }
-
-    public function clearFilters(): void
-    {
-        $this->filters = self::NO_FILTERS;
-        $this->updatedFilters();
     }
 
     /**
@@ -177,23 +97,6 @@ new #[Title('Search')] class extends Component {
     }
 
     /**
-     * The filters as the search sees them: only the keys the page offers, with the year slider's two ends mapped to a range
-     * (a slider left at its limits filters nothing).
-     */
-    private function searchFilters(): SearchFilters
-    {
-        $input = Arr::only($this->filters, array_keys(self::NO_FILTERS));
-        [$from, $to] = array_pad(array_values(Arr::wrap($input['years'] ?? [])), 2, null);
-        [$lowest, $highest] = $this->facets['years'];
-
-        return SearchFilters::fromArray([
-            ...$input,
-            'yearFrom' => (int) $from > $lowest ? $from : null,
-            'yearTo' => $to !== null && (int) $to < $highest ? $to : null,
-        ]);
-    }
-
-    /**
      * 'list' or 'grid'; anything else in the URL is the grid.
      */
     #[Computed]
@@ -227,7 +130,7 @@ new #[Title('Search')] class extends Component {
         $filters = $this->searchFilters();
         $fetch = fn (): LengthAwarePaginator => $this->hasQuery
             ? $search->search(trim($this->q), $filters, auth()->user(), self::PER_PAGE)
-            : $search->browse($filters, self::PER_PAGE);
+            : $search->browse($filters, self::PER_PAGE, auth()->user());
 
         $page = $fetch();
 
@@ -251,85 +154,6 @@ new #[Title('Search')] class extends Component {
     {
         return $this->results instanceof SearchResults && $this->results->throttled;
     }
-
-    /**
-     * What each control offers.
-     *
-     * @return array{types: array<string, string>, statuses: array<string, string>, genres: array<string, string>, themes: array<string, string>, languages: array<string, string>, lengths: array<string, string>, ratings: array<string, string>, years: array{0: int, 1: int}}
-     */
-    #[Computed]
-    public function facets(): array
-    {
-        // The slider's ends, kept ten minutes as plain numbers.
-        $years = Cache::remember('search:year-bounds:v1', 600, function (): array {
-            $row = Media::query()->unmerged()->selectRaw('min(media.publication_year) as lowest, max(media.publication_year) as highest')->first();
-
-            return [(int) ($row?->lowest ?? 1900), (int) ($row?->highest ?? now()->year)];
-        });
-
-        // The three long lists, kept ten minutes as plain [slug => name] arrays (the models are never cached).
-        $names = fn (string $key, string $model): array => Cache::remember("search:facet-{$key}:v1", 600, fn (): array => $model::query()->orderBy('name')->pluck('name', 'slug')->all());
-
-        // Genres are offered as families, the mature-gated one left out until the reader's access decides (picking a family includes its subgenres); a subgenre chosen elsewhere, say from a story page, is added so its chip and checkbox show.
-        $genres = Cache::remember('search:facet-genres:v2', 600, fn (): array => Genre::query()->families()->visible()->orderBy('name')->pluck('name', 'slug')->all());
-        $chosen = array_diff(array_filter(Arr::wrap($this->filters['genres'] ?? []), 'is_string'), array_keys($genres));
-        $genres += $chosen === [] ? [] : Genre::query()->whereIn('slug', $chosen)->orderBy('name')->pluck('name', 'slug')->all();
-
-        return [
-            'types' => $names('types', MediaType::class),
-            'statuses' => collect(PublicationStatus::cases())
-                ->reject(fn (PublicationStatus $status): bool => $status === PublicationStatus::Unknown)
-                ->mapWithKeys(fn (PublicationStatus $status): array => [$status->value => __(ucfirst($status->value))])
-                ->all(),
-            'genres' => $genres,
-            'themes' => $names('themes', Theme::class),
-            'languages' => collect(config('bookflix.languages'))
-                ->mapWithKeys(fn (string $code): array => [$code => class_exists(\Locale::class) ? ucfirst(\Locale::getDisplayLanguage($code, app()->getLocale())) : strtoupper($code)])
-                ->all(),
-            'lengths' => ['short' => __('Short'), 'medium' => __('Medium'), 'long' => __('Long')],
-            'ratings' => ['6' => __('3 stars and up'), '7' => __('3.5 stars and up'), '8' => __('4 stars and up'), '9' => __('4.5 stars and up')],
-            'years' => $years,
-        ];
-    }
-
-    /**
-     * The active filters as chips: the filter it belongs to, the value to remove (null for a single-value filter) and the label to show.
-     *
-     * @return list<array{group: string, value: string|null, label: string}>
-     */
-    #[Computed]
-    public function chips(): array
-    {
-        $filters = $this->searchFilters();
-        $facets = $this->facets;
-        $chips = [];
-
-        foreach ([
-            'mediaTypes' => [$filters->mediaTypes, $facets['types']],
-            'statuses' => [$filters->statuses, $facets['statuses']],
-            'genres' => [$filters->genres, $facets['genres']],
-            'themes' => [$filters->themes, $facets['themes']],
-            'languages' => [$filters->languages, $facets['languages']],
-        ] as $group => [$values, $labels]) {
-            foreach ($values as $value) {
-                $chips[] = ['group' => $group, 'value' => $value, 'label' => $labels[$value] ?? $value];
-            }
-        }
-
-        if ($filters->yearFrom !== null || $filters->yearTo !== null) {
-            $chips[] = ['group' => 'years', 'value' => null, 'label' => ($filters->yearFrom ?? $facets['years'][0]).' – '.($filters->yearTo ?? $facets['years'][1])];
-        }
-
-        if ($filters->minRating !== null) {
-            $chips[] = ['group' => 'minRating', 'value' => null, 'label' => $facets['ratings'][(string) (int) $filters->minRating] ?? __(':stars stars and up', ['stars' => $filters->minRating / 2])];
-        }
-
-        if ($filters->length !== null) {
-            $chips[] = ['group' => 'length', 'value' => null, 'label' => $facets['lengths'][$filters->length]];
-        }
-
-        return $chips;
-    }
 }; ?>
 
 <section class="pb-12">
@@ -340,19 +164,17 @@ new #[Title('Search')] class extends Component {
 
     <x-search-panel wire:model.live.debounce.300ms="q" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-6" />
 
-    <div class="mt-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-10">
+    <x-filter-islands :panel="fn () => $this->panel" :years="$this->facets['years']" />
+
+    <div x-data="filterPanel(@js($this->panelConfig))" x-on:filter-sheet-close="discard()" class="mt-8 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-12">
         <aside aria-labelledby="search-filters-title" class="hidden self-start lg:sticky lg:top-20 lg:block">
             <div class="flex min-h-11 items-center justify-between gap-4">
                 <h2 id="search-filters-title" class="text-lead text-ink">{{ __('Filters') }}</h2>
 
-                @if ($this->chips !== [])
-                    <button type="button" wire:click="clearFilters" class="focus-ring -mx-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
-                @endif
+                <button type="button" x-show="activeCount > 0 || dirty" style="display: none" @click="clear()" class="focus-ring -mx-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
             </div>
 
-            <div class="mt-2">
-                @include('pages.search.filters', ['facets' => $this->facets])
-            </div>
+            <div wire:ignore data-filter-mount x-html="desktop ? panelHtml : ''" class="mt-2 max-h-[calc(100dvh-9rem)] overflow-y-auto overscroll-contain pe-2"></div>
         </aside>
 
         <div class="min-w-0">
@@ -369,35 +191,29 @@ new #[Title('Search')] class extends Component {
 
                 <div class="flex items-center gap-3">
                     <x-filter-sheet>
-                        @include('pages.search.filters', ['facets' => $this->facets])
+                        <x-slot:badge>
+                            <span x-show="activeCount > 0" style="display: none" class="tabular-nums text-ink-subtle" wire:ignore><span aria-hidden="true" class="mx-1.5">·</span><span x-text="activeCount"></span><span class="sr-only"> {{ __('applied') }}</span></span>
+                        </x-slot:badge>
+
+                        <div wire:ignore data-filter-mount x-html="desktop ? '' : panelHtml"></div>
+
+                        <x-slot:footer>
+                            <div class="flex items-center gap-3">
+                                <button type="button" @click="clear()" class="focus-ring inline-flex min-h-11 items-center rounded-control px-3 text-body text-link hover:underline">{{ __('Clear all') }}</button>
+                                <flux:modal.close class="flex-1">
+                                    <x-cta icon="check" class="w-full" @click="apply()">{{ __('Apply filters') }}</x-cta>
+                                </flux:modal.close>
+                            </div>
+                        </x-slot:footer>
                     </x-filter-sheet>
 
                     <x-view-toggle wire:model.live="view" />
                 </div>
             </div>
 
-            @if ($this->chips !== [])
-                <ul aria-label="{{ __('Active filters') }}" class="mt-4 flex flex-wrap items-center gap-2">
-                    @foreach ($this->chips as $chip)
-                        <li wire:key="chip-{{ $chip['group'] }}-{{ $chip['value'] }}" class="inline-flex h-9 items-center rounded-full bg-surface-input ps-3 text-meta text-ink">
-                            <span>{{ $chip['label'] }}</span>
-                            <button
-                                type="button"
-                                wire:click="removeFilter('{{ $chip['group'] }}', @js($chip['value']))"
-                                aria-label="{{ __('Remove filter :label', ['label' => $chip['label']]) }}"
-                                class="focus-ring relative inline-flex size-9 items-center justify-center rounded-full text-ink-subtle after:absolute after:-inset-y-1 after:-inset-x-0.5 after:content-[''] hover:text-ink"
-                            >
-                                <flux:icon name="x-mark" class="size-4" />
-                            </button>
-                        </li>
-                    @endforeach
+            @include('pages.search.chips')
 
-                    <li wire:key="chips-clear">
-                        <button type="button" wire:click="clearFilters" class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control px-3 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
-                    </li>
-                </ul>
-            @endif
-
+            <div wire:loading.delay.shortest.class="opacity-60" class="motion-safe:transition-opacity">
             @if ($this->results->isNotEmpty())
                 {{-- Every story of one format makes the format badge noise: it is shown only when the page mixes formats. --}}
                 @php $mixed = collect($this->results->items())->pluck('media_type_id')->unique()->count() > 1; @endphp
@@ -453,6 +269,7 @@ new #[Title('Search')] class extends Component {
             @else
                 <p class="mt-12 max-w-prose text-body text-ink-subtle">{{ __('Search by title, author, series or subject. Type at least two letters, or pick a filter to browse.') }}</p>
             @endif
+            </div>
         </div>
     </div>
 </section>

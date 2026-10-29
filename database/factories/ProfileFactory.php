@@ -28,6 +28,7 @@ class ProfileFactory extends Factory
             'profile_visibility' => Visibility::Private,
             'library_visibility' => Visibility::Private,
             'personalization_enabled' => true,
+            'show_mature' => false,
         ];
     }
 }

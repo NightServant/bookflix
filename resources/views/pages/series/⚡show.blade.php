@@ -1,5 +1,6 @@
 <?php
 
+use App\Access\MatureAccess;
 use App\Models\Creator;
 use App\Models\Media;
 use App\Models\Series;
@@ -23,7 +24,15 @@ new #[Title('Series')] class extends Component {
      */
     public function mount(string $slug): void
     {
-        $this->seriesId = Series::query()->where('slug', $slug)->firstOrFail()->id;
+        $series = Series::query()->where('slug', $slug)->firstOrFail();
+        $viewer = auth()->user();
+
+        // A series whose volumes are all mature or adult is not there for a reader who has not opted in (see MatureAccess).
+        if (! MatureAccess::allows($viewer) && $series->media()->exists() && ! $series->media()->unmerged()->visibleTo($viewer)->exists()) {
+            abort(404);
+        }
+
+        $this->seriesId = $series->id;
     }
 
     /**
@@ -46,7 +55,7 @@ new #[Title('Series')] class extends Component {
     #[Computed]
     public function volumes(): LengthAwarePaginator
     {
-        return $this->series->orderedMedia()->unmerged()->paginate(100);
+        return $this->series->orderedMedia()->unmerged()->visibleTo(auth()->user())->paginate(100);
     }
 
     /**
@@ -57,7 +66,7 @@ new #[Title('Series')] class extends Component {
     #[Computed]
     public function summary(): array
     {
-        $row = $this->series->media()->unmerged()->toBase()->selectRaw('count(*) as volumes, min(publication_year) as first_year, max(publication_year) as last_year')->first();
+        $row = $this->series->media()->unmerged()->visibleTo(auth()->user())->toBase()->selectRaw('count(*) as volumes, min(publication_year) as first_year, max(publication_year) as last_year')->first();
 
         $years = match (true) {
             $row->first_year === null => null,
@@ -76,7 +85,7 @@ new #[Title('Series')] class extends Component {
     #[Computed]
     public function stack(): Collection
     {
-        return $this->series->orderedMedia()->unmerged()->limit(4)->get();
+        return $this->series->orderedMedia()->unmerged()->visibleTo(auth()->user())->limit(4)->get();
     }
 
     /**
@@ -89,7 +98,7 @@ new #[Title('Series')] class extends Component {
     {
         return Creator::query()
             ->join('media_creators', 'media_creators.creator_id', '=', 'creators.id')
-            ->whereIn('media_creators.media_id', $this->series->media()->unmerged()->select('media.id'))
+            ->whereIn('media_creators.media_id', $this->series->media()->unmerged()->visibleTo(auth()->user())->select('media.id'))
             ->groupBy('creators.id', 'media_creators.role')
             ->orderByRaw('min(media_creators.position)')
             ->orderBy('creators.name')

@@ -93,8 +93,9 @@ test('the tiles link to the filtered view and the active one is marked and clear
     $this->actingAs(User::factory()->create());
 
     $html = $this->get(route('discover'))->getContent();
-    expect(htmlQuery($html, '//a[@data-format-tile][@href="'.route('discover', ['type' => 'manga']).'#results"]')->length)->toBe(1);
+    expect(htmlQuery($html, '//a[@data-format-tile][@href="'.route('discover', ['filters' => ['mediaTypes' => ['manga']]]).'#results"]')->length)->toBe(1);
 
+    // An old link to ?type=manga still narrows to manga, and the tile that is on clears itself.
     $html = $this->get(route('discover', ['type' => 'manga']))->getContent();
     expect(htmlQuery($html, '//a[@data-format-tile][@aria-current="true"][contains(.,"Manga")][@href="'.route('discover').'"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//a[@data-format-tile][@aria-current="true"]')->length)->toBe(1);
@@ -107,9 +108,9 @@ test('the top genres show their counts and link to the filtered view', function 
 
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
 
-    expect(htmlQuery($html, '//a[@data-genre-chip][@href="'.route('discover', ['genre' => 'action']).'#results"]')->length)->toBe(1)
+    expect(htmlQuery($html, '//a[@data-genre-chip][@href="'.route('discover', ['filters' => ['genres' => ['action']]]).'#results"]')->length)->toBe(1)
         ->and(trim(preg_replace('/\s+/', ' ', htmlQuery($html, '//a[@data-genre-chip]')->item(0)->textContent)))->toBe('Action 2')
-        ->and($html)->not->toContain('Empty Genre');
+        ->and(htmlQuery($html, '//a[@data-genre-chip]')->length)->toBe(1); // a genre with no story is no chip (the filter panel's data island does list it)
 });
 
 test('quick links point at existing routes', function () {
@@ -207,8 +208,8 @@ test('a second discover render reads the counts from the cache and stays within 
     $second = $this->get(route('discover'))->assertOk()->getContent();
 
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(6)
-        ->and(Cache::get('discover:type-counts:v1'))->toBeArray()->each->toBeInt()
-        ->and(Cache::get('discover:genre-counts:v2'))->toHaveCount(3)->each->toBeInt()
+        ->and(Cache::get('discover:type-counts:v2:gated'))->toBeArray()->each->toBeInt()
+        ->and(Cache::get('discover:genre-counts:v3:gated'))->toHaveCount(3)->each->toBeInt()
         ->and(htmlQuery($second, '//a[@data-genre-chip]')->length)->toBe(htmlQuery($first, '//a[@data-genre-chip]')->length);
 });
 
