@@ -28,7 +28,7 @@ new #[Title('Explore the Library')] class extends Component {
     #[Computed]
     public function classes(): Collection
     {
-        return app(DeweyCounts::class)->rootsWithCounts();
+        return app(DeweyCounts::class)->rootsWithCounts(auth()->user());
     }
 
     /**
@@ -40,6 +40,7 @@ new #[Title('Explore the Library')] class extends Component {
     public function shelves(): Collection
     {
         $newest = $this->classes->flatMap(fn (DeweyClass $class) => Media::query()
+            ->visibleTo(auth()->user())
             ->inDeweySubtree($class)
             ->latest()
             ->latest('id')

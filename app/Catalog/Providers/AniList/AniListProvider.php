@@ -2,10 +2,12 @@
 
 namespace App\Catalog\Providers\AniList;
 
+use App\Catalog\Classification\ClassificationSignals;
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\ProviderUnavailable;
 use App\Catalog\Providers\RateLimitedByProvider;
@@ -19,7 +21,7 @@ use Illuminate\Http\Client\Response;
 
 class AniListProvider implements MetadataProvider
 {
-    use SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
 
     private const ENDPOINT = 'https://graphql.anilist.co';
 
@@ -102,15 +104,30 @@ class AniListProvider implements MetadataProvider
         $country = $this->text($payload['countryOfOrigin'] ?? null);
         $start = is_array($payload['startDate'] ?? null) ? $payload['startDate'] : [];
         $isAdult = ($payload['isAdult'] ?? false) === true;
+        $alternativeTitles = array_values(array_diff(array_unique(array_filter([...$titles, ...$this->strings($payload['synonyms'] ?? null)])), [$title]));
+        $description = $this->plainText(preg_replace('~<br\s*/?>~i', "\n", $this->text($payload['description'] ?? null)));
+        $genres = $this->strings($payload['genres'] ?? null);
+        $tags = $this->tags($payload['tags'] ?? null);
+        $chapters = is_int($payload['chapters'] ?? null) && $payload['chapters'] > 0 ? $payload['chapters'] : null;
 
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: $this->mediaTypeSlug($this->text($payload['format'] ?? null), $country),
-            alternativeTitles: array_values(array_diff(array_unique(array_filter([...$titles, ...$this->strings($payload['synonyms'] ?? null)])), [$title])),
-            description: $this->plainText(preg_replace('~<br\s*/?>~i', "\n", $this->text($payload['description'] ?? null))),
+            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
+                provider: $this->key(),
+                format: $this->text($payload['format'] ?? null),
+                title: $title,
+                alternativeTitles: $alternativeTitles,
+                description: $description,
+                subjects: [...$genres, ...$tags],
+                chapterCount: $chapters,
+                country: $country,
+                language: self::LANGUAGES[$country] ?? null,
+            )),
+            alternativeTitles: $alternativeTitles,
+            description: $description,
             creators: $this->creators($payload['staff']['edges'] ?? null),
-            genres: $this->strings($payload['genres'] ?? null),
-            tags: $this->tags($payload['tags'] ?? null),
+            genres: $genres,
+            tags: $tags,
             characters: $this->names($payload['characters']['edges'] ?? null),
             crossIds: is_int($payload['idMal'] ?? null) ? ['myanimelist' => (string) $payload['idMal']] : [],
             publicationYear: is_int($start['year'] ?? null) ? $start['year'] : null,
@@ -119,7 +136,7 @@ class AniListProvider implements MetadataProvider
             countryOfOrigin: strlen($country) === 2 ? $country : null,
             ageRating: $isAdult ? AgeRating::Adult : AgeRating::Unknown,
             status: self::STATUSES[$this->text($payload['status'] ?? null)] ?? PublicationStatus::Unknown,
-            chapterCount: is_int($payload['chapters'] ?? null) && $payload['chapters'] > 0 ? $payload['chapters'] : null,
+            chapterCount: $chapters,
             coverUrl: $this->safeUrl($payload['coverImage']['extraLarge'] ?? $payload['coverImage']['large'] ?? null),
             sourceUrl: $this->safeUrl($record->sourceUrl),
             isAdult: $isAdult,
@@ -175,28 +192,6 @@ class AniListProvider implements MetadataProvider
     private function post(string $query, array $variables): Response
     {
         return $this->send(fn () => $this->client()->post(self::ENDPOINT, ['query' => $query, 'variables' => $variables]));
-    }
-
-    /**
-     * NOVEL is a light novel whatever its country; a comic's country picks manga, manhwa or manhua.
-     * Anything else yields an empty slug so the validator skips it.
-     */
-    private function mediaTypeSlug(string $format, string $country): string
-    {
-        if ($format === 'NOVEL') {
-            return 'light-novel';
-        }
-
-        if (! in_array($format, ['MANGA', 'ONE_SHOT'], true)) {
-            return '';
-        }
-
-        return match ($country) {
-            'JP' => 'manga',
-            'KR' => 'manhwa',
-            'CN', 'TW' => 'manhua',
-            default => '',
-        };
     }
 
     /**

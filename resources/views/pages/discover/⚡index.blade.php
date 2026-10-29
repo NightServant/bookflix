@@ -1,9 +1,11 @@
 <?php
 
+use App\Access\MatureAccess;
+use App\Catalog\Taxonomy\LegacyTaxonomy;
 use App\Classification\DeweyCounts;
 use App\Discovery\Search\HybridSearch;
-use App\Discovery\Search\SearchFilters;
 use App\Enums\MediaFamily;
+use App\Livewire\FilteredPage;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\MediaType;
@@ -16,12 +18,8 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Illuminate\Contracts\View\View;
-use Livewire\Component;
-use Livewire\WithPagination;
 
-new #[Title('Discover')] class extends Component {
-    use WithPagination;
-
+new #[Title('Discover')] class extends FilteredPage {
     private const PER_PAGE = 24;
 
     private const TOP_GENRES = 12;
@@ -30,13 +28,93 @@ new #[Title('Discover')] class extends Component {
     #[Url]
     public ?string $family = null;
 
-    /** A media type slug; an unknown one is ignored. */
+    /**
+     * A media type slug from a link (`?type=manga`): it joins the format filter at once and then clears itself, so the page has one state. An unknown one is ignored.
+     */
     #[Url]
     public ?string $type = null;
 
-    /** A genre slug; an unknown one is ignored. */
+    /**
+     * A genre slug from a link (`?genre=action`, an old slug too): it joins the genre filter at once and then clears itself. An unknown one is ignored.
+     */
     #[Url]
     public ?string $genre = null;
+
+    public function mount(): void
+    {
+        $this->initFilters();
+        $this->foldLinkedFilters();
+    }
+
+    public function updatedType(): void
+    {
+        $this->foldLinkedFilters();
+        $this->resetPage();
+    }
+
+    public function updatedGenre(): void
+    {
+        $this->foldLinkedFilters();
+        $this->resetPage();
+    }
+
+    /**
+     * `?type=` and `?genre=` are links from before the filter panel (and the format tiles and top genres still point at them in spirit): they are added to
+     * the panel's own filters, which is where the page reads them from.
+     */
+    private function foldLinkedFilters(): void
+    {
+        if ($this->type !== null) {
+            $slug = MediaType::query()->where('slug', $this->type)->value('slug');
+
+            $slug === null || $this->filters['mediaTypes'] = array_values(array_unique([...$this->filters['mediaTypes'], $slug]));
+            $this->type = null;
+        }
+
+        if ($this->genre !== null) {
+            // A slug from before the taxonomy (an old link to ?genre=action) finds the genre that replaced it.
+            $slug = Genre::query()->where('slug', $this->genre)->value('slug') ?? Genre::query()->where('slug', LegacyTaxonomy::genreSlug($this->genre))->value('slug');
+
+            $slug === null || $this->filters['genres'] = array_values(array_unique([...$this->filters['genres'], $slug]));
+            $this->genre = null;
+        }
+
+        $this->settleFilters();
+    }
+
+    public function removeFilter(string $group, ?string $value = null): void
+    {
+        if ($group === 'family') {
+            $this->family = null;
+            $this->resetPage();
+
+            return;
+        }
+
+        parent::removeFilter($group, $value);
+    }
+
+    public function clearFilters(): void
+    {
+        $this->family = null;
+        parent::clearFilters();
+    }
+
+    /**
+     * The family of formats as a chip of its own, ahead of the rest.
+     *
+     * @return list<array{group: string, label: string|null, chips: list<array{value: string|null, text: string, remove: string}>}>
+     */
+    protected function extraChipGroups(): array
+    {
+        if ($this->activeFamily === null) {
+            return [];
+        }
+
+        $text = $this->familyLabel($this->activeFamily);
+
+        return [['group' => 'family', 'label' => __('Family'), 'chips' => [['value' => null, 'text' => $text, 'remove' => __('Remove filter :label', ['label' => $text])]]]];
+    }
 
     /**
      * The header is a band across the whole page, so the layout leaves `<main>` bare (see layouts/app).
@@ -52,22 +130,13 @@ new #[Title('Discover')] class extends Component {
         return MediaFamily::tryFrom((string) $this->family);
     }
 
-    #[Computed]
-    public function activeType(): ?MediaType
-    {
-        return $this->type === null ? null : MediaType::query()->where('slug', $this->type)->first();
-    }
-
-    #[Computed]
-    public function activeGenre(): ?Genre
-    {
-        return $this->genre === null ? null : Genre::query()->where('slug', $this->genre)->first();
-    }
-
+    /**
+     * Whether anything narrows the stories: a family of formats, or any filter.
+     */
     #[Computed]
     public function isFiltered(): bool
     {
-        return $this->activeFamily !== null || $this->activeType !== null || $this->activeGenre !== null;
+        return $this->activeFamily !== null || ! $this->searchFilters()->isEmpty();
     }
 
     /**
@@ -79,8 +148,9 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function types(): SupportCollection
     {
-        // Kept ten minutes as `[type id => count]` (the cache refuses to unserialize models).
-        $counts = Cache::remember('discover:type-counts:v1', 600, fn (): array => Media::query()->unmerged()->selectRaw('media.media_type_id, count(*) as total')->groupBy('media.media_type_id')->pluck('total', 'media_type_id')->map(fn (mixed $total): int => (int) $total)->all());
+        // Kept ten minutes as `[type id => count]` (the cache refuses to unserialize models), once for readers who may see mature titles and once for the rest.
+        $viewer = auth()->user();
+        $counts = Cache::remember('discover:type-counts:v2:'.MatureAccess::cacheKey($viewer), 600, fn (): array => Media::query()->unmerged()->visibleTo($viewer)->selectRaw('media.media_type_id, count(*) as total')->groupBy('media.media_type_id')->pluck('total', 'media_type_id')->map(fn (mixed $total): int => (int) $total)->all());
 
         return MediaType::query()->orderBy('name')->get()
             ->each(fn (MediaType $type) => $type->setAttribute('stories_count', $counts[$type->id] ?? 0))
@@ -119,9 +189,11 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function covers(): array
     {
-        return Cache::remember('discover:covers:v1', 600, fn (): array => DB::query()
+        $viewer = auth()->user();
+
+        return Cache::remember('discover:covers:v2:'.MatureAccess::cacheKey($viewer), 600, fn (): array => DB::query()
             ->fromSub(
-                Media::query()->unmerged()->whereNotNull('media.cover_url')->selectRaw('media.media_type_id, media.cover_url, row_number() over (partition by media.media_type_id order by media.ratings_count desc, media.id) as position')->toBase(),
+                Media::query()->unmerged()->visibleTo($viewer)->whereNotNull('media.cover_url')->selectRaw('media.media_type_id, media.cover_url, row_number() over (partition by media.media_type_id order by media.ratings_count desc, media.id) as position')->toBase(),
                 'ranked',
             )
             ->where('position', '<=', 3)
@@ -170,21 +242,16 @@ new #[Title('Discover')] class extends Component {
     }
 
     /**
-     * Every genre that has a story, the biggest first, as `[genre id => live story count]`, kept ten minutes.
+     * Every genre family that has a story, the biggest first, as `[genre id => live story count]`, kept ten minutes. A family counts the stories of its subgenres too.
      *
      * @return array<int, int>
      */
     #[Computed]
     public function genreCounts(): array
     {
-        return Cache::remember('discover:genre-counts:v1', 600, fn (): array => Genre::query()
-            ->withCount(['media' => fn ($media) => $media->unmerged()])
-            ->orderByDesc('media_count')
-            ->orderBy('name')
-            ->get()
-            ->filter(fn (Genre $genre): bool => $genre->media_count > 0)
-            ->mapWithKeys(fn (Genre $genre): array => [$genre->id => (int) $genre->media_count])
-            ->all());
+        $mature = MatureAccess::allows(auth()->user());
+
+        return Cache::remember('discover:genre-counts:v3:'.($mature ? 'mature' : 'gated'), 600, fn (): array => Genre::familyCounts($mature));
     }
 
     /**
@@ -193,11 +260,12 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function subjects(): Collection
     {
-        return app(DeweyCounts::class)->rootsWithCounts();
+        return app(DeweyCounts::class)->rootsWithCounts(auth()->user());
     }
 
     /**
-     * One page of the narrowed stories, most rated first, or null while nothing is narrowed.
+     * One page of the narrowed stories, most rated first, or null while nothing is narrowed. A family of formats stands for all of its formats
+     * until a format is picked.
      *
      * @return LengthAwarePaginator<int, Media>|null
      */
@@ -208,13 +276,11 @@ new #[Title('Discover')] class extends Component {
             return null;
         }
 
-        $slugs = match (true) {
-            $this->activeType !== null => [$this->activeType->slug],
-            $this->activeFamily !== null => MediaType::query()->where('family', $this->activeFamily)->pluck('slug')->all(),
-            default => [],
-        };
+        $formats = $this->activeFamily !== null && $this->filters['mediaTypes'] === []
+            ? ['mediaTypes' => MediaType::query()->where('family', $this->activeFamily)->pluck('slug')->all()]
+            : [];
 
-        $page = app(HybridSearch::class)->browse(new SearchFilters(mediaTypes: $slugs, genres: $this->activeGenre ? [$this->activeGenre->slug] : []), self::PER_PAGE);
+        $page = app(HybridSearch::class)->browse($this->searchFilters($formats), self::PER_PAGE, auth()->user());
 
         (new Collection($page->items()))->load('mediaType');
 
@@ -222,15 +288,23 @@ new #[Title('Discover')] class extends Component {
     }
 
     /**
-     * The filters in force, named, for the heading above the results.
+     * The formats and genres in force, named, for the heading above the results (a few of them, then how many more).
      */
     #[Computed]
     public function resultsTitle(): string
     {
-        return collect([
-            $this->activeType?->name ?? ($this->activeFamily ? $this->familyLabel($this->activeFamily) : null),
-            $this->activeGenre?->name,
-        ])->filter()->implode(', ');
+        $labels = $this->facets;
+        $names = collect([
+            ...array_map(fn (string $slug): string => $labels['mediaTypes'][$slug] ?? $slug, $this->filters['mediaTypes']),
+            ...($this->filters['mediaTypes'] === [] && $this->activeFamily ? [$this->familyLabel($this->activeFamily)] : []),
+            ...array_map(fn (string $slug): string => $labels['genres'][$slug] ?? $slug, $this->filters['genres']),
+        ]);
+
+        return match (true) {
+            $names->isEmpty() => __('Filtered stories'),
+            $names->count() > 3 => $names->take(3)->implode(', ').' '.__('and :count more', ['count' => $names->count() - 3]),
+            default => $names->implode(', '),
+        };
     }
 
     public function familyLabel(MediaFamily $family): string
@@ -244,21 +318,39 @@ new #[Title('Discover')] class extends Component {
     }
 
     /**
-     * The URL of this page with one filter swapped (a null value drops it), keeping the others. A new filter chosen from the tiles
-     * jumps to the results; dropping one stays where the reader is.
+     * The URL of this page for a state of the filters (and the family of formats), without what is empty. Going somewhere new jumps to the results;
+     * dropping a filter stays where the reader is.
      *
-     * @param  array<string, string|null>  $change
+     * @param  array<string, mixed>  $filters
      */
-    public function linkTo(array $change): string
+    private function linkFor(array $filters, ?MediaFamily $family, bool $jump): string
     {
-        $query = array_filter([
-            'family' => $this->activeFamily?->value,
-            'type' => $this->activeType?->slug,
-            'genre' => $this->activeGenre?->slug,
-            ...$change,
-        ]);
+        $query = array_filter(['family' => $family?->value, 'filters' => array_filter($filters)]);
 
-        return route('discover', $query).(array_filter($change) !== [] ? '#results' : '');
+        return route('discover', $query).($jump ? '#results' : '');
+    }
+
+    /**
+     * This page with one value of a filter turned on or, when it is on, off, keeping everything else.
+     */
+    public function toggleLink(string $group, string $value): string
+    {
+        $values = $this->filters[$group];
+        $on = ! in_array($value, $values, true);
+
+        return $this->linkFor(
+            [...$this->filters, $group => $on ? [...$values, $value] : array_values(array_diff($values, [$value]))],
+            $this->activeFamily,
+            $on,
+        );
+    }
+
+    /**
+     * This page with another family of formats (null for all of them), keeping the filters.
+     */
+    public function familyLink(?MediaFamily $family): string
+    {
+        return $this->linkFor($this->filters, $family, false);
     }
 }; ?>
 
@@ -272,6 +364,10 @@ new #[Title('Discover')] class extends Component {
 @endphp
 
 <div class="pb-12">
+    @if ($hasCatalog)
+        <x-filter-islands :panel="fn () => $this->panel" :years="$this->facets['years']" />
+    @endif
+
     <header class="relative isolate overflow-hidden bg-surface-deep">
         <div class="flex items-center justify-between gap-12 px-gutter py-8 lg:py-12">
             <div class="min-w-0 flex-1">
@@ -312,11 +408,11 @@ new #[Title('Discover')] class extends Component {
                 <nav aria-label="{{ __('Format families') }}" class="mt-4">
                     <ul class="flex flex-wrap gap-2">
                         <li>
-                            <x-chip :href="route('discover')" wire:navigate :active="$this->activeFamily === null">{{ __('All formats') }}</x-chip>
+                            <x-chip :href="$this->familyLink(null)" wire:navigate :active="$this->activeFamily === null">{{ __('All formats') }}</x-chip>
                         </li>
                         @foreach ($this->families as $family)
                             <li wire:key="family-{{ $family->value }}">
-                                <x-chip :href="route('discover', ['family' => $family->value])" wire:navigate :active="$this->activeFamily === $family">{{ $this->familyLabel($family) }}</x-chip>
+                                <x-chip :href="$this->familyLink($family)" wire:navigate :active="$this->activeFamily === $family">{{ $this->familyLabel($family) }}</x-chip>
                             </li>
                         @endforeach
                     </ul>
@@ -325,10 +421,10 @@ new #[Title('Discover')] class extends Component {
 
             <ul x-data x-motion-reveal data-stagger="30" class="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
                 @foreach ($this->tiles as $tile)
-                    @php $isActive = $this->activeType?->is($tile) ?? false; @endphp
+                    @php $isActive = in_array($tile->slug, $this->filters['mediaTypes'], true); @endphp
                     <li wire:key="format-{{ $tile->id }}">
                         <a
-                            href="{{ $this->linkTo(['type' => $isActive ? null : $tile->slug]) }}"
+                            href="{{ $this->toggleLink('mediaTypes', $tile->slug) }}"
                             wire:navigate
                             data-format-tile
                             @if ($isActive) aria-current="true" @endif
@@ -359,13 +455,13 @@ new #[Title('Discover')] class extends Component {
         @if ($this->genres->isNotEmpty())
             <section aria-labelledby="genres-title" class="mt-12 lg:mt-16">
                 <h2 id="genres-title" class="text-section text-ink">{{ __('Top Genres') }}</h2>
-                <p class="mt-1 text-meta text-ink-subtle">{{ __('The genres with the most stories. Select one to filter the results.') }}</p>
+                <p class="mt-1 text-meta text-ink-subtle">{{ __('The genres with the most stories. Select one to filter the results, or use the filters below for subgenres, themes and more.') }}</p>
 
                 <ul class="mt-4 flex flex-wrap gap-2">
                     @foreach ($this->genres as $genre)
-                        @php $isActive = $this->activeGenre?->is($genre) ?? false; @endphp
+                        @php $isActive = in_array($genre->slug, $this->filters['genres'], true); @endphp
                         <li wire:key="genre-{{ $genre->id }}">
-                            <x-chip :href="$this->linkTo(['genre' => $isActive ? null : $genre->slug])" wire:navigate data-genre-chip :active="$isActive">
+                            <x-chip :href="$this->toggleLink('genres', $genre->slug)" wire:navigate data-genre-chip :active="$isActive">
                                 <span>{{ $genre->name }}</span>
                                 <span class="tabular-nums {{ $isActive ? 'text-canvas' : 'text-ink-subtle' }}">{{ number_format($genre->media_count) }}</span>
                             </x-chip>
@@ -375,36 +471,75 @@ new #[Title('Discover')] class extends Component {
             </section>
         @endif
 
-        @if ($this->results)
-            <section id="results" aria-labelledby="results-title" class="mt-12 scroll-mt-20 lg:mt-16">
-                <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
-                    <h2 id="results-title" class="text-section text-ink">{{ $this->resultsTitle }}</h2>
-                    <a href="{{ route('discover') }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control px-2 text-meta text-link hover:underline">{{ __('Clear filters') }}</a>
+        <section id="results" aria-labelledby="results-title" class="mt-12 scroll-mt-20 lg:mt-16">
+            <h2 id="results-title" class="text-section text-ink">{{ $this->isFiltered ? $this->resultsTitle : __('Find Stories') }}</h2>
+            <p class="mt-1 text-meta text-ink-subtle">{{ __('Combine genres, subgenres, themes, tropes and more. Each group narrows the results on its own.') }}</p>
+
+            <div x-data="filterPanel(@js($this->panelConfig))" x-on:filter-sheet-close="discard()" class="mt-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-12">
+                <aside aria-labelledby="discover-filters-title" class="hidden self-start lg:sticky lg:top-20 lg:block">
+                    <div class="flex min-h-11 items-center justify-between gap-4">
+                        <h3 id="discover-filters-title" class="text-lead text-ink">{{ __('Filters') }}</h3>
+
+                        <button type="button" x-show="activeCount > 0 || dirty" style="display: none" @click="clear()" class="focus-ring -mx-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
+                    </div>
+
+                    <div wire:ignore data-filter-mount x-html="desktop ? panelHtml : ''" class="mt-2 max-h-[calc(100dvh-9rem)] overflow-y-auto overscroll-contain pe-2"></div>
+                </aside>
+
+                <div class="min-w-0">
+                    <div class="flex min-h-11 flex-wrap items-center justify-between gap-3">
+                        <p role="status" data-test="result-count" class="text-meta tabular-nums text-ink-subtle">
+                            @if ($this->results)
+                                {{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}
+                            @endif
+                        </p>
+
+                        <x-filter-sheet>
+                            <x-slot:badge>
+                                <span x-show="activeCount > 0" style="display: none" class="tabular-nums text-ink-subtle" wire:ignore><span aria-hidden="true" class="mx-1.5">·</span><span x-text="activeCount"></span><span class="sr-only"> {{ __('applied') }}</span></span>
+                            </x-slot:badge>
+
+                            <div wire:ignore data-filter-mount x-html="desktop ? '' : panelHtml"></div>
+
+                            <x-slot:footer>
+                                <div class="flex items-center gap-3">
+                                    <button type="button" @click="clear()" class="focus-ring inline-flex min-h-11 items-center rounded-control px-3 text-body text-link hover:underline">{{ __('Clear all') }}</button>
+                                    <flux:modal.close class="flex-1">
+                                        <x-cta icon="check" class="w-full" @click="apply()">{{ __('Apply filters') }}</x-cta>
+                                    </flux:modal.close>
+                                </div>
+                            </x-slot:footer>
+                        </x-filter-sheet>
+                    </div>
+
+                    @include('pages.search.chips')
+
+                    <div wire:loading.delay.shortest.class="opacity-60" class="motion-safe:transition-opacity">
+                        @if ($this->results === null)
+                            <p class="mt-6 max-w-prose text-body text-ink-subtle">{{ __('Pick a format or a genre above, or use the filters, to list stories here.') }}</p>
+                        @elseif ($this->results->isNotEmpty())
+                            <ul class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                                @foreach ($this->results as $media)
+                                    <li wire:key="result-{{ $media->id }}">
+                                        <x-cover-tile :media="$media" :badge="count($this->filters['mediaTypes']) !== 1" fluid />
+                                    </li>
+                                @endforeach
+                            </ul>
+
+                            <x-pager :paginator="$this->results" class="mt-8" />
+                        @else
+                            <x-empty-state :title="__('No stories match')" heading="h3" class="mt-6">
+                                <p class="mt-2 text-body text-ink-subtle">{{ __('No story has all of those. Drop a filter to see more.') }}</p>
+
+                                <div class="mt-6 flex flex-wrap gap-3">
+                                    <x-cta variant="secondary" icon="x-mark" wire:click="clearFilters">{{ __('Clear filters') }}</x-cta>
+                                </div>
+                            </x-empty-state>
+                        @endif
+                    </div>
                 </div>
-
-                <p role="status" class="text-meta tabular-nums text-ink-subtle">{{ trans_choice('{0} No stories|{1} 1 story|[2,*] :count stories', $this->results->total()) }}</p>
-
-                @if ($this->results->isNotEmpty())
-                    <ul class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-                        @foreach ($this->results as $media)
-                            <li wire:key="result-{{ $media->id }}">
-                                <x-cover-tile :media="$media" :badge="$this->activeType === null" fluid />
-                            </li>
-                        @endforeach
-                    </ul>
-
-                    <x-pager :paginator="$this->results" class="mt-8" />
-                @else
-                    <x-empty-state :title="__('No stories match')" heading="h3" class="mt-6">
-                        <p class="mt-2 text-body text-ink-subtle">{{ __('No story has both of those. Drop a filter to see more.') }}</p>
-
-                        <div class="mt-6 flex flex-wrap gap-3">
-                            <x-cta variant="secondary" icon="x-mark" :href="route('discover')" wire:navigate>{{ __('Clear filters') }}</x-cta>
-                        </div>
-                    </x-empty-state>
-                @endif
-            </section>
-        @endif
+            </div>
+        </section>
     @else
         <x-empty-catalog class="mt-12 lg:mt-16" />
     @endif

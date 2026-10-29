@@ -1,0 +1,733 @@
+kind,family,group,name
+genre,Fantasy,"High and epic fantasy","High Fantasy"
+genre,Fantasy,"High and epic fantasy","Epic Fantasy"
+genre,Fantasy,"High and epic fantasy","Heroic Fantasy"
+genre,Fantasy,"High and epic fantasy","Sword and Sorcery"
+genre,Fantasy,"High and epic fantasy","Dark Fantasy"
+genre,Fantasy,"High and epic fantasy",Grimdark
+genre,Fantasy,"High and epic fantasy","Low Fantasy"
+genre,Fantasy,"High and epic fantasy","Historical Fantasy"
+genre,Fantasy,"High and epic fantasy","Mythological Fantasy"
+genre,Fantasy,"High and epic fantasy","Fairy Tale Fantasy"
+genre,Fantasy,"High and epic fantasy","Portal Fantasy"
+genre,Fantasy,"High and epic fantasy","Urban Fantasy"
+genre,Fantasy,"High and epic fantasy","Contemporary Fantasy"
+genre,Fantasy,"High and epic fantasy","Cozy Fantasy"
+genre,Fantasy,"High and epic fantasy","Comic Fantasy"
+genre,Fantasy,"High and epic fantasy","Gaslamp Fantasy"
+genre,Fantasy,"High and epic fantasy","Weird Fantasy"
+genre,Fantasy,"High and epic fantasy","Magical Realism"
+genre,Fantasy,"High and epic fantasy","Paranormal Fantasy"
+genre,Fantasy,"High and epic fantasy","Science Fantasy"
+genre,Fantasy,"High and epic fantasy","Gothic Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Progression Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy",LitRPG
+genre,Fantasy,"Progression and Eastern fantasy",Isekai
+genre,Fantasy,"Progression and Eastern fantasy","Reverse Isekai"
+genre,Fantasy,"Progression and Eastern fantasy","Reincarnation Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Regression Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Transmigration Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Cultivation Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy",Xianxia
+genre,Fantasy,"Progression and Eastern fantasy",Xuanhuan
+genre,Fantasy,"Progression and Eastern fantasy",Wuxia
+genre,Fantasy,"Progression and Eastern fantasy",Murim
+genre,Fantasy,"Progression and Eastern fantasy","Immortal Ascension"
+genre,Fantasy,"Progression and Eastern fantasy","Sect Politics"
+genre,Fantasy,"Progression and Eastern fantasy","Dungeon Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Tower Climbing"
+genre,Fantasy,"Progression and Eastern fantasy","Hunter Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","System Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Leveling Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Academy Fantasy"
+genre,Fantasy,"Progression and Eastern fantasy","Magic School"
+genre,Fantasy,"Progression and Eastern fantasy","Monster Evolution"
+genre,Fantasy,"Progression and Eastern fantasy","Overpowered Protagonist"
+genre,Fantasy,"Progression and Eastern fantasy","Villain Protagonist"
+genre,Fantasy,"Progression and Eastern fantasy","Kingdom Building"
+genre,Fantasy,"Progression and Eastern fantasy","Dungeon Management"
+genre,Fantasy,"Progression and Eastern fantasy","Survival Fantasy"
+genre,Romance,"Traditional and contemporary romance","Contemporary Romance"
+genre,Romance,"Traditional and contemporary romance","Historical Romance"
+genre,Romance,"Traditional and contemporary romance","Regency Romance"
+genre,Romance,"Traditional and contemporary romance","Victorian Romance"
+genre,Romance,"Traditional and contemporary romance","Paranormal Romance"
+genre,Romance,"Traditional and contemporary romance","Fantasy Romance"
+genre,Romance,"Traditional and contemporary romance",Romantasy
+genre,Romance,"Traditional and contemporary romance","Science Fiction Romance"
+genre,Romance,"Traditional and contemporary romance","Romantic Comedy"
+genre,Romance,"Traditional and contemporary romance","Romantic Drama"
+genre,Romance,"Traditional and contemporary romance","Gothic Romance"
+genre,Romance,"Traditional and contemporary romance","Suspense Romance"
+genre,Romance,"Traditional and contemporary romance","Sports Romance"
+genre,Romance,"Traditional and contemporary romance","Workplace Romance"
+genre,Romance,"Traditional and contemporary romance","Small-Town Romance"
+genre,Romance,"Traditional and contemporary romance","Billionaire Romance"
+genre,Romance,"Traditional and contemporary romance","Celebrity Romance"
+genre,Romance,"Traditional and contemporary romance","Military Romance"
+genre,Romance,"Traditional and contemporary romance","Holiday Romance"
+genre,Romance,"Traditional and contemporary romance","Marriage-of-Convenience Romance"
+genre,Romance,"Relationship-driven romance",Friends-to-Lovers
+genre,Romance,"Relationship-driven romance",Enemies-to-Lovers
+genre,Romance,"Relationship-driven romance",Rivals-to-Lovers
+genre,Romance,"Relationship-driven romance","Second-Chance Romance"
+genre,Romance,"Relationship-driven romance","Slow Burn"
+genre,Romance,"Relationship-driven romance","Forbidden Love"
+genre,Romance,"Relationship-driven romance","Love Triangle"
+genre,Romance,"Relationship-driven romance","Fake Dating"
+genre,Romance,"Relationship-driven romance","Fake Marriage"
+genre,Romance,"Relationship-driven romance","Arranged Marriage"
+genre,Romance,"Relationship-driven romance","Contract Marriage"
+genre,Romance,"Relationship-driven romance","Opposites Attract"
+genre,Romance,"Relationship-driven romance",Grumpy/Sunshine
+genre,Romance,"Relationship-driven romance","Forced Proximity"
+genre,Romance,"Relationship-driven romance","Only One Bed"
+genre,Romance,"Relationship-driven romance","Secret Identity Romance"
+genre,Romance,"Relationship-driven romance","Secret Royalty"
+genre,Romance,"Relationship-driven romance","Hidden Heir"
+genre,Romance,"Relationship-driven romance","Workplace Romance"
+genre,Romance,"Relationship-driven romance","School Romance"
+genre,Romance,"Relationship-driven romance","College Romance"
+genre,Romance,"Relationship-driven romance","Age-Gap Romance Between Adults"
+genre,Romance,"Relationship-driven romance","Reunion Romance"
+genre,Romance,"Relationship-driven romance","Long-Distance Romance"
+genre,Romance,"Relationship-driven romance","Unrequited Love"
+genre,Romance,"Relationship-driven romance","Tragic Romance"
+genre,Romance,"Relationship-driven romance","Polyamorous Romance"
+genre,Romance,"Relationship-driven romance","Harem Romance"
+genre,Romance,"Relationship-driven romance","Reverse Harem Romance"
+genre,Romance,"Relationship-driven romance","Monster Romance"
+genre,Romance,"Relationship-driven romance","Villain Romance"
+genre,Romance,"Relationship-driven romance","Morally Gray Love Interest"
+genre,Romance,"Relationship-driven romance","Obsessive Romance"
+genre,Romance,"Relationship-driven romance","Dark Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","LGBTQ+ Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","M/M Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","F/F Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","M/F Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","BL (Boys' Love)"
+genre,Romance,"LGBTQ+ romance and relationship fiction","GL (Girls' Love)"
+genre,Romance,"LGBTQ+ romance and relationship fiction",Yuri
+genre,Romance,"LGBTQ+ romance and relationship fiction",Yaoi
+genre,Romance,"LGBTQ+ romance and relationship fiction","Queer Contemporary Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","Queer Historical Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","Queer Fantasy Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","Transgender Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","Asexual Romance"
+genre,Romance,"LGBTQ+ romance and relationship fiction","Aromantic Representation"
+genre,"Science Fiction","Core science fiction","Hard Science Fiction"
+genre,"Science Fiction","Core science fiction","Soft Science Fiction"
+genre,"Science Fiction","Core science fiction","Space Opera"
+genre,"Science Fiction","Core science fiction","Space Exploration"
+genre,"Science Fiction","Core science fiction","First Contact"
+genre,"Science Fiction","Core science fiction","Alien Invasion"
+genre,"Science Fiction","Core science fiction","Military Science Fiction"
+genre,"Science Fiction","Core science fiction","Planetary Romance"
+genre,"Science Fiction","Core science fiction","Interstellar Adventure"
+genre,"Science Fiction","Core science fiction","Time Travel"
+genre,"Science Fiction","Core science fiction","Alternate History"
+genre,"Science Fiction","Core science fiction","Parallel Universes"
+genre,"Science Fiction","Core science fiction","Multiverse Fiction"
+genre,"Science Fiction","Core science fiction","Artificial Intelligence Fiction"
+genre,"Science Fiction","Core science fiction","Robot Fiction"
+genre,"Science Fiction","Core science fiction","Genetic Engineering"
+genre,"Science Fiction","Core science fiction","Human Enhancement"
+genre,"Science Fiction","Core science fiction","Climate Fiction"
+genre,"Science Fiction","Core science fiction",Biopunk
+genre,"Science Fiction","Core science fiction",Cyberpunk
+genre,"Science Fiction","Core science fiction",Solarpunk
+genre,"Science Fiction","Core science fiction",Steampunk
+genre,"Science Fiction","Core science fiction",Dieselpunk
+genre,"Science Fiction","Core science fiction",Post-Cyberpunk
+genre,"Science Fiction","Core science fiction",Techno-Thriller
+genre,"Science Fiction","Core science fiction",Mecha
+genre,"Science Fiction","Core science fiction",Kaiju
+genre,"Science Fiction","Core science fiction","Space Western"
+genre,"Science Fiction","Dystopian and speculative futures","Dystopian Fiction"
+genre,"Science Fiction","Dystopian and speculative futures","Utopian Fiction"
+genre,"Science Fiction","Dystopian and speculative futures","Post-Apocalyptic Fiction"
+genre,"Science Fiction","Dystopian and speculative futures","Apocalyptic Fiction"
+genre,"Science Fiction","Dystopian and speculative futures","Climate Apocalypse"
+genre,"Science Fiction","Dystopian and speculative futures","Environmental Collapse"
+genre,"Science Fiction","Dystopian and speculative futures","Totalitarian Society"
+genre,"Science Fiction","Dystopian and speculative futures","Surveillance Society"
+genre,"Science Fiction","Dystopian and speculative futures","Corporate Dystopia"
+genre,"Science Fiction","Dystopian and speculative futures","Technological Singularity"
+genre,"Science Fiction","Dystopian and speculative futures","AI Takeover"
+genre,"Science Fiction","Dystopian and speculative futures","First Contact Conflict"
+genre,"Science Fiction","Dystopian and speculative futures","Posthuman Fiction"
+genre,"Science Fiction","Dystopian and speculative futures",Transhumanism
+genre,"Science Fiction","Dystopian and speculative futures","Synthetic Life"
+genre,"Science Fiction","Dystopian and speculative futures","Simulation Fiction"
+genre,Horror,"Psychological and supernatural horror","Psychological Horror"
+genre,Horror,"Psychological and supernatural horror","Supernatural Horror"
+genre,Horror,"Psychological and supernatural horror","Gothic Horror"
+genre,Horror,"Psychological and supernatural horror","Cosmic Horror"
+genre,Horror,"Psychological and supernatural horror","Lovecraftian Horror"
+genre,Horror,"Psychological and supernatural horror","Folk Horror"
+genre,Horror,"Psychological and supernatural horror","Occult Horror"
+genre,Horror,"Psychological and supernatural horror","Religious Horror"
+genre,Horror,"Psychological and supernatural horror","Paranormal Horror"
+genre,Horror,"Psychological and supernatural horror","Haunted House Horror"
+genre,Horror,"Psychological and supernatural horror",Possession
+genre,Horror,"Psychological and supernatural horror","Demonic Horror"
+genre,Horror,"Psychological and supernatural horror","Ghost Stories"
+genre,Horror,"Psychological and supernatural horror","Witchcraft Horror"
+genre,Horror,"Psychological and supernatural horror","Cursed Objects"
+genre,Horror,"Psychological and supernatural horror","Urban Legends"
+genre,Horror,"Psychological and supernatural horror","Analog Horror"
+genre,Horror,"Psychological and supernatural horror","Found-Footage Fiction"
+genre,Horror,"Psychological and supernatural horror","Weird Horror"
+genre,Horror,"Physical and survival horror","Body Horror"
+genre,Horror,"Physical and survival horror","Creature Horror"
+genre,Horror,"Physical and survival horror","Monster Horror"
+genre,Horror,"Physical and survival horror","Zombie Horror"
+genre,Horror,"Physical and survival horror","Vampire Horror"
+genre,Horror,"Physical and survival horror","Werewolf Horror"
+genre,Horror,"Physical and survival horror",Slasher
+genre,Horror,"Physical and survival horror","Survival Horror"
+genre,Horror,"Physical and survival horror","Extreme Horror"
+genre,Horror,"Physical and survival horror",Splatterpunk
+genre,Horror,"Physical and survival horror","Gore Horror"
+genre,Horror,"Physical and survival horror","Torture Horror"
+genre,Horror,"Physical and survival horror","Cannibal Horror"
+genre,Horror,"Physical and survival horror","Medical Horror"
+genre,Horror,"Physical and survival horror","Parasite Horror"
+genre,Horror,"Physical and survival horror","Mutation Horror"
+genre,Horror,"Physical and survival horror",Eco-Horror
+genre,Horror,"Physical and survival horror","Apocalyptic Horror"
+genre,Horror,"Physical and survival horror","Pandemic Horror"
+genre,Horror,"Physical and survival horror","Death Game"
+genre,Horror,"Physical and survival horror","Survival Game"
+genre,"Mystery, Crime and Thriller",Mystery,"Detective Fiction"
+genre,"Mystery, Crime and Thriller",Mystery,"Cozy Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,Whodunit
+genre,"Mystery, Crime and Thriller",Mystery,"Locked-Room Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Amateur Sleuth"
+genre,"Mystery, Crime and Thriller",Mystery,"Historical Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Missing-Person Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Murder Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Supernatural Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Paranormal Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Puzzle Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Conspiracy Mystery"
+genre,"Mystery, Crime and Thriller",Mystery,"Academic Mystery"
+genre,"Mystery, Crime and Thriller",Crime,"Crime Fiction"
+genre,"Mystery, Crime and Thriller",Crime,"Police Procedural"
+genre,"Mystery, Crime and Thriller",Crime,"Hardboiled Fiction"
+genre,"Mystery, Crime and Thriller",Crime,Noir
+genre,"Mystery, Crime and Thriller",Crime,"Organized Crime"
+genre,"Mystery, Crime and Thriller",Crime,"Mafia Fiction"
+genre,"Mystery, Crime and Thriller",Crime,"Gangster Fiction"
+genre,"Mystery, Crime and Thriller",Crime,"Heist Fiction"
+genre,"Mystery, Crime and Thriller",Crime,"Criminal Biography"
+genre,"Mystery, Crime and Thriller",Crime,"Forensic Crime"
+genre,"Mystery, Crime and Thriller",Crime,"True Crime"
+genre,"Mystery, Crime and Thriller",Crime,"Serial-Killer Fiction"
+genre,"Mystery, Crime and Thriller",Crime,"Revenge Crime"
+genre,"Mystery, Crime and Thriller",Crime,"Prison Fiction"
+genre,"Mystery, Crime and Thriller",Crime,"Underworld Fiction"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Psychological Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Domestic Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Legal Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Medical Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Political Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Espionage Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Spy Fiction"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Conspiracy Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense",Techno-Thriller
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Military Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Survival Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Action Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Revenge Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Erotic Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Supernatural Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Courtroom Drama"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Cat-and-Mouse Thriller"
+genre,"Mystery, Crime and Thriller","Thriller and suspense","Unreliable-Narrator Thriller"
+genre,"Action and Adventure",,"Epic Adventure"
+genre,"Action and Adventure",,Quest
+genre,"Action and Adventure",,Exploration
+genre,"Action and Adventure",,"Treasure Hunt"
+genre,"Action and Adventure",,"Lost World"
+genre,"Action and Adventure",,"Wilderness Survival"
+genre,"Action and Adventure",,Expedition
+genre,"Action and Adventure",,"Pirate Adventure"
+genre,"Action and Adventure",,Swashbuckler
+genre,"Action and Adventure",,"Military Adventure"
+genre,"Action and Adventure",,"Martial Arts"
+genre,"Action and Adventure",,"Assassin Fiction"
+genre,"Action and Adventure",,"Revenge Action"
+genre,"Action and Adventure",,"Rescue Mission"
+genre,"Action and Adventure",,"Road Adventure"
+genre,"Action and Adventure",,"Disaster Fiction"
+genre,"Action and Adventure",,"Tournament Arc"
+genre,"Action and Adventure",,"Training Arc"
+genre,"Action and Adventure",,"Dungeon Exploration"
+genre,"Action and Adventure",,"Monster Hunting"
+genre,"Action and Adventure",,"Superhero Action"
+genre,"Action and Adventure",,"Vigilante Fiction"
+genre,"Action and Adventure",,"Espionage Adventure"
+genre,"Action and Adventure",,"Survival Adventure"
+genre,"Action and Adventure",,"Archaeological Adventure"
+genre,"Action and Adventure",,"Frontier Adventure"
+genre,"Drama and Human Relationships",,"Family Drama"
+genre,"Drama and Human Relationships",,"Domestic Drama"
+genre,"Drama and Human Relationships",,"Relationship Drama"
+genre,"Drama and Human Relationships",,"Psychological Drama"
+genre,"Drama and Human Relationships",,"Social Drama"
+genre,"Drama and Human Relationships",,"Political Drama"
+genre,"Drama and Human Relationships",,"Historical Drama"
+genre,"Drama and Human Relationships",,"Medical Drama"
+genre,"Drama and Human Relationships",,"Legal Drama"
+genre,"Drama and Human Relationships",,"Workplace Drama"
+genre,"Drama and Human Relationships",,"School Drama"
+genre,"Drama and Human Relationships",,"Courtroom Drama"
+genre,"Drama and Human Relationships",,Coming-of-Age
+genre,"Drama and Human Relationships",,Tragedy
+genre,"Drama and Human Relationships",,Melodrama
+genre,"Drama and Human Relationships",,"Character Study"
+genre,"Drama and Human Relationships",,"Family Saga"
+genre,"Drama and Human Relationships",,"Intergenerational Drama"
+genre,"Drama and Human Relationships",,"Parenthood Fiction"
+genre,"Drama and Human Relationships",,"Sibling Relationships"
+genre,"Drama and Human Relationships",,"Friendship Fiction"
+genre,"Drama and Human Relationships",,"Found Family"
+genre,"Drama and Human Relationships",,"Marriage and Partnership"
+genre,"Drama and Human Relationships",,"Divorce and Separation"
+genre,"Drama and Human Relationships",,"Grief and Loss"
+genre,"Drama and Human Relationships",,Reconciliation
+genre,"Drama and Human Relationships",,Betrayal
+genre,"Drama and Human Relationships",,"Personal Transformation"
+genre,"Comedy and Satire",,"Romantic Comedy"
+genre,"Comedy and Satire",,"Dark Comedy"
+genre,"Comedy and Satire",,"Black Comedy"
+genre,"Comedy and Satire",,"Absurdist Comedy"
+genre,"Comedy and Satire",,Slapstick
+genre,"Comedy and Satire",,Parody
+genre,"Comedy and Satire",,Satire
+genre,"Comedy and Satire",,Spoof
+genre,"Comedy and Satire",,"Situational Comedy"
+genre,"Comedy and Satire",,"Comedy of Errors"
+genre,"Comedy and Satire",,"Workplace Comedy"
+genre,"Comedy and Satire",,"School Comedy"
+genre,"Comedy and Satire",,"Family Comedy"
+genre,"Comedy and Satire",,"Social Comedy"
+genre,"Comedy and Satire",,"Political Satire"
+genre,"Comedy and Satire",,"Fantasy Comedy"
+genre,"Comedy and Satire",,"Science Fiction Comedy"
+genre,"Comedy and Satire",,"Superhero Comedy"
+genre,"Comedy and Satire",,"Action Comedy"
+genre,"Comedy and Satire",,"Horror Comedy"
+genre,"Comedy and Satire",,"Mockumentary Fiction"
+genre,"Slice of Life and Everyday Fiction",,"Slice of Life"
+genre,"Slice of Life and Everyday Fiction",,"School Life"
+genre,"Slice of Life and Everyday Fiction",,"College Life"
+genre,"Slice of Life and Everyday Fiction",,"Workplace Life"
+genre,"Slice of Life and Everyday Fiction",,"Family Life"
+genre,"Slice of Life and Everyday Fiction",,"Rural Life"
+genre,"Slice of Life and Everyday Fiction",,"Urban Life"
+genre,"Slice of Life and Everyday Fiction",,"Cozy Fiction"
+genre,"Slice of Life and Everyday Fiction",,"Healing Fiction"
+genre,"Slice of Life and Everyday Fiction",,Iyashikei
+genre,"Slice of Life and Everyday Fiction",,"Food and Cooking Stories"
+genre,"Slice of Life and Everyday Fiction",,"Restaurant Fiction"
+genre,"Slice of Life and Everyday Fiction",,"Hobby Fiction"
+genre,"Slice of Life and Everyday Fiction",,"Pet and Animal Stories"
+genre,"Slice of Life and Everyday Fiction",,"Daily Romance"
+genre,"Slice of Life and Everyday Fiction",,"Community Life"
+genre,"Slice of Life and Everyday Fiction",,"Slow Living"
+genre,"Slice of Life and Everyday Fiction",,"Travel and Everyday Adventure"
+genre,"Slice of Life and Everyday Fiction",,"Personal Growth"
+genre,"Superhero and Superpowered Fiction",,"Superhero Fiction"
+genre,"Superhero and Superpowered Fiction",,"Supervillain Fiction"
+genre,"Superhero and Superpowered Fiction",,"Superhero Origin Story"
+genre,"Superhero and Superpowered Fiction",,"Superhero Team Adventure"
+genre,"Superhero and Superpowered Fiction",,"Superhero Deconstruction"
+genre,"Superhero and Superpowered Fiction",,"Superhero Noir"
+genre,"Superhero and Superpowered Fiction",,"Superhero Comedy"
+genre,"Superhero and Superpowered Fiction",,"Superpowered Drama"
+genre,"Superhero and Superpowered Fiction",,"Vigilante Fiction"
+genre,"Superhero and Superpowered Fiction",,"Antihero Fiction"
+genre,"Superhero and Superpowered Fiction",,"Anti-Villain Fiction"
+genre,"Superhero and Superpowered Fiction",,"Mutant Fiction"
+genre,"Superhero and Superpowered Fiction",,"Supernatural Powers"
+genre,"Superhero and Superpowered Fiction",,"Psychic Powers"
+genre,"Superhero and Superpowered Fiction",,"Magical Heroes"
+genre,"Superhero and Superpowered Fiction",,"Cosmic Superheroes"
+genre,"Superhero and Superpowered Fiction",,"Street-Level Superheroes"
+genre,"Superhero and Superpowered Fiction",,"Superhero Romance"
+genre,"Superhero and Superpowered Fiction",,"Alternate-Universe Superheroes"
+genre,"Historical, War and Western Fiction",Historical,"Ancient History Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Medieval Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Renaissance Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Regency Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Victorian Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Edwardian Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Historical Romance"
+genre,"Historical, War and Western Fiction",Historical,"Historical Fantasy"
+genre,"Historical, War and Western Fiction",Historical,"Historical Mystery"
+genre,"Historical, War and Western Fiction",Historical,"Historical Adventure"
+genre,"Historical, War and Western Fiction",Historical,"Court Intrigue"
+genre,"Historical, War and Western Fiction",Historical,"Royal Court Drama"
+genre,"Historical, War and Western Fiction",Historical,"Samurai Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Pirate Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Historical Political Fiction"
+genre,"Historical, War and Western Fiction",Historical,"Alternate History"
+genre,"Historical, War and Western Fiction","War and military","Military Fiction"
+genre,"Historical, War and Western Fiction","War and military","Antiwar Fiction"
+genre,"Historical, War and Western Fiction","War and military","War Drama"
+genre,"Historical, War and Western Fiction","War and military","Resistance Fiction"
+genre,"Historical, War and Western Fiction","War and military","Military Espionage"
+genre,"Historical, War and Western Fiction","War and military","Historical Warfare"
+genre,"Historical, War and Western Fiction","War and military","Homefront Drama"
+genre,"Historical, War and Western Fiction","War and military","Military Science Fiction"
+genre,"Historical, War and Western Fiction","War and military","Military Fantasy"
+genre,"Historical, War and Western Fiction","War and military","Revolution and Rebellion"
+genre,"Historical, War and Western Fiction",Western,"Classic Western"
+genre,"Historical, War and Western Fiction",Western,"Revisionist Western"
+genre,"Historical, War and Western Fiction",Western,"Frontier Fiction"
+genre,"Historical, War and Western Fiction",Western,"Weird Western"
+genre,"Historical, War and Western Fiction",Western,"Space Western"
+genre,"Historical, War and Western Fiction",Western,"Western Romance"
+genre,"Historical, War and Western Fiction",Western,"Western Adventure"
+genre,"Historical, War and Western Fiction",Western,"Outlaw Fiction"
+genre,"Sports, Music and Performing Arts",Sports,"Sports Drama"
+genre,"Sports, Music and Performing Arts",Sports,"Sports Romance"
+genre,"Sports, Music and Performing Arts",Sports,"Underdog Stories"
+genre,"Sports, Music and Performing Arts",Sports,"Competitive Sports"
+genre,"Sports, Music and Performing Arts",Sports,"Tournament Fiction"
+genre,"Sports, Music and Performing Arts",Sports,Esports
+genre,"Sports, Music and Performing Arts",Sports,Racing
+genre,"Sports, Music and Performing Arts",Sports,Football
+genre,"Sports, Music and Performing Arts",Sports,Basketball
+genre,"Sports, Music and Performing Arts",Sports,Baseball
+genre,"Sports, Music and Performing Arts",Sports,Boxing
+genre,"Sports, Music and Performing Arts",Sports,"Martial Arts Competition"
+genre,"Sports, Music and Performing Arts",Sports,"Figure Skating"
+genre,"Sports, Music and Performing Arts",Sports,Gymnastics
+genre,"Sports, Music and Performing Arts",Sports,Volleyball
+genre,"Sports, Music and Performing Arts",Sports,Tennis
+genre,"Sports, Music and Performing Arts",Sports,Motorsport
+genre,"Sports, Music and Performing Arts",Sports,"Team Sports"
+genre,"Sports, Music and Performing Arts",Sports,"Individual Sports"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Music Drama"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Idol Fiction"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Band Stories"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Dance Fiction"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Theater Fiction"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Celebrity Fiction"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Music Romance"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Performing Arts School"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Talent Competition"
+genre,"Sports, Music and Performing Arts","Music and performing arts","Music Industry Drama"
+genre,"Sports, Music and Performing Arts","Music and performing arts","K-pop Idol Fiction"
+genre,"Mythology, Folklore and Religion",,"Greek Mythology"
+genre,"Mythology, Folklore and Religion",,"Roman Mythology"
+genre,"Mythology, Folklore and Religion",,"Norse Mythology"
+genre,"Mythology, Folklore and Religion",,"Egyptian Mythology"
+genre,"Mythology, Folklore and Religion",,"Philippine Mythology"
+genre,"Mythology, Folklore and Religion",,"Japanese Mythology"
+genre,"Mythology, Folklore and Religion",,"Chinese Mythology"
+genre,"Mythology, Folklore and Religion",,"Hindu Mythology"
+genre,"Mythology, Folklore and Religion",,"Celtic Mythology"
+genre,"Mythology, Folklore and Religion",,"Arthurian Legend"
+genre,"Mythology, Folklore and Religion",,"Slavic Folklore"
+genre,"Mythology, Folklore and Religion",,"African Folklore"
+genre,"Mythology, Folklore and Religion",,"Southeast Asian Folklore"
+genre,"Mythology, Folklore and Religion",,"Indigenous Folklore"
+genre,"Mythology, Folklore and Religion",,"Fairy Tales"
+genre,"Mythology, Folklore and Religion",,"Urban Legends"
+genre,"Mythology, Folklore and Religion",,"Mythological Retellings"
+genre,"Mythology, Folklore and Religion",,"Religious Allegory"
+genre,"Mythology, Folklore and Religion",,"Biblical Fiction"
+genre,"Mythology, Folklore and Religion",,"Spiritual Fiction"
+genre,"Mythology, Folklore and Religion",,"Faith-Based Fiction"
+genre,"Mythology, Folklore and Religion",,"Mystical Fiction"
+genre,"Mythology, Folklore and Religion",,"Legendary Heroes"
+genre,"Mythology, Folklore and Religion",,"Divine Intervention"
+genre,"Mythology, Folklore and Religion",,"Gods and Mortals"
+genre,"Mythology, Folklore and Religion",,"Angels and Demons"
+genre,"Mythology, Folklore and Religion",,"Religious Historical Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Literary Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Contemporary Literary Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Social Realism"
+genre,"Literary, Philosophical and Experimental Fiction",,"Magical Realism"
+genre,"Literary, Philosophical and Experimental Fiction",,"Postmodern Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,Metafiction
+genre,"Literary, Philosophical and Experimental Fiction",,"Experimental Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Surrealist Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Absurdist Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Existential Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Philosophical Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Metaphysical Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Speculative Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,Slipstream
+genre,"Literary, Philosophical and Experimental Fiction",,"Nonlinear Narrative"
+genre,"Literary, Philosophical and Experimental Fiction",,"Dreamlike Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Unreliable Narrator"
+genre,"Literary, Philosophical and Experimental Fiction",,"Stream of Consciousness"
+genre,"Literary, Philosophical and Experimental Fiction",,"Moral Dilemmas"
+genre,"Literary, Philosophical and Experimental Fiction",,"Ethical Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Political Philosophy Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Psychological Literary Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Minimalist Fiction"
+genre,"Literary, Philosophical and Experimental Fiction",,"Satirical Literary Fiction"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Bedtime Stories"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Fairy Tales"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Animal Stories"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Children's Fantasy"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Children's Mystery"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Children's Adventure"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Educational Adventure"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Early Reader Fiction"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Picture-Book Fiction"
+genre,"Children's, Young Adult and New Adult","Children's fiction","Family-Friendly Humor"
+genre,"Children's, Young Adult and New Adult","Children's fiction","School Stories"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Fantasy"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Romance"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Horror"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Contemporary"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Dystopia"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Mystery"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Science Fiction"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Coming-of-Age"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Adventure"
+genre,"Children's, Young Adult and New Adult","Young Adult","YA Historical Fiction"
+genre,"Children's, Young Adult and New Adult","New Adult","New Adult Romance"
+genre,"Children's, Young Adult and New Adult","New Adult","College Fiction"
+genre,"Children's, Young Adult and New Adult","New Adult","Early-Career Drama"
+genre,"Children's, Young Adult and New Adult","New Adult","Adult Coming-of-Age"
+genre,"Children's, Young Adult and New Adult","New Adult","New Adult Fantasy"
+genre,"Children's, Young Adult and New Adult","New Adult","New Adult Contemporary"
+genre,"Children's, Young Adult and New Adult","New Adult","New Adult Mystery"
+genre,"Nonfiction and Narrative Nonfiction",,Biography
+genre,"Nonfiction and Narrative Nonfiction",,Autobiography
+genre,"Nonfiction and Narrative Nonfiction",,Memoir
+genre,"Nonfiction and Narrative Nonfiction",,"Celebrity Memoir"
+genre,"Nonfiction and Narrative Nonfiction",,"True Crime"
+genre,"Nonfiction and Narrative Nonfiction",,"Investigative Journalism"
+genre,"Nonfiction and Narrative Nonfiction",,"Popular History"
+genre,"Nonfiction and Narrative Nonfiction",,"Military History"
+genre,"Nonfiction and Narrative Nonfiction",,"Cultural History"
+genre,"Nonfiction and Narrative Nonfiction",,"Historical Biography"
+genre,"Nonfiction and Narrative Nonfiction",,"Popular Science"
+genre,"Nonfiction and Narrative Nonfiction",,"Science Communication"
+genre,"Nonfiction and Narrative Nonfiction",,"Nature Writing"
+genre,"Nonfiction and Narrative Nonfiction",,"Space Exploration"
+genre,"Nonfiction and Narrative Nonfiction",,Philosophy
+genre,"Nonfiction and Narrative Nonfiction",,Ethics
+genre,"Nonfiction and Narrative Nonfiction",,"Political Philosophy"
+genre,"Nonfiction and Narrative Nonfiction",,"Travel Writing"
+genre,"Nonfiction and Narrative Nonfiction",,"Travel Memoir"
+genre,"Nonfiction and Narrative Nonfiction",,Exploration
+genre,"Nonfiction and Narrative Nonfiction",,Self-Help
+genre,"Nonfiction and Narrative Nonfiction",,Productivity
+genre,"Nonfiction and Narrative Nonfiction",,"Personal Development"
+genre,"Nonfiction and Narrative Nonfiction",,Entrepreneurship
+genre,"Nonfiction and Narrative Nonfiction",,"Business Biography"
+genre,"Nonfiction and Narrative Nonfiction",,Management
+genre,"Nonfiction and Narrative Nonfiction",,Sociology
+genre,"Nonfiction and Narrative Nonfiction",,"Cultural Criticism"
+genre,"Nonfiction and Narrative Nonfiction",,"Social Commentary"
+genre,"Nonfiction and Narrative Nonfiction",,Wellness
+genre,"Nonfiction and Narrative Nonfiction",,Fitness
+genre,"Nonfiction and Narrative Nonfiction",,"Food Culture"
+genre,"Nonfiction and Narrative Nonfiction",,Lifestyle
+genre,"Nonfiction and Narrative Nonfiction",,"Art History"
+genre,"Nonfiction and Narrative Nonfiction",,Illustration
+genre,"Nonfiction and Narrative Nonfiction",,Photography
+genre,"Nonfiction and Narrative Nonfiction",,Design
+genre,"Nonfiction and Narrative Nonfiction",,Encyclopedias
+genre,"Nonfiction and Narrative Nonfiction",,Dictionaries
+genre,"Nonfiction and Narrative Nonfiction",,Handbooks
+genre,"Nonfiction and Narrative Nonfiction",,"Study Guides"
+theme,,,Friendship
+theme,,,Family
+theme,,,"Found Family"
+theme,,,Love
+theme,,,Betrayal
+theme,,,Identity
+theme,,,Belonging
+theme,,,Loneliness
+theme,,,Grief
+theme,,,Forgiveness
+theme,,,Redemption
+theme,,,Self-Discovery
+theme,,,Obsession
+theme,,,Jealousy
+theme,,,Trust
+theme,,,Power
+theme,,,Corruption
+theme,,,"Social Class"
+theme,,,Inequality
+theme,,,Discrimination
+theme,,,Racism
+theme,,,"Gender Roles"
+theme,,,Revolution
+theme,,,Resistance
+theme,,,Propaganda
+theme,,,Justice
+theme,,,Revenge
+theme,,,War
+theme,,,Colonialism
+theme,,,"Social Change"
+theme,,,"Artificial Intelligence"
+theme,,,Humanity
+theme,,,Technology
+theme,,,"Climate Change"
+theme,,,Ecology
+theme,,,"Space Exploration"
+theme,,,Time
+theme,,,Memory
+theme,,,Immortality
+theme,,,"Genetic Engineering"
+theme,,,"Human Enhancement"
+theme,,,Dystopia
+theme,,,Survival
+theme,,,Faith
+theme,,,Religion
+theme,,,Morality
+theme,,,"Good versus Evil"
+theme,,,Sacrifice
+theme,,,"Free Will"
+theme,,,Destiny
+theme,,,Existentialism
+theme,,,"Meaning of Life"
+theme,,,Death
+theme,,,Rebirth
+theme,,,Ambition
+theme,,,Exploration
+theme,,,Conspiracy
+theme,,,Secrets
+theme,,,Mystery
+theme,,,"Political Intrigue"
+theme,,,Quest
+theme,,,Discovery
+trope,,"Romance tropes",Enemies-to-Lovers
+trope,,"Romance tropes",Friends-to-Lovers
+trope,,"Romance tropes",Rivals-to-Lovers
+trope,,"Romance tropes","Second Chance"
+trope,,"Romance tropes","Slow Burn"
+trope,,"Romance tropes","Love Triangle"
+trope,,"Romance tropes","Forbidden Love"
+trope,,"Romance tropes","Fake Dating"
+trope,,"Romance tropes","Fake Marriage"
+trope,,"Romance tropes","Marriage of Convenience"
+trope,,"Romance tropes","Arranged Marriage"
+trope,,"Romance tropes","Opposites Attract"
+trope,,"Romance tropes",Grumpy/Sunshine
+trope,,"Romance tropes","Only One Bed"
+trope,,"Romance tropes","Forced Proximity"
+trope,,"Romance tropes","Secret Identity"
+trope,,"Romance tropes","Secret Royalty"
+trope,,"Romance tropes","Hidden Heir"
+trope,,"Romance tropes","Found Family"
+trope,,"Fantasy and progression tropes","Chosen One"
+trope,,"Fantasy and progression tropes","Reluctant Hero"
+trope,,"Fantasy and progression tropes","Villain Protagonist"
+trope,,"Fantasy and progression tropes","Redemption Arc"
+trope,,"Fantasy and progression tropes","Revenge Arc"
+trope,,"Fantasy and progression tropes",Reincarnation
+trope,,"Fantasy and progression tropes",Regression
+trope,,"Fantasy and progression tropes","Time Loop"
+trope,,"Fantasy and progression tropes","Body Swap"
+trope,,"Fantasy and progression tropes","Overpowered Protagonist"
+trope,,"Fantasy and progression tropes",Underdog
+trope,,"Fantasy and progression tropes","Tournament Arc"
+trope,,"Fantasy and progression tropes","Training Arc"
+trope,,"Fantasy and progression tropes","Leveling Up"
+trope,,"Fantasy and progression tropes","Hidden Power"
+trope,,"Fantasy and progression tropes","Academy Rivalry"
+trope,,"Fantasy and progression tropes","Master and Disciple"
+trope,,"Fantasy and progression tropes","Kingdom Building"
+trope,,"Fantasy and progression tropes","Monster Evolution"
+trope,,"Fantasy and progression tropes","Second Life"
+trope,,"Mystery and psychological tropes","Unreliable Narrator"
+trope,,"Mystery and psychological tropes","Secret Identity"
+trope,,"Mystery and psychological tropes","Hidden Antagonist"
+trope,,"Mystery and psychological tropes","Locked-Room Puzzle"
+trope,,"Mystery and psychological tropes",Cat-and-Mouse
+trope,,"Mystery and psychological tropes","Unreliable Memories"
+trope,,"Mystery and psychological tropes","Plot Twist"
+trope,,"Mystery and psychological tropes","Secret Society"
+trope,,"Mystery and psychological tropes","False Protagonist"
+trope,,"Mystery and psychological tropes","Unreliable Witness"
+trope,,"Mystery and psychological tropes","Time-Loop Mystery"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction",Erotica
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","Erotic Romance"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","Erotic Thriller"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","Adult Romance"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","LGBTQ+ Erotica"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","Fetish-Themed Fiction"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","BDSM-Themed Fiction"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","Erotic Fantasy"
+genre,"Mature, erotic and controversial categories","Erotic and adult fiction","Erotic Horror"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Dark Romance"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Forbidden Romance"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Obsessive Romance"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Possessive Love Interest"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Captive Romance"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Revenge Romance"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Morally Gray Love Interest"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Villain Romance"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Toxic Relationship Drama"
+genre,"Mature, erotic and controversial categories","Dark and taboo romance","Adult Age-Gap Romance"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Transgressive Fiction"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction",Splatterpunk
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Extreme Horror"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Cannibal Horror"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Torture Horror"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Taboo Fiction"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Shock Fiction"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Nihilistic Fiction"
+genre,"Mature, erotic and controversial categories","Extreme and transgressive fiction","Disturbing Psychological Fiction"
+genre,"Mature, erotic and controversial categories","Controversial themes","Non-Consensual Acts Depicted in Fiction"
+genre,"Mature, erotic and controversial categories","Controversial themes","Coercive Relationships"
+genre,"Mature, erotic and controversial categories","Controversial themes",Abuse
+genre,"Mature, erotic and controversial categories","Controversial themes",Manipulation
+genre,"Mature, erotic and controversial categories","Controversial themes","Domestic Violence"
+genre,"Mature, erotic and controversial categories","Controversial themes",Infidelity
+genre,"Mature, erotic and controversial categories","Controversial themes",Betrayal
+genre,"Mature, erotic and controversial categories","Controversial themes","Incest Themes"
+genre,"Mature, erotic and controversial categories","Controversial themes",Cults
+genre,"Mature, erotic and controversial categories","Controversial themes","Extremist Ideologies"
+genre,"Mature, erotic and controversial categories","Controversial themes","Morally Ambiguous Protagonists"
+warning,,,Violence
+warning,,,"Graphic Violence"
+warning,,,"Sexual Content"
+warning,,,"Explicit Sexual Content"
+warning,,,Nudity
+warning,,,Abuse
+warning,,,"Domestic Violence"
+warning,,,Coercion
+warning,,,"Non-Consensual Sexual Acts"
+warning,,,Stalking
+warning,,,Harassment
+warning,,,Exploitation
+warning,,,"Incest Themes"
+warning,,,Self-Harm
+warning,,,Suicide
+warning,,,"Substance Use"
+warning,,,Addiction
+warning,,,"Eating Disorders"
+warning,,,Death
+warning,,,Grief
+warning,,,Torture
+warning,,,"Body Horror"
+warning,,,Gore
+warning,,,"Disturbing Imagery"
+warning,,,"Religious Trauma"
+warning,,,Discrimination
+warning,,,Racism
+warning,,,"Hate Speech"
+warning,,,War
+warning,,,"Animal Cruelty"
+demographic,,,Kodomomuke
+demographic,,,Shōnen
+demographic,,,Shōjo
+demographic,,,Seinen
+demographic,,,Josei
+demographic,,,"Young Adult"
+demographic,,,"New Adult"
+demographic,,,"Adult Literary Audience"

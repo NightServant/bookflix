@@ -149,7 +149,7 @@ test('the shelves are kept for ten minutes as ids, so a cache hit never returns 
     Media::factory()->count(2)->create();
 
     app(HomeShelves::class)->guestSafe();
-    $cached = Cache::get('home:shelves:v1:20');
+    $cached = Cache::get('home:shelves:v2:gated:20');
 
     expect($cached)->toBeArray()->and(json_encode($cached))->not->toBeFalse();
 
@@ -254,6 +254,6 @@ test('the hero ids ride in the cached shelf pick, so a second home render costs 
     $first = $count();
     $second = $count();
 
-    expect(Cache::get('home:shelves:v1:20')['hero'])->toHaveCount(5)->each->toBeInt()
+    expect(Cache::get('home:shelves:v2:gated:20')['hero'])->toHaveCount(5)->each->toBeInt()
         ->and($second)->toBeLessThanOrEqual($first - 1);
 });

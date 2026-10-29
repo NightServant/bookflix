@@ -1,6 +1,7 @@
 <?php
 
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Ingestion\MappedTaxonomy;
 use App\Catalog\Ingestion\TaxonomyMapper;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\ProviderUnavailable;
@@ -86,7 +87,7 @@ test('page maps titles, type, taxonomy, creators, links and urls', function () {
         ->and($media->coverUrl)->toBe('https://uploads.mangadex.org/covers/'.MD_ID.'/cover.jpg.512.jpg')
         ->and($media->sourceUrl)->toBe('https://mangadex.org/title/'.MD_ID)
         ->and($media->metrics)->toBe(['follows' => 320768, 'average_rating' => 4.66])
-        ->and($mapped)->toBe(['genres' => ['action'], 'themes' => ['isekai'], 'tags' => ['long-strip']])
+        ->and($mapped)->toEqual(new MappedTaxonomy(genres: ['action-and-adventure', 'isekai'], tags: ['long-strip' => 'Long Strip']))
         ->and($page->maxUpdatedAt->toIso8601String())->toBe('2026-10-01T10:00:00+00:00');
 });
 
@@ -137,8 +138,18 @@ test('explicit content is flagged adult so it is dropped', function (string $rat
 })->with([['safe', false], ['suggestive', false], ['erotica', true], ['pornographic', true]]);
 
 test('type follows the original language and unknown languages are skipped', function (string $language, string $slug) {
-    expect(app(MangaDexProvider::class)->normalize(mangaDexRecord(mangaDexItem(['originalLanguage' => $language])))->mediaTypeSlug)->toBe($slug);
+    expect(app(MangaDexProvider::class)->normalize(mangaDexRecord(mangaDexItem(['originalLanguage' => $language, 'tags' => []])))->mediaTypeSlug)->toBe($slug);
 })->with([['ja', 'manga'], ['ko', 'manhwa'], ['zh', 'manhua'], ['zh-hk', 'manhua'], ['fr', '']]);
+
+test('a long strip follows the country: manhwa, manhua, and a webcomic for Japanese and other work', function (string $language, string $slug) {
+    expect(app(MangaDexProvider::class)->normalize(mangaDexRecord(mangaDexItem(['originalLanguage' => $language])))->mediaTypeSlug)->toBe($slug);
+})->with([['ko', 'manhwa'], ['zh', 'manhua'], ['zh-hk', 'manhua'], ['ja', 'webcomic'], ['en', 'webcomic'], ['fr', 'webcomic']]);
+
+test('a light novel tag makes a light novel of a Japanese title', function () {
+    $tags = [['attributes' => ['name' => ['en' => 'Light Novel'], 'group' => 'format']]];
+
+    expect(app(MangaDexProvider::class)->normalize(mangaDexRecord(mangaDexItem(['originalLanguage' => 'ja', 'tags' => $tags])))->mediaTypeSlug)->toBe('light-novel');
+});
 
 test('title falls back to romanised Japanese then any title', function () {
     $item = mangaDexItem(['title' => ['ja' => '漫画'], 'altTitles' => [['ja-ro' => 'Manga']]]);

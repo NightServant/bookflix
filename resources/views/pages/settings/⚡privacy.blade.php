@@ -1,5 +1,6 @@
 <?php
 
+use App\Access\MatureAccess;
 use App\Enums\Visibility;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
@@ -12,6 +13,10 @@ new #[Title('Privacy settings')] class extends Component {
     public string $libraryVisibility = 'private';
     public bool $personalizationEnabled = true;
 
+    public bool $showMature = false;
+
+    public bool $confirmAdult = false;
+
     /**
      * Mount the component.
      */
@@ -22,6 +27,8 @@ new #[Title('Privacy settings')] class extends Component {
         $this->profileVisibility = $profile->profile_visibility->value;
         $this->libraryVisibility = $profile->library_visibility->value;
         $this->personalizationEnabled = $profile->personalization_enabled;
+        $this->showMature = MatureAccess::allows(Auth::user());
+        $this->confirmAdult = $this->showMature;
     }
 
     /**
@@ -43,10 +50,33 @@ new #[Title('Privacy settings')] class extends Component {
 
         Flux::toast(variant: 'success', text: __('Privacy settings updated.'));
     }
+
+    /**
+     * Turn mature and adult titles on or off. Turning them on needs the reader's confirmation that they are 18 or older, stored with the moment
+     * it was given; turning them off forgets it, so the next time asks again.
+     */
+    public function updateMature(): void
+    {
+        $this->validate([
+            'showMature' => ['boolean'],
+            'confirmAdult' => ['boolean', 'accepted_if:showMature,true'],
+        ], [
+            'confirmAdult.accepted_if' => __('Confirm that you are 18 or older to show mature and adult titles.'),
+        ]);
+
+        $profile = Auth::user()->profile;
+        $confirmedAt = $this->showMature ? ($profile->adult_confirmed_at ?? now()) : null;
+
+        Auth::user()->profile()->updateOrCreate([], ['show_mature' => $this->showMature, 'adult_confirmed_at' => $confirmedAt]);
+
+        $this->confirmAdult = $this->showMature;
+
+        Flux::toast(variant: 'success', text: $this->showMature ? __('Mature and adult titles are now shown.') : __('Mature and adult titles are hidden.'));
+    }
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading', ['title' => __('Privacy'), 'description' => __('Choose who can see your profile and library, then save.')])
+    @include('partials.settings-heading', ['title' => __('Privacy'), 'description' => __('Choose who can see your profile and library, and whether mature titles are shown, then save.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Privacy settings') }}</flux:heading>
 
@@ -75,6 +105,28 @@ new #[Title('Privacy settings')] class extends Component {
                 {{ __('Save') }}
             </x-cta>
         </form>
+        </x-settings-card>
+
+        <x-settings-card :title="__('Mature and Adult Titles')" :description="__('Adult-rated titles and the mature, erotic and controversial genres stay hidden everywhere in Bookflix until you turn this on.')">
+            <form wire:submit="updateMature" class="w-full space-y-6">
+                <flux:switch
+                    wire:model="showMature"
+                    :label="__('Show mature and adult titles')"
+                    :description="__('Off by default. When on, they appear in search, Discover, shelves and recommendations. Filters never show them on their own.')"
+                />
+
+                <div x-data x-show="$wire.showMature" style="display: none">
+                    <flux:field variant="inline">
+                        <flux:checkbox wire:model="confirmAdult" />
+                        <flux:label>{{ __('I confirm that I am 18 years of age or older.') }}</flux:label>
+                        <flux:error name="confirmAdult" />
+                    </flux:field>
+                </div>
+
+                <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="update-mature-button">
+                    {{ __('Save') }}
+                </x-cta>
+            </form>
         </x-settings-card>
     </x-pages::settings.layout>
 </section>

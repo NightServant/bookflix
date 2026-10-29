@@ -23,4 +23,20 @@ class GenreFactory extends Factory
             'slug' => $slug,
         ];
     }
+
+    /**
+     * A subgenre of the given family.
+     */
+    public function childOf(Genre $parent, ?string $group = null): static
+    {
+        return $this->state(fn () => ['parent_id' => $parent->id, 'group' => $group]);
+    }
+
+    /**
+     * A mature-gated genre.
+     */
+    public function mature(): static
+    {
+        return $this->state(fn () => ['is_mature' => true]);
+    }
 }

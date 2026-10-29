@@ -31,6 +31,9 @@
 
         {{ $slot }}
 
+        {{-- Data a page ships once with its first load (see <x-filter-islands>); a Livewire update never re-sends it. --}}
+        @stack('islands')
+
         <x-bottom-nav />
 
         @persist('toast')

@@ -2,6 +2,7 @@
 
 use App\Catalog\Ingestion\Deduplicator;
 use App\Discovery\SimilarMedia;
+use App\Models\ContentWarning;
 use App\Models\ExternalSource;
 use App\Models\Genre;
 use App\Models\Media;
@@ -10,8 +11,10 @@ use App\Models\Series;
 use App\Models\Theme;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\TaxonomySeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * @return array{Media, Media, Media, Media}
@@ -138,8 +141,46 @@ test('the breadcrumb sits above the title', function () {
 });
 
 test('the content warnings accordion is absent when there are none', function () {
-    $m = Media::factory()->create(['content_warnings' => []]);
+    $m = Media::factory()->create();
     $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertDontSee('Content Warnings');
+});
+
+test('only warnings recorded as present or disputed are listed, never verified absent or unknown ones', function () {
+    $m = Media::factory()->create();
+    foreach (['present' => 'Gore', 'disputed' => 'Torture', 'absent' => 'Nudity', 'unknown' => 'Stalking'] as $status => $name) {
+        $m->warnings()->attach(ContentWarning::factory()->create(['name' => $name, 'slug' => Str::slug($name)]), ['status' => $status]);
+    }
+
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))
+        ->assertOk()->assertSee('Content Warnings')
+        ->assertSee('Gore')->assertSee('Torture')->assertSee('sources disagree')
+        ->assertDontSee('Nudity')->assertDontSee('Stalking');
+});
+
+test('a story with only verified absent or unknown warnings shows no warnings section', function () {
+    $m = Media::factory()->create();
+    $m->warnings()->attach(ContentWarning::factory()->create(['name' => 'Nudity']), ['status' => 'absent']);
+    $m->warnings()->attach(ContentWarning::factory()->create(['name' => 'Gore']), ['status' => 'unknown']);
+
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertOk()->assertDontSee('Content Warnings');
+});
+
+test('the old content warning list is no longer what the page reads', function () {
+    $m = Media::factory()->create(['content_warnings' => ['Only In The Old Column']]);
+
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertOk()->assertDontSee('Only In The Old Column')->assertDontSee('Content Warnings');
+});
+
+test('genres and themes come from the taxonomy tables, a subgenre shown by its own name', function () {
+    $this->seed(TaxonomySeeder::class);
+    $m = Media::factory()->create();
+    $m->genres()->attach(Genre::where('slug', 'isekai')->first());
+    $m->themes()->attach(Theme::where('slug', 'found-family')->first());
+
+    $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertOk()->assertSee('Isekai')->assertSee('Found Family')->getContent();
+
+    expect(htmlQuery($html, '//a[@href="'.e(route('search', ['filters' => ['genres' => ['isekai']]])).'"]')->length)->toBeGreaterThan(0)
+        ->and(htmlQuery($html, '//a[@href="'.e(route('search', ['filters' => ['themes' => ['found-family']]])).'"]')->length)->toBeGreaterThan(0);
 });
 
 test('attribution is left out for a source without one', function () {
@@ -271,7 +312,7 @@ test('the story page runs a bounded number of queries', function () {
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
 });
 
-test('the story page runs at most twenty queries once the similar ids are cached', function () {
+test('the story page runs at most twenty one queries once the similar ids are cached', function () {
     $m = fullMedia();
     $this->actingAs(User::factory()->create());
     $this->get(route('stories.show', $m->slug))->assertOk();
@@ -280,14 +321,15 @@ test('the story page runs at most twenty queries once the similar ids are cached
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
 
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(20);
+    // One of the twenty one is the mature access gate: whether this story is behind it for the reader.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(21);
 });
 
 test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {
     [$base, $sibling, $sharesGenre] = similarFixture();
 
     expect(app(SimilarMedia::class)->for($base)->pluck('id')->all())->toBe([$sibling->id, $sharesGenre->id])
-        ->and(Cache::get("similar:v1:{$base->id}:12"))->toBe([$sibling->id, $sharesGenre->id]);
+        ->and(Cache::get("similar:v2:gated:{$base->id}:12"))->toBe([$sibling->id, $sharesGenre->id]);
 
     $sibling->delete();
 

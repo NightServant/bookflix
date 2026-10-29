@@ -20,7 +20,7 @@ new #[Title('Home')] class extends Component {
     #[Computed]
     public function hasCatalog(): bool
     {
-        return Media::query()->unmerged()->exists();
+        return Media::query()->unmerged()->visibleTo(auth()->user())->exists();
     }
 
     /**
@@ -31,7 +31,7 @@ new #[Title('Home')] class extends Component {
     #[Computed]
     public function slides(): Collection
     {
-        return app(HomeShelves::class)->hero();
+        return app(HomeShelves::class)->hero(viewer: auth()->user());
     }
 }; ?>
 

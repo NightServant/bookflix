@@ -1,24 +1,61 @@
 provider_term,kind,bookflix_slug
-Action,genre,action
-Adventure,genre,adventure
-Comedy,genre,comedy
-Drama,genre,drama
+Action,genre,action-and-adventure
+Adventure,genre,action-and-adventure
+Comedy,genre,comedy-and-satire
+Drama,genre,drama-and-human-relationships
 Fantasy,genre,fantasy
 Horror,genre,horror
-Magical Girls,genre,magical-girl
-Mystery,genre,mystery
-Psychological,genre,psychological
+Mystery,genre,mystery-crime-and-thriller
 Romance,genre,romance
 Sci-Fi,genre,science-fiction
-Slice of Life,genre,slice-of-life
-Sports,genre,sports
-Supernatural,genre,supernatural
-Thriller,genre,thriller
-Crime,theme,crime
-Isekai,theme,isekai
-Military,theme,war
-Philosophical,theme,philosophy
-School Life,theme,school
+Sports,genre,sports-music-and-performing-arts
+Thriller,genre,mystery-crime-and-thriller
+Historical,genre,historical-war-and-western-fiction
+Crime,subgenre,crime-fiction
+Isekai,subgenre,isekai
+Magical Girls,subgenre,magical-heroes
+Mecha,subgenre,mecha
+Medical,subgenre,medical-drama
+Philosophical,subgenre,philosophical-fiction
+Psychological,subgenre,psychological-thriller
+Slice of Life,subgenre,slice-of-life
+Superhero,subgenre,superhero-fiction
+Tragedy,subgenre,tragedy
+Wuxia,subgenre,wuxia
+Boys' Love,subgenre,bl-boys-love
+Girls' Love,subgenre,gl-girls-love
+Aliens,subgenre,first-contact
+Cooking,subgenre,food-and-cooking-stories
+Ghosts,subgenre,ghost-stories
+Harem,subgenre,harem-romance
+Reverse Harem,subgenre,reverse-harem-romance
+Mafia,subgenre,mafia-fiction
+Martial Arts,subgenre,martial-arts
+Military,subgenre,military-fiction
+Music,subgenre,music-drama
+Ninja,subgenre,martial-arts
+Office Workers,subgenre,workplace-life
+Police,subgenre,police-procedural
+Post-Apocalyptic,subgenre,post-apocalyptic-fiction
+Reincarnation,subgenre,reincarnation-fantasy
+Reincarnation,trope,reincarnation
+Samurai,subgenre,samurai-fiction
+School Life,subgenre,school-life
+Supernatural,subgenre,paranormal-fantasy
 Survival,theme,survival
-Time Travel,theme,time-travel
-Tragedy,theme,tragedy
+Time Travel,subgenre,time-travel
+Vampires,subgenre,vampire-horror
+Video Games,subgenre,litrpg
+Virtual Reality,subgenre,simulation-fiction
+Zombies,subgenre,zombie-horror
+Monsters,subgenre,monster-horror
+Demons,subgenre,demonic-horror
+Animals,subgenre,pet-and-animal-stories
+Monster Girls,subgenre,monster-romance
+Gore,warning,gore
+Sexual Violence,warning,non-consensual-sexual-acts
+Incest,warning,incest-themes
+shounen,demographic,shonen
+shoujo,demographic,shojo
+seinen,demographic,seinen
+josei,demographic,josei

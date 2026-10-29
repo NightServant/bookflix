@@ -21,6 +21,8 @@ use Illuminate\Support\Carbon;
  * @property Visibility $profile_visibility
  * @property Visibility $library_visibility
  * @property bool $personalization_enabled
+ * @property bool $show_mature The reader asked to see mature and adult titles; counts only with `adult_confirmed_at` (see App\Access\MatureAccess).
+ * @property Carbon|null $adult_confirmed_at When the reader confirmed they are 18 or older.
  * @property Carbon|null $onboarded_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -33,6 +35,8 @@ use Illuminate\Support\Carbon;
     'profile_visibility',
     'library_visibility',
     'personalization_enabled',
+    'show_mature',
+    'adult_confirmed_at',
     'onboarded_at',
 ])]
 class Profile extends Model
@@ -53,6 +57,8 @@ class Profile extends Model
             'profile_visibility' => Visibility::class,
             'library_visibility' => Visibility::class,
             'personalization_enabled' => 'boolean',
+            'show_mature' => 'boolean',
+            'adult_confirmed_at' => 'datetime',
             'onboarded_at' => 'datetime',
         ];
     }

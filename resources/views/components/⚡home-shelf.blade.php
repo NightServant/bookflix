@@ -37,7 +37,7 @@ new #[Lazy] class extends Component {
     #[Computed]
     public function current(): Shelf
     {
-        return app(HomeShelves::class)->shelf($this->shelf);
+        return app(HomeShelves::class)->shelf($this->shelf, viewer: auth()->user());
     }
 }; ?>
 

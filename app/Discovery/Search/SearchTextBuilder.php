@@ -9,11 +9,11 @@ use Transliterator;
 class SearchTextBuilder
 {
     /**
-     * Relations whose names make a media findable.
+     * Relations whose names make a media findable. A genre's family is loaded too: the family is implied by its subgenres, so it is searchable by name without being stored per media.
      *
      * @var list<string>
      */
-    public const RELATIONS = ['creators', 'series', 'genres', 'themes', 'tags', 'characters', 'publishers'];
+    public const RELATIONS = ['creators', 'series', 'genres.parent', 'themes', 'tropes', 'demographics', 'tags', 'characters', 'publishers'];
 
     /**
      * Every name that can find the media, lowercased, followed by an accent-folded copy so `Pokemon` finds `Pokémon`.
@@ -29,7 +29,10 @@ class SearchTextBuilder
             $media->creators->pluck('name')->all(),
             $media->series->pluck('title')->all(),
             $media->genres->pluck('name')->all(),
+            $media->genres->pluck('parent.name')->all(),
             $media->themes->pluck('name')->all(),
+            $media->tropes->pluck('name')->all(),
+            $media->demographics->pluck('name')->all(),
             $media->tags->pluck('name')->all(),
             $media->characters->pluck('name')->all(),
             $media->publishers->pluck('name')->all(),

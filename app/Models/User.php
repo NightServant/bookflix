@@ -79,6 +79,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'profile_visibility' => Visibility::Private,
             'library_visibility' => Visibility::Private,
             'personalization_enabled' => true,
+            'show_mature' => false,
         ]);
     }
 

@@ -1,23 +1,335 @@
 provider_term,kind,bookflix_slug
-Adventure,genre,adventure
-Adventure stories,genre,adventure
 Fantasy,genre,fantasy
 Fantasy fiction,genre,fantasy
 "Fiction, fantasy, general",genre,fantasy
+"Fiction, fantasy, epic",subgenre,epic-fantasy
+"Fiction, fantasy, contemporary",subgenre,contemporary-fantasy
+"Fiction, fantasy, historical",subgenre,historical-fantasy
+"Fiction, fantasy, urban",subgenre,urban-fantasy
+"Fiction, fantasy, paranormal",subgenre,paranormal-fantasy
+"Fiction, fantasy, dark fantasy",subgenre,dark-fantasy
+"Fiction, fantasy, action & adventure",subgenre,heroic-fantasy
+"Fiction, fantasy, humorous",subgenre,comic-fantasy
+"Fiction, fantasy, romance",subgenre,fantasy-romance
+"Fiction, fantasy, wizards & witches",subgenre,high-fantasy
+Epic fantasy,subgenre,epic-fantasy
+Urban fantasy,subgenre,urban-fantasy
+Dark fantasy,subgenre,dark-fantasy
+Sword and sorcery,subgenre,sword-and-sorcery
+Magic realism (literature),subgenre,magical-realism
+Magical realism,subgenre,magical-realism
+Fairy tales,subgenre,fairy-tales
+"Fairy tales, folk tales, legends & mythology",subgenre,fairy-tales
+Mythology,genre,mythology-folklore-and-religion
+Folklore,genre,mythology-folklore-and-religion
+Legends,genre,mythology-folklore-and-religion
+Arthurian romances,subgenre,arthurian-legend
+Arthurian legend,subgenre,arthurian-legend
+Greek mythology,subgenre,greek-mythology
+Norse mythology,subgenre,norse-mythology
+Egyptian mythology,subgenre,egyptian-mythology
+Dragons,genre,fantasy
+Wizards,genre,fantasy
+Witches,subgenre,witchcraft-horror
+Vampires,subgenre,vampire-horror
+Werewolves,subgenre,werewolf-horror
+Zombies,subgenre,zombie-horror
+Ghosts,subgenre,ghost-stories
+Ghost stories,subgenre,ghost-stories
+Haunted houses,subgenre,haunted-house-horror
 Horror,genre,horror
 Horror fiction,genre,horror
-Humor,genre,comedy
-Historical fiction,genre,historical
-Mystery,genre,mystery
-Mystery fiction,genre,mystery
-Detective and mystery stories,genre,mystery
-Romance,genre,romance
-Love stories,genre,romance
+Horror tales,genre,horror
+"Fiction, horror",genre,horror
+Gothic fiction (Literary genre),subgenre,gothic-horror
+Gothic,subgenre,gothic-horror
+"Fiction, gothic",subgenre,gothic-horror
 Science fiction,genre,science-fiction
 "Fiction, science fiction, general",genre,science-fiction
-Thriller,genre,thriller
-Suspense fiction,genre,thriller
-Dystopias,theme,dystopia
-Coming of age,theme,coming-of-age
-Politics and government,theme,politics
+"Science fiction, american",genre,science-fiction
+"Science fiction, english",genre,science-fiction
+"Fiction, science fiction, space opera",subgenre,space-opera
+"Fiction, science fiction, hard science fiction",subgenre,hard-science-fiction
+"Fiction, science fiction, military",subgenre,military-science-fiction
+"Fiction, science fiction, action & adventure",subgenre,interstellar-adventure
+"Fiction, science fiction, apocalyptic & post-apocalyptic",subgenre,post-apocalyptic-fiction
+"Fiction, science fiction, cyberpunk",subgenre,cyberpunk
+"Fiction, science fiction, steampunk",subgenre,steampunk
+"Fiction, science fiction, time travel",subgenre,time-travel
+"Fiction, science fiction, alien contact",subgenre,first-contact
+Space opera,subgenre,space-opera
+Cyberpunk,subgenre,cyberpunk
+Steampunk,subgenre,steampunk
+Time travel,subgenre,time-travel
+Space flight,subgenre,space-exploration
+Extraterrestrial beings,subgenre,first-contact
+Robots,subgenre,robot-fiction
+Artificial intelligence,subgenre,artificial-intelligence-fiction
+Dystopias,subgenre,dystopian-fiction
+Dystopian fiction,subgenre,dystopian-fiction
+"Fiction, dystopian",subgenre,dystopian-fiction
+Utopias,subgenre,utopian-fiction
+Post-apocalyptic fiction,subgenre,post-apocalyptic-fiction
+End of the world,subgenre,apocalyptic-fiction
+Alternative histories (fiction),subgenre,alternate-history
+Alternate history,subgenre,alternate-history
+"Fiction, alternative history",subgenre,alternate-history
+Space colonies,subgenre,space-exploration
+Mystery,genre,mystery-crime-and-thriller
+Mystery fiction,genre,mystery-crime-and-thriller
+Detective and mystery stories,genre,mystery-crime-and-thriller
+Mystery and detective stories,genre,mystery-crime-and-thriller
+"Fiction, mystery & detective, general",genre,mystery-crime-and-thriller
+Mystery & detective,genre,mystery-crime-and-thriller
+"Fiction, mystery",genre,mystery-crime-and-thriller
+"Detective and mystery stories, english",subgenre,detective-fiction
+Private investigators,subgenre,detective-fiction
+Detectives,subgenre,detective-fiction
+"Fiction, mystery & detective, cozy",subgenre,cozy-mystery
+Cozy mysteries,subgenre,cozy-mystery
+"Fiction, mystery & detective, historical",subgenre,historical-mystery
+"Fiction, mystery & detective, police procedural",subgenre,police-procedural
+Police procedurals,subgenre,police-procedural
+"Fiction, mystery & detective, hard-boiled",subgenre,hardboiled-fiction
+Hard-boiled,subgenre,hardboiled-fiction
+"Fiction, mystery & detective, women sleuths",subgenre,amateur-sleuth
+Amateur detectives,subgenre,amateur-sleuth
+"Fiction, crime",subgenre,crime-fiction
+Crime,subgenre,crime-fiction
+Crime fiction,subgenre,crime-fiction
+Organized crime,subgenre,organized-crime
+Mafia,subgenre,mafia-fiction
+Serial murderers,subgenre,serial-killer-fiction
+Murder,subgenre,murder-mystery
+Noir fiction,subgenre,noir
+"Fiction, noir",subgenre,noir
+Heists,subgenre,heist-fiction
+True crime,subgenre,true-crime
+Thrillers,genre,mystery-crime-and-thriller
+Thriller,genre,mystery-crime-and-thriller
+Suspense fiction,genre,mystery-crime-and-thriller
+"Fiction, thrillers, suspense",genre,mystery-crime-and-thriller
+"Fiction, thrillers, general",genre,mystery-crime-and-thriller
+Suspense,subgenre,psychological-thriller
+Psychological fiction,subgenre,psychological-thriller
+"Fiction, thrillers, psychological",subgenre,psychological-thriller
+"Fiction, thrillers, legal",subgenre,legal-thriller
+Legal stories,subgenre,legal-thriller
+"Fiction, thrillers, medical",subgenre,medical-thriller
+"Fiction, thrillers, political",subgenre,political-thriller
+"Fiction, thrillers, espionage",subgenre,espionage-thriller
+Spy stories,subgenre,spy-fiction
+Espionage,subgenre,spy-fiction
+"Fiction, thrillers, military",subgenre,military-thriller
+"Fiction, thrillers, technological",subgenre,techno-thriller
+"Fiction, thrillers, crime",subgenre,crime-fiction
+Romance,genre,romance
+Love stories,genre,romance
+Romance fiction,genre,romance
+"Fiction, romance, general",genre,romance
+"Fiction, romance, contemporary",subgenre,contemporary-romance
+"Fiction, romance, historical",subgenre,historical-romance
+"Fiction, romance, regency",subgenre,regency-romance
+"Fiction, romance, paranormal",subgenre,paranormal-romance
+"Fiction, romance, fantasy",subgenre,fantasy-romance
+"Fiction, romance, suspense",subgenre,suspense-romance
+"Fiction, romance, romantic comedy",subgenre,romantic-comedy
+"Fiction, romance, western",subgenre,western-romance
+"Fiction, romance, military",subgenre,military-romance
+"Fiction, romance, sports",subgenre,sports-romance
+"Fiction, romance, science fiction",subgenre,science-fiction-romance
+"Fiction, romance, gothic",subgenre,gothic-romance
+"Fiction, romance, holiday",subgenre,holiday-romance
+"Fiction, romance, lgbt",subgenre,lgbtq-romance
+Historical romance,subgenre,historical-romance
+Regency fiction,subgenre,regency-romance
+Paranormal romance stories,subgenre,paranormal-romance
+Man-woman relationships,subgenre,contemporary-romance
+"Fiction, erotica",subgenre,erotica
+Erotic stories,subgenre,erotica
+Erotica,subgenre,erotica
+"Fiction, romance, erotica",subgenre,erotic-romance
+"Fiction, lgbt",subgenre,lgbtq-romance
+Historical fiction,genre,historical-war-and-western-fiction
+"Fiction, historical, general",genre,historical-war-and-western-fiction
+"Fiction, historical",genre,historical-war-and-western-fiction
+"Fiction, historical, medieval",subgenre,medieval-fiction
+"Fiction, historical, military & wars",subgenre,historical-warfare
+"Fiction, historical, victorian",subgenre,victorian-fiction
+"Fiction, historical, ancient",subgenre,ancient-history-fiction
+"Fiction, historical, renaissance",subgenre,renaissance-fiction
+"Fiction, historical, regency",subgenre,regency-fiction
+"Fiction, historical, wars & military",subgenre,historical-warfare
+"Fiction, historical, western",subgenre,classic-western
+War stories,subgenre,war-drama
+"Fiction, war & military",subgenre,military-fiction
+Military fiction,subgenre,military-fiction
+"World war, 1939-1945",subgenre,historical-warfare
+"World war, 1914-1918",subgenre,historical-warfare
+Western stories,subgenre,classic-western
+"Fiction, westerns",subgenre,classic-western
+Westerns,subgenre,classic-western
+Frontier and pioneer life,subgenre,frontier-fiction
+Pirates,subgenre,pirate-fiction
+Samurai,subgenre,samurai-fiction
+Adventure stories,genre,action-and-adventure
+Adventure,genre,action-and-adventure
+"Fiction, action & adventure",genre,action-and-adventure
+Action & adventure,genre,action-and-adventure
+Survival,subgenre,wilderness-survival
+Treasure troves,subgenre,treasure-hunt
+Quests (expeditions),subgenre,quest
+Voyages and travels,subgenre,exploration
+"Fiction, disaster",subgenre,disaster-fiction
+Martial arts,subgenre,martial-arts
+Assassins,subgenre,assassin-fiction
+Humor,genre,comedy-and-satire
+Humorous stories,genre,comedy-and-satire
+"Fiction, humorous, general",genre,comedy-and-satire
+"Fiction, humorous",genre,comedy-and-satire
+Comedy,genre,comedy-and-satire
+Satire,subgenre,satire
+"Fiction, satire",subgenre,satire
+Parodies,subgenre,parody
+Parody,subgenre,parody
+Black humor,subgenre,black-comedy
+"Fiction, family life",subgenre,family-drama
+Family life,subgenre,family-drama
+Domestic fiction,subgenre,domestic-drama
+Families,subgenre,family-drama
+"Fiction, coming of age",subgenre,coming-of-age
+Coming of age,subgenre,coming-of-age
+Bildungsromans,subgenre,coming-of-age
+"Fiction, sagas",subgenre,family-saga
+Friendship,subgenre,friendship-fiction
+Grief,subgenre,grief-and-loss
+Divorce,subgenre,divorce-and-separation
+"Fiction, political",subgenre,political-drama
+"Fiction, medical",subgenre,medical-drama
+Courtroom drama,subgenre,courtroom-drama
+"Fiction, legal",subgenre,legal-drama
+Tragedy,subgenre,tragedy
+Melodrama,subgenre,melodrama
+Social problems,subgenre,social-drama
+"Fiction, literary",genre,literary-philosophical-and-experimental-fiction
+Literary fiction,genre,literary-philosophical-and-experimental-fiction
+"Fiction, classics",genre,literary-philosophical-and-experimental-fiction
+Classic literature,genre,literary-philosophical-and-experimental-fiction
+Classics,genre,literary-philosophical-and-experimental-fiction
+Experimental fiction,subgenre,experimental-fiction
+"Fiction, experimental",subgenre,experimental-fiction
+Postmodernism,subgenre,postmodern-fiction
+Metafiction,subgenre,metafiction
+Philosophical fiction,subgenre,philosophical-fiction
+Existentialism,subgenre,existential-fiction
+"Satire, english",subgenre,satirical-literary-fiction
+Speculative fiction,subgenre,speculative-fiction
+"Fiction, absurdist",subgenre,absurdist-fiction
+"Fiction, magical realism",subgenre,magical-realism
+Stream of consciousness,subgenre,stream-of-consciousness
+Slice of life,subgenre,slice-of-life
+School stories,subgenre,school-stories
+College stories,subgenre,college-fiction
+Cooking,subgenre,food-and-cooking-stories
+Animals,subgenre,animal-stories
+"Animals, fiction",subgenre,animal-stories
+Bedtime stories,subgenre,bedtime-stories
+Juvenile fiction,genre,childrens-young-adult-and-new-adult
+Children's stories,genre,childrens-young-adult-and-new-adult
+Children's fiction,genre,childrens-young-adult-and-new-adult
+Young adult fiction,genre,childrens-young-adult-and-new-adult
+"Fiction, young adult",genre,childrens-young-adult-and-new-adult
+Young adult literature,genre,childrens-young-adult-and-new-adult
+Young adult fiction,demographic,young-adult
+"Fiction, young adult",demographic,young-adult
+Young adult literature,demographic,young-adult
+Picture books,subgenre,picture-book-fiction
+Picture books for children,subgenre,picture-book-fiction
+Early readers,subgenre,early-reader-fiction
+"Juvenile fiction, fantasy",subgenre,childrens-fantasy
+"Juvenile fiction, mysteries",subgenre,childrens-mystery
+"Juvenile fiction, action & adventure",subgenre,childrens-adventure
+"Fiction, young adult, fantasy",subgenre,ya-fantasy
+"Fiction, young adult, romance",subgenre,ya-romance
+"Fiction, young adult, dystopian",subgenre,ya-dystopia
+Superheroes,subgenre,superhero-fiction
+"Fiction, superheroes",subgenre,superhero-fiction
+Super heroes,subgenre,superhero-fiction
+"Fiction, sports",subgenre,sports-drama
+Sports stories,subgenre,sports-drama
+"Fiction, music",subgenre,music-drama
+Rock musicians,subgenre,band-stories
+Ballet,subgenre,dance-fiction
+Theater,subgenre,theater-fiction
+Biography,genre,nonfiction-and-narrative-nonfiction
+Autobiography,genre,nonfiction-and-narrative-nonfiction
+Memoir,genre,nonfiction-and-narrative-nonfiction
+Memoirs,genre,nonfiction-and-narrative-nonfiction
+Biographies,genre,nonfiction-and-narrative-nonfiction
+History,genre,nonfiction-and-narrative-nonfiction
+Nonfiction,genre,nonfiction-and-narrative-nonfiction
+Non-fiction,genre,nonfiction-and-narrative-nonfiction
+Science,genre,nonfiction-and-narrative-nonfiction
+Popular works,genre,nonfiction-and-narrative-nonfiction
+Philosophy,genre,nonfiction-and-narrative-nonfiction
+Self-help,genre,nonfiction-and-narrative-nonfiction
+Self-actualization (psychology),genre,nonfiction-and-narrative-nonfiction
+Business,genre,nonfiction-and-narrative-nonfiction
+Travel,genre,nonfiction-and-narrative-nonfiction
+Description and travel,genre,nonfiction-and-narrative-nonfiction
+Cooking (general),genre,nonfiction-and-narrative-nonfiction
+Cookbooks,genre,nonfiction-and-narrative-nonfiction
+Encyclopedias and dictionaries,genre,nonfiction-and-narrative-nonfiction
+Dictionaries,genre,nonfiction-and-narrative-nonfiction
+"Handbooks, manuals, etc.",genre,nonfiction-and-narrative-nonfiction
+Study guides,genre,nonfiction-and-narrative-nonfiction
+Study and teaching,genre,nonfiction-and-narrative-nonfiction
+Art,genre,nonfiction-and-narrative-nonfiction
+Photography,genre,nonfiction-and-narrative-nonfiction
+Religion,genre,mythology-folklore-and-religion
+Christian fiction,genre,mythology-folklore-and-religion
+Bible,genre,mythology-folklore-and-religion
+"Fiction, religious",genre,mythology-folklore-and-religion
+Biblical fiction,subgenre,biblical-fiction
+"Fiction, christian, general",subgenre,faith-based-fiction
+Friendship,theme,friendship
+Family,theme,family
+Love,theme,love
 War,theme,war
+Revenge,theme,revenge
+Survival,theme,survival
+Revolutions,theme,revolution
+Political corruption,theme,corruption
+Social classes,theme,social-class
+Racism,theme,racism
+Good and evil,theme,good-versus-evil
+Death,theme,death
+Identity,theme,identity
+Memory,theme,memory
+Time,theme,time
+Slavery,theme,inequality
+Colonies,theme,colonialism
+Imperialism,theme,colonialism
+Prejudices,theme,discrimination
+Conspiracies,theme,conspiracy
+Secrets,theme,secrets
+Religion,theme,religion
+Faith,theme,faith
+Climatic changes,theme,climate-change
+Genetic engineering,theme,genetic-engineering
+Immortality,theme,immortality
+Free will and determinism,theme,free-will
+Fate and fatalism,theme,destiny
+Ethics,theme,morality
+Sacrifice,theme,sacrifice
+Violence,warning,violence
+Sex crimes,warning,non-consensual-sexual-acts
+Rape,warning,non-consensual-sexual-acts
+Suicide,warning,suicide
+Child abuse,warning,abuse
+Domestic violence,warning,domestic-violence
+Drug abuse,warning,substance-use
+Alcoholism,warning,addiction
+Eating disorders,warning,eating-disorders
+Torture,warning,torture
+Animal welfare,warning,animal-cruelty

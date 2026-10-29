@@ -4,6 +4,7 @@ use App\Models\Genre;
 use App\Models\Media;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\TaxonomySeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -92,8 +93,9 @@ test('the tiles link to the filtered view and the active one is marked and clear
     $this->actingAs(User::factory()->create());
 
     $html = $this->get(route('discover'))->getContent();
-    expect(htmlQuery($html, '//a[@data-format-tile][@href="'.route('discover', ['type' => 'manga']).'#results"]')->length)->toBe(1);
+    expect(htmlQuery($html, '//a[@data-format-tile][@href="'.route('discover', ['filters' => ['mediaTypes' => ['manga']]]).'#results"]')->length)->toBe(1);
 
+    // An old link to ?type=manga still narrows to manga, and the tile that is on clears itself.
     $html = $this->get(route('discover', ['type' => 'manga']))->getContent();
     expect(htmlQuery($html, '//a[@data-format-tile][@aria-current="true"][contains(.,"Manga")][@href="'.route('discover').'"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//a[@data-format-tile][@aria-current="true"]')->length)->toBe(1);
@@ -106,9 +108,9 @@ test('the top genres show their counts and link to the filtered view', function 
 
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
 
-    expect(htmlQuery($html, '//a[@data-genre-chip][@href="'.route('discover', ['genre' => 'action']).'#results"]')->length)->toBe(1)
+    expect(htmlQuery($html, '//a[@data-genre-chip][@href="'.route('discover', ['filters' => ['genres' => ['action']]]).'#results"]')->length)->toBe(1)
         ->and(trim(preg_replace('/\s+/', ' ', htmlQuery($html, '//a[@data-genre-chip]')->item(0)->textContent)))->toBe('Action 2')
-        ->and($html)->not->toContain('Empty Genre');
+        ->and(htmlQuery($html, '//a[@data-genre-chip]')->length)->toBe(1); // a genre with no story is no chip (the filter panel's data island does list it)
 });
 
 test('quick links point at existing routes', function () {
@@ -206,7 +208,39 @@ test('a second discover render reads the counts from the cache and stays within 
     $second = $this->get(route('discover'))->assertOk()->getContent();
 
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(6)
-        ->and(Cache::get('discover:type-counts:v1'))->toBeArray()->each->toBeInt()
-        ->and(Cache::get('discover:genre-counts:v1'))->toHaveCount(3)->each->toBeInt()
+        ->and(Cache::get('discover:type-counts:v2:gated'))->toBeArray()->each->toBeInt()
+        ->and(Cache::get('discover:genre-counts:v3:gated'))->toHaveCount(3)->each->toBeInt()
         ->and(htmlQuery($second, '//a[@data-genre-chip]')->length)->toBe(htmlQuery($first, '//a[@data-genre-chip]')->length);
+});
+
+test('top genres are the families, counting the stories of their subgenres once', function () {
+    $this->seed(TaxonomySeeder::class);
+    $fantasy = Genre::where('slug', 'fantasy')->first();
+    $both = Media::factory()->manga()->create(['title' => 'Both']);
+    $both->genres()->attach([Genre::where('slug', 'isekai')->first()->id, Genre::where('slug', 'litrpg')->first()->id]);
+    Media::factory()->manga()->create(['title' => 'Family Only'])->genres()->attach($fantasy);
+    Media::factory()->manga()->create(['title' => 'Deleted'])->genres()->attach($fantasy);
+    Media::where('title', 'Deleted')->first()->delete();
+    Media::factory()->manga()->create(['title' => 'Courtroom'])->genres()->attach(Genre::where('slug', 'courtroom-drama')->first());
+    Media::factory()->manga()->create(['title' => 'Erotica'])->genres()->attach(Genre::where('slug', 'erotica')->first());
+    $this->actingAs(User::factory()->create());
+
+    $counts = Livewire::test('pages::discover.index')->get('genreCounts');
+
+    expect(Genre::familyCounts(true))->toHaveKey(Genre::where('slug', 'mature-erotic-and-controversial-categories')->value('id'));
+
+    expect($counts)->toBe([$fantasy->id => 2, Genre::where('slug', 'mystery-crime-and-thriller')->value('id') => 1, Genre::where('slug', 'drama-and-human-relationships')->value('id') => 1])
+        ->and(collect(Genre::query()->whereIn('id', array_keys($counts))->pluck('parent_id'))->filter()->all())->toBe([]);
+});
+
+test('a genre family filter lists the stories of its subgenres, and an old genre link finds the genre that replaced it', function () {
+    $this->seed(TaxonomySeeder::class);
+    Media::factory()->manga()->create(['title' => 'Isekai Hero'])->genres()->attach(Genre::where('slug', 'isekai')->first());
+    Media::factory()->manga()->create(['title' => 'Courtroom'])->genres()->attach(Genre::where('slug', 'courtroom-drama')->first());
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test('pages::discover.index')->set('genre', 'fantasy')->assertSee('Isekai Hero')->assertDontSee('Courtroom');
+    Livewire::test('pages::discover.index')->set('genre', 'drama-and-human-relationships')->assertSee('Courtroom')->assertDontSee('Isekai Hero');
+    Livewire::test('pages::discover.index')->set('genre', 'mystery-crime-and-thriller')->assertSee('Courtroom');
+    Livewire::test('pages::discover.index')->set('genre', 'drama')->assertSee('Courtroom')->assertDontSee('Isekai Hero');
 });

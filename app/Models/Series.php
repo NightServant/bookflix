@@ -68,17 +68,18 @@ class Series extends Model
 
     /**
      * The volumes `$radius` either side of `$media` in reading order (the first `2 * $radius + 1` when it is not in the series), in one
-     * query. Positioned in SQL, so a 1,000 volume series never hydrates more than the window.
+     * query. Positioned in SQL, so a 1,000 volume series never hydrates more than the window. Volumes the reader may not see (mature and adult
+     * titles, unless they opted in) are not volumes of the window at all: they are neither listed nor counted for its positions.
      *
      * @return Collection<int, Media>
      */
-    public function window(Media $media, int $radius = 5): Collection
+    public function window(Media $media, int $radius = 5, ?User $viewer = null): Collection
     {
-        $ranked = $this->media()->select('media.id')
+        $ranked = $this->media()->visibleTo($viewer)->select('media.id')
             ->selectRaw('row_number() over (order by media_series.position asc nulls last, media.title, media.id) as rank')
             ->toBase();
 
-        return $this->orderedMedia()
+        return $this->orderedMedia()->visibleTo($viewer)
             ->whereIn('media.id', fn ($ids) => $ids->select('r.id')->fromSub($ranked, 'r')->whereRaw(
                 'abs(r.rank - coalesce((select x.rank from ('.$ranked->toSql().') x where x.id = ?), ?)) <= ?',
                 [...$ranked->getBindings(), $media->id, $radius + 1, $radius],

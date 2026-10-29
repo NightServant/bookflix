@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Access\MatureAccess;
 use App\Classification\DeweyCounts;
 use App\Discovery\Search\SearchTextBuilder;
 use App\Enums\AgeRating;
 use App\Enums\ClassificationType;
 use App\Enums\PublicationStatus;
 use App\Enums\ReviewStatus;
+use App\Enums\WarningStatus;
 use Database\Factories\MediaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,8 +45,8 @@ use Laravel\Scout\Searchable;
  * @property string|null $chapter_number
  * @property string|null $issue_number
  * @property string|null $format
- * @property AgeRating $age_rating
- * @property list<string> $content_warnings
+ * @property AgeRating $age_rating The audience rating (all ages, children, teen, mature teen, mature, adult); the editorial demographic is a separate facet.
+ * @property list<string> $content_warnings Deprecated: the pre-taxonomy list of warning names, kept readable until the filters switch over. Warnings live in `media_content_warnings` (see warnings()).
  * @property PublicationStatus $status
  * @property int|null $page_count
  * @property int|null $chapter_count
@@ -178,8 +180,10 @@ class Media extends Model
      */
     public static function showcaseCovers(): array
     {
-        return Cache::remember('media:showcase-covers:v1', now()->addHour(), fn (): array => array_values(static::query()
+        // Seen by guests (the sign-in panel) and kept for an hour, so it is the gated list.
+        return Cache::remember('media:showcase-covers:v2', now()->addHour(), fn (): array => array_values(static::query()
             ->trending()
+            ->visibleTo(null)
             ->whereNotNull('media.cover_url')
             ->limit(3)
             ->get(['media.id', 'media.title', 'media.cover_url'])
@@ -227,6 +231,50 @@ class Media extends Model
     }
 
     /**
+     * The access gate: media a reader who has not opted in to mature titles may not see, left out. An adult-rated work is gated, and so is any work
+     * tagged with a mature genre (a genre whose primary parent is the mature family). Applied by the query layer wherever media is listed
+     * (see scopeVisibleTo), never by a filter, so no URL or filter value can lift it.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeWithoutMature(Builder $query): void
+    {
+        $query->where('media.age_rating', '!=', AgeRating::Adult->value)
+            ->whereNotExists(fn ($rows) => $rows->select(DB::raw(1))
+                ->from('media_genres')
+                ->join('genres', 'genres.id', '=', 'media_genres.genre_id')
+                ->whereColumn('media_genres.media_id', 'media.id')
+                ->where('genres.is_mature', true));
+    }
+
+    /**
+     * Media this reader may see: everything for a reader who turned on mature titles and confirmed they are 18 or older (see MatureAccess),
+     * everything but gated media for any other reader, and for a guest (null) always. Use it on every query that lists media to a reader.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeVisibleTo(Builder $query, ?User $viewer): void
+    {
+        $query->unless(MatureAccess::allows($viewer), fn (Builder $media) => $media->withoutMature());
+    }
+
+    /**
+     * Whether this work is behind the access gate: it is adult-rated or tagged with a mature genre (one query unless it is adult-rated).
+     */
+    public function isRestricted(): bool
+    {
+        return $this->age_rating === AgeRating::Adult || $this->genres()->where('genres.is_mature', true)->exists();
+    }
+
+    /**
+     * Whether the reader is kept from this work: it is restricted and they have not opted in. Skips the lookup for a reader who may see everything.
+     */
+    public function isGatedFor(?User $viewer): bool
+    {
+        return ! MatureAccess::allows($viewer) && $this->isRestricted();
+    }
+
+    /**
      * The stories with the strongest popularity signals (`bookflix:score-popularity`), then the most rated, the newest breaking ties.
      *
      * @param  Builder<Media>  $query
@@ -238,6 +286,36 @@ class Media extends Model
             ->orderByDesc('media.ratings_count')
             ->orderByRaw('media.published_on desc nulls last')
             ->orderByDesc('media.id');
+    }
+
+    /**
+     * Media with any of these genres, or any genre below them: selecting a family includes its subgenres.
+     * Several slugs mean any of them. An unknown slug matches nothing.
+     *
+     * @param  Builder<Media>  $query
+     * @param  list<string>  $slugs
+     */
+    public function scopeInGenres(Builder $query, array $slugs): void
+    {
+        $query->whereRaw(
+            'exists (select 1 from media_genres where media_genres.media_id = media.id and media_genres.genre_id in ('.Genre::TREE_IDS_SQL.'))',
+            [Genre::slugArray($slugs)],
+        );
+    }
+
+    /**
+     * Media without any of these warnings recorded as present or disputed. Verified absent and unknown media stay in: unknown is never treated as a warning, nor as safe.
+     *
+     * @param  Builder<Media>  $query
+     * @param  list<string>  $slugs
+     */
+    public function scopeWithoutWarnings(Builder $query, array $slugs): void
+    {
+        $query->whereNotExists(fn ($rows) => $rows->select(DB::raw(1))
+            ->from('media_content_warnings')
+            ->whereColumn('media_content_warnings.media_id', 'media.id')
+            ->whereIn('media_content_warnings.status', WarningStatus::shownValues())
+            ->whereIn('media_content_warnings.content_warning_id', ContentWarning::query()->whereIn('slug', $slugs)->select('id')));
     }
 
     /**
@@ -314,6 +392,48 @@ class Media extends Model
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'media_tags')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Trope, $this, Pivot, 'pivot'>
+     */
+    public function tropes(): BelongsToMany
+    {
+        return $this->belongsToMany(Trope::class, 'media_tropes')->withTimestamps();
+    }
+
+    /**
+     * The editorial demographics (shonen, seinen, young adult...). Not an age rating.
+     *
+     * @return BelongsToMany<Demographic, $this, Pivot, 'pivot'>
+     */
+    public function demographics(): BelongsToMany
+    {
+        return $this->belongsToMany(Demographic::class, 'media_demographics')->withTimestamps();
+    }
+
+    /**
+     * Every warning this media has a recorded status for (present, absent, unknown or disputed). A warning with no row is unknown, not absent.
+     *
+     * @return BelongsToMany<ContentWarning, $this, MediaContentWarning, 'pivot'>
+     */
+    public function warnings(): BelongsToMany
+    {
+        return $this->belongsToMany(ContentWarning::class, 'media_content_warnings')
+            ->using(MediaContentWarning::class)
+            ->withPivot(['status', 'source'])
+            ->withTimestamps()
+            ->orderBy('content_warnings.sort');
+    }
+
+    /**
+     * The warnings a reader is shown: present or disputed. Verified absent and unknown ones are never listed.
+     *
+     * @return BelongsToMany<ContentWarning, $this, MediaContentWarning, 'pivot'>
+     */
+    public function shownWarnings(): BelongsToMany
+    {
+        return $this->warnings()->wherePivotIn('status', WarningStatus::shownValues());
     }
 
     /**

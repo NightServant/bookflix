@@ -2,9 +2,11 @@
 
 namespace App\Catalog\Providers\ComicVine;
 
+use App\Catalog\Classification\ClassificationSignals;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\MissingProviderCredentials;
 use App\Catalog\Providers\ProviderUnavailable;
@@ -15,7 +17,7 @@ use Carbon\CarbonImmutable;
 
 class ComicVineProvider implements MetadataProvider
 {
-    use SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
 
     private const API = 'https://comicvine.gamespot.com/api';
 
@@ -87,11 +89,23 @@ class ComicVineProvider implements MetadataProvider
         $image = is_array($item['image'] ?? null) ? $item['image'] : [];
         $aliases = array_values(array_unique(array_filter(array_map('trim', preg_split('/\R/', is_string($item['aliases'] ?? null) ? $item['aliases'] : '') ?: []), fn (string $alias) => $alias !== '' && $alias !== $title)));
 
+        $deck = $this->plainText($item['deck'] ?? null);
+        $description = $this->plainText($item['description'] ?? null) ?? $deck;
+
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: 'comic-book',
+            // Comic Vine lists prose too (novelizations, "Batman: The Novel"): the deck and the name say which, so they are read together.
+            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
+                provider: $this->key(),
+                title: $title,
+                alternativeTitles: $aliases,
+                description: trim("{$deck} {$description}"),
+                publishers: $publisher !== '' ? [$publisher] : [],
+                chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
+                language: 'en',
+            )),
             alternativeTitles: array_slice($aliases, 0, 25),
-            description: $this->plainText($item['description'] ?? null) ?? $this->plainText($item['deck'] ?? null),
+            description: $description,
             publishers: $publisher !== '' ? [$publisher] : [],
             publicationYear: preg_match('/^\d{4}$/', $year) ? (int) $year : null,
             language: 'en',
