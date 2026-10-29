@@ -2,10 +2,12 @@
 
 namespace App\Catalog\Providers\OpenLibrary;
 
+use App\Catalog\Classification\ClassificationSignals;
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\ProviderUnavailable;
 use App\Catalog\Providers\RateLimitedByProvider;
@@ -17,7 +19,7 @@ use Illuminate\Http\Client\Response;
 
 class OpenLibraryProvider implements MetadataProvider
 {
-    use SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
 
     private const BASE_URL = 'https://openlibrary.org';
 
@@ -260,11 +262,23 @@ class OpenLibraryProvider implements MetadataProvider
 
         $primary = collect($editions)->sortBy(fn (array $edition) => $this->year($edition['publish_date'] ?? null) ?? PHP_INT_MAX)->first() ?? [];
         $years = array_filter([$this->year($work['first_publish_date'] ?? null), $this->year($primary['publish_date'] ?? null)]);
+        $title = $this->text($work['title'] ?? null);
+        $description = $this->plainText(is_array($work['description'] ?? null) ? ($work['description']['value'] ?? null) : ($work['description'] ?? null));
+        $language = self::LANGUAGES[basename($this->text($primary['languages'][0]['key'] ?? null))] ?? null;
+        $pages = is_int($primary['number_of_pages'] ?? null) && $primary['number_of_pages'] > 0 ? $primary['number_of_pages'] : null;
 
         return new NormalizedMedia(
-            title: $this->text($work['title'] ?? null),
-            mediaTypeSlug: $this->mediaTypeSlug($subjects),
-            description: $this->plainText(is_array($work['description'] ?? null) ? ($work['description']['value'] ?? null) : ($work['description'] ?? null)),
+            title: $title,
+            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
+                provider: $this->key(),
+                title: $title,
+                description: $description,
+                subjects: $subjects,
+                publishers: $this->publishers($editions),
+                pageCount: $pages,
+                language: $language,
+            )),
+            description: $description,
             creators: array_map(
                 fn (string $name) => new NormalizedCreator($name, CreatorRole::Author),
                 array_values(array_filter($this->asArray($record->payload['authors'] ?? null), 'is_string')),
@@ -273,8 +287,8 @@ class OpenLibraryProvider implements MetadataProvider
             genres: $subjects,
             isbns: $this->isbns($editions),
             publicationYear: $years === [] ? null : min($years),
-            language: self::LANGUAGES[basename($this->text($primary['languages'][0]['key'] ?? null))] ?? null,
-            pageCount: is_int($primary['number_of_pages'] ?? null) && $primary['number_of_pages'] > 0 ? $primary['number_of_pages'] : null,
+            language: $language,
+            pageCount: $pages,
             coverUrl: $this->safeUrl($this->coverUrl($work['covers'] ?? null)),
             externalDeweyCode: $this->deweyCode($editions),
             sourceUrl: $this->safeUrl($record->sourceUrl),
@@ -319,17 +333,24 @@ class OpenLibraryProvider implements MetadataProvider
     }
 
     /**
-     * @param  list<string>  $subjects
+     * The publishers of every edition (up to ten, the first edition's first): the work is a comic if any edition is from a comic publisher, a novel if the prose house is the one on record.
+     *
+     * @param  list<array<string, mixed>>  $editions
+     * @return list<string>
      */
-    private function mediaTypeSlug(array $subjects): string
+    private function publishers(array $editions): array
     {
-        $haystack = mb_strtolower(implode('|', $subjects));
+        $names = [];
 
-        return match (true) {
-            str_contains($haystack, 'graphic novel') => 'graphic-novel',
-            str_contains($haystack, 'picture book') => 'picture-book',
-            default => 'novel',
-        };
+        foreach ($editions as $edition) {
+            foreach ($this->asArray($edition['publishers'] ?? null) as $name) {
+                if (is_string($name) && trim($name) !== '') {
+                    $names[] = trim($name);
+                }
+            }
+        }
+
+        return array_slice(array_values(array_unique($names)), 0, 10);
     }
 
     /**

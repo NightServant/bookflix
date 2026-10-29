@@ -1,29 +1,176 @@
 provider_term,kind,bookflix_slug
-Action,genre,action
-Adventure,genre,adventure
-Comedy,genre,comedy
-Drama,genre,drama
-Ecchi,genre,ecchi
+Action,genre,action-and-adventure
+Adventure,genre,action-and-adventure
+Comedy,genre,comedy-and-satire
+Drama,genre,drama-and-human-relationships
+Ecchi,warning,sexual-content
+Ecchi,rating,mature_teen
+Ecchi,tag,ecchi
 Fantasy,genre,fantasy
 Horror,genre,horror
-Mahou Shoujo,genre,magical-girl
-Mystery,genre,mystery
-Psychological,genre,psychological
+Mahou Shoujo,subgenre,magical-heroes
+Mecha,subgenre,mecha
+Music,subgenre,music-drama
+Mystery,genre,mystery-crime-and-thriller
+Psychological,subgenre,psychological-thriller
 Romance,genre,romance
 Sci-Fi,genre,science-fiction
-Slice of Life,genre,slice-of-life
-Sports,genre,sports
-Supernatural,genre,supernatural
-Thriller,genre,thriller
-Coming of Age,theme,coming-of-age
-Conspiracy,theme,conspiracy
-Crime,theme,crime
-Isekai,theme,isekai
-Philosophy,theme,philosophy
-Politics,theme,politics
-Revenge,theme,revenge
-School,theme,school
+Slice of Life,subgenre,slice-of-life
+Sports,genre,sports-music-and-performing-arts
+Supernatural,subgenre,paranormal-fantasy
+Thriller,genre,mystery-crime-and-thriller
+Shounen,demographic,shonen
+Shoujo,demographic,shojo
+Seinen,demographic,seinen
+Josei,demographic,josei
+Kids,demographic,kodomomuke
+Gore,warning,gore
+Nudity,warning,nudity
+Rape,warning,non-consensual-sexual-acts
+Torture,warning,torture
+Suicide,warning,suicide
+Self Harm,warning,self-harm
+Drugs,warning,substance-use
+Alcoholism,warning,addiction
+Bullying,warning,harassment
+Abuse,warning,abuse
+Racism,warning,racism
+Slavery,warning,exploitation
+Incest,warning,incest-themes
+Stalking,warning,stalking
+Animal Abuse,warning,animal-cruelty
+Body Horror,subgenre,body-horror
+Body Horror,warning,body-horror
+Isekai,subgenre,isekai
+Reincarnation,subgenre,reincarnation-fantasy
+Reincarnation,trope,reincarnation
+Cultivation,subgenre,cultivation-fantasy
+Wuxia,subgenre,wuxia
+Xianxia,subgenre,xianxia
+Xuanhuan,subgenre,xuanhuan
+Murim,subgenre,murim
+Dungeon,subgenre,dungeon-fantasy
+Virtual World,subgenre,litrpg
+Urban Fantasy,subgenre,urban-fantasy
+Fairy Tale,subgenre,fairy-tale-fantasy
+Mythology,subgenre,mythological-fantasy
+Dark Fantasy,subgenre,dark-fantasy
+Super Power,subgenre,supernatural-powers
+Superhero,subgenre,superhero-fiction
+Henshin,subgenre,magical-heroes
+Kaiju,subgenre,kaiju
+Cyberpunk,subgenre,cyberpunk
+Steampunk,subgenre,steampunk
+Space Opera,subgenre,space-opera
+Post-Apocalyptic,subgenre,post-apocalyptic-fiction
+Dystopian,subgenre,dystopian-fiction
+Time Loop,trope,time-loop
+Time Manipulation,subgenre,time-travel
+Artificial Intelligence,subgenre,artificial-intelligence-fiction
+Artificial Intelligence,theme,artificial-intelligence
+Robots,subgenre,robot-fiction
+Alternate Universe,subgenre,parallel-universes
+Vampire,subgenre,vampire-horror
+Zombie,subgenre,zombie-horror
+Zombies,subgenre,zombie-horror
+Ghost,subgenre,ghost-stories
+Battle Royale,subgenre,death-game
 Survival,theme,survival
-Time Manipulation,theme,time-travel
-Tragedy,theme,tragedy
+Detective,subgenre,detective-fiction
+Crime,subgenre,crime-fiction
+Police,subgenre,police-procedural
+Heist,subgenre,heist-fiction
+Yakuza,subgenre,organized-crime
+Mafia,subgenre,mafia-fiction
+Espionage,subgenre,spy-fiction
+Spy,subgenre,spy-fiction
+Conspiracy,theme,conspiracy
+Politics,theme,political-intrigue
+Revenge,theme,revenge
+Revenge,trope,revenge-arc
+Martial Arts,subgenre,martial-arts
+Military,subgenre,military-fiction
+Samurai,subgenre,samurai-fiction
+Pirates,subgenre,pirate-adventure
+Historical,genre,historical-war-and-western-fiction
+Assassins,subgenre,assassin-fiction
 War,theme,war
+Tragedy,subgenre,tragedy
+Coming of Age,subgenre,coming-of-age
+Philosophy,subgenre,philosophical-fiction
+Parody,subgenre,parody
+Satire,subgenre,satire
+Slapstick,subgenre,slapstick
+Black Comedy,subgenre,black-comedy
+Surreal Comedy,subgenre,absurdist-comedy
+Medicine,subgenre,medical-drama
+Found Family,subgenre,found-family
+Found Family,theme,found-family
+Found Family,trope,found-family
+Iyashikei,subgenre,iyashikei
+Food,subgenre,food-and-cooking-stories
+Cooking,subgenre,food-and-cooking-stories
+School,subgenre,school-life
+Work,subgenre,workplace-life
+Family Life,subgenre,family-life
+Parenthood,subgenre,parenthood-fiction
+Travel,subgenre,travel-and-everyday-adventure
+Rural,subgenre,rural-life
+Urban,subgenre,urban-life
+Idol,subgenre,idol-fiction
+Idols (Female),subgenre,idol-fiction
+Idols (Male),subgenre,idol-fiction
+Acting,subgenre,theater-fiction
+Dancing,subgenre,dance-fiction
+E-Sports,subgenre,esports
+Baseball,subgenre,baseball
+Basketball,subgenre,basketball
+Football,subgenre,football
+Tennis,subgenre,tennis
+Boxing,subgenre,boxing
+Volleyball,subgenre,volleyball
+Racing,subgenre,racing
+Figure Skating,subgenre,figure-skating
+Gymnastics,subgenre,gymnastics
+Mixed Martial Arts,subgenre,martial-arts-competition
+Harem,subgenre,harem-romance
+Female Harem,subgenre,harem-romance
+Male Harem,subgenre,reverse-harem-romance
+Mixed Gender Harem,subgenre,harem-romance
+Boys Love,subgenre,bl-boys-love
+Boys' Love,subgenre,bl-boys-love
+Yuri,subgenre,yuri
+Yaoi,subgenre,yaoi
+Girls' Love,subgenre,gl-girls-love
+Love Triangle,subgenre,love-triangle
+Love Triangle,trope,love-triangle
+Unrequited Love,subgenre,unrequited-love
+Fake Relationship,subgenre,fake-dating
+Fake Relationship,trope,fake-dating
+Arranged Marriage,subgenre,arranged-marriage
+Arranged Marriage,trope,arranged-marriage
+Enemies to Lovers,subgenre,enemies-to-lovers
+Enemies to Lovers,trope,enemies-to-lovers
+Friends to Lovers,subgenre,friends-to-lovers
+Friends to Lovers,trope,friends-to-lovers
+Slow Burn,subgenre,slow-burn
+Slow Burn,trope,slow-burn
+Forbidden Love,subgenre,forbidden-love
+Forbidden Love,trope,forbidden-love
+Chosen One,trope,chosen-one
+Body Swapping,trope,body-swap
+Overpowered,trope,overpowered-protagonist
+Secret Identity,trope,secret-identity
+Amnesia,trope,unreliable-memories
+Tournament,trope,tournament-arc
+Master and Disciple,trope,master-and-disciple
+Kingdom Management,trope,kingdom-building
+Family,theme,family
+Friendship,theme,friendship
+Religion,theme,religion
+Dissociative Identities,theme,identity
+Memory Manipulation,theme,memory
+Environmental,theme,ecology
+Class Struggle,theme,social-class
+Death Game,theme,survival
+Time Travel,subgenre,time-travel

@@ -1,5 +1,6 @@
 <?php
 
+use App\Catalog\Taxonomy\LegacyTaxonomy;
 use App\Classification\DeweyCounts;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
@@ -61,7 +62,12 @@ new #[Title('Discover')] class extends Component {
     #[Computed]
     public function activeGenre(): ?Genre
     {
-        return $this->genre === null ? null : Genre::query()->where('slug', $this->genre)->first();
+        if ($this->genre === null) {
+            return null;
+        }
+
+        // A slug from before the taxonomy (an old link to ?genre=action) finds the genre that replaced it.
+        return Genre::query()->where('slug', $this->genre)->first() ?? Genre::query()->where('slug', LegacyTaxonomy::genreSlug($this->genre))->first();
     }
 
     #[Computed]
@@ -170,21 +176,14 @@ new #[Title('Discover')] class extends Component {
     }
 
     /**
-     * Every genre that has a story, the biggest first, as `[genre id => live story count]`, kept ten minutes.
+     * Every genre family that has a story, the biggest first, as `[genre id => live story count]`, kept ten minutes. A family counts the stories of its subgenres too.
      *
      * @return array<int, int>
      */
     #[Computed]
     public function genreCounts(): array
     {
-        return Cache::remember('discover:genre-counts:v1', 600, fn (): array => Genre::query()
-            ->withCount(['media' => fn ($media) => $media->unmerged()])
-            ->orderByDesc('media_count')
-            ->orderBy('name')
-            ->get()
-            ->filter(fn (Genre $genre): bool => $genre->media_count > 0)
-            ->mapWithKeys(fn (Genre $genre): array => [$genre->id => (int) $genre->media_count])
-            ->all());
+        return Cache::remember('discover:genre-counts:v2', 600, fn (): array => Genre::familyCounts());
     }
 
     /**

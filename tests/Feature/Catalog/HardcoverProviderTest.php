@@ -2,6 +2,7 @@
 
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
+use App\Catalog\Ingestion\MappedTaxonomy;
 use App\Catalog\Ingestion\TaxonomyMapper;
 use App\Catalog\Providers\Hardcover\HardcoverProvider;
 use App\Catalog\Providers\MissingProviderCredentials;
@@ -77,7 +78,7 @@ test('page maps a book to a novel with creators, series, taxonomy, isbn, metrics
         ->and($media->sourceUrl)->toBe('https://hardcover.app/books/dune')
         ->and($media->contentWarnings)->toBe(['Violence'])
         ->and($media->metrics)->toBe(['popularity' => 150000, 'follows' => 90000, 'ratings_count' => 40000, 'average_rating' => 4.28])
-        ->and(app(TaxonomyMapper::class)->map('hardcover', $media))->toBe(['genres' => ['science-fiction', 'fantasy'], 'themes' => [], 'tags' => ['adventurous', 'space-opera']])
+        ->and(app(TaxonomyMapper::class)->map('hardcover', $media))->toEqual(new MappedTaxonomy(genres: ['science-fiction', 'fantasy', 'space-opera'], warnings: ['violence'], tags: ['adventurous' => 'Adventurous']))
         ->and($page->maxUpdatedAt->toIso8601String())->toBe('2026-10-03T12:00:00+00:00');
 });
 
@@ -123,11 +124,20 @@ test('find queries one book by id and returns null when absent', function () {
     expect(app(HardcoverProvider::class)->find('10'))->toBeNull();
 });
 
-test('graphic novel and comic tags change the media type', function (string $tag, string $slug) {
-    $book = hardcoverBook(1, ['cached_tags' => ['Genre' => [['tag' => $tag, 'count' => 1]]]]);
+test('graphic novel, comic and manga tags change the media type once the rest of the book agrees', function (array $genres, array $overrides, string $slug) {
+    $book = hardcoverBook(1, ['cached_tags' => ['Genre' => array_map(fn (string $tag) => ['tag' => $tag, 'count' => 1], $genres)], ...$overrides]);
 
     expect(app(HardcoverProvider::class)->normalize(new ProviderRecord('hardcover', '1', $book, null, now()->toImmutable()))->mediaTypeSlug)->toBe($slug);
-})->with([['Graphic Novels', 'graphic-novel'], ['Comics', 'comic-book'], ['Fantasy', 'novel']]);
+})->with([
+    'a graphic novel' => [['Graphic Novels'], ['pages' => 192, 'contributions' => [['contribution' => null, 'author' => ['name' => 'Brian K. Vaughan']], ['contribution' => 'Colorist', 'author' => ['name' => 'Fiona Staples']]]], 'graphic-novel'],
+    'comics are bound books here' => [['Comics'], ['pages' => null, 'contributions' => []], 'graphic-novel'],
+    'a single issue' => [['Comics'], ['pages' => 32, 'contributions' => []], 'comic-book'],
+    'manga' => [['Manga', 'Fantasy'], ['pages' => 224, 'contributions' => []], 'manga'],
+    'a novel' => [['Fantasy'], [], 'novel'],
+    'a novel filed under Graphic Novels' => [['Graphic Novels', 'Fantasy'], ['title' => 'Batman: Fear Itself', 'pages' => 380, 'contributions' => [['contribution' => null, 'author' => ['name' => 'Michael Reaves']]]], 'novel'],
+    'a light novel' => [['Light Novels', 'Fantasy'], ['pages' => 260], 'light-novel'],
+    'a visual novel' => [['Visual Novel'], ['pages' => null, 'contributions' => []], 'visual-novel'],
+]);
 
 test('missing credentials fail readably without a request and the run ends failed', function () {
     config(['bookflix.providers.hardcover.api_token' => null]);

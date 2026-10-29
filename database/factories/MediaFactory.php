@@ -55,7 +55,7 @@ class MediaFactory extends Factory
     /**
      * Use the seeded media type with this slug, creating it when the seeder has not run.
      */
-    protected function ofType(string $slug): static
+    public function ofType(string $slug): static
     {
         return $this->state(fn () => [
             'media_type_id' => MediaType::firstOrCreate(['slug' => $slug], MediaTypeSeeder::TYPES[$slug])->id,

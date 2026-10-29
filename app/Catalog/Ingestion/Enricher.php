@@ -7,6 +7,7 @@ use App\Enums\AgeRating;
 use App\Enums\PublicationStatus;
 use App\Models\ExternalSource;
 use App\Models\Media;
+use App\Models\MediaType;
 
 class Enricher
 {
@@ -17,13 +18,18 @@ class Enricher
      * provider's value. The media's primary provider (`primary_external_source_id`, set when the record was created and
      * kept through merges) is the exception: its re-syncs keep the record current, which also stops two providers
      * overwriting each other on every sync. A media without one is claimed by the first provider that touches it.
+     *
+     * `$mappedRating` is the audience rating the taxonomy mapping found in the record's terms (an ecchi tag implies mature teen);
+     * the stricter of it and the provider's own rating is stored.
      */
-    public function apply(Media $media, NormalizedMedia $incoming, ExternalSource $source): void
+    public function apply(Media $media, NormalizedMedia $incoming, ExternalSource $source, ?AgeRating $mappedRating = null): void
     {
         $media->primary_external_source_id ??= $source->id;
         $authoritative = $media->primary_external_source_id === $source->id;
 
         $values = [
+            // Only the media's own provider can change its type, and an admin can lock it: a re-sync with a better classifier corrects it.
+            'media_type_id' => MediaType::where('slug', $incoming->mediaTypeSlug)->value('id'),
             'title' => trim($incoming->title),
             'alternative_titles' => $incoming->alternativeTitles,
             'description' => $incoming->description,
@@ -32,7 +38,7 @@ class Enricher
             'publication_year' => $incoming->publicationYear,
             'language' => $incoming->language,
             'country_of_origin' => $incoming->countryOfOrigin,
-            'age_rating' => $incoming->ageRating,
+            'age_rating' => $incoming->ageRating->stricter($mappedRating ?? AgeRating::Unknown),
             'content_warnings' => $incoming->contentWarnings,
             'status' => $incoming->status,
             'page_count' => $incoming->pageCount,

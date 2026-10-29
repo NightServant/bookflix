@@ -24,6 +24,8 @@ class HybridSearch
 
     /**
      * Every leg's hits, fused by reciprocal rank, one page of media in rank order. A blank or punctuation-only query runs nothing.
+     * The filters narrow every leg in SQL (see SearchFilters): a genre family includes its subgenres, a group's values are any-of, groups are all-of,
+     * and excluded warnings drop only works where the warning is present or disputed.
      * Past 120 searches a minute the page comes back empty and `throttled`, without touching the database.
      *
      * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
@@ -62,7 +64,7 @@ class HybridSearch
     }
 
     /**
-     * No text, only filters (Discover): the most rated first, newest breaking ties.
+     * No text, only filters (Discover, and the Search page's filters alone): the most rated first, newest breaking ties.
      *
      * @return LengthAwarePaginator<int, Media>
      */

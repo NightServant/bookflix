@@ -2,6 +2,7 @@
 
 namespace App\Discovery\Search;
 
+use App\Catalog\Taxonomy\LegacySlugs;
 use App\Enums\PublicationStatus;
 use App\Models\DeweyClass;
 use App\Models\Media;
@@ -10,18 +11,28 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 
 /**
- * What a reader narrowed the catalogue to. Several values of one filter mean "any of them"; different filters all have to hold.
+ * What a reader narrowed the catalogue to. Several values of one filter mean "any of them" (OR within a group); different filters all have to hold
+ * (AND between groups): media type, genres, themes, tropes, demographics, ratings, languages, status and the rest are independent of one another.
+ *
+ * Genres expand downward: a family selects its subgenres too (and the subgenres linked under it), a subgenre selects only itself, never its siblings.
+ * Warnings are only ever excluded: a work is dropped when the warning is present or disputed, and stays when it is unknown or verified absent,
+ * because no record of a warning is not a promise that it is absent.
+ *
+ * Nothing here is an access rule: a filter narrows what a reader may already see, it never unlocks mature or gated content.
  */
 final readonly class SearchFilters
 {
     public const LENGTHS = ['short', 'medium', 'long'];
+
+    /** The audience ratings a reader can filter by (AgeRating values, unknown left out). */
+    public const RATINGS = ['all', 'children', 'teen', 'mature_teen', 'mature', 'adult'];
 
     /** The most values one list filter keeps, so a crafted payload cannot exceed the database's bind-parameter limit. */
     public const MAX_VALUES = 50;
 
     /**
      * @param  list<string>  $mediaTypes  media type slugs
-     * @param  list<string>  $genres  genre slugs
+     * @param  list<string>  $genres  genre or genre family slugs; a family includes its descendants
      * @param  list<string>  $themes  theme slugs
      * @param  list<string>  $languages  ISO 639-1 codes
      * @param  list<string>  $statuses  PublicationStatus values
@@ -29,6 +40,10 @@ final readonly class SearchFilters
      * @param  list<int>  $creatorIds
      * @param  list<int>  $publisherIds
      * @param  string|null  $deweyCode  the class and everything below it, public primary classes only
+     * @param  list<string>  $tropes  trope slugs
+     * @param  list<string>  $demographics  editorial demographic slugs (shonen, seinen, young-adult...); not an age rating
+     * @param  list<string>  $ratings  AgeRating values (all, children, teen, mature_teen, mature, adult); `unknown` is not a rating
+     * @param  list<string>  $excludeWarnings  content warning slugs: media with any of them present or disputed are left out
      */
     public function __construct(
         public array $mediaTypes = [],
@@ -43,6 +58,10 @@ final readonly class SearchFilters
         public array $creatorIds = [],
         public array $publisherIds = [],
         public ?string $deweyCode = null,
+        public array $tropes = [],
+        public array $demographics = [],
+        public array $ratings = [],
+        public array $excludeWarnings = [],
     ) {}
 
     /**
@@ -52,10 +71,13 @@ final readonly class SearchFilters
      */
     public static function fromArray(array $input): self
     {
+        // Slugs from before the taxonomy (a bookmarked ?filters[genres][]=action) are upgraded to the nodes that replaced them.
+        $legacy = app(LegacySlugs::class)->upgrade(['genres' => self::strings($input['genres'] ?? []), 'themes' => self::strings($input['themes'] ?? [])]);
+
         return new self(
             mediaTypes: self::strings($input['mediaTypes'] ?? []),
-            genres: self::strings($input['genres'] ?? []),
-            themes: self::strings($input['themes'] ?? []),
+            genres: array_slice($legacy['genres'], 0, self::MAX_VALUES),
+            themes: array_slice($legacy['themes'], 0, self::MAX_VALUES),
             languages: self::strings($input['languages'] ?? []),
             yearFrom: filter_var($input['yearFrom'] ?? null, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
             yearTo: filter_var($input['yearTo'] ?? null, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
@@ -65,6 +87,10 @@ final readonly class SearchFilters
             creatorIds: self::ids($input['creatorIds'] ?? []),
             publisherIds: self::ids($input['publisherIds'] ?? []),
             deweyCode: self::strings($input['deweyCode'] ?? [])[0] ?? null,
+            tropes: self::strings($input['tropes'] ?? []),
+            demographics: self::strings($input['demographics'] ?? []),
+            ratings: array_values(array_filter(self::strings($input['ratings'] ?? []), fn (string $rating): bool => in_array($rating, self::RATINGS, true))),
+            excludeWarnings: self::strings($input['excludeWarnings'] ?? []),
         );
     }
 
@@ -93,8 +119,12 @@ final readonly class SearchFilters
     {
         return $query
             ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $slugs)->select('id')))
-            ->when($this->genres, fn (Builder $media, array $slugs) => $media->whereHas('genres', fn (Builder $genres) => $genres->whereIn('genres.slug', $slugs)))
+            ->when($this->genres, fn (Builder $media, array $slugs) => $media->inGenres($slugs))
             ->when($this->themes, fn (Builder $media, array $slugs) => $media->whereHas('themes', fn (Builder $themes) => $themes->whereIn('themes.slug', $slugs)))
+            ->when($this->tropes, fn (Builder $media, array $slugs) => $media->whereHas('tropes', fn (Builder $tropes) => $tropes->whereIn('tropes.slug', $slugs)))
+            ->when($this->demographics, fn (Builder $media, array $slugs) => $media->whereHas('demographics', fn (Builder $demographics) => $demographics->whereIn('demographics.slug', $slugs)))
+            ->when($this->ratings, fn (Builder $media, array $ratings) => $media->whereIn('media.age_rating', $ratings))
+            ->when($this->excludeWarnings, fn (Builder $media, array $slugs) => $media->withoutWarnings($slugs))
             ->when($this->languages, fn (Builder $media, array $codes) => $media->whereIn('media.language', $codes))
             ->when($this->yearFrom, fn (Builder $media, int $year) => $media->where('media.publication_year', '>=', $year))
             ->when($this->yearTo, fn (Builder $media, int $year) => $media->where('media.publication_year', '<=', $year))

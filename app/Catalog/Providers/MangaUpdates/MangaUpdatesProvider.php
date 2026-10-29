@@ -2,10 +2,12 @@
 
 namespace App\Catalog\Providers\MangaUpdates;
 
+use App\Catalog\Classification\ClassificationSignals;
 use App\Catalog\Data\NormalizedCreator;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\SanitizesProviderData;
 use App\Catalog\Providers\SendsProviderRequests;
@@ -16,7 +18,7 @@ use Carbon\CarbonImmutable;
 
 class MangaUpdatesProvider implements MetadataProvider
 {
-    use SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
 
     private const API = 'https://api.mangaupdates.com/v1';
 
@@ -30,13 +32,12 @@ class MangaUpdatesProvider implements MetadataProvider
     private const ADULT_GENRES = ['Hentai', 'Adult'];
 
     /**
-     * @var array<string, array{string, ?string, ?string}> media type slug, language, country
+     * @var array<string, array{?string, ?string}> language and country of a series type; a novel says neither
      */
-    private const TYPES = [
-        'Manga' => ['manga', 'ja', 'JP'],
-        'Manhwa' => ['manhwa', 'ko', 'KR'],
-        'Manhua' => ['manhua', 'zh', 'CN'],
-        'Novel' => ['light-novel', null, null],
+    private const ORIGINS = [
+        'Manga' => ['ja', 'JP'],
+        'Manhwa' => ['ko', 'KR'],
+        'Manhua' => ['zh', 'CN'],
     ];
 
     public function key(): string
@@ -104,17 +105,30 @@ class MangaUpdatesProvider implements MetadataProvider
         $title = $this->text($payload['title'] ?? null);
         $genres = array_values(array_unique(array_filter(array_map(fn ($genre) => is_array($genre) ? $this->text($genre['genre'] ?? null) : '', is_array($payload['genres'] ?? null) ? $payload['genres'] : []))));
         $isAdult = array_intersect(self::ADULT_GENRES, $genres) !== [];
-        [$slug, $language, $country] = self::TYPES[$this->text($payload['type'] ?? null)] ?? ['', null, null];
+        $type = $this->text($payload['type'] ?? null);
+        [$language, $country] = self::ORIGINS[$type] ?? [null, null];
         $year = $this->text($payload['year'] ?? null);
+        $alternativeTitles = array_slice(array_values(array_diff(array_unique(array_filter(array_map(fn ($alt) => is_array($alt) ? $this->text($alt['title'] ?? null) : '', is_array($payload['associated'] ?? null) ? $payload['associated'] : []))), [$title])), 0, 25);
+        $description = $this->plainText($payload['description'] ?? null);
+        $categories = $this->categories($payload['categories'] ?? null);
 
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: $slug,
-            alternativeTitles: array_slice(array_values(array_diff(array_unique(array_filter(array_map(fn ($alt) => is_array($alt) ? $this->text($alt['title'] ?? null) : '', is_array($payload['associated'] ?? null) ? $payload['associated'] : []))), [$title])), 0, 25),
-            description: $this->plainText($payload['description'] ?? null),
+            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
+                provider: $this->key(),
+                format: $type,
+                title: $title,
+                alternativeTitles: $alternativeTitles,
+                description: $description,
+                subjects: [...$genres, ...$categories],
+                country: $country,
+                language: $language,
+            )),
+            alternativeTitles: $alternativeTitles,
+            description: $description,
             creators: $this->creators($payload['authors'] ?? null),
             genres: $genres,
-            tags: $this->categories($payload['categories'] ?? null),
+            tags: $categories,
             publicationYear: preg_match('/^\d{4}$/', $year) ? (int) $year : null,
             language: $language,
             countryOfOrigin: $country,

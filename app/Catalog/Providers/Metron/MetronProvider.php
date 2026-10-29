@@ -2,9 +2,11 @@
 
 namespace App\Catalog\Providers\Metron;
 
+use App\Catalog\Classification\ClassificationSignals;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Providers\MissingProviderCredentials;
 use App\Catalog\Providers\ProviderUnavailable;
@@ -17,7 +19,7 @@ use Illuminate\Http\Client\PendingRequest;
 
 class MetronProvider implements MetadataProvider
 {
-    use SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
 
     private const API = 'https://metron.cloud/api';
 
@@ -91,8 +93,9 @@ class MetronProvider implements MetadataProvider
     public function normalize(ProviderRecord $record): NormalizedMedia
     {
         $item = $record->payload;
-        $type = strtolower($this->text(is_array($item['series_type'] ?? null) ? ($item['series_type']['name'] ?? null) : null));
+        $type = $this->text(is_array($item['series_type'] ?? null) ? ($item['series_type']['name'] ?? null) : null);
         $publisher = $this->text(is_array($item['publisher'] ?? null) ? ($item['publisher']['name'] ?? null) : null);
+        $imprint = $this->text(is_array($item['imprint'] ?? null) ? ($item['imprint']['name'] ?? null) : null);
         $issues = $item['issue_count'] ?? null;
         $year = $item['year_began'] ?? null;
         $status = $this->text($item['status'] ?? null);
@@ -116,10 +119,22 @@ class MetronProvider implements MetadataProvider
             }
         }
 
+        $title = $this->text($item['name'] ?? null);
+        $description = $this->plainText($item['desc'] ?? null);
+
         return new NormalizedMedia(
-            title: $this->text($item['name'] ?? null),
-            mediaTypeSlug: str_contains($type, 'hardcover') || str_contains($type, 'trade paperback') ? 'graphic-novel' : 'comic-book',
-            description: $this->plainText($item['desc'] ?? null),
+            title: $title,
+            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
+                provider: $this->key(),
+                format: $type,
+                title: $title,
+                description: $description,
+                subjects: array_values(array_unique($genres)),
+                publishers: array_values(array_filter([$publisher, $imprint])),
+                chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
+                language: 'en',
+            )),
+            description: $description,
             publishers: $publisher !== '' ? [$publisher] : [],
             genres: array_values(array_unique($genres)),
             crossIds: $crossIds,

@@ -1,6 +1,7 @@
 <?php
 
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\Ingestion\MappedTaxonomy;
 use App\Catalog\Ingestion\TaxonomyMapper;
 use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
 use App\Catalog\Providers\ProviderUnavailable;
@@ -64,7 +65,7 @@ test('page maps title, type, taxonomy, metrics and urls', function () {
         ->and($media->description)->toBe('A boy searches for his mother.')
         ->and($media->metrics)->toBe(['ratings_count' => 332, 'average_rating' => 4.58])
         ->and($media->crossIds)->toBe([])
-        ->and($mapped)->toBe(['genres' => ['adventure', 'science-fiction'], 'themes' => ['school'], 'tags' => []])
+        ->and($mapped)->toEqual(new MappedTaxonomy(genres: ['action-and-adventure', 'science-fiction', 'school-life']))
         ->and($media->coverUrl)->toBe('https://cdn.mangaupdates.com/image/i515488.jpg')
         ->and($media->sourceUrl)->toBe('https://www.mangaupdates.com/series/5rxs1es/on-the-way-to-meet-mom')
         ->and($page->maxUpdatedAt->getTimestamp())->toBe(1792453375);

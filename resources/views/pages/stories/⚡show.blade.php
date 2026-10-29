@@ -19,6 +19,9 @@ new #[Title('Story')] class extends Component {
     #[Locked]
     public int $mediaId;
 
+    /** The media mount found by its slug, so the first render does not look it up again; not part of the component state. */
+    private ?Media $resolved = null;
+
     /**
      * A merged-away slug answers 301 to the story it became (keeping the query string);
      * an unknown or deleted one is a 404.
@@ -32,6 +35,7 @@ new #[Title('Story')] class extends Component {
         }
 
         $this->mediaId = $media->id;
+        $this->resolved = $media;
     }
 
     public function render(): View
@@ -46,17 +50,18 @@ new #[Title('Story')] class extends Component {
     #[Computed]
     public function media(): Media
     {
-        $media = Media::query()->with([
+        $media = ($this->resolved ?? Media::query()->findOrFail($this->mediaId))->load([
             'mediaType',
             'creators',
             'publishers',
             'genres',
             'themes',
             'tags',
+            'shownWarnings',
             'series' => fn ($series) => $series->withCount('media as volumes_count'),
             'relations',
             'externalIds.externalSource',
-        ])->findOrFail($this->mediaId);
+        ]);
 
         $classes = $media->deweyClasses()->public()->with('deweyClass.parent')->orderBy('classification_type')->orderBy('id')->get();
 
@@ -299,11 +304,17 @@ new #[Title('Story')] class extends Component {
                 @endforeach
                 </div>
 
-                @if ($media->content_warnings !== [])
+                {{-- Only warnings recorded as present or disputed are listed; verified absent and unknown ones are never shown. --}}
+                @if ($media->shownWarnings->isNotEmpty())
                     <x-accordion :title="__('Content Warnings')">
                         <ul class="list-disc ps-6">
-                            @foreach ($media->content_warnings as $warning)
-                                <li wire:key="warning-{{ $loop->index }}">{{ $warning }}</li>
+                            @foreach ($media->shownWarnings as $warning)
+                                <li wire:key="warning-{{ $warning->id }}">
+                                    {{ $warning->name }}
+                                    @if ($warning->pivot->status === \App\Enums\WarningStatus::Disputed)
+                                        <span class="text-meta text-ink-subtle">({{ __('sources disagree') }})</span>
+                                    @endif
+                                </li>
                             @endforeach
                         </ul>
                     </x-accordion>

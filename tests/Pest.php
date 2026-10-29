@@ -12,6 +12,7 @@ use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
 use App\Enums\ReviewStatus;
+use App\Models\ContentWarning;
 use App\Models\Creator;
 use App\Models\DeweyClass;
 use App\Models\ExternalSource;
@@ -211,7 +212,6 @@ function fullMedia(): Media
         'title' => 'Dune',
         'alternative_titles' => ['Duna'],
         'description' => 'A desert planet and the spice that rules it.',
-        'content_warnings' => ['Violence'],
         'average_rating' => '9.0',
         'ratings_count' => 120,
     ]);
@@ -221,6 +221,7 @@ function fullMedia(): Media
     $media->genres()->attach(Genre::factory()->create(['name' => 'Science Fiction', 'slug' => 'science-fiction']));
     $media->themes()->attach(Theme::factory()->create(['name' => 'Politics', 'slug' => 'politics']));
     $media->tags()->attach(Tag::factory()->create(['name' => 'Desert']));
+    $media->warnings()->attach(ContentWarning::factory()->create(['name' => 'Violence', 'slug' => 'violence']), ['status' => 'present', 'source' => 'test']);
 
     $series = Series::factory()->create(['title' => 'Dune Chronicles']);
     $media->series()->attach($series, ['position' => 1]);

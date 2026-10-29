@@ -2,6 +2,7 @@
 
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
+use App\Catalog\Ingestion\MappedTaxonomy;
 use App\Catalog\Ingestion\TaxonomyMapper;
 use App\Catalog\Providers\Metron\MetronProvider;
 use App\Catalog\Providers\MissingProviderCredentials;
@@ -62,7 +63,7 @@ test('page merges list and detail into a comic book with publisher, genres, cros
         ->and($media->crossIds)->toBe(['comicvine' => '796', 'gcd' => '2406'])
         ->and($media->coverUrl)->toBeNull()
         ->and($media->sourceUrl)->toBe('https://metron.cloud/series/7/')
-        ->and(app(TaxonomyMapper::class)->map('metron', $media))->toBe(['genres' => ['crime'], 'themes' => [], 'tags' => ['super-hero']])
+        ->and(app(TaxonomyMapper::class)->map('metron', $media))->toEqual(new MappedTaxonomy(genres: ['superhero-fiction', 'crime-fiction']))
         ->and($page->maxUpdatedAt->utc()->toIso8601String())->toBe('2026-10-02T13:00:00+00:00');
 });
 

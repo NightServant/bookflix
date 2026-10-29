@@ -1,5 +1,6 @@
 <?php
 
+use App\Catalog\Taxonomy\LegacySlugs;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchResults;
 use App\Discovery\Search\SearchFilters;
@@ -65,6 +66,8 @@ new #[Title('Search')] class extends Component {
     {
         $this->q = $this->cleanQuery($this->q);
         $this->filters = $this->cleanFilters([...self::NO_FILTERS, ...Arr::only($this->filters, array_keys(self::NO_FILTERS))]);
+        // A bookmarked genre or theme slug from before the taxonomy becomes the slug that replaced it, so its chip can be shown and removed.
+        $this->filters = [...$this->filters, ...app(LegacySlugs::class)->upgrade(['genres' => $this->strings($this->filters['genres']), 'themes' => $this->strings($this->filters['themes'])])];
         $this->recordSearch();
     }
 
@@ -80,6 +83,14 @@ new #[Title('Search')] class extends Component {
         $this->filters = $this->cleanFilters($this->filters);
         $this->resetPage();
         $this->recordSearch();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function strings(mixed $value): array
+    {
+        return array_values(array_filter(Arr::wrap($value), 'is_string'));
     }
 
     /**
@@ -259,13 +270,18 @@ new #[Title('Search')] class extends Component {
         // The three long lists, kept ten minutes as plain [slug => name] arrays (the models are never cached).
         $names = fn (string $key, string $model): array => Cache::remember("search:facet-{$key}:v1", 600, fn (): array => $model::query()->orderBy('name')->pluck('name', 'slug')->all());
 
+        // Genres are offered as families, the mature-gated one left out until the reader's access decides (picking a family includes its subgenres); a subgenre chosen elsewhere, say from a story page, is added so its chip and checkbox show.
+        $genres = Cache::remember('search:facet-genres:v2', 600, fn (): array => Genre::query()->families()->visible()->orderBy('name')->pluck('name', 'slug')->all());
+        $chosen = array_diff(array_filter(Arr::wrap($this->filters['genres'] ?? []), 'is_string'), array_keys($genres));
+        $genres += $chosen === [] ? [] : Genre::query()->whereIn('slug', $chosen)->orderBy('name')->pluck('name', 'slug')->all();
+
         return [
             'types' => $names('types', MediaType::class),
             'statuses' => collect(PublicationStatus::cases())
                 ->reject(fn (PublicationStatus $status): bool => $status === PublicationStatus::Unknown)
                 ->mapWithKeys(fn (PublicationStatus $status): array => [$status->value => __(ucfirst($status->value))])
                 ->all(),
-            'genres' => $names('genres', Genre::class),
+            'genres' => $genres,
             'themes' => $names('themes', Theme::class),
             'languages' => collect(config('bookflix.languages'))
                 ->mapWithKeys(fn (string $code): array => [$code => class_exists(\Locale::class) ? ucfirst(\Locale::getDisplayLanguage($code, app()->getLocale())) : strtoupper($code)])
