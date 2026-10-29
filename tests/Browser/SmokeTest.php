@@ -118,14 +118,14 @@ test('Tab walks Home in reading order: header, hero (text, controls, the book fa
 
     $stops = [];
 
-    foreach (range(1, 16) as $stop) {
+    foreach (range(1, 18) as $stop) {
         $stops[] = $page->script($this->focused);
         $page->keys(':focus', 'Tab');
     }
 
     expect($stops)->toBe([
-        'a:Bookflix', 'a:Home', 'a:Discover', 'a:Profile', 'button:Search', 'button:Account menu for Gabe Reader',
-        'a:View story', 'button:Previous slide', 'button:Next slide', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3',
+        'a:Bookflix', 'a:Home', 'a:Discover', 'a:Library', 'a:Profile', 'button:Search', 'button:Account menu for Gabe Reader',
+        'a:View story', 'button:Add to Library', 'button:Previous slide', 'button:Next slide', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3',
         'input:combobox', 'a:Browse Discover',
         'a:See all in Trending Now', 'button:Next in Trending Now', 'a:Dune',
     ]);
