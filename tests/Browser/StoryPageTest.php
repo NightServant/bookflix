@@ -2,6 +2,7 @@
 
 use App\Catalog\Ingestion\Deduplicator;
 use App\Enums\ReadingStatus;
+use App\Models\Collection;
 use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\User;
@@ -57,13 +58,23 @@ test('the library controls add the story, change its status, favorite it and tak
 });
 
 test('the library controls pass the audit on a phone too, and their menu items are 44px targets', function () {
+    $collection = Collection::factory()->for(auth()->user())->create(['name' => 'Rainy Day']);
+    $open = 'Array.from(document.querySelectorAll("[data-library-controls] ui-menu:popover-open [data-flux-menu-item], [data-library-controls] ui-menu:popover-open [data-flux-menu-checkbox]"))';
     $page = visit(route('stories.show', $this->story->slug), $this->phone)->wait(1);
 
     $page->click('main button:has-text("Add to Library")')->wait(1)
         ->click('[data-test=library-status]')->wait(0.5)
-        ->assertScript('Array.from(document.querySelectorAll("[data-library-controls] ui-menu [data-flux-menu-item]")).every((item) => item.getBoundingClientRect().height >= 44)', true)
+        ->assertScript("{$open}.length", 6)
+        ->assertScript("{$open}.every((item) => item.getBoundingClientRect().height >= 44)", true)
         ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues()
+        ->keys('[data-test=library-status]', 'Escape')->wait(0.3)
+        ->click('[data-test=collection-menu]')->wait(0.5)
+        ->assertScript("{$open}.length", 2) // the collection and "New collection"
+        ->assertScript("{$open}.every((item) => item.getBoundingClientRect().height >= 44)", true)
         ->assertNoAccessibilityIssues();
+
+    expect($collection->items()->count())->toBe(0);
 });
 
 test('the tabs switch between overview, series and related', function () {

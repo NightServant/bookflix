@@ -1,5 +1,6 @@
 <?php
 
+use App\Discovery\ContinueReading;
 use App\Discovery\EditorialCollections;
 use App\Discovery\HomeShelves;
 use App\Discovery\Shelf;
@@ -38,6 +39,15 @@ new #[Title('Home')] class extends Component {
     }
 
     /**
+     * What the reader is in the middle of, the first shelf; null when nothing is in progress.
+     */
+    #[Computed]
+    public function continueReading(): ?Shelf
+    {
+        return app(ContinueReading::class)->shelf(auth()->user());
+    }
+
+    /**
      * The staff picks as themed shelves, for the row between the story shelves and the subjects.
      *
      * @return SupportCollection<int, Shelf>
@@ -58,6 +68,20 @@ new #[Title('Home')] class extends Component {
         @endif
 
         <x-search-panel :action="route('search')" :placeholder="__('Titles, authors, series and subjects')" class="my-12 px-gutter lg:my-16" />
+
+        @if ($continue = $this->continueReading)
+            {{-- The reader's own shelf comes first, ahead of the shelves that are the same for everyone. --}}
+            <x-shelf :title="$continue->title" :description="$continue->description" :href="route('library.index', ['status' => 'reading', 'sort' => 'last_read'])" id="shelf-continue-reading" previews="quick-view-continue-reading" bleed>
+                @foreach ($continue->items as $item)
+                    @php $where = filled($item->progress_chapter) ? __('Chapter :chapter', ['chapter' => $item->progress_chapter]) : ($item->progress_page ? __('Page :page', ['page' => $item->progress_page]) : null); @endphp
+                    <li wire:key="continue-reading-{{ $item->id }}">
+                        <x-story-preview :media="$item">
+                            <x-cover-tile :media="$item" :progress="$item->progress_percent" :reason="$where" />
+                        </x-story-preview>
+                    </li>
+                @endforeach
+            </x-shelf>
+        @endif
 
         @foreach (array_keys(App\Discovery\HomeShelves::SHELVES) as $shelf)
             @if ($shelf === 'explore-by-subject')

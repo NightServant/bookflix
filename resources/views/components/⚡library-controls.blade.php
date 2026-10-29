@@ -3,6 +3,7 @@
 use App\Actions\Library\AddToCollection;
 use App\Actions\Library\AddToLibrary;
 use App\Actions\Library\CreateCollection;
+use App\Actions\Library\LogProgress;
 use App\Actions\Library\RemoveFromCollection;
 use App\Actions\Library\RemoveFromLibrary;
 use App\Actions\Library\SetLibraryStatus;
@@ -11,18 +12,20 @@ use App\Enums\ReadingStatus;
 use App\Models\Collection;
 use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\ReadingProgress;
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
- * A reader's library controls for one story, shown on its page: add it, say where they are with it, favorite it, take it out, and put it in
- * (or take it out of) their collections. Every action works on the signed-in reader's own entry and collections and nothing else, and
- * re-checks that the story is one they may see. A guest gets nothing.
+ * A reader's library controls for one story, shown on its page: add it, say where they are with it, favorite it, take it out, log how far
+ * they have read, and put it in (or take it out of) their collections. Every action works on the signed-in reader's own entry, progress
+ * and collections and nothing else, and re-checks that the story is one they may see. A guest gets nothing.
  */
 new class extends Component {
     #[Locked]
@@ -31,20 +34,34 @@ new class extends Component {
     /** The name typed in the new collection dialog. */
     public string $newCollection = '';
 
+    /** The progress form: a percent from 0 to 100, and optionally the chapter, the page and the minutes spent. Numbers stay strings until they are checked. */
+    public string $percent = '';
+
+    public string $chapter = '';
+
+    public string $pageNumber = '';
+
+    public string $minutes = '';
+
     public function mount(Media $media): void
     {
         $this->mediaId = $media->id;
     }
 
     /**
-     * The reader's entry for this story, or null when it is not in their library.
+     * The reader's entry for this story, or null when it is not in their library. It comes with where they are in it (`progress_percent`,
+     * `progress_chapter` and `progress_page`, null when they have logged nothing), joined in so one query answers for both.
      */
     #[Computed]
     public function entry(): ?LibraryEntry
     {
         $user = auth()->user();
 
-        return $user?->library()->where('media_id', $this->mediaId)->first();
+        return $user?->library()
+            ->leftJoin('reading_progress', fn (JoinClause $join) => $join->on('reading_progress.user_id', '=', 'user_library.user_id')->on('reading_progress.media_id', '=', 'user_library.media_id'))
+            ->where('user_library.media_id', $this->mediaId)
+            ->select('user_library.*', 'reading_progress.percent as progress_percent', 'reading_progress.chapter as progress_chapter', 'reading_progress.page as progress_page')
+            ->first();
     }
 
     /**
@@ -110,6 +127,43 @@ new class extends Component {
         unset($this->entry);
 
         Flux::toast(text: __(':title was removed from your library.', ['title' => $media->title]));
+    }
+
+    /**
+     * Save where the reader is: the percent (from 0 to 100) and optionally the chapter, the page and the minutes they spent. A story that is not
+     * in the library is added, and one that was wanted or paused becomes Reading (see LogProgress). Nothing else of the reader's is touched.
+     */
+    public function logProgress(): void
+    {
+        $user = $this->reader();
+        $media = $this->story($user);
+
+        $data = $this->validate([
+            'percent' => ['required', 'numeric', 'between:0,100'],
+            'chapter' => ['nullable', 'string', 'max:100'],
+            'pageNumber' => ['nullable', 'integer', 'min:1', 'max:1000000'],
+            'minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
+        ], attributes: [
+            'percent' => __('percent'),
+            'chapter' => __('chapter'),
+            'pageNumber' => __('page'),
+            'minutes' => __('minutes'),
+        ]);
+
+        $progress = app(LogProgress::class)->handle(
+            $user,
+            $media,
+            (float) $data['percent'],
+            page: filled($data['pageNumber']) ? (int) $data['pageNumber'] : null,
+            chapter: filled($data['chapter']) ? trim($data['chapter']) : null,
+            seconds: (int) ($data['minutes'] ?: 0) * 60,
+        );
+
+        $this->reset('percent', 'chapter', 'pageNumber', 'minutes');
+        unset($this->entry);
+        $this->dispatch('close-progress');
+
+        Flux::toast(variant: 'success', text: __('Progress saved: :percent% of :title.', ['percent' => ReadingProgress::label($progress->percent), 'title' => $media->title]));
     }
 
     /**
@@ -223,7 +277,21 @@ new class extends Component {
             :aria-label="$favorite ? __('Remove from favorites') : __('Add to favorites')"
         />
 
-        @php $collections = $this->collections; @endphp
+        @php
+            $collections = $this->collections;
+            $logged = $entry?->progress_percent !== null ? ReadingProgress::label($entry->progress_percent) : null;
+            $progressName = 'progress-'.$mediaId;
+        @endphp
+
+        <flux:modal.trigger :name="$progressName">
+            <x-cta variant="secondary" icon="bookmark-square" data-test="log-progress">
+                @if ($logged !== null)
+                    {{ __(':percent% read', ['percent' => $logged]) }}<span class="sr-only">. {{ __('Update your progress') }}</span>
+                @else
+                    {{ __('Log progress') }}
+                @endif
+            </x-cta>
+        </flux:modal.trigger>
 
         <flux:dropdown position="bottom" align="start">
             <x-cta variant="secondary" icon="folder-plus" icon:trailing="chevron-down" data-test="collection-menu">{{ __('Add to collection') }}</x-cta>
@@ -249,6 +317,48 @@ new class extends Component {
                 </flux:modal.trigger>
             </flux:menu>
         </flux:dropdown>
+
+        <flux:modal :name="$progressName" class="w-full max-w-md text-ink shadow-overlay!" x-on:close-progress.window="$flux.modal(@js($progressName)).close()">
+            <form wire:submit="logProgress" class="space-y-6">
+                <div>
+                    <flux:heading size="lg">{{ __('Log your progress') }}</flux:heading>
+                    <flux:text class="mt-2">
+                        @if ($logged !== null)
+                            {{ __('You are at :percent%. Say how far you have got now: the percent is all it needs, the rest is optional.', ['percent' => $logged]) }}
+                        @else
+                            {{ __('Say how far you have got in this story. The percent is all it needs, the rest is optional.') }}
+                        @endif
+                    </flux:text>
+                </div>
+
+                <flux:input
+                    wire:model="percent"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    max="100"
+                    step="any"
+                    :label="__('Percent read, 0 to 100')"
+                    :placeholder="$logged"
+                    required
+                    autofocus
+                />
+
+                <div class="grid gap-6 sm:grid-cols-2">
+                    <flux:input wire:model="chapter" :label="__('Chapter (optional)')" :placeholder="$entry?->progress_chapter" maxlength="100" autocomplete="off" />
+                    <flux:input wire:model="pageNumber" type="number" inputmode="numeric" min="1" step="1" :label="__('Page (optional)')" :placeholder="$entry?->progress_page" />
+                </div>
+
+                <flux:input wire:model="minutes" type="number" inputmode="numeric" min="0" max="1440" step="1" :label="__('Minutes spent (optional)')" :description="__('How long this stretch of reading took.')" />
+
+                <div class="flex flex-wrap justify-end gap-3">
+                    <flux:modal.close>
+                        <x-cta variant="secondary" icon="x-mark">{{ __('Cancel') }}</x-cta>
+                    </flux:modal.close>
+                    <x-cta type="submit" icon="check" wire:loading.attr="disabled" wire:target="logProgress">{{ __('Save progress') }}</x-cta>
+                </div>
+            </form>
+        </flux:modal>
 
         <flux:modal :name="'new-collection-'.$mediaId" class="w-full max-w-md text-ink shadow-overlay!" x-on:close-new-collection.window="$flux.modal(@js('new-collection-'.$mediaId)).close()">
             <form wire:submit="createCollection" class="space-y-6">

@@ -4,6 +4,7 @@ use App\Enums\ReadingStatus;
 use App\Models\Genre;
 use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\ReadingProgress;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Illuminate\Support\Facades\DB;
@@ -79,6 +80,52 @@ test('the newest additions come first, and the title sort is alphabetical', func
 
     expect(libraryTitles(Livewire::test('pages::library.index')))->toBe(['D', 'C', 'B', 'A'])
         ->and(libraryTitles(Livewire::test('pages::library.index')->set('sort', 'title')))->toBe(['A', 'B', 'C', 'D']);
+});
+
+test('the last read sort lists the story read most recently first and the unread last, in title order', function () {
+    $user = libraryFixture();
+    $media = fn (string $title): Media => Media::where('title', $title)->sole();
+    ReadingProgress::factory()->create(['user_id' => $user->id, 'media_id' => $media('A')->id, 'last_read_at' => now()->subDays(3)]);
+    ReadingProgress::factory()->create(['user_id' => $user->id, 'media_id' => $media('B')->id, 'last_read_at' => now()->subDay()]);
+    // Somebody else reading D must not move it in this reader's library.
+    ReadingProgress::factory()->create(['user_id' => User::factory()->create()->id, 'media_id' => $media('D')->id, 'last_read_at' => now()]);
+
+    $page = Livewire::actingAs($user)->test('pages::library.index')->set('sort', 'last_read');
+
+    expect(libraryTitles($page))->toBe(['B', 'A', 'C', 'D'])
+        ->and(libraryTitles(Livewire::actingAs($user)->withQueryParams(['sort' => 'last_read'])->test('pages::library.index')))->toBe(['B', 'A', 'C', 'D']);
+});
+
+test('the last read sort composes with the filters and the pager', function () {
+    $user = libraryFixture();
+    ReadingProgress::factory()->create(['user_id' => $user->id, 'media_id' => Media::where('title', 'C')->value('id'), 'last_read_at' => now()]);
+
+    $page = Livewire::actingAs($user)->test('pages::library.index')->set('sort', 'last_read')->set('type', 'manga');
+
+    expect(libraryTitles($page))->toBe(['C', 'A'])->and($page->instance()->entries->total())->toBe(2);
+});
+
+test('the sort control offers last read', function () {
+    $html = Livewire::actingAs(libraryFixture())->test('pages::library.index')->html();
+
+    expect(collect(htmlQuery($html, '//select[@id="library-sort"]/option'))->map(fn (DOMElement $option): string => $option->getAttribute('value'))->all())->toBe(['added', 'title', 'last_read']);
+});
+
+test('a story under way shows how far on its grid tile and in its list row, one that is finished or not begun does not', function () {
+    $user = libraryFixture();
+    $media = fn (string $title): Media => Media::where('title', $title)->sole();
+    ReadingProgress::factory()->create(['user_id' => $user->id, 'media_id' => $media('A')->id, 'percent' => 42.5]);
+    ReadingProgress::factory()->create(['user_id' => $user->id, 'media_id' => $media('B')->id, 'percent' => 100]);
+    ReadingProgress::factory()->create(['user_id' => $user->id, 'media_id' => $media('C')->id, 'percent' => 0]);
+
+    $grid = Livewire::actingAs($user)->test('pages::library.index')->html();
+    expect(htmlQuery($grid, '//ul[@data-view="grid"]//*[@role="progressbar"]')->length)->toBe(1)
+        ->and(htmlQuery($grid, '//ul[@data-view="grid"]//*[@role="progressbar"][@aria-valuenow="42"]')->length)->toBe(1);
+
+    $list = Livewire::actingAs($user)->test('pages::library.index')->set('view', 'list')->html();
+    expect($list)->toContain('42.5% read')->not->toContain('100% read')->not->toContain('0% read');
+
+    expect(Livewire::actingAs($user)->test('pages::library.index')->set('view', 'shelves')->html())->not->toContain('role="progressbar"');
 });
 
 test('the title sort ignores case', function () {

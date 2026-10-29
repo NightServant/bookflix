@@ -157,9 +157,11 @@ new class extends Component {
     }
 
     /**
-     * Called by the drag (`wire:sort`, which passes the item and where it was dropped) and by the move buttons with the same two values.
+     * Called by the drag (`wire:sort`, which passes the item and where it was dropped) and by the move buttons with the same two values and the
+     * direction of the button (`$direction`), so the keyboard focus goes back to the moved story's own button: the page re-renders the list, and a
+     * focus that fell to the top of the page would make every move a long way back for someone using the keyboard.
      */
-    public function reorder(int|string $item, int $position): void
+    public function reorder(int|string $item, int $position, ?string $direction = null): void
     {
         $collection = $this->owned();
         $moved = $collection->items()->with('media:id,title')->find((int) $item);
@@ -171,11 +173,21 @@ new class extends Component {
         app(MoveCollectionItem::class)->handle($collection, $moved, $position, auth()->user());
         unset($this->items);
 
-        $this->moved = __(':title moved to position :position of :total.', [
-            'title' => $moved->media->title,
-            'position' => ($this->items->search(fn (CollectionItem $listed): bool => $listed->id === $moved->id) ?: 0) + 1,
-            'total' => $this->items->count(),
-        ]);
+        $place = ($this->items->search(fn (CollectionItem $listed): bool => $listed->id === $moved->id) ?: 0) + 1;
+        $total = $this->items->count();
+
+        $this->moved = __(':title moved to position :position of :total.', ['title' => $moved->media->title, 'position' => $place, 'total' => $total]);
+
+        if (in_array($direction, ['up', 'down'], true)) {
+            // The first story has no up button and the last no down button: focus goes to the one it has.
+            $direction = match (true) {
+                $direction === 'up' && $place === 1 => 'down',
+                $direction === 'down' && $place === $total => 'up',
+                default => $direction,
+            };
+
+            $this->js('document.querySelector(\'[data-move="'.$moved->id.'-'.$direction.'"]\')?.focus()');
+        }
     }
 
     public function save(): void
@@ -306,14 +318,14 @@ new class extends Component {
                                 @if ($loop->first)
                                     <span aria-hidden="true" class="size-11 shrink-0"></span>
                                 @else
-                                    <button type="button" wire:click="reorder({{ $item->id }}, {{ $loop->index - 1 }})" wire:key="up-{{ $item->id }}" aria-label="{{ __('Move :title up', ['title' => $story->title]) }}" class="{{ $iconButton }}">
+                                    <button type="button" wire:click="reorder({{ $item->id }}, {{ $loop->index - 1 }}, 'up')" data-move="{{ $item->id }}-up" wire:key="up-{{ $item->id }}" aria-label="{{ __('Move :title up', ['title' => $story->title]) }}" class="{{ $iconButton }}">
                                         <flux:icon name="arrow-up" class="size-5" />
                                     </button>
                                 @endif
                                 @if ($loop->last)
                                     <span aria-hidden="true" class="size-11 shrink-0"></span>
                                 @else
-                                    <button type="button" wire:click="reorder({{ $item->id }}, {{ $loop->index + 1 }})" wire:key="down-{{ $item->id }}" aria-label="{{ __('Move :title down', ['title' => $story->title]) }}" class="{{ $iconButton }}">
+                                    <button type="button" wire:click="reorder({{ $item->id }}, {{ $loop->index + 1 }}, 'down')" data-move="{{ $item->id }}-down" wire:key="down-{{ $item->id }}" aria-label="{{ __('Move :title down', ['title' => $story->title]) }}" class="{{ $iconButton }}">
                                         <flux:icon name="arrow-down" class="size-5" />
                                     </button>
                                 @endif

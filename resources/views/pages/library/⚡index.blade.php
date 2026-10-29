@@ -6,8 +6,10 @@ use App\Enums\ReadingStatus;
 use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\MediaType;
+use App\Models\ReadingProgress;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -24,8 +26,8 @@ new #[Title('Library')] class extends Component {
     /** The shelves view is one long page of rows, so it takes more stories at a time. */
     private const SHELVES_PER_PAGE = 200;
 
-    /** The sorts on offer. Last read and rating come with reading progress (5.4) and ratings (5.5), which this page waits for. */
-    private const SORTS = ['added', 'title'];
+    /** The sorts on offer. Rating comes with ratings (5.5), which this page waits for. */
+    private const SORTS = ['added', 'title', 'last_read'];
 
     private const LAYOUTS = ['grid', 'list', 'shelves'];
 
@@ -174,9 +176,18 @@ new #[Title('Library')] class extends Component {
         $fetch = function (): LengthAwarePaginator {
             $query = $this->narrowed();
 
-            $this->sort === 'title'
-                ? $query->orderBy(Media::query()->selectRaw('lower(media.title)')->whereColumn('media.id', 'user_library.media_id'))->orderBy('user_library.id')
-                : $query->latest('user_library.created_at')->latest('user_library.id');
+            $byTitle = Media::query()->selectRaw('lower(media.title)')->whereColumn('media.id', 'user_library.media_id');
+
+            match ($this->sort) {
+                'title' => $query->orderBy($byTitle)->orderBy('user_library.id'),
+                // The story read most recently first; those never read (no progress logged) last, in title order.
+                'last_read' => $query
+                    ->leftJoin('reading_progress', fn (JoinClause $join) => $join->on('reading_progress.user_id', '=', 'user_library.user_id')->on('reading_progress.media_id', '=', 'user_library.media_id'))
+                    ->select('user_library.*')
+                    ->orderByRaw('reading_progress.last_read_at desc nulls last')
+                    ->orderBy($byTitle)->orderBy('user_library.id'),
+                default => $query->latest('user_library.created_at')->latest('user_library.id'),
+            };
 
             return $query
                 ->with(['media' => fn ($media) => $media->with($this->view === 'list' ? ['mediaType', 'publicPrimaryDewey.deweyClass', 'creators', 'genres'] : ['mediaType'])])
@@ -191,6 +202,25 @@ new #[Title('Library')] class extends Component {
         }
 
         return $page;
+    }
+
+    /**
+     * Where the reader is in each story of the page, as `[media id => percent]` (one query; the shelves view shows no progress).
+     *
+     * @return Collection<int, float>
+     */
+    #[Computed]
+    public function progress(): Collection
+    {
+        if ($this->view === 'shelves') {
+            return collect();
+        }
+
+        return ReadingProgress::query()
+            ->where('user_id', auth()->id())
+            ->whereIn('media_id', $this->entries->pluck('media_id')->all())
+            ->pluck('percent', 'media_id')
+            ->map(fn (string $percent): float => (float) $percent);
     }
 
     /**
@@ -271,6 +301,8 @@ new #[Title('Library')] class extends Component {
     $entries = $this->entries;
     $tools = $entries->isNotEmpty() || ! $this->libraryIsEmpty;
     $counts = $this->statusCounts;
+    // A bar on a tile only for a story under way: not one that is finished, and not one at 0.
+    $underWay = fn ($entry): ?float => ($percent = $this->progress[$entry->media_id] ?? null) !== null && $percent > 0 && $percent < 100 && $entry->status !== ReadingStatus::Completed ? $percent : null;
     // Every story of one format makes the format badge noise: it is shown only when the page mixes formats.
     $mixed = $entries->getCollection()->pluck('media.media_type_id')->unique()->count() > 1;
     $pill = 'focus-ring relative inline-flex h-9 items-center gap-2 rounded-full px-3 text-meta after:absolute after:inset-x-0 after:-inset-y-1 after:content-[\'\']';
@@ -331,6 +363,7 @@ new #[Title('Library')] class extends Component {
                     <select id="library-sort" wire:model.live="sort" class="{{ $control }}">
                         <option value="added">{{ __('Recently added') }}</option>
                         <option value="title">{{ __('Title A–Z') }}</option>
+                        <option value="last_read">{{ __('Last read') }}</option>
                     </select>
 
                     <x-view-toggle wire:model.live="view" :shelves="true" />
@@ -374,6 +407,10 @@ new #[Title('Library')] class extends Component {
                                     <p class="flex flex-wrap items-center gap-x-2 text-meta text-ink-subtle">
                                         <flux:icon :name="$entry->status->icon()" variant="micro" class="size-4" />
                                         <span class="text-ink">{{ $entry->status->label() }}</span>
+                                        @if (($percent = $underWay($entry)) !== null)
+                                            <span aria-hidden="true">·</span>
+                                            <span class="tabular-nums">{{ __(':percent% read', ['percent' => ReadingProgress::label($percent)]) }}</span>
+                                        @endif
                                         @if ($entry->favorited_at)
                                             <flux:icon name="heart" variant="micro" class="size-4" />
                                             <span class="sr-only">{{ __('Favorite') }}</span>
@@ -389,7 +426,7 @@ new #[Title('Library')] class extends Component {
                     <ul data-view="grid" class="mt-2 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]">
                         @foreach ($entries as $entry)
                             <li wire:key="entry-{{ $entry->id }}">
-                                <x-cover-tile :media="$entry->media" :badge="$mixed" fluid />
+                                <x-cover-tile :media="$entry->media" :badge="$mixed" :progress="$underWay($entry)" fluid />
                                 <p class="mt-1 flex items-center gap-1.5 text-legal text-ink-subtle">
                                     <flux:icon :name="$entry->status->icon()" variant="micro" class="size-4 shrink-0" />
                                     <span>{{ $entry->status->label() }}</span>

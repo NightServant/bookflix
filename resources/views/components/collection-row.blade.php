@@ -12,13 +12,13 @@
 @endphp
 
 <a href="{{ $href }}" wire:navigate {{ $attributes->class('group focus-ring flex min-h-11 items-center gap-4 rounded-control py-4 sm:gap-6') }}>
-    <span aria-hidden="true" class="flex w-[9.5rem] shrink-0 -space-x-6 ps-1 sm:w-44 sm:-space-x-7">
+    <span aria-hidden="true" class="flex w-[6.5rem] shrink-0 -space-x-4 ps-1 sm:w-44 sm:-space-x-7">
         @forelse ($preview['covers'] as $cover)
-            <span class="relative block aspect-[2/3] w-12 shrink-0 overflow-hidden rounded-control bg-surface-card ring-2 ring-canvas motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:ease-out-bookflix motion-safe:group-hover:-translate-y-0.5 sm:w-16" style="z-index: {{ 4 - $loop->index }}">
+            <span class="relative block aspect-[2/3] w-9 shrink-0 overflow-hidden rounded-control bg-surface-card ring-2 ring-canvas motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:ease-out-bookflix motion-safe:group-hover:-translate-y-0.5 sm:w-16" style="z-index: {{ 4 - $loop->index }}">
                 <img src="{{ $cover }}" alt="" width="64" height="96" loading="lazy" decoding="async" class="size-full object-cover">
             </span>
         @empty
-            <span class="relative flex aspect-[2/3] w-12 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-card ring-2 ring-canvas sm:w-16">
+            <span class="relative flex aspect-[2/3] w-9 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-card ring-2 ring-canvas sm:w-16">
                 <x-cover-fallback :title="$collection->name" compact />
             </span>
         @endforelse
@@ -27,19 +27,17 @@
     <span class="min-w-0 flex-1">
         <span class="block text-lead text-ink group-hover:underline">{{ $collection->name }}</span>
 
-        <span class="mt-1 flex flex-wrap items-center gap-x-2 text-meta text-ink-subtle">
+        <span class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-meta text-ink-subtle">
             @if ($preview['count'] > 0)
                 <span class="tabular-nums">{{ trans_choice(':count story|:count stories', $preview['count']) }}</span>
             @else
                 <span>{{ __('No stories yet') }}</span>
             @endif
-            <span aria-hidden="true">·</span>
             @if ($editorial)
                 <span class="inline-flex items-center gap-1"><flux:icon name="sparkles" variant="micro" class="size-4" />{{ __('Staff pick') }}</span>
             @else
                 <span class="inline-flex items-center gap-1"><flux:icon :name="$public ? 'globe-alt' : 'lock-closed'" variant="micro" class="size-4" />{{ $public ? __('Public') : __('Private') }}</span>
             @endif
-            <span aria-hidden="true">·</span>
             <span>{{ __('Updated') }} <time datetime="{{ $collection->updated_at->toIso8601String() }}" title="{{ $collection->updated_at->toFormattedDateString() }}">{{ $collection->updated_at->diffForHumans() }}</time></span>
         </span>
 
