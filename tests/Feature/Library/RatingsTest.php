@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Ratings\RateMedia;
+use App\Catalog\MediaRatings;
 use App\Events\LibraryChanged;
 use App\Jobs\RecalculateMediaRating;
 use App\Models\ExternalSource;
@@ -416,4 +417,18 @@ test('the story page shows the blended average with the display and the readers 
     $this->get(route('stories.show', $media->slug))->assertOk()
         ->assertSee('Rated 3.5 out of 5 from 4 ratings')
         ->assertSee('role="radiogroup"', false);
+});
+
+test('a story whose only rating is a provider average with no count shows that average, not "No ratings yet"', function () {
+    $media = Media::factory()->create();
+    providerMetrics($media, 'mangadex', ['average_rating' => 4.77]);
+    MediaRatings::blend($media);
+    $this->actingAs(User::factory()->create());
+
+    expect($media->fresh()->ratings_count)->toBe(0);
+
+    $this->get(route('stories.show', $media->slug))->assertOk()
+        ->assertSee('Rated 4.8 out of 5', false)
+        ->assertDontSee('No ratings yet')
+        ->assertDontSee('from 0 ratings');
 });

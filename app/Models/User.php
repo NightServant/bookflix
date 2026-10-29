@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Ratings\RecalculateRatedMedia;
 use App\Enums\ReadingLength;
 use App\Enums\Visibility;
 use Database\Factories\UserFactory;
@@ -51,6 +52,17 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     protected $attributes = [
         'is_admin' => false,
     ];
+
+    protected static function booted(): void
+    {
+        // A deactivated reader is left out of every rating (see RecalculateMediaRating), so deactivating or reactivating one, whichever way it is done,
+        // refreshes the stories they rated.
+        static::updated(function (User $user): void {
+            if ($user->wasChanged('deactivated_at')) {
+                app(RecalculateRatedMedia::class)->handle($user);
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.

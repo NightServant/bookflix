@@ -6,6 +6,7 @@ beforeEach(function () {
             <x-rating-display :average="4.5" :count="1234" data-test="rated" />
             <x-rating-display average="3.50" :count="1" data-test="odd" />
             <x-rating-display :average="null" :count="0" data-test="none" />
+            <x-rating-display :average="4.77" :count="0" data-test="nocount" />
         </div>
         BLADE);
 
@@ -17,6 +18,8 @@ test('a rating passes the shared checks and reads as one sentence, before and af
         $page->assertScript('document.querySelector("[data-test=rated] .sr-only").textContent.trim()', 'Rated 4.5 out of 5 from 1,234 ratings')
             ->assertScript('document.querySelector("[data-test=odd] .sr-only").textContent.trim()', 'Rated 3.5 out of 5 from 1 rating')
             ->assertScript('document.querySelector("[data-test=none]").textContent.trim()', 'No ratings yet')
+            ->assertScript('document.querySelector("[data-test=nocount] .sr-only").textContent.trim()', 'Rated 4.8 out of 5')
+            ->assertScript('document.querySelector("[data-test=nocount] > [aria-hidden=true]:last-child").textContent.trim()', '4.8')
             ->assertScript('document.querySelector("[data-test=rated]").textContent.replace(/\s+/g, " ").includes("Rated 4.5 out of 5 from 1,234 ratings")', true);
     });
 });

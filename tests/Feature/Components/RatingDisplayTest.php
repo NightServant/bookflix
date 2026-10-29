@@ -54,6 +54,23 @@ test('an average outside the scale is held to it', function () {
         ->and(starFills(renderRating(':average="-3" :count="2"')))->toBe(['empty', 'empty', 'empty', 'empty', 'empty']);
 });
 
+test('an average with no count behind it is shown as it is, without a count', function (string $count) {
+    $html = renderRating(':average="4.4" '.$count);
+
+    expect(htmlQuery($html, '//*[contains(@class,"sr-only")][normalize-space()="Rated 4.4 out of 5"]')->length)->toBe(1)
+        ->and(starFills($html))->toBe(['full', 'full', 'full', 'full', 'half'])
+        ->and(htmlQuery($html, '//*[@aria-hidden="true"][normalize-space()="4.4"]')->length)->toBe(1)
+        ->and($html)->not->toContain('(0)')->not->toContain('No ratings yet')->not->toContain('from 0');
+})->with([
+    'a zero count' => [':count="0"'],
+    'no count given' => [''],
+]);
+
+test('an average that is zero with no count is no rating at all', function () {
+    expect(renderRating('average="0.00" :count="0"'))->toContain('No ratings yet')
+        ->and(starFills(renderRating('average="0.00" :count="0"')))->toBe([]);
+});
+
 test('with no ratings it says so and draws no stars', function (string $attributes) {
     $html = renderRating($attributes);
 
@@ -61,8 +78,8 @@ test('with no ratings it says so and draws no stars', function (string $attribut
         ->and(htmlQuery($html, '//*[@data-star]')->length)->toBe(0)
         ->and($html)->not->toContain('Rated');
 })->with([
-    'no count' => [':average="4.5" :count="0"'],
     'no average' => [':average="null" :count="5"'],
+    'no average and no count' => [':average="null" :count="0"'],
     'nothing given' => [''],
 ]);
 

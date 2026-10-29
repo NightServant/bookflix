@@ -20,21 +20,21 @@ function seedFilterCatalog(): void
     $fantasy = Genre::factory()->create(['name' => 'Fantasy', 'slug' => 'fantasy']);
     $politics = Theme::factory()->create(['name' => 'Politics', 'slug' => 'politics']);
 
-    $berserk = Media::factory()->manga()->create(['title' => 'Berserk', 'language' => 'ja', 'publication_year' => 1990, 'average_rating' => 9.40, 'status' => 'ongoing', 'chapter_count' => 364]);
+    $berserk = Media::factory()->manga()->create(['title' => 'Berserk', 'language' => 'ja', 'publication_year' => 1990, 'average_rating' => 4.70, 'status' => 'ongoing', 'chapter_count' => 364]);
     $berserk->genres()->attach($fantasy);
     $berserk->creators()->attach(Creator::factory()->create(['name' => 'Kentaro Miura']), ['role' => 'author']);
     $berserk->publishers()->attach(Publisher::factory()->create(['name' => 'Hakusensha']));
     classified($berserk, '741.52');
 
-    $dune = Media::factory()->novel()->create(['title' => 'Dune Fantasy', 'language' => 'en', 'publication_year' => 1965, 'average_rating' => 7.50, 'status' => 'completed', 'page_count' => 412]);
+    $dune = Media::factory()->novel()->create(['title' => 'Dune Fantasy', 'language' => 'en', 'publication_year' => 1965, 'average_rating' => 3.75, 'status' => 'completed', 'page_count' => 412]);
     $dune->genres()->attach($fantasy);
     $dune->themes()->attach($politics);
     $dune->creators()->attach(Creator::factory()->create(['name' => 'Frank Herbert']), ['role' => 'author']);
     $dune->publishers()->attach(Publisher::factory()->create(['name' => 'Ace']));
     classified($dune, '813');
 
-    Media::factory()->novel()->create(['title' => 'Short Story', 'language' => 'en', 'publication_year' => 2010, 'average_rating' => 6.00, 'status' => 'unknown', 'page_count' => 80]);
-    Media::factory()->novel()->create(['title' => 'Quiet Novel', 'language' => 'en', 'publication_year' => 2020, 'average_rating' => 5.00, 'status' => 'ongoing', 'page_count' => 300]);
+    Media::factory()->novel()->create(['title' => 'Short Story', 'language' => 'en', 'publication_year' => 2010, 'average_rating' => 3.00, 'status' => 'unknown', 'page_count' => 80]);
+    Media::factory()->novel()->create(['title' => 'Quiet Novel', 'language' => 'en', 'publication_year' => 2020, 'average_rating' => 2.50, 'status' => 'ongoing', 'page_count' => 300]);
     Media::factory()->create(['title' => 'Picture Tale', 'language' => 'fr', 'publication_year' => 2005, 'status' => 'hiatus']);
     Media::factory()->create(['title' => 'Old Comic', 'language' => 'en', 'publication_year' => 1980, 'status' => 'cancelled']);
 }
@@ -60,7 +60,10 @@ test('each filter narrows results', function (array $input, array $expectedTitle
     'language' => [['languages' => ['ja']], ['Berserk']],
     'year range' => [['yearFrom' => 1990, 'yearTo' => 2000], ['Berserk']],
     'year from only' => [['yearFrom' => 2005], ['Picture Tale', 'Quiet Novel', 'Short Story']],
-    'rating' => [['minRating' => 8.0], ['Berserk']],
+    'rating' => [['minRating' => 4.0], ['Berserk']],
+    'rating 3.5' => [['minRating' => 3.5], ['Berserk', 'Dune Fantasy']],
+    'rating 3' => [['minRating' => 3.0], ['Berserk', 'Dune Fantasy', 'Short Story']],
+    'rating on the old ten point scale (8 is 4 stars)' => [['minRating' => '8'], ['Berserk']],
     'status' => [['statuses' => ['completed']], ['Dune Fantasy']],
     'length short' => [['length' => 'short'], ['Short Story']],
     'length medium' => [['length' => 'medium'], ['Dune Fantasy', 'Quiet Novel']],
@@ -112,10 +115,31 @@ test('fromArray drops unknown keys and invalid values', function () {
         ->and($f->creatorIds)->toBe([3]);
 });
 
-test('toArray lists only what is set and round trips through fromArray', function () {
-    $filters = new SearchFilters(genres: ['fantasy'], minRating: 7.5, length: 'short');
+test('the reader rating filter is on the five star scale, and a link from the ten point scale is halved', function (mixed $given, ?float $stars) {
+    expect(SearchFilters::fromArray(['minRating' => $given])->minRating)->toBe($stars);
+})->with([
+    'whole stars' => ['4', 4.0],
+    'half stars' => ['3.5', 3.5],
+    'five stars' => [5, 5.0],
+    'old 6' => ['6', 3.0],
+    'old 7' => ['7', 3.5],
+    'old 8' => [8, 4.0],
+    'old 9' => ['9', 4.5],
+    'old 10' => ['10', 5.0],
+    'nothing' => ['', null],
+    'zero' => ['0', null],
+    'negative' => ['-1', null],
+    'beyond the old scale' => ['11', null],
+    'text' => ['abc', null],
+    'not a number' => ['NAN', null],
+    'infinity' => ['1e999', null],
+    'a list' => [['4'], null],
+]);
 
-    expect($filters->toArray())->toBe(['genres' => ['fantasy'], 'minRating' => 7.5, 'length' => 'short'])
+test('toArray lists only what is set and round trips through fromArray', function () {
+    $filters = new SearchFilters(genres: ['fantasy'], minRating: 3.5, length: 'short');
+
+    expect($filters->toArray())->toBe(['genres' => ['fantasy'], 'minRating' => 3.5, 'length' => 'short'])
         ->and(SearchFilters::fromArray($filters->toArray()))->toEqual($filters)
         ->and($filters->isEmpty())->toBeFalse()
         ->and((new SearchFilters)->isEmpty())->toBeTrue();
