@@ -12,10 +12,25 @@
 
 **Depends on:** Phase 1 (`User::personalizationEnabled()`, `Visibility`, `profiles.onboarded_at`, `PurgeDeactivatedAccounts`, `access-admin`), Phase 2 (`Media`, `Deduplicator::merge`, `MediaType`, `Genre`), Phase 3 (`ClassShelves`), Phase 4 (`Shelf`, `HomeShelves`, component kit incl. `<x-rating-input>`, `<x-stepper>`, `<x-cover-tile>`, `<x-combobox>`, `search_queries`, `?sq=` result links, `stories.show` page).
 
+## Revision 2026-10-29 (against `main` after PRs #11–#15 and #13)
+
+The plan below was written on 2026-10-23. Where it disagrees with this section, **this section wins**. Branch: `phase-5-library`, cut from `main`; ledger `docs/superpowers/plans/phase-5-ledger.md`; migrations dated `2026_10_29_*`.
+
+1. **Ratings (5.5, D-36).** `media.average_rating` is now the blended **0–5** average of every source in `media_metrics`, and `ratings_count` their sum (catalog wave 1). Readers' scores stay integers 1–10 in `ratings`. `RecalculateMediaRating` writes the readers' aggregate as a synthetic `bookflix` external source in `media_metrics` (`ratings_count`, and `average_rating` = mean ÷ 2), deletes those two rows when no active reader has rated, then re-blends. The blend moves out of `IngestionPipeline` into one shared class (`App\Catalog\MediaRatings::blend(Media)`), still respecting `locked_fields`. The story page keeps `<x-rating-display>` for the blended average and shows the reader's own score in the controls. The `bookflix` source gets no popularity weight until Phase 6.
+2. **Mature gate (D-35).** Every list this phase adds goes through `Media::visibleTo($viewer)`: the library (and its counts), collections (own, public and editorial), Continue Reading, history, onboarding picks and editorial rows. Gated entries stay stored and come back when the reader opts in. The export holds all of the reader's own rows. Add a test per surface: an entry tagged with a mature-family genre (e.g. `erotica`) is hidden until `User::factory()->showsMature()`.
+3. **Taxonomy (D-33).** Onboarding step 2 offers the genre families (top-level `genres`) with their subgenres to expand, from `TaxonomyFacets`; the mature family appears only when `MatureAccess::allows($user)`. The morph map is `genre`, `theme`, `trope`, `demographic`, `media_type`, `creator`; Settings → Preferences edits types, genres and themes.
+4. **Components.** `<x-rating-input>` and `<x-stepper>` were not built in Phase 4: 5.5 builds `<x-rating-input>` (ten values shown as five stars with halves, the APG radio-group keyboard pattern, 44 px targets, clearable), and 5.8 builds `<x-stepper>`. Reuse `<x-view-toggle>`, `<x-empty-state>`, `<x-page-header>`, `<x-cover-tile>`, `<x-shelf>`, `<x-class-shelves>`, `<x-pager>` and `<x-chip>`.
+5. **Add to Library hooks.** `<x-hero>`, `<x-story-summary>` and the story page render "Add to Library" only when `Route::has('library.store')`. 5.1 adds `POST library` named `library.store` (auth, verified, throttled, redirects back; the no-JS fallback) and an app-layout listener for the `library-add` browser event that calls `AddToLibrary` and confirms with a toast. The library page is `GET library` named `library.index`. Guests never see library controls.
+6. **Navigation (D-13).** Add Library to `config('bookflix.navigation')` for desktop and the phone bar (Home, Discover, Search, Library, Profile). Collections and History sit under Library: tabs on the library page header, not new bar items.
+7. **Design rules since the plan.** `phase-4-redesign.md` applies: `<x-page-header>` with a guiding description on every page, icons in buttons, 44 px controls, empty states with a book, before and after screenshots at 1440 and 390 px. **No three-card layouts (D-31):** 5.6's stat row is a typographic line of figures separated by hairlines, never three cards; the onboarding steps are not a card grid.
+8. **Existing accounts (D-37).** The `user_preferences` migration backfills `profiles.onboarded_at = now()` for every existing profile, so current readers are never forced through onboarding. `UserFactory` creates onboarded users by default, with a `notOnboarded()` state.
+9. **Merges (5.9).** `Deduplicator::merge(Media $winner, Media $loser, ?int $resolvedBy = null)` already carries the taxonomy pivots and warning statuses in one transaction; the user-data repointing goes in the same transaction.
+10. **Interactions.** `SearchLogger` hashes the session as `hash_hmac('sha256', session()->getId(), config('app.key'))`; the story page's `?sq=` click check compares against that.
+
 ## Global Constraints
 
 - **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
-- Ratings are integers **1–10**, shown as 5 stars with half stars (D-14); `ratings.score` has a DB CHECK 1–10. `media.average_rating` stays on the 1–10 scale (decimal(4,2)); UI divides by 2.
+- Ratings are integers **1–10**, shown as 5 stars with half stars (D-14); `ratings.score` has a DB CHECK 1–10. `media.average_rating` is the blended 0–5 average across sources (see the revision, item 1).
 - Favorites are `user_library.favorited_at` (D-6): favoriting implies a library row (create `want_to_read` if absent).
 - Interactions: **no IP, no user agent**; `user_interactions` has no `updated_at`; opted-out users (`! $user->personalizationEnabled()`) generate **zero** rows; recorder is the only writer. Event names exactly (spec §44): `search, view, click, library_add, reading_start, reading_progress, reading_complete, favorite, rating, review, abandon, recommendation_click`.
 - Every Livewire action re-authorizes (policy or ownership check). A user only ever reads/writes their own library, ratings, progress and history.
@@ -401,7 +416,7 @@ test('users cannot log progress for another user through the component', functio
 - Test: `tests/Feature/Library/RatingsTest.php`
 
 **Interfaces:**
-- Produces: `RateMedia::handle(User $user, Media $media, int $score): Rating` — validates int 1..10 (`ValidationException` key `score`), upsert, ensures library row (status unchanged if present, else `want_to_read`? **No** — rating does not create a library row), records `rating` with `value = score`, dispatches `RecalculateMediaRating::dispatch($media->id)->afterCommit()`, fires `LibraryChanged`. `RateMedia::forget(User, Media): void` removes a rating and recalculates. `RecalculateMediaRating(int $mediaId)`: `average_rating = round(avg(score), 2)` and `ratings_count` over ratings of **active** users (`User::active()`), null/0 when none.
+- Produces: `RateMedia::handle(User $user, Media $media, int $score): Rating` — validates int 1..10 (`ValidationException` key `score`), upsert, ensures library row (status unchanged if present, else `want_to_read`? **No** — rating does not create a library row), records `rating` with `value = score`, dispatches `RecalculateMediaRating::dispatch($media->id)->afterCommit()`, fires `LibraryChanged`. `RateMedia::forget(User, Media): void` removes a rating and recalculates. `RecalculateMediaRating(int $mediaId)`: over ratings of **active** users (`User::active()`), upserts the `bookflix` source's `media_metrics` rows (`ratings_count`, `average_rating` = round(avg(score) / 2, 2)), deletes them when there are none, then `MediaRatings::blend($media)` (revision item 1).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -429,12 +444,23 @@ test('the aggregate is recomputed from active users only', function () {
         Rating::factory()->create(['user_id' => $u->id, 'media_id' => $media->id, 'score' => $score]);
     }
     (new RecalculateMediaRating($media->id))->handle();
-    expect((float) $media->fresh()->average_rating)->toBe(7.0)->and($media->fresh()->ratings_count)->toBe(2);
+    // readers' mean 7/10 → 3.5 on the 0–5 metric scale; no other source, so the blend is the readers' aggregate
+    expect(bookflixMetric($media, 'average_rating'))->toBe(3.5)->and(bookflixMetric($media, 'ratings_count'))->toBe(2.0)
+        ->and((float) $media->fresh()->average_rating)->toBe(3.5)->and($media->fresh()->ratings_count)->toBe(2);
 });
-test('removing the last rating resets the aggregate', function () {
+test('readers blend with provider ratings by count', function () {
+    $media = Media::factory()->create();
+    providerMetrics($media, 'anilist', ['average_rating' => 4.0, 'ratings_count' => 2]);
+    Rating::factory()->create(['media_id' => $media->id, 'score' => 6]); Rating::factory()->create(['media_id' => $media->id, 'score' => 6]);
+    (new RecalculateMediaRating($media->id))->handle();
+    expect((float) $media->fresh()->average_rating)->toBe(3.5)->and($media->fresh()->ratings_count)->toBe(4); // (4.0×2 + 3.0×2) / 4
+});
+test('removing the last rating drops the readers aggregate and keeps the provider average', function () {
     $user = User::factory()->create(); $media = Media::factory()->create();
-    app(RateMedia::class)->handle($user, $media, 8); app(RateMedia::class)->forget($user, $media);
-    expect($media->fresh()->average_rating)->toBeNull()->and($media->fresh()->ratings_count)->toBe(0);
+    providerMetrics($media, 'anilist', ['average_rating' => 4.0, 'ratings_count' => 10]);
+    app(RateMedia::class)->handle($user, $media, 2); app(RateMedia::class)->forget($user, $media);
+    expect(bookflixMetric($media, 'average_rating'))->toBeNull()
+        ->and((float) $media->fresh()->average_rating)->toBe(4.0)->and($media->fresh()->ratings_count)->toBe(10);
 });
 test('rating dispatches the aggregate job and records an interaction value', function () {
     Queue::fake([RecalculateMediaRating::class]);

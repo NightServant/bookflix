@@ -14,6 +14,27 @@
 
 ---
 
+## Progress (updated 2026-10-29)
+
+| Work | PR | State |
+|---|---|---|
+| Phase 1: Foundation | #4 | done |
+| Phase 2: Catalog and ingestion | #6 | done |
+| Phase 3: Dewey-inspired classification | #7 | done |
+| Logo mark and wordmark | #8 | done |
+| Phase 4: Discovery, review fixes and the 3D redesign (`phase-4-redesign.md`) | #9, #10 | done |
+| Catalog expansion wave 1: `media_metrics`, popularity score, AniList/MangaDex/MangaUpdates/Open Library trending, Comic Vine, Metron, Hardcover, Wikidata, Wikipedia pageviews | #11 | done |
+| MangaDex covers: `Referrer-Policy: same-origin` (hotlink placeholder fix) | #12 | done |
+| Taxonomy part 1: genre tree, tropes, demographics, warning statuses, audience ratings, `MediaTypeClassifier`, `bookflix:reclassify` (`genre-taxonomy-spec.md`) | #14 | done |
+| Taxonomy part 2: `<x-filter-panel>` genre-tree filters on Search and Discover; mature access gate (`Media::visibleTo()`, Settings → Privacy) | #15 | done |
+| Landing page: centred hero with 3D books, Top 10 marquee, problem and solution sections, FAQ, CTA, footer | #13 | done |
+| Landing showcase behind the mature gate | `landing-gate` | follow-up PR |
+| Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29) | `phase-5-library` | in progress |
+
+After pulling these merges, run locally: `php artisan migrate`, `php artisan db:seed --class=TaxonomySeeder`, then for each of `openlibrary`, `comicvine`, `metron` and `hardcover`: `php artisan bookflix:reclassify --resync --source=X` and `php artisan bookflix:sync X --full`.
+
+---
+
 ## How this plan is organized
 
 | Part | Contents | Spec |
@@ -259,6 +280,12 @@ Notation: `column type [null] [default]`. Every table has `timestamps` unless no
 - `media_popularity` (materialized view, refreshed hourly with `CONCURRENTLY`): media_id, interactions_7d, interactions_30d, trending_score, popularity_percentile.
 - `recommendations`: `user_id` · `media_id` · `shelf` · `score real` · `reason_type` enum(because_you_read, similar_themes, popular_with_similar_readers, matches_interest, trending, editorial, new_release, exploration, popular_with_followed) · `reason_media_id null` · `reason_payload jsonb` (always includes `features`, the eight ranker feature values, for Phase 8) · `model_version_id` · `generated_at`. Stores what was shown, for explanations and evaluation.
 - `recommendation_events`: `recommendation_id` · `event` enum(impression, click, dismiss, library_add) · `occurred_at`.
+
+**Changed since A6 was written (2026-10-27 to 2026-10-29):**
+- `media.average_rating` is the blended **0–5** average of every source's rating, weighted by ratings count; `media.ratings_count` is the sum. Both come from `media_metrics` (`media_id`, `external_source_id`, `metric`, `value`, `observed_at`; unique per media, source and metric). `media.popularity_score` is the weighted percentile blend of the signals (`bookflix:score-popularity`).
+- `media.age_rating` is enum(all, children, teen, mature_teen, mature, adult, unknown); the stricter rating wins on merge.
+- `genres` is a tree: `parent_id`, `group`, `sort`, `is_mature`, `description`, plus `genre_secondary_parents`. New facets `tropes`, `demographics`, `content_warnings` with pivots; `media_content_warnings.status` is enum(present, absent, unknown, disputed).
+- `profiles.show_mature bool default false`, `profiles.adult_confirmed_at timestamp null` (the mature access gate, D-35).
 
 **Added by phases (D-25):** `ml_job_runs` (Phase 6: name, run_id, status queued|running|succeeded|failed, params, metrics, error, started_at, finished_at) · `ltr_scores` (Phase 8: user_id, media_id, score, model_version_id, generated_at) · `ai_usage` (Phase 11: user_id null, feature, model, input/output/cached tokens) · `creators.bio_summary`, `series.description_summary` (Phase 7).
 
@@ -1577,10 +1604,12 @@ Each outline gives the goal, prerequisites, tables (A6), tasks (each a single TD
 2. **Library page** (status, type and favorite filters; sort by added, title, last read, rating; classification shelves). Tests: each filter and sort; only the owner sees a private library.
 3. **Collections CRUD + ordering + visibility + `is_editorial` for admins.** Tests: only the owner edits; positions reorder; non-admins can't set editorial.
 4. **Reading progress (manual) + `reading_history` + Continue Reading shelf.** Tests: percent is limited to 0–100; reaching 100 sets `completed` and records `reading_complete`; the shelf is ordered by `last_read_at`.
-5. **Ratings 1–10 + an aggregate job** (`average_rating`, `ratings_count`). Tests: upsert per user; the aggregate is recomputed; rating outside 1–10 rejected.
+5. **Ratings 1–10 + an aggregate job.** The readers' aggregate is written to `media_metrics` under a synthetic `bookflix` source (`ratings_count`, `average_rating` = mean score ÷ 2), then the media's blended `average_rating`/`ratings_count` are recomputed with the same blend the ingestion pipeline uses (D-36). Tests: upsert per user; the aggregate is recomputed from active users only; rating outside 1–10 rejected; removing the last rating leaves the external average in place.
 6. **History page.** Test: sessions are listed with total reading time.
 7. **Data export** (queued JSON zip, signed link that expires in 24 h). Tests: contains profile, library, collections, ratings, history and interactions; another user's link → 403; an expired link → 403.
-8. **Onboarding (§33):** types → genres → ≥ 3 stories → `user_preferences` + `onboarded_at`. Tests: fewer than 3 stories → validation error; preferences saved; skipping is allowed.
+8. **Onboarding (§33):** types → genre families and subgenres (the taxonomy tree; the mature family only for readers past the gate) → ≥ 3 stories → `user_preferences` + `onboarded_at`. Accounts that exist before the phase are backfilled as onboarded (D-37). Tests: fewer than 3 stories → validation error; preferences saved; skipping is allowed.
+9. **Merge safety for user data:** `Deduplicator::merge` carries library, ratings, progress, history, collection items and interactions to the winner without unique-key crashes.
+**Every list in this phase goes through `Media::visibleTo($viewer)`** (library, collections, Continue Reading, history, onboarding picks); gated entries stay stored and reappear when the reader opts in. The export holds all of the reader's own rows.
 **Exit:** the MVP library flow works; export works.
 
 ## Phase 6 — Recommendation MVP (§22–§24, §27–§29, §31–§35, §45 baseline)
@@ -1719,5 +1748,18 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 2026-10-23 | D-17 font | Code keeps the spec's font stack (`'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif`); Inter is used only in the Figma design system, because Figma couldn't load Helvetica Neue. Design QA (F7) ignores font-rendering differences. | user |
 | 2026-10-25 | Design inspiration (C7) | 16 patterns adopted from SPL, YPRL, forms.world, ethanandtom, theperformancelab, ciphermuseum and the slider demo; NYPL and cinematypography unreadable; TypeUI added to Part B as inspiration-only; Bookflix logo (PR #8) recorded. Rationale: borrow interaction patterns within the fixed tokens/stack, no assets or layouts. | user (via lead session) |
 | 2026-10-26 | C7 #1 hero slider motion | Updated from live inspection of nextjs-animated-slider: backdrop + left copy column + next-3 card row, card-to-backdrop morph via View Transitions with Motion fallback, line-by-line title reveal, progress line and large counter, no autoplay (no pause control), Bookflix 2:3 covers with "Start reading" and "Add to Library". Rationale: user preference; the earlier row came from a text-only fetch. | user |
+| 2026-10-27 | Catalog expansion wave 1 (PR #11) | adopt: `media_metrics` per source, `popularity_score` blend, nine sources; exact normalized title + format family + year auto-merges | user |
+| 2026-10-27 | Pager label | `__('Pages')`; a test rejects `__()` keys that name a translation group in any letter case (macOS crash, PR #10) | user |
+| 2026-10-28 | D-29 MangaDex covers | `Referrer-Policy: same-origin`: other sites get no Referer, so hotlink-protected hosts serve the real cover (PR #12) | user |
+| 2026-10-28 | D-30 Landing page | Guest `/`: hero with 3D books, trending Top 10 marquee with Netflix-style numerals, problem and solution sections in different layouts, Netflix-style FAQ with an email box (`POST /start`, email kept in the session), closing CTA, footer (PR #13) | user |
+| 2026-10-28 | D-31 No three-card layouts | Never use a row of three cards for content sections; it reads as AI-generated design. Applies to every later page (stats, features, onboarding) | user |
+| 2026-10-29 | D-32 Landing hero | Centred eyebrow, title and description; no buttons in the hero (the header keeps Sign in and Get started); seven books in a bowl around the text, five in a fan below 1024 px | user |
+| 2026-10-28 | D-33 Taxonomy | `genre-taxonomy-spec.md` adopted: genre families and subgenres as a tree with secondary parents, independent themes, tropes, demographics, audience ratings and content warnings with present/absent/unknown/disputed statuses; filters OR within a group and AND between groups; excluding a warning keeps unknown ones | user |
+| 2026-10-28 | D-34 Media-type classification | `MediaTypeClassifier` decides format from format fields, publishers, subjects, page vs chapter counts and country; prose wins ties; `bookflix:reclassify` re-derives stored data, respecting locked fields. Fixes novels labelled comics | user |
+| 2026-10-28 | Prohibited content (hard rule) | Sexual content involving minors, or sexualized depictions of minors, is never supported: such works are rejected at ingestion (`ProhibitedContent`) | user |
+| 2026-10-28 | D-35 Mature access gate | Adult-rated works and works tagged with a mature-family genre are hidden unless the reader turns on Settings → Privacy → "Show mature and adult titles" with an 18+ confirmation; guests are always gated; enforced in the query layer (`Media::visibleTo()`), a gated story URL returns 403 | user (via lead session) |
+| 2026-10-29 | Merge order | #12 → #14 → #15 → #13, squash; each branch brought up to date with main before merging | user |
+| 2026-10-29 | D-36 Reader ratings | `ratings.score` 1–10 per reader; the readers' aggregate is one more `media_metrics` source (`bookflix`), blended into `media.average_rating` (0–5) like any provider; Phase 6 decides its weight in the popularity score | user (via lead session) |
+| 2026-10-29 | D-37 Onboarding for existing accounts | Accounts created before Phase 5 are backfilled `onboarded_at = now()` so nobody is forced through it; onboarding stays reachable from Settings → Preferences | user (via lead session) |
 | — | D-1 … D-18, Q1 … Q17, A4 approvals | pending | — |
 | — | Figma file keys: Bookflix · Design System / Prototypes / Architecture & Flows | pending (F0) | — |
