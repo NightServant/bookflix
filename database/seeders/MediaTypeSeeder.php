@@ -17,6 +17,7 @@ class MediaTypeSeeder extends Seeder
     public const TYPES = [
         'novel' => ['name' => 'Novel', 'family' => MediaFamily::Prose, 'reading_mode' => ReadingMode::Reflowable],
         'light-novel' => ['name' => 'Light Novel', 'family' => MediaFamily::Prose, 'reading_mode' => ReadingMode::Reflowable],
+        'nonfiction' => ['name' => 'Nonfiction', 'family' => MediaFamily::Prose, 'reading_mode' => ReadingMode::Reflowable],
         'comic-book' => ['name' => 'Comic Book', 'family' => MediaFamily::SequentialArt, 'reading_mode' => ReadingMode::Paged],
         'graphic-novel' => ['name' => 'Graphic Novel', 'family' => MediaFamily::SequentialArt, 'reading_mode' => ReadingMode::Paged],
         'manga' => ['name' => 'Manga', 'family' => MediaFamily::SequentialArt, 'reading_mode' => ReadingMode::Paged],
