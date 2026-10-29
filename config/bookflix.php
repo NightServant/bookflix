@@ -89,6 +89,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Data Export
+    |--------------------------------------------------------------------------
+    |
+    | "Export my data" (Settings, Privacy) writes one zip per reader to `disk` and
+    | emails a signed link that works for `link_hours`. The disk holds a reader's
+    | whole history: it must be private, and a public disk is refused. A file is
+    | deleted after `retention_days`, and a reader may ask again after
+    | `cooldown_minutes`.
+    |
+    */
+
+    'exports' => [
+        'disk' => env('BOOKFLIX_EXPORT_DISK', 'local'),
+        'link_hours' => 24,
+        'retention_days' => 7,
+        'cooldown_minutes' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Metadata Providers
     |--------------------------------------------------------------------------
     |

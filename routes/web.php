@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\CoverController;
+use App\Http\Controllers\ExportDownloadController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\LibraryController;
+use App\Library\ExportStorage;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'show'])->name('landing');
@@ -27,6 +29,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // The no-JS way to add a story; the pages add through the `library-add` browser event (see <livewire:library-listener>). Own throttle bucket, so it shares nothing with the other numeric throttles.
     Route::post('library', [LibraryController::class, 'store'])->middleware('throttle:60,1,library')->name('library.store');
 });
+
+// A reader's data export: signed (24 hours), their own account only. The file name is a ULID by the route, so it can never be a path. Its own throttle bucket, like library.store.
+Route::get('exports/{user}/{file}', [ExportDownloadController::class, 'show'])
+    ->middleware(['auth', 'signed', 'throttle:30,1,exports'])
+    ->where(['user' => '[0-9]+', 'file' => ExportStorage::FILE_PATTERN])
+    ->name('exports.download');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/admin.php';
