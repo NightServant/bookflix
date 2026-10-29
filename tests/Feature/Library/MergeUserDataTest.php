@@ -38,7 +38,7 @@ test('merging repoints user rows without unique key crashes', function () {
         ->and(UserInteraction::where('media_id', $winner->id)->count())->toBe(1);
 });
 
-test('a reader with a row for both stories keeps the winner\'s rating and progress, the others move over', function () {
+test('a reader with a row for both stories keeps the winner\'s rating and the further progress, the others move over', function () {
     [$winner, $loser] = Media::factory()->count(2)->create();
     $both = User::factory()->create();
     $solo = User::factory()->create();
@@ -55,8 +55,112 @@ test('a reader with a row for both stories keeps the winner\'s rating and progre
         ->and(Rating::where(['user_id' => $both->id, 'media_id' => $winner->id])->sole()->score)->toBe(9)
         ->and(Rating::where(['user_id' => $solo->id, 'media_id' => $winner->id])->sole()->score)->toBe(4)
         ->and(ReadingProgress::where('media_id', $loser->id)->count())->toBe(0)
-        ->and(ReadingProgress::where(['user_id' => $both->id, 'media_id' => $winner->id])->sole()->percent)->toBe('30.00')
+        ->and(ReadingProgress::where(['user_id' => $both->id, 'media_id' => $winner->id])->sole()->percent)->toBe('80.00')
         ->and(ReadingProgress::where(['user_id' => $solo->id, 'media_id' => $winner->id])->sole()->percent)->toBe('55.00');
+});
+
+test('a reader with both stories in the library keeps the winner\'s row and gains the loser\'s favorite', function () {
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    [$gains, $keeps, $neither] = User::factory()->count(3)->create();
+    $liked = now()->subDays(3)->startOfSecond();
+    $earlier = now()->subDays(1)->startOfSecond();
+
+    LibraryEntry::factory()->create(['user_id' => $gains->id, 'media_id' => $winner->id, 'status' => ReadingStatus::Completed, 'favorited_at' => null]);
+    LibraryEntry::factory()->create(['user_id' => $gains->id, 'media_id' => $loser->id, 'status' => ReadingStatus::WantToRead, 'favorited_at' => $liked]);
+    LibraryEntry::factory()->create(['user_id' => $keeps->id, 'media_id' => $winner->id, 'favorited_at' => $earlier]);
+    LibraryEntry::factory()->create(['user_id' => $keeps->id, 'media_id' => $loser->id, 'favorited_at' => $liked]);
+    LibraryEntry::factory()->create(['user_id' => $neither->id, 'media_id' => $winner->id, 'favorited_at' => null]);
+    LibraryEntry::factory()->create(['user_id' => $neither->id, 'media_id' => $loser->id, 'favorited_at' => null]);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    $row = fn (User $user): LibraryEntry => LibraryEntry::where(['user_id' => $user->id, 'media_id' => $winner->id])->sole();
+
+    expect($row($gains)->favorited_at->equalTo($liked))->toBeTrue()
+        ->and($row($gains)->status)->toBe(ReadingStatus::Completed) // the winner's row is the one that stays
+        ->and($row($keeps)->favorited_at->equalTo($earlier))->toBeTrue() // a favorite the winner has is not replaced
+        ->and($row($neither)->favorited_at)->toBeNull()
+        ->and(LibraryEntry::where('media_id', $loser->id)->count())->toBe(0);
+});
+
+test('the winner\'s library row takes the earlier added and started dates, and the loser\'s completion only when it has none', function () {
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    [$first, $second, $third] = User::factory()->count(3)->create();
+    $day = fn (int $ago) => now()->subDays($ago)->startOfSecond();
+
+    // The loser's row is the older one, started earlier and finished; the winner's has no completion.
+    LibraryEntry::factory()->create(['user_id' => $first->id, 'media_id' => $winner->id, 'status' => ReadingStatus::Reading, 'created_at' => $day(5), 'started_at' => $day(4), 'completed_at' => null]);
+    LibraryEntry::factory()->create(['user_id' => $first->id, 'media_id' => $loser->id, 'status' => ReadingStatus::Completed, 'created_at' => $day(20), 'started_at' => $day(19), 'completed_at' => $day(10)]);
+    // The winner's row is the older one and has its own completion, which stays.
+    LibraryEntry::factory()->create(['user_id' => $second->id, 'media_id' => $winner->id, 'status' => ReadingStatus::Completed, 'created_at' => $day(30), 'started_at' => $day(29), 'completed_at' => $day(25)]);
+    LibraryEntry::factory()->create(['user_id' => $second->id, 'media_id' => $loser->id, 'status' => ReadingStatus::Completed, 'created_at' => $day(8), 'started_at' => $day(7), 'completed_at' => $day(2)]);
+    // Only one of them was ever started: the date that exists is kept, and no date is made up.
+    LibraryEntry::factory()->create(['user_id' => $third->id, 'media_id' => $winner->id, 'created_at' => $day(6), 'started_at' => null, 'completed_at' => null]);
+    LibraryEntry::factory()->create(['user_id' => $third->id, 'media_id' => $loser->id, 'created_at' => $day(9), 'started_at' => $day(8), 'completed_at' => null]);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    $row = fn (User $user): LibraryEntry => LibraryEntry::where(['user_id' => $user->id, 'media_id' => $winner->id])->sole();
+
+    expect($row($first)->created_at->equalTo($day(20)))->toBeTrue()
+        ->and($row($first)->started_at->equalTo($day(19)))->toBeTrue()
+        ->and($row($first)->completed_at->equalTo($day(10)))->toBeTrue()
+        ->and($row($first)->status)->toBe(ReadingStatus::Reading)
+        ->and($row($second)->created_at->equalTo($day(30)))->toBeTrue()
+        ->and($row($second)->started_at->equalTo($day(29)))->toBeTrue()
+        ->and($row($second)->completed_at->equalTo($day(25)))->toBeTrue()
+        ->and($row($third)->created_at->equalTo($day(9)))->toBeTrue()
+        ->and($row($third)->started_at->equalTo($day(8)))->toBeTrue()
+        ->and($row($third)->completed_at)->toBeNull();
+});
+
+test('a reader with progress on both stories keeps the further one, with its page and chapter, and the later last read', function () {
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    [$further, $behind, $even] = User::factory()->count(3)->create();
+    $day = fn (int $ago) => now()->subDays($ago)->startOfSecond();
+
+    ReadingProgress::factory()->create(['user_id' => $further->id, 'media_id' => $winner->id, 'percent' => 30, 'page' => 60, 'chapter' => '3', 'last_read_at' => $day(1)]);
+    ReadingProgress::factory()->create(['user_id' => $further->id, 'media_id' => $loser->id, 'percent' => 80, 'page' => 240, 'chapter' => '9', 'last_read_at' => $day(10)]);
+    ReadingProgress::factory()->create(['user_id' => $behind->id, 'media_id' => $winner->id, 'percent' => 70, 'page' => 140, 'chapter' => '7', 'last_read_at' => $day(9)]);
+    ReadingProgress::factory()->create(['user_id' => $behind->id, 'media_id' => $loser->id, 'percent' => 20, 'page' => 40, 'chapter' => '2', 'last_read_at' => $day(2)]);
+    ReadingProgress::factory()->create(['user_id' => $even->id, 'media_id' => $winner->id, 'percent' => 50, 'page' => 100, 'chapter' => 'W', 'last_read_at' => $day(4)]);
+    ReadingProgress::factory()->create(['user_id' => $even->id, 'media_id' => $loser->id, 'percent' => 50, 'page' => 101, 'chapter' => 'L', 'last_read_at' => $day(3)]);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    $row = fn (User $user): ReadingProgress => ReadingProgress::where(['user_id' => $user->id, 'media_id' => $winner->id])->sole();
+
+    // The loser's row was further along: its place moves to the winner's row as a whole, and the later time stays (the winner's, day 1).
+    expect($row($further)->percent)->toBe('80.00')->and($row($further)->page)->toBe(240)->and($row($further)->chapter)->toBe('9')
+        ->and($row($further)->last_read_at->equalTo($day(1)))->toBeTrue()
+        // The winner's row was further along: its place stays, and the later time (the loser's, day 2) is the one kept.
+        ->and($row($behind)->percent)->toBe('70.00')->and($row($behind)->page)->toBe(140)->and($row($behind)->chapter)->toBe('7')
+        ->and($row($behind)->last_read_at->equalTo($day(2)))->toBeTrue()
+        // A tie keeps the winner's place, and the later time (the loser's, day 3).
+        ->and($row($even)->percent)->toBe('50.00')->and($row($even)->page)->toBe(100)->and($row($even)->chapter)->toBe('W')
+        ->and($row($even)->last_read_at->equalTo($day(3)))->toBeTrue()
+        ->and(ReadingProgress::where('media_id', $loser->id)->count())->toBe(0);
+});
+
+test('carrying a favorite or progress over touches only the readers who have both stories', function () {
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    [$both, $winnerOnly, $loserOnly] = User::factory()->count(3)->create();
+    $liked = now()->subDay()->startOfSecond();
+
+    LibraryEntry::factory()->create(['user_id' => $both->id, 'media_id' => $winner->id]);
+    LibraryEntry::factory()->create(['user_id' => $both->id, 'media_id' => $loser->id, 'favorited_at' => $liked]);
+    LibraryEntry::factory()->create(['user_id' => $winnerOnly->id, 'media_id' => $winner->id]);
+    LibraryEntry::factory()->create(['user_id' => $loserOnly->id, 'media_id' => $loser->id, 'favorited_at' => $liked]);
+    ReadingProgress::factory()->create(['user_id' => $winnerOnly->id, 'media_id' => $winner->id, 'percent' => 12]);
+    ReadingProgress::factory()->create(['user_id' => $loserOnly->id, 'media_id' => $loser->id, 'percent' => 66]);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    expect(LibraryEntry::where(['user_id' => $winnerOnly->id, 'media_id' => $winner->id])->sole()->favorited_at)->toBeNull()
+        ->and(LibraryEntry::where(['user_id' => $loserOnly->id, 'media_id' => $winner->id])->sole()->favorited_at->equalTo($liked))->toBeTrue()
+        ->and(ReadingProgress::where(['user_id' => $winnerOnly->id, 'media_id' => $winner->id])->sole()->percent)->toBe('12.00')
+        ->and(ReadingProgress::where(['user_id' => $loserOnly->id, 'media_id' => $winner->id])->sole()->percent)->toBe('66.00')
+        ->and(LibraryEntry::where('media_id', $winner->id)->count())->toBe(3);
 });
 
 test('reading history and interactions always repoint, even when the reader has both stories', function () {
