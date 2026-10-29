@@ -13,6 +13,7 @@ use App\Models\MediaType;
 use App\Models\Rating;
 use App\Models\ReadingProgress;
 use App\Models\ReadingSession;
+use App\Models\SearchQuery;
 use App\Models\Theme;
 use App\Models\User;
 use App\Models\UserInteraction;
@@ -27,7 +28,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
 
-const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json'];
+const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json'];
 
 /**
  * A reader with one row in every table the export reads, one of them behind the mature gate.
@@ -52,6 +53,7 @@ function exportFixture(string $label = 'Mine'): User
     ReadingSession::factory()->create(['user_id' => $user->id, 'media_id' => $story->id, 'seconds' => 1800, 'from_percent' => 30, 'to_percent' => 42.5]);
     ReadingSession::factory()->create(['user_id' => $user->id, 'media_id' => $gated->id]);
     UserInteraction::factory()->create(['user_id' => $user->id, 'media_id' => $story->id, 'event' => InteractionEvent::Rating, 'value' => 9, 'context' => ['source' => 'controls']]);
+    SearchQuery::factory()->create(['user_id' => $user->id, 'query' => "{$label} search", 'filters' => ['genres' => ["{$label}-genre"]], 'results_count' => 7]);
 
     return $user;
 }
@@ -113,7 +115,7 @@ beforeEach(function () {
     Notification::fake();
 });
 
-test('the export zip holds the eight files, with every one of the readers own rows and nothing else', function () {
+test('the export zip holds the nine files, with every one of the readers own rows and nothing else', function () {
     $user = exportFixture('Mine');
     $other = exportFixture('Theirs');
 
@@ -127,6 +129,7 @@ test('the export zip holds the eight files, with every one of the readers own ro
         ->and($files['progress.json'])->toHaveCount(1)
         ->and($files['history.json'])->toHaveCount(2)
         ->and($files['interactions.json'])->toHaveCount(1)
+        ->and($files['searches.json'])->toHaveCount(1)
         ->and($files['preferences.json'])->toBe([['type' => 'genre', 'slug' => 'mine-genre', 'name' => 'Mine Genre', 'weight' => 1]]);
 
     $text = exportText($user);
@@ -186,7 +189,7 @@ test('the profile file has the account and profile, and none of the secrets', fu
         ->and($text)->not->toContain('SECRETSECRET')->not->toContain('RECOVERY')->not->toContain('REMEMBERME')->not->toContain($user->password)->not->toContain('secret-name.jpg');
 });
 
-test('a reader with nothing yet still gets all eight files', function () {
+test('a reader with nothing yet still gets all nine files', function () {
     $user = User::factory()->create();
 
     (new ExportUserData($user->id))->handle();
@@ -198,6 +201,40 @@ test('a reader with nothing yet still gets all eight files', function () {
     foreach (array_diff(EXPORT_FILES, ['profile.json']) as $name) {
         expect($files[$name])->toBe([]);
     }
+});
+
+test('searches are the readers own queries with their filters, result counts and times, and nothing that ties them to a session', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $first = SearchQuery::factory()->create(['user_id' => $user->id, 'query' => 'dragon slayer', 'normalized' => 'dragon slayer', 'filters' => ['genres' => ['fantasy'], 'minRating' => '4'], 'results_count' => 12, 'session_hash' => str_repeat('a', 64)]);
+    $second = SearchQuery::factory()->create(['user_id' => $user->id, 'query' => 'nothing found', 'filters' => [], 'results_count' => 0, 'previous_query_id' => $first->id]);
+    SearchQuery::factory()->create(['user_id' => $other->id, 'query' => 'their private search', 'session_hash' => str_repeat('b', 64)]);
+    SearchQuery::factory()->create(['user_id' => null, 'query' => 'an opted out search']);
+    DB::table('search_queries')->where('id', $first->id)->update(['created_at' => '2026-10-01 08:30:00']);
+
+    (new ExportUserData($user->id))->handle();
+
+    $searches = exportContents($user)['searches.json'];
+
+    expect($searches)->toHaveCount(2)
+        ->and(array_keys($searches[0]))->toBe(['query', 'filters', 'results_count', 'created_at'])
+        ->and($searches[0])->toBe(['query' => 'dragon slayer', 'filters' => ['genres' => ['fantasy'], 'minRating' => '4'], 'results_count' => 12, 'created_at' => '2026-10-01T08:30:00+00:00'])
+        ->and($searches[1]['query'])->toBe('nothing found')->and($searches[1]['results_count'])->toBe(0)->and($searches[1]['filters'])->toBe([])
+        ->and(exportText($user))->not->toContain('their private search')->not->toContain('an opted out search')
+        ->not->toContain(str_repeat('a', 64))->not->toContain('session_hash')->not->toContain('previous_query_id');
+});
+
+test('another reader\'s searches never appear in an export, in either direction', function () {
+    $mine = exportFixture('Mine');
+    $theirs = exportFixture('Theirs');
+
+    (new ExportUserData($mine->id))->handle();
+    (new ExportUserData($theirs->id))->handle();
+
+    expect(collect(exportContents($mine)['searches.json'])->pluck('query')->all())->toBe(['Mine search'])
+        ->and(collect(exportContents($theirs)['searches.json'])->pluck('query')->all())->toBe(['Theirs search'])
+        ->and(exportText($mine))->not->toContain('Theirs search')
+        ->and(exportText($theirs))->not->toContain('Mine search');
 });
 
 test('a long history is written in pieces and still reads back whole', function () {

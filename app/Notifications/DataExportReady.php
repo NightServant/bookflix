@@ -31,7 +31,7 @@ class DataExportReady extends Notification
         return (new MailMessage)
             ->subject(__('Your Bookflix data export is ready'))
             ->greeting(__('Hello :name,', ['name' => $notifiable->name]))
-            ->line(__('The export of your Bookflix data is ready: your profile, library, collections, ratings, reading progress, history and activity, as JSON files in one zip.'))
+            ->line(__('The export of your Bookflix data is ready: your profile, preferences, library, collections, ratings, reading progress, history, searches and activity, as JSON files in one zip.'))
             ->action(__('Download your data'), app(ExportStorage::class)->link($notifiable->id, $this->file))
             ->line(__('The link works for :hours hours, and only while you are signed in to this account. The file is deleted after :days days.', ['hours' => $hours, 'days' => (int) config('bookflix.exports.retention_days')]))
             ->line(__('If you did not ask for this, you can ignore this email, or change your password.'));

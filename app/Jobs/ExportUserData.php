@@ -56,7 +56,7 @@ class ExportUserData implements ShouldQueue
         try {
             $this->write($work.'/profile.json', $this->profile($user));
 
-            foreach ([
+            $lists = [
                 'preferences.json' => $this->preferences($user),
                 'library.json' => $this->library($user),
                 'collections.json' => $this->collections($user),
@@ -64,7 +64,10 @@ class ExportUserData implements ShouldQueue
                 'progress.json' => $this->progress($user),
                 'history.json' => $this->history($user),
                 'interactions.json' => $this->interactions($user),
-            ] as $name => $rows) {
+                'searches.json' => $this->searches($user),
+            ];
+
+            foreach ($lists as $name => $rows) {
                 $this->writeList("{$work}/{$name}", $rows);
             }
 
@@ -74,7 +77,7 @@ class ExportUserData implements ShouldQueue
                 throw new RuntimeException('The export archive could not be created.');
             }
 
-            foreach (['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json'] as $name) {
+            foreach (['profile.json', ...array_keys($lists)] as $name) {
                 $zip->addFile("{$work}/{$name}", $name);
             }
 
@@ -318,6 +321,29 @@ class ExportUserData implements ShouldQueue
                 'value' => $row->value === null ? null : (float) $row->value,
                 'context' => json_decode($row->context ?? '{}'),
                 'occurred_at' => $this->time($row->occurred_at),
+            ];
+        }
+    }
+
+    /**
+     * The searches the reader made while personalization was on (the query, the filters, how many stories it found, and when). The row's
+     * session hash and its link to the search it refined are the system's own and are left out; searches made while opted out were never tied to the reader.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function searches(User $user): Generator
+    {
+        $rows = DB::table('search_queries')
+            ->where('user_id', $user->id)
+            ->select('id', 'query', 'filters', 'results_count', 'created_at')
+            ->lazyById(self::CHUNK, 'id');
+
+        foreach ($rows as $row) {
+            yield [
+                'query' => $row->query,
+                'filters' => json_decode($row->filters ?? '[]'),
+                'results_count' => $row->results_count,
+                'created_at' => $this->time($row->created_at),
             ];
         }
     }

@@ -197,7 +197,7 @@ new #[Title('Privacy settings')] class extends Component {
 
         @php($export = $this->export)
 
-        <x-settings-card :title="__('Export Your Data')" :description="__('Take a copy of what Bookflix holds about you: your profile, library, collections, ratings, reading progress, history and activity, as JSON files in one zip. We email you a link when it is ready. It works for :hours hours, and the file is deleted after :days days.', ['hours' => config('bookflix.exports.link_hours'), 'days' => config('bookflix.exports.retention_days')])">
+        <x-settings-card :title="__('Export Your Data')" :description="__('Take a copy of what Bookflix holds about you: your profile, preferences, library, collections, ratings, reading progress, history, searches and activity, as JSON files in one zip. We email you a link when it is ready. It works for :hours hours, and the file is deleted after :days days.', ['hours' => config('bookflix.exports.link_hours'), 'days' => config('bookflix.exports.retention_days')])">
             <div class="space-y-4">
                 <x-cta variant="secondary" icon="arrow-down-tray" icon:variant="outline" wire:click="exportData" :disabled="$export['wait'] > 0" data-test="export-data-button">
                     {{ __('Export my data') }}
