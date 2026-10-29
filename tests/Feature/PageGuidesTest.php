@@ -21,6 +21,7 @@ dataset('signed in pages', [
     'explore' => fn () => route('explore.index'),
     'search' => fn () => route('search'),
     'library' => fn () => route('library.index'),
+    'history' => fn () => route('history.index'),
     'profile settings' => fn () => route('profile.edit'),
     'privacy settings' => fn () => route('privacy.edit'),
 ]);

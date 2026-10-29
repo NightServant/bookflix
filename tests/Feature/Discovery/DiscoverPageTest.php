@@ -130,7 +130,7 @@ test('quick links only list destinations that exist yet', function () {
     expect($html)->not->toContain('Continue reading')
         ->not->toContain('Filter the catalog')->not->toContain('Browse by subject')
         ->and(collect(htmlQuery($html, '//nav[@aria-label="Quick links"]//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all())
-        ->toBe(['My library', 'My collections']); // the history page is not built yet
+        ->toBe(['My library', 'My collections', 'My history']);
 });
 
 test('discover opens with the search panel and ends its subject row with the way into the library', function () {

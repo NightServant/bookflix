@@ -373,6 +373,7 @@ new #[Title('Discover')] class extends FilteredPage {
     $quickLinks = collect([
         ['label' => __('My library'), 'route' => 'library.index', 'icon' => 'book-open'],
         ['label' => __('My collections'), 'route' => 'collections.index', 'icon' => 'rectangle-stack'],
+        ['label' => __('My history'), 'route' => 'history.index', 'icon' => 'clock'],
     ])->filter(fn (array $link): bool => Route::has($link['route']))->values()->all();
 @endphp
 

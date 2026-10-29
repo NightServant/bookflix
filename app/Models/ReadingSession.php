@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterval;
 use Database\Factories\ReadingSessionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -48,6 +50,29 @@ class ReadingSession extends Model
             'to_percent' => 'decimal:2',
             'chapters_completed' => 'integer',
         ];
+    }
+
+    /**
+     * How long a session lasted as a reader reads it: "1h 30m", "25m", "45s". Hours do not roll over into days, and seconds only show
+     * for a session shorter than a minute.
+     */
+    public static function duration(int $seconds): string
+    {
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+
+        return CarbonInterval::hours($hours)->minutes($minutes)->seconds($hours + $minutes > 0 ? 0 : $seconds)->forHumans(short: true, parts: 2);
+    }
+
+    /**
+     * Sessions whose story this reader may see: not deleted, not merged away, and past the mature gate (see Media::scopeVisibleTo). A gated
+     * session stays stored and comes back when the reader opts in; it is only left out of the history and its figures.
+     *
+     * @param  Builder<ReadingSession>  $query
+     */
+    public function scopeVisibleTo(Builder $query, ?User $viewer): void
+    {
+        $query->whereHas('media', fn (Builder $media) => $media->unmerged()->visibleTo($viewer));
     }
 
     /**

@@ -44,10 +44,20 @@ test('the sections that exist are tabs under the library title, and the current 
         ->and(htmlQuery($html, '//nav//a[@href="'.route('library.index').'"]')->length)->toBe(1);
 });
 
-test('a section whose page is not built yet is left out', function () {
-    registerLibrarySections(['collections.index']);
+test('a section whose page does not exist is left out', function () {
+    // Every section is a real page by now, so keep only the library and its collections in the router.
+    $routes = app('router')->getRoutes();
+    $some = new RouteCollection;
+    $some->add($routes->getByName('library.index'));
+    $some->add($routes->getByName('collections.index'));
+    $some->refreshNameLookups();
+    app('router')->setRoutes($some);
 
-    $html = renderedComponent('<x-library-tabs current="library.index" />');
+    try {
+        $html = renderedComponent('<x-library-tabs current="library.index" />');
 
-    expect(collect(htmlQuery($html, '//nav//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all())->toBe(['Library', 'Collections']);
+        expect(collect(htmlQuery($html, '//nav//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all())->toBe(['Library', 'Collections']);
+    } finally {
+        app('router')->setRoutes($routes);
+    }
 });
