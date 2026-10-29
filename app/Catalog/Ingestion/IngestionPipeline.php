@@ -4,6 +4,7 @@ namespace App\Catalog\Ingestion;
 
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
+use App\Catalog\MediaRatings;
 use App\Catalog\Providers\MetadataProvider;
 use App\Catalog\Taxonomy\WarningRecorder;
 use App\Enums\ImportOutcome;
@@ -101,9 +102,8 @@ class IngestionPipeline
     }
 
     /**
-     * Upsert the record's popularity signals for its source, then refresh the media's rating columns from every source's
-     * metrics: the counts add up and the average is weighted by each source's count (a source without one weighs 1).
-     * A locked column is left alone.
+     * Upsert the record's popularity signals for its source, then refresh the media's rating columns from every source's metrics
+     * (see MediaRatings::blend, which leaves a locked column alone).
      */
     private function recordMetrics(Media $media, NormalizedMedia $incoming, ExternalSource $source): void
     {
@@ -125,23 +125,7 @@ class IngestionPipeline
             ['value', 'observed_at'],
         );
 
-        $perSource = DB::table('media_metrics')->where('media_id', $media->id)->whereIn('metric', ['ratings_count', 'average_rating'])
-            ->get()->groupBy('external_source_id')
-            ->map(fn ($rows): array => $rows->pluck('value', 'metric')->all());
-
-        $count = (int) round($perSource->sum(fn (array $m): float => (float) ($m['ratings_count'] ?? 0)));
-        $rated = $perSource->filter(fn (array $m): bool => isset($m['average_rating']));
-        $weight = $rated->sum(fn (array $m): float => max((float) ($m['ratings_count'] ?? 0), 1));
-
-        if ($count > 0 && ! in_array('ratings_count', $media->locked_fields, true)) {
-            $media->ratings_count = $count;
-        }
-
-        if ($weight > 0 && ! in_array('average_rating', $media->locked_fields, true)) {
-            $media->average_rating = (string) round($rated->sum(fn (array $m): float => (float) $m['average_rating'] * max((float) ($m['ratings_count'] ?? 0), 1)) / $weight, 2);
-        }
-
-        $media->save();
+        MediaRatings::blend($media);
     }
 
     /**

@@ -3,6 +3,7 @@
 use App\Enums\ReadingStatus;
 use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\Rating;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 
@@ -97,6 +98,24 @@ test('a link with the view in it opens on that view', function () {
         ->assertScript('Array.from(document.querySelectorAll("[role=radio]")).filter((r) => r.getAttribute("aria-checked") === "true").map((r) => r.textContent.trim()).join("|")', 'List')
         ->assertScript('document.querySelector("#library-sort").value', 'title')
         ->assertScript($this->titles, 'Berserk|Dracula|Dune|Frankenstein|Monster|Vagabond');
+});
+
+test('sorting by your rating lists the highest score first, shows the scores, and keeps the choice in the url', function () {
+    foreach (['Vagabond' => 9, 'Dune' => 5, 'Berserk' => 5] as $title => $score) {
+        Rating::factory()->create(['user_id' => $this->user->id, 'media_id' => Media::where('title', $title)->value('id'), 'score' => $score]);
+    }
+
+    $page = visit(route('library.index'), $this->desktop)->wait(1);
+
+    $page->select('#library-sort', 'rating')->wait(1)
+        ->assertScript(($this->param)('sort'), 'rating')
+        ->assertSee('9/10')
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues()
+        ->click('List')->wait(1)
+        ->assertScript($this->titles, 'Vagabond|Berserk|Dune|Dracula|Frankenstein|Monster')
+        ->assertSee('9 out of 10')
+        ->assertNoAccessibilityIssues();
 });
 
 test('an empty library and a filter that matches nothing both explain themselves and pass the audit', function (array $viewport) {

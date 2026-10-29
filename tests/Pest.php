@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
@@ -216,7 +217,7 @@ function fullMedia(): Media
         'title' => 'Dune',
         'alternative_titles' => ['Duna'],
         'description' => 'A desert planet and the spice that rules it.',
-        'average_rating' => '9.0',
+        'average_rating' => '4.5',
         'ratings_count' => 120,
     ]);
 
@@ -270,6 +271,37 @@ function matureStory(string $title = 'Erotic Tale'): Media
     $media->genres()->attach(Genre::factory()->mature()->create());
 
     return $media;
+}
+
+/**
+ * What the readers' aggregate (the synthetic `bookflix` source) holds for one metric of this story, or null when it holds none.
+ */
+function bookflixMetric(Media $media, string $metric): ?float
+{
+    $value = DB::table('media_metrics')
+        ->where('media_id', $media->id)
+        ->where('metric', $metric)
+        ->whereIn('external_source_id', ExternalSource::where('key', 'bookflix')->select('id'))
+        ->value('value');
+
+    return $value === null ? null : (float) $value;
+}
+
+/**
+ * Give this story a provider's metrics (`ratings_count`, `average_rating` on the 0-5 scale, and so on), creating the provider's source when missing.
+ * The story's own rating columns are not touched: run `MediaRatings::blend` or the aggregate job to fold them in.
+ *
+ * @param  array<string, int|float>  $metrics
+ */
+function providerMetrics(Media $media, string $provider, array $metrics): ExternalSource
+{
+    $source = ExternalSource::where('key', $provider)->first() ?? ExternalSource::factory()->create(['key' => $provider]);
+
+    foreach ($metrics as $metric => $value) {
+        DB::table('media_metrics')->insert(['media_id' => $media->id, 'external_source_id' => $source->id, 'metric' => $metric, 'value' => $value, 'observed_at' => now()]);
+    }
+
+    return $source;
 }
 
 /**

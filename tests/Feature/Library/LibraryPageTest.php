@@ -4,6 +4,7 @@ use App\Enums\ReadingStatus;
 use App\Models\Genre;
 use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\Rating;
 use App\Models\ReadingProgress;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
@@ -105,10 +106,60 @@ test('the last read sort composes with the filters and the pager', function () {
     expect(libraryTitles($page))->toBe(['C', 'A'])->and($page->instance()->entries->total())->toBe(2);
 });
 
-test('the sort control offers last read', function () {
+test('the rating sort lists the readers highest score first and the unrated last, in title order', function () {
+    $user = libraryFixture();
+    $media = fn (string $title): Media => Media::where('title', $title)->sole();
+    Rating::factory()->create(['user_id' => $user->id, 'media_id' => $media('B')->id, 'score' => 10]);
+    Rating::factory()->create(['user_id' => $user->id, 'media_id' => $media('A')->id, 'score' => 8]);
+    // Somebody else rating C or D must not move them in this reader's library.
+    Rating::factory()->create(['user_id' => User::factory()->create()->id, 'media_id' => $media('D')->id, 'score' => 10]);
+
+    $page = Livewire::actingAs($user)->test('pages::library.index')->set('sort', 'rating');
+
+    expect(libraryTitles($page))->toBe(['B', 'A', 'C', 'D'])
+        ->and(libraryTitles(Livewire::actingAs($user)->withQueryParams(['sort' => 'rating'])->test('pages::library.index')))->toBe(['B', 'A', 'C', 'D']);
+});
+
+test('equal scores tie by title, and a story rated without being in the library is not listed', function () {
+    $user = libraryFixture();
+    foreach (['D', 'C'] as $title) {
+        Rating::factory()->create(['user_id' => $user->id, 'media_id' => Media::where('title', $title)->value('id'), 'score' => 6]);
+    }
+    Rating::factory()->create(['user_id' => $user->id, 'media_id' => Media::factory()->create(['title' => 'Z Outside'])->id, 'score' => 10]);
+
+    $page = Livewire::actingAs($user)->test('pages::library.index')->set('sort', 'rating');
+
+    expect(libraryTitles($page))->toBe(['C', 'D', 'A', 'B']);
+});
+
+test('the rating sort composes with the filters and the pager', function () {
+    $user = libraryFixture();
+    Rating::factory()->create(['user_id' => $user->id, 'media_id' => Media::where('title', 'C')->value('id'), 'score' => 3]);
+
+    $page = Livewire::actingAs($user)->test('pages::library.index')->set('sort', 'rating')->set('type', 'manga');
+
+    expect(libraryTitles($page))->toBe(['C', 'A'])->and($page->instance()->entries->total())->toBe(2);
+});
+
+test('the readers own score shows on the grid tile and in the list row of a story they rated, and nowhere else', function () {
+    $user = libraryFixture();
+    $media = fn (string $title): Media => Media::where('title', $title)->sole();
+    Rating::factory()->create(['user_id' => $user->id, 'media_id' => $media('A')->id, 'score' => 7]);
+    Rating::factory()->create(['user_id' => User::factory()->create()->id, 'media_id' => $media('B')->id, 'score' => 3]);
+
+    $grid = Livewire::actingAs($user)->test('pages::library.index')->html();
+    $list = Livewire::actingAs($user)->test('pages::library.index')->set('view', 'list')->html();
+
+    expect(substr_count($grid, '7/10'))->toBe(1)
+        ->and(substr_count($grid, '3/10'))->toBe(0)
+        ->and(substr_count($list, '7 out of 10'))->toBe(1)
+        ->and(substr_count($list, '3 out of 10'))->toBe(0);
+});
+
+test('the sort control offers last read and rating', function () {
     $html = Livewire::actingAs(libraryFixture())->test('pages::library.index')->html();
 
-    expect(collect(htmlQuery($html, '//select[@id="library-sort"]/option'))->map(fn (DOMElement $option): string => $option->getAttribute('value'))->all())->toBe(['added', 'title', 'last_read']);
+    expect(collect(htmlQuery($html, '//select[@id="library-sort"]/option'))->map(fn (DOMElement $option): string => $option->getAttribute('value'))->all())->toBe(['added', 'title', 'last_read', 'rating']);
 });
 
 test('a story under way shows how far on its grid tile and in its list row, one that is finished or not begun does not', function () {
@@ -357,8 +408,9 @@ test('the library runs a bounded number of queries in every view', function (str
 
     expect($queries)->toBeLessThanOrEqual($budget)->and($html)->toContain('wire:key');
 })->with([
-    'grid' => ['grid', 15],
-    'list' => ['list', 18],
+    // The reader's scores of the page are one query of their own (like the progress), asked in each of the two renders this test makes.
+    'grid' => ['grid', 16],
+    'list' => ['list', 20],
     'shelves' => ['shelves', 16],
 ]);
 

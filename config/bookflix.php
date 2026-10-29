@@ -226,6 +226,8 @@ return [
     |
     | `bookflix:score-popularity` ranks every (source, metric) pair as a percentile
     | and averages a media's ranks with these weights. A metric not listed weighs 1.
+    | The readers' own rating aggregate (the synthetic `bookflix` source) is left
+    | out until Phase 6 gives it a place in the recommender.
     |
     */
 

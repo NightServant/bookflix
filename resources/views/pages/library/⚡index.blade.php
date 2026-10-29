@@ -6,6 +6,7 @@ use App\Enums\ReadingStatus;
 use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\MediaType;
+use App\Models\Rating;
 use App\Models\ReadingProgress;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,8 +27,8 @@ new #[Title('Library')] class extends Component {
     /** The shelves view is one long page of rows, so it takes more stories at a time. */
     private const SHELVES_PER_PAGE = 200;
 
-    /** The sorts on offer. Rating comes with ratings (5.5), which this page waits for. */
-    private const SORTS = ['added', 'title', 'last_read'];
+    /** The sorts on offer. `rating` is the reader's own score, highest first. */
+    private const SORTS = ['added', 'title', 'last_read', 'rating'];
 
     private const LAYOUTS = ['grid', 'list', 'shelves'];
 
@@ -186,6 +187,12 @@ new #[Title('Library')] class extends Component {
                     ->select('user_library.*')
                     ->orderByRaw('reading_progress.last_read_at desc nulls last')
                     ->orderBy($byTitle)->orderBy('user_library.id'),
+                // The reader's own score, highest first; the stories they have not rated last, in title order.
+                'rating' => $query
+                    ->leftJoin('ratings', fn (JoinClause $join) => $join->on('ratings.user_id', '=', 'user_library.user_id')->on('ratings.media_id', '=', 'user_library.media_id'))
+                    ->select('user_library.*')
+                    ->orderByRaw('ratings.score desc nulls last')
+                    ->orderBy($byTitle)->orderBy('user_library.id'),
                 default => $query->latest('user_library.created_at')->latest('user_library.id'),
             };
 
@@ -221,6 +228,24 @@ new #[Title('Library')] class extends Component {
             ->whereIn('media_id', $this->entries->pluck('media_id')->all())
             ->pluck('percent', 'media_id')
             ->map(fn (string $percent): float => (float) $percent);
+    }
+
+    /**
+     * The reader's own score for each story of the page, as `[media id => score]` (one query; the shelves view shows none).
+     *
+     * @return Collection<int, int>
+     */
+    #[Computed]
+    public function scores(): Collection
+    {
+        if ($this->view === 'shelves') {
+            return collect();
+        }
+
+        return Rating::query()
+            ->where('user_id', auth()->id())
+            ->whereIn('media_id', $this->entries->pluck('media_id')->all())
+            ->pluck('score', 'media_id');
     }
 
     /**
@@ -364,6 +389,7 @@ new #[Title('Library')] class extends Component {
                         <option value="added">{{ __('Recently added') }}</option>
                         <option value="title">{{ __('Title A–Z') }}</option>
                         <option value="last_read">{{ __('Last read') }}</option>
+                        <option value="rating">{{ __('Your rating') }}</option>
                     </select>
 
                     <x-view-toggle wire:model.live="view" :shelves="true" />
@@ -411,6 +437,11 @@ new #[Title('Library')] class extends Component {
                                             <span aria-hidden="true">·</span>
                                             <span class="tabular-nums">{{ __(':percent% read', ['percent' => ReadingProgress::label($percent)]) }}</span>
                                         @endif
+                                        @if (($score = $this->scores[$entry->media_id] ?? null) !== null)
+                                            <span aria-hidden="true">·</span>
+                                            <flux:icon name="star" variant="micro" class="size-4" />
+                                            <span class="tabular-nums"><span class="sr-only">{{ __('Your rating:') }} </span>{{ __(':score out of 10', ['score' => $score]) }}</span>
+                                        @endif
                                         @if ($entry->favorited_at)
                                             <flux:icon name="heart" variant="micro" class="size-4" />
                                             <span class="sr-only">{{ __('Favorite') }}</span>
@@ -430,6 +461,10 @@ new #[Title('Library')] class extends Component {
                                 <p class="mt-1 flex items-center gap-1.5 text-legal text-ink-subtle">
                                     <flux:icon :name="$entry->status->icon()" variant="micro" class="size-4 shrink-0" />
                                     <span>{{ $entry->status->label() }}</span>
+                                    @if (($score = $this->scores[$entry->media_id] ?? null) !== null)
+                                        <flux:icon name="star" variant="micro" class="size-4 shrink-0" />
+                                        <span class="tabular-nums"><span class="sr-only">{{ __('Your rating:') }} </span>{{ $score }}/10</span>
+                                    @endif
                                     @if ($entry->favorited_at)
                                         <flux:icon name="heart" variant="micro" class="ms-auto size-4 shrink-0 text-ink" />
                                         <span class="sr-only">{{ __('Favorite') }}</span>

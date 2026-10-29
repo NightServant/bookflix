@@ -8,6 +8,7 @@ use App\Actions\Library\RemoveFromCollection;
 use App\Actions\Library\RemoveFromLibrary;
 use App\Actions\Library\SetLibraryStatus;
 use App\Actions\Library\ToggleFavorite;
+use App\Actions\Ratings\RateMedia;
 use App\Enums\ReadingStatus;
 use App\Models\Collection;
 use App\Models\LibraryEntry;
@@ -24,8 +25,8 @@ use Livewire\Component;
 
 /**
  * A reader's library controls for one story, shown on its page: add it, say where they are with it, favorite it, take it out, log how far
- * they have read, and put it in (or take it out of) their collections. Every action works on the signed-in reader's own entry, progress
- * and collections and nothing else, and re-checks that the story is one they may see. A guest gets nothing.
+ * they have read, put it in (or take it out of) their collections, and rate it. Every action works on the signed-in reader's own entry, progress,
+ * collections and rating and nothing else, and re-checks that the story is one they may see. A guest gets nothing.
  */
 new class extends Component {
     #[Locked]
@@ -33,6 +34,12 @@ new class extends Component {
 
     /** The name typed in the new collection dialog. */
     public string $newCollection = '';
+
+    /**
+     * The reader's own score for this story (1 to 10), or null: the model of <x-rating-input>. It comes from the client, so it is checked
+     * again on every save and only ever written to the signed-in reader's own rating.
+     */
+    public mixed $rating = null;
 
     /** The progress form: a percent from 0 to 100, and optionally the chapter, the page and the minutes spent. Numbers stay strings until they are checked. */
     public string $percent = '';
@@ -46,6 +53,7 @@ new class extends Component {
     public function mount(Media $media): void
     {
         $this->mediaId = $media->id;
+        $this->rating = auth()->user()?->ratings()->where('media_id', $media->id)->value('score');
     }
 
     /**
@@ -164,6 +172,30 @@ new class extends Component {
         $this->dispatch('close-progress');
 
         Flux::toast(variant: 'success', text: __('Progress saved: :percent% of :title.', ['percent' => ReadingProgress::label($progress->percent), 'title' => $media->title]));
+    }
+
+    /**
+     * Save the score in `rating` as the reader's rating of this story. Rating does not add the story to the library.
+     */
+    public function saveRating(): void
+    {
+        $user = $this->reader();
+        $media = $this->story($user);
+
+        $this->validate(['rating' => ['required', 'integer:strict', 'between:1,10']], attributes: ['rating' => __('rating')]);
+
+        app(RateMedia::class)->handle($user, $media, $this->rating);
+    }
+
+    /**
+     * Take the reader's rating of this story back.
+     */
+    public function clearRating(): void
+    {
+        $user = $this->reader();
+
+        app(RateMedia::class)->forget($user, $this->story($user));
+        $this->rating = null;
     }
 
     /**
@@ -317,6 +349,18 @@ new class extends Component {
                 </flux:modal.trigger>
             </flux:menu>
         </flux:dropdown>
+
+        {{-- On a row of its own below the buttons. The model is written as the reader chooses; `rated` says when to save (see <x-rating-input>). --}}
+        <x-rating-input
+            wire:model="rating"
+            x-on:rated="$event.detail.value === null ? $wire.clearRating() : $wire.saveRating()"
+            data-test="rating"
+            class="order-last basis-full"
+        />
+
+        @error('rating')
+            <div role="alert" class="order-last basis-full"><flux:error name="rating" /></div>
+        @enderror
 
         <flux:modal :name="$progressName" class="w-full max-w-md text-ink shadow-overlay!" x-on:close-progress.window="$flux.modal(@js($progressName)).close()">
             <form wire:submit="logProgress" class="space-y-6">

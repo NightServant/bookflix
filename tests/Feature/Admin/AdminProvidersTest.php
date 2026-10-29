@@ -94,6 +94,19 @@ test('the synthetic isbn source is hidden and cannot be enabled', function () {
     expect($isbn->fresh()->enabled)->toBeFalse();
 });
 
+test('the synthetic bookflix readers source is hidden and cannot be enabled either', function () {
+    $readers = ExternalSource::factory()->create(['key' => 'bookflix', 'name' => 'Bookflix readers', 'enabled' => false]);
+    ExternalSource::factory()->create(['key' => 'openlibrary', 'name' => 'Open Library']);
+    $this->actingAs(User::factory()->admin()->create());
+
+    $page = Livewire::test('pages::admin.providers.index')->assertDontSee('Bookflix readers');
+    expect($page->instance()->sources->pluck('key')->all())->toBe(['openlibrary']);
+
+    $page->call('toggleEnabled', $readers->id)->assertNotFound();
+
+    expect($readers->fresh()->enabled)->toBeFalse();
+});
+
 test('a run lists the failed ids and why', function () {
     IngestionRun::factory()->create([
         'status' => IngestionStatus::Partial,

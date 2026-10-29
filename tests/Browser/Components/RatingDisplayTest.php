@@ -3,8 +3,8 @@
 beforeEach(function () {
     $this->path = componentPage(<<<'BLADE'
         <div class="grid gap-3">
-            <x-rating-display :average="9" :count="1234" data-test="rated" />
-            <x-rating-display average="7.00" :count="1" data-test="odd" />
+            <x-rating-display :average="4.5" :count="1234" data-test="rated" />
+            <x-rating-display average="3.50" :count="1" data-test="odd" />
             <x-rating-display :average="null" :count="0" data-test="none" />
         </div>
         BLADE);

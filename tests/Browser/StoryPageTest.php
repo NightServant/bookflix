@@ -5,6 +5,7 @@ use App\Enums\ReadingStatus;
 use App\Models\Collection;
 use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\Rating;
 use App\Models\User;
 
 beforeEach(function () {
@@ -55,6 +56,36 @@ test('the library controls add the story, change its status, favorite it and tak
         ->assertSee('Add to Library');
 
     expect(LibraryEntry::count())->toBe(0);
+});
+
+test('a reader rates the story from the controls, finds the score again after a reload, and clears it', function () {
+    $checked = 'Array.from(document.querySelectorAll("[data-test=rating] [role=radio]")).filter((r) => r.getAttribute("aria-checked") === "true").map((r) => r.dataset.value).join("|")';
+    providerMetrics($this->story, 'openlibrary', ['average_rating' => 4.5, 'ratings_count' => 120]);
+    $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
+
+    $page->assertSee('Rated 4.5 out of 5 from 120 ratings')
+        ->assertSee('Not rated yet')
+        ->click('[data-test=rating] [aria-label="7 out of 10"]')->wait(1)
+        ->assertScript($checked, '7');
+
+    expect(Rating::sole()->score)->toBe(7)->and(LibraryEntry::count())->toBe(0);
+
+    $page->navigate(route('stories.show', $this->story->slug))->wait(1)
+        ->assertScript($checked, '7')
+        ->assertSee('Rated 4.5 out of 5 from 121 ratings')
+        ->click('[data-test=rating] [aria-label="Clear your rating"]')->wait(1)
+        ->assertScript($checked, '');
+
+    expect(Rating::count())->toBe(0)->and($this->story->fresh()->ratings_count)->toBe(120)
+        ->and((float) $this->story->fresh()->average_rating)->toBe(4.5);
+});
+
+test('the rating input is on its own row under the buttons, and passes the audit on a phone', function () {
+    $page = visit(route('stories.show', $this->story->slug), $this->phone)->wait(1);
+
+    $page->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues()
+        ->assertScript('(() => { const rating = document.querySelector("[data-test=rating]").getBoundingClientRect(); const status = document.querySelector("[data-test=collection-menu]").getBoundingClientRect(); return rating.top >= status.bottom - 1 && rating.right <= window.innerWidth && document.documentElement.scrollWidth <= window.innerWidth; })()', true);
 });
 
 test('the library controls pass the audit on a phone too, and their menu items are 44px targets', function () {
