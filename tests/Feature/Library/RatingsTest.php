@@ -159,6 +159,16 @@ test('only active readers count, and a story with only deactivated raters has no
     expect(bookflixMetric($media, 'ratings_count'))->toBeNull()->and($media->fresh()->average_rating)->toBeNull();
 });
 
+test('a story whose readers never rated it keeps the rating columns it has, even with no metrics behind them', function () {
+    $media = Media::factory()->create(['average_rating' => '4.20', 'ratings_count' => 30]);
+
+    (new RecalculateMediaRating($media->id))->handle();
+
+    expect(bookflixMetric($media, 'ratings_count'))->toBeNull()
+        ->and((float) $media->fresh()->average_rating)->toBe(4.2)
+        ->and($media->fresh()->ratings_count)->toBe(30);
+});
+
 test('a column an admin locked is not overwritten by the job', function () {
     $media = Media::factory()->create(['average_rating' => '2.00', 'ratings_count' => 40, 'locked_fields' => ['average_rating', 'ratings_count']]);
     Rating::factory()->create(['media_id' => $media->id, 'score' => 10]);
