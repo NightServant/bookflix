@@ -1,7 +1,9 @@
 <?php
 
 use App\Discovery\LandingShowcase;
+use App\Models\Genre;
 use App\Models\Media;
+use Database\Seeders\TaxonomySeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -26,6 +28,17 @@ test('merged, deleted and adult stories stay out of the pool', function () {
     $stories[2]->update(['age_rating' => 'adult']);
 
     expect(collect(app(LandingShowcase::class)->pool())->pluck('title')->all())->toBe(['Popular Tale 4']);
+});
+
+test('the pool shows what a guest may see: a story tagged with a mature genre stays out like an adult-rated one, a dark romance (not in the mature family) stays in', function () {
+    $this->seed(TaxonomySeeder::class);
+    $stories = popularStories(4, cover: 'https://s4.anilist.co/file/cover-{n}.png');
+    $stories[0]->genres()->attach(Genre::where('slug', 'erotica')->value('id'));
+    $stories[1]->update(['age_rating' => 'adult']);
+    $stories[2]->genres()->attach(Genre::where('slug', 'dark-romance')->value('id'));
+
+    expect(collect(app(LandingShowcase::class)->pool())->pluck('title')->all())->toBe(['Popular Tale 3', 'Popular Tale 4'])
+        ->and(collect(app(LandingShowcase::class)->topTen())->pluck('title')->all())->toBe(['Popular Tale 3', 'Popular Tale 4']);
 });
 
 test('a pool entry carries what a book needs and a relative proxy path for the scene', function () {
