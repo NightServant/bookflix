@@ -154,7 +154,9 @@ class HardcoverProvider implements MetadataProvider
 
     /**
      * `cached_tags` maps a category to its tags: {"Genre": [{"tag": "Fantasy", "count": 12}], "Mood": [...], "Content Warning": [...], "Tag": [...]}.
-     * Each category keeps its ten most applied tags.
+     * Each category keeps its ten most applied tags. Genres and tags are reader votes pooled across every edition, adaptations included, so one
+     * that under a quarter of the top one's voters gave is noise ("Comics" once on The Great Gatsby, for its graphic adaptation) and is dropped.
+     * Moods and content warnings are kept whatever their count: a single warning still matters.
      *
      * @return array{Genre: list<string>, Mood: list<string>, 'Content Warning': list<string>, Tag: list<string>}
      */
@@ -162,15 +164,17 @@ class HardcoverProvider implements MetadataProvider
     {
         $cached = is_array($cached) ? $cached : [];
         $out = ['Genre' => [], 'Mood' => [], 'Content Warning' => [], 'Tag' => []];
+        $votes = fn (array $entry): float => is_numeric($entry['count'] ?? null) ? (float) $entry['count'] : 0.0;
 
         foreach (array_keys($out) as $category) {
             $entries = array_filter(is_array($cached[$category] ?? null) ? $cached[$category] : [], 'is_array');
-            usort($entries, fn (array $a, array $b) => (is_numeric($b['count'] ?? null) ? $b['count'] : 0) <=> (is_numeric($a['count'] ?? null) ? $a['count'] : 0));
+            usort($entries, fn (array $a, array $b) => $votes($b) <=> $votes($a));
+            $floor = in_array($category, ['Genre', 'Tag'], true) && $entries !== [] ? $votes($entries[0]) / 4 : 0.0;
 
             foreach (array_slice($entries, 0, 10) as $entry) {
                 $name = $this->text($entry['tag'] ?? null);
 
-                if ($name !== '') {
+                if ($name !== '' && $votes($entry) >= $floor) {
                     $out[$category][] = $name;
                 }
             }
