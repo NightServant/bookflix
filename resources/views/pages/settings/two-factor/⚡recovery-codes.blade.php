@@ -46,7 +46,7 @@ new class extends Component {
 }; ?>
 
 <div
-    class="py-6 space-y-6 border shadow-sm rounded-xl border-zinc-200 dark:border-white/10"
+    class="space-y-6 rounded-card border border-hairline py-6"
     wire:cloak
     x-data="{ showRecoveryCodes: false }"
 >
@@ -62,39 +62,37 @@ new class extends Component {
 
     <div class="px-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <flux:button
+            <x-cta
                 x-show="!showRecoveryCodes"
                 icon="eye"
                 icon:variant="outline"
-                variant="primary"
                 @click="showRecoveryCodes = true;"
                 aria-expanded="false"
                 aria-controls="recovery-codes-section"
             >
                 {{ __('View recovery codes') }}
-            </flux:button>
+            </x-cta>
 
-            <flux:button
+            <x-cta
                 x-show="showRecoveryCodes"
                 icon="eye-slash"
                 icon:variant="outline"
-                variant="primary"
                 @click="showRecoveryCodes = false"
                 aria-expanded="true"
                 aria-controls="recovery-codes-section"
             >
                 {{ __('Hide recovery codes') }}
-            </flux:button>
+            </x-cta>
 
             @if (filled($recoveryCodes))
-                <flux:button
+                <x-cta
                     x-show="showRecoveryCodes"
                     icon="arrow-path"
-                    variant="filled"
+                    variant="secondary"
                     wire:click="regenerateRecoveryCodes"
                 >
                     {{ __('Regenerate codes') }}
-                </flux:button>
+                </x-cta>
             @endif
         </div>
 
@@ -112,7 +110,7 @@ new class extends Component {
 
                 @if (filled($recoveryCodes))
                     <div
-                        class="grid gap-1 p-4 font-mono text-sm rounded-lg bg-zinc-100 dark:bg-white/5"
+                        class="grid gap-1 p-4 font-mono text-sm rounded-control bg-surface-input"
                         role="list"
                         aria-label="{{ __('Recovery codes') }}"
                     >

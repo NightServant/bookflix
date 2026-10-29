@@ -1,5 +1,18 @@
-<x-layouts::app.sidebar :title="$title ?? null">
-    <flux:main>
-        {{ $slot }}
-    </flux:main>
-</x-layouts::app.sidebar>
+{{--
+    The signed-in app shell. `<main>` is full width, so a page can run bands edge to edge; the page's own content sits in the shared
+    container (the header's own gutters, so left edges line up with the logo). A page that builds its own bands sets `flush`
+    (`$this->view()->layoutData(['flush' => true])`) and brings the container itself: `px-gutter` inside every band.
+    A page whose first band is an image (`band`, in the same layoutData) has the header float over it, translucent: that band adds the
+    header's 3.5rem to its own top padding. Every other page keeps an opaque header.
+--}}
+<x-layouts::app.header :title="$title ?? null" :band="$band ?? false">
+    <main id="main" tabindex="-1" class="pb-24 outline-none lg:pb-12">
+        @if ($flush ?? false)
+            {{ $slot }}
+        @else
+            <div class="px-gutter pt-6 lg:pt-10">
+                {{ $slot }}
+            </div>
+        @endif
+    </main>
+</x-layouts::app.header>

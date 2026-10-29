@@ -1,0 +1,307 @@
+{
+  "data": {
+    "Page": {
+      "pageInfo": {
+        "hasNextPage": true
+      },
+      "media": [
+        {
+          "id": 30001,
+          "idMal": 1,
+          "title": {
+            "romaji": "MONSTER",
+            "english": "Monster",
+            "native": "MONSTER"
+          },
+          "synonyms": [
+            "몬스터"
+          ],
+          "description": "Everyone faces uncertainty at some point in their lives. Even a brilliant surgeon like Kenzo Tenma is no exception. But there’s no way he could have known that his decision to stop chasing professional success and instead concentrate on his oath to save peoples’ lives would result in the birth of",
+          "format": "MANGA",
+          "status": "FINISHED",
+          "countryOfOrigin": "JP",
+          "isAdult": false,
+          "startDate": {
+            "year": 1994,
+            "month": 12,
+            "day": 5
+          },
+          "chapters": 162,
+          "genres": [
+            "Drama",
+            "Mystery",
+            "Psychological",
+            "Thriller"
+          ],
+          "tags": [
+            {
+              "name": "Seinen",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Conspiracy",
+              "isMediaSpoiler": true
+            },
+            {
+              "name": "Philosophy",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Crime",
+              "isMediaSpoiler": false
+            }
+          ],
+          "coverImage": {
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx30001-Knby7l1jevE7.jpg",
+            "large": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx30001-Knby7l1jevE7.jpg"
+          },
+          "siteUrl": "https://anilist.co/manga/30001",
+          "updatedAt": 1792719128,
+          "staff": {
+            "edges": [
+              {
+                "role": "Story & Art",
+                "node": {
+                  "name": {
+                    "full": "Naoki Urasawa"
+                  }
+                }
+              },
+              {
+                "role": "Supervisor",
+                "node": {
+                  "name": {
+                    "full": "Takashi Nagasaki"
+                  }
+                }
+              }
+            ]
+          },
+          "characters": {
+            "edges": [
+              {
+                "node": {
+                  "name": {
+                    "full": "Kenzou Tenma"
+                  }
+                }
+              },
+              {
+                "node": {
+                  "name": {
+                    "full": "Johan Liebert"
+                  }
+                }
+              },
+              {
+                "node": {
+                  "name": {
+                    "full": "Anna Liebert"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 30002,
+          "idMal": 2,
+          "title": {
+            "romaji": "Berserk",
+            "english": "Berserk",
+            "native": "ベルセルク"
+          },
+          "synonyms": [
+            "بيرسيرك",
+            "Beruseruku"
+          ],
+          "description": "His name is Guts, the Black Swordsman, a feared warrior spoken of only in whispers. Bearer of a gigantic sword, an iron hand, and the scars of countless battles and tortures, his flesh is also indelibly marked with The Brand, an unholy symbol that draws the forces of darkness to him and dooms him",
+          "format": "MANGA",
+          "status": "RELEASING",
+          "countryOfOrigin": "JP",
+          "isAdult": false,
+          "startDate": {
+            "year": 1989,
+            "month": 8,
+            "day": 25
+          },
+          "chapters": null,
+          "genres": [
+            "Action",
+            "Adventure",
+            "Drama",
+            "Fantasy"
+          ],
+          "tags": [
+            {
+              "name": "Tragedy",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Seinen",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Revenge",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Male Protagonist",
+              "isMediaSpoiler": false
+            }
+          ],
+          "coverImage": {
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx30002-Cul4OeN7bYtn.jpg",
+            "large": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx30002-Cul4OeN7bYtn.jpg"
+          },
+          "siteUrl": "https://anilist.co/manga/30002",
+          "updatedAt": 1792720810,
+          "staff": {
+            "edges": [
+              {
+                "role": "Story & Art (vols 1-41)",
+                "node": {
+                  "name": {
+                    "full": "Kentarou Miura"
+                  }
+                }
+              },
+              {
+                "role": "Story & Art (vols 41- )",
+                "node": {
+                  "name": {
+                    "full": "Studio Gaga"
+                  }
+                }
+              }
+            ]
+          },
+          "characters": {
+            "edges": [
+              {
+                "node": {
+                  "name": {
+                    "full": "Guts"
+                  }
+                }
+              },
+              {
+                "node": {
+                  "name": {
+                    "full": "Casca"
+                  }
+                }
+              },
+              {
+                "node": {
+                  "name": {
+                    "full": "Griffith"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 30003,
+          "idMal": 3,
+          "title": {
+            "romaji": "20 Seiki Shounen",
+            "english": "20th Century Boys",
+            "native": "20世紀少年"
+          },
+          "synonyms": [
+            "Nijuu Seiki Shounen",
+            "Nijuusseiki Shounen"
+          ],
+          "description": "Humanity, having faced extinction at the end of the 20th century, would not have entered the new millennium if it weren't for them. In 1969, during their youth, they created a symbol. In 1997, as the coming disaster slowly starts to unfold, that symbol returns. This is the story of a group of boys",
+          "format": "MANGA",
+          "status": "FINISHED",
+          "countryOfOrigin": "JP",
+          "isAdult": false,
+          "startDate": {
+            "year": 1999,
+            "month": 9,
+            "day": 27
+          },
+          "chapters": 249,
+          "genres": [
+            "Drama",
+            "Mystery",
+            "Psychological",
+            "Sci-Fi"
+          ],
+          "tags": [
+            {
+              "name": "Ensemble Cast",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Coming of Age",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Seinen",
+              "isMediaSpoiler": false
+            },
+            {
+              "name": "Politics",
+              "isMediaSpoiler": true
+            }
+          ],
+          "coverImage": {
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx30003-E84fwIh22LAQ.jpg",
+            "large": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx30003-E84fwIh22LAQ.jpg"
+          },
+          "siteUrl": "https://anilist.co/manga/30003",
+          "updatedAt": 1792720925,
+          "staff": {
+            "edges": [
+              {
+                "role": "Story & Art",
+                "node": {
+                  "name": {
+                    "full": "Naoki Urasawa"
+                  }
+                }
+              },
+              {
+                "role": "Translator (Spanish)",
+                "node": {
+                  "name": {
+                    "full": "Marc Bernabé"
+                  }
+                }
+              }
+            ]
+          },
+          "characters": {
+            "edges": [
+              {
+                "node": {
+                  "name": {
+                    "full": "Kenji Endou"
+                  }
+                }
+              },
+              {
+                "node": {
+                  "name": {
+                    "full": "Chouji Ochiai"
+                  }
+                }
+              },
+              {
+                "node": {
+                  "name": {
+                    "full": "Kanna Endou"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -13,6 +13,28 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: bookflix_test
+
+    # No Redis service: tests run on the sync queue and array cache. Add one only if a test touches the real connection.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bookflix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,7 +44,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           tools: composer:v2
           coverage: none
 
@@ -36,3 +58,138 @@ jobs:
 
       - name: Run CI Checks
         run: composer ci:check
+
+  # Whether a pull request touches the dependency files (package*.json, composer.lock). A bump of @alpinejs/ui or of Livewire's bundled Alpine can break
+  # the private internals that only the browser suite exercises, so `browser` must block those pull requests.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dependencies: ${{ steps.diff.outputs.dependencies }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Look for dependency changes
+        id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ] && git diff --name-only "origin/${BASE_REF}...HEAD" | grep -Eq '(^|/)(package(-lock)?\.json|composer\.lock)$'; then
+            echo "dependencies=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dependencies=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Pest browser tests (Playwright, headless Chromium) against the built assets; `composer test` does not run tests/Browser (phpunit.xml lists only
+  # Unit and Feature). This job reports honestly: it goes red whenever a browser test fails. Do NOT mark `browser` as a required status check (it would
+  # block every pull request on a flaky browser run); mark `browser-gate` instead (Settings > Branches > main > Require status checks > add `browser-gate`),
+  # which fails only when the pull request touches package*.json or composer.lock and `browser` did not succeed.
+  browser:
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: bookflix_test
+
+    # No Redis service, as in `ci`: the tests run on the sync queue, array cache and array sessions (phpunit.xml).
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bookflix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium --only-shell
+
+      - name: Run browser tests
+        run: vendor/bin/pest tests/Browser
+
+  # The required check: always runs (even when `browser` fails or is skipped) and blocks only dependency pull requests.
+  browser-gate:
+    needs: [changes, browser]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require the browser suite when dependencies changed
+        env:
+          DEPENDENCIES: ${{ needs.changes.outputs.dependencies }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: test "$DEPENDENCIES" != "true" || test "$BROWSER_RESULT" = "success"
+
+  ml:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ml
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Mypy
+        run: uv run mypy .
+
+      - name: Pytest
+        run: uv run pytest

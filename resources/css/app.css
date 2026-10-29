@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
+@import 'nouislider/dist/nouislider.css' layer(components);
+@import './landing.css';
 
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -9,30 +11,103 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif;
 
+    --color-canvas: #000000;
+    --color-surface-deep: #161616;
+    --color-surface-card: #232323;
+    --color-surface-input: #2d2d2d;
+    --color-ink: #ffffff;
+    --color-ink-muted: #808080;
+    --color-ink-subtle: #b3b3b3;
+    --color-hairline: #414141;
+    --color-border-input: #6d6d6e;
+    --color-brand: #e50914;
+    --color-brand-hover: #c11119;
+    --color-link: #448ef4;
+    --color-accent-electric: #4061e7;
+    --color-success: #46d369;
+    --color-featured-from: #192247;
+    --color-featured-via: #461518;
+    --color-featured-to: #6f181d;
+    --color-paper: #e9e4d8; /* the edges of pages (<x-book-3d>) only: never text, never a surface */
+
+    /* Flux reads zinc + accent; map them onto Bookflix surfaces */
     --color-zinc-50: #fafafa;
-    --color-zinc-100: #f5f5f5;
-    --color-zinc-200: #e5e5e5;
-    --color-zinc-300: #d4d4d4;
-    --color-zinc-400: #a3a3a3;
-    --color-zinc-500: #737373;
-    --color-zinc-600: #525252;
-    --color-zinc-700: #404040;
-    --color-zinc-800: #262626;
-    --color-zinc-900: #171717;
-    --color-zinc-950: #0a0a0a;
+    --color-zinc-100: #e5e5e5;
+    --color-zinc-200: #dcdcdc;
+    --color-zinc-300: #d2d2d2;
+    --color-zinc-400: #b3b3b3;
+    --color-zinc-500: #808080;
+    --color-zinc-600: #414141;
+    --color-zinc-700: #2d2d2d;
+    --color-zinc-800: #232323;
+    --color-zinc-900: #161616;
+    --color-zinc-950: #000000;
+    --color-accent: var(--color-brand);
+    --color-accent-content: var(--color-ink); /* red is never small text */
+    --color-accent-foreground: var(--color-ink);
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
-    --color-accent-foreground: var(--color-white);
+    --text-title: 2.5rem;
+    --text-title--font-weight: 800;
+    --text-title--line-height: 1.1;
+    --text-hero: 3.5rem;
+    --text-hero--font-weight: 900;
+    --text-hero--line-height: 1.1;
+    --text-section: 1.5rem;
+    --text-section--font-weight: 500;
+    --text-cta: 1.5rem;
+    --text-cta--font-weight: 500;
+    --text-lead: 1.25rem;
+    --text-lead--font-weight: 500;
+    --text-body: 1rem;
+    --text-meta: 0.875rem;
+    --text-legal: 0.8125rem;
+
+    --radius-control: 4px;
+    --radius-card: 8px;
+    --radius-brand: 16px;
+    --spacing-gutter: 1rem;
+    --breakpoint-desktop: 90rem;
+
+    /* The elevation scale is three tokens; nothing else casts a shadow. */
+    --shadow-*: initial;
+    --inset-shadow-*: initial;
+    --drop-shadow-*: initial;
+    --shadow-raised: 0 18px 28px -14px rgb(0 0 0 / 0.75), 0 6px 10px -6px rgb(0 0 0 / 0.6); /* a book on a surface */
+    --shadow-overlay: 0 24px 48px -12px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.06); /* popovers, the palette, sheets */
+    --shadow-glow-brand: 0 8px 32px -6px rgb(229 9 20 / 0.45); /* under the primary CTA, on hover only */
+
+    --motion-fast: 150ms;
+    --motion-base: 250ms;
+    --motion-slow: 400ms;
+    --ease-out-bookflix: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* flux.css resets the accent to white under `.dark`, and Bookflix is dark-only: keep the brand mapping above in force so `variant="primary"` is the red CTA. */
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-accent: var(--color-brand);
+        --color-accent-content: var(--color-ink);
+        --color-accent-foreground: var(--color-ink);
+    }
+}
+
+@media (width >= 48rem) {
+    :root {
+        --spacing-gutter: 2rem;
+    }
+}
+
+@media (width >= 64rem) {
+    :root {
+        --spacing-gutter: 4rem;
+    }
+}
+
+@media (width >= 90rem) {
+    :root {
+        --spacing-gutter: 148px;
     }
 }
 
@@ -43,7 +118,200 @@
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
+        border-color: var(--color-hairline);
+    }
+}
+
+/*
+ * Edge fade for a scrolling track (with x-edge-fade, resources/js/components.js): inside the track's own box the tiles dissolve to
+ * nothing at an edge that has more to scroll to (the left only once scrolled, the right until the end). A mask, so it works over any
+ * background and never blocks a click. `--fade-width` is the size of a fade; the two edge lengths are registered properties so they
+ * resolve to pixels and can ease in (not under reduced motion).
+ * The mask has three layers: the fade over the box, and an opaque layer everywhere outside the box (a solid layer, repeated without
+ * clipping, minus a solid one the size of the box), so a hover preview that opens below or beside a tile is never masked or cut off.
+ */
+@property --fade-start {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
+
+@property --fade-end {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
+
+@utility edge-fade {
+    --fade-width: 3rem;
+    mask-image:
+        linear-gradient(to right, transparent, black var(--fade-start), black calc(100% - var(--fade-end)), transparent),
+        linear-gradient(black, black),
+        linear-gradient(black, black);
+    mask-clip: border-box, no-clip, border-box;
+    mask-repeat: no-repeat, repeat, no-repeat;
+    mask-composite: add, subtract;
+    transition: --fade-start var(--motion-fast) var(--ease-out-bookflix), --fade-end var(--motion-fast) var(--ease-out-bookflix);
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+
+    &[data-fade-start] {
+        --fade-start: var(--fade-width);
+    }
+
+    &[data-fade-end] {
+        --fade-end: var(--fade-width);
+    }
+}
+
+/* The keyboard focus ring every interactive element wears. */
+@utility focus-ring {
+    @apply outline-hidden focus-visible:ring-2 focus-visible:ring-accent-electric focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+}
+
+/*
+ * <x-hero> view transition (flag and names are set in resources/js/components.js): the chosen cover morphs into the
+ * backdrop while the scrim and content, named so they paint above it, stay on top. Never started under reduced motion.
+ */
+html[data-hero-transition] [data-hero-scrim] {
+    view-transition-name: hero-scrim;
+}
+
+html[data-hero-transition] [data-hero-content] {
+    view-transition-name: hero-content;
+}
+
+html[data-hero-transition]::view-transition-group(hero-cover) {
+    animation-duration: var(--motion-slow);
+    animation-timing-function: var(--ease-out-bookflix);
+    border-radius: var(--radius-card);
+    overflow: clip;
+}
+
+html[data-hero-transition]::view-transition-old(hero-cover),
+html[data-hero-transition]::view-transition-new(hero-cover) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/*
+ * <x-range-filter>: nouislider's stock theme (imported above, in the components layer, so these unlayered rules win) restyled
+ * with the kit's tokens: a 4px track, and handles that are 44px targets holding a 20px round thumb. No shadows.
+ */
+.noUi-target {
+    @apply rounded-control border-0 bg-surface-input;
+    box-shadow: none;
+}
+
+.noUi-horizontal {
+    height: 0.25rem;
+}
+
+.noUi-connects {
+    border-radius: inherit;
+}
+
+.noUi-connect {
+    @apply bg-ink;
+}
+
+.noUi-horizontal .noUi-handle {
+    @apply cursor-grab border-0 bg-transparent;
+    width: 2.75rem;
+    height: 2.75rem;
+    top: -1.25rem;
+    right: -1.375rem;
+    box-shadow: none;
+}
+
+.noUi-handle:active {
+    @apply cursor-grabbing;
+}
+
+.noUi-handle::before {
+    @apply rounded-full bg-ink;
+    inset: auto;
+    left: 50%;
+    top: 50%;
+    width: 1.25rem;
+    height: 1.25rem;
+    transform: translate(-50%, -50%);
+}
+
+.noUi-handle::after {
+    display: none;
+}
+
+.noUi-handle:focus-visible {
+    outline: none;
+}
+
+.noUi-handle:focus-visible::before {
+    @apply ring-2 ring-accent-electric ring-offset-2 ring-offset-canvas;
+}
+
+/*
+ * <x-filter-panel> (resources/views/components/filter-panel.blade.php): its rows and its checkbox. The box is a native checkbox drawn by us (so the
+ * label, Space, the focus ring and the mixed state of a family stay the browser's own): a 20px square that fills with ink when checked, shows a
+ * dash when mixed, and when it is only included by a chosen family (`data-implied`) keeps the outline and a quiet tick.
+ */
+@utility filter-row {
+    @apply flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control px-2 text-body text-ink hover:bg-surface-input;
+}
+
+.filter-check {
+    @apply focus-ring relative size-5 shrink-0 cursor-pointer appearance-none rounded-control border border-border-input bg-surface-input;
+}
+
+.filter-check::after {
+    content: '';
+    display: none;
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-canvas);
+    mask: var(--filter-mark) center / 0.875rem no-repeat;
+}
+
+.filter-check:checked::after,
+.filter-check:indeterminate::after {
+    display: block;
+}
+
+.filter-check:checked,
+.filter-check:indeterminate {
+    @apply border-ink bg-ink;
+}
+
+.filter-check:checked {
+    --filter-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 4.8' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.filter-check:indeterminate {
+    --filter-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8h9' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.filter-check[data-implied] {
+    @apply cursor-default border-ink-muted bg-transparent;
+}
+
+.filter-check[data-implied]::after {
+    background-color: var(--color-ink-subtle);
+}
+
+/* Flux modals and flyouts (<x-filter-sheet>): a scrim in the canvas colour instead of Flux's 10% black, and no transition under reduced motion. */
+[data-flux-modal] > dialog::backdrop {
+    background-color: color-mix(in srgb, var(--color-canvas) 80%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-flux-modal] > dialog,
+    [data-flux-modal] > dialog[open],
+    [data-flux-modal] > dialog::backdrop,
+    [data-flux-modal] > dialog[open]::backdrop {
+        transition: none;
     }
 }
 
@@ -55,12 +323,293 @@
     @apply  !mb-0 !leading-tight;
 }
 
+/* Form controls meet the same 44px floor as <x-cta>; Flux's own are 40px. Checkboxes, radios, ranges and textareas keep their own size. */
+input[data-flux-control]:not([type='checkbox'], [type='radio'], [type='range']),
+select[data-flux-control] {
+    min-height: 2.75rem;
+}
+
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
-    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+    @apply outline-hidden ring-2 ring-accent-electric ring-offset-2 ring-offset-canvas;
 }
 
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/*
+ * <x-book-3d> (resources/views/components/book-3d.blade.php): a book built from faces in 3D space. The body is `W x H` with its
+ * centre at the origin: the front and back covers sit `T / 2` in front of and behind it, the spine at `-W / 2`, and the page block is
+ * recessed by `--inset` inside a case edge that is open in the middle, so the covers overhang the pages like a hardcover.
+ * Lighting is painted: each face has its own fixed shade (light from the top left), and the sheen follows the pointer.
+ * `--px` and `--py` (-1..1, set by resources/js/book-3d.js while the pointer leans the book) turn the body up to 10deg.
+ */
+.book3d {
+    --w: 8rem;
+    --h: calc(var(--w) * 1.5);
+    --t: calc(var(--w) * 0.2);
+    --c: calc(var(--t) * 0.1);
+    --inset: calc(var(--w) * 0.024);
+    --hinge: calc(var(--w) * 0.04);
+    --k: var(--color-canvas);
+    --hi: var(--color-ink);
+    --case: color-mix(in srgb, var(--color-surface-card) 60%, var(--k));
+    --px: 0;
+    --py: 0;
+
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    width: var(--w);
+    height: var(--h);
+    vertical-align: top;
+    perspective: calc(var(--w) * 5);
+    perspective-origin: 50% 10%;
+
+    &[data-size='sm'] { --w: 5rem; }
+    &[data-size='lg'] { --w: 12rem; }
+    &[data-size='xl'] { --w: 17rem; }
+}
+
+.book3d__body {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform: rotateX(calc(var(--pitch, -7deg) + var(--py) * -10deg)) rotateY(calc(var(--tilt, -18deg) + var(--px) * 10deg));
+    transition: transform 400ms var(--ease-out-bookflix);
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+}
+
+.book3d__face {
+    position: absolute;
+    display: block;
+    backface-visibility: hidden;
+}
+
+/* The contact shadow: a soft pool on the floor under the book that leans away from the light with the book. */
+.book3d__shadow {
+    position: absolute;
+    left: 12%;
+    top: calc(var(--h) - var(--t) * 0.35);
+    width: 78%;
+    height: var(--t);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--k) 70%, transparent);
+    box-shadow: var(--shadow-raised);
+    filter: blur(calc(var(--w) * 0.05));
+    opacity: 0.8;
+    transform: translateX(calc(var(--px) * var(--w) * 0.05)) rotate(calc(var(--tilt, -18deg) * -0.05));
+    transition: transform 400ms var(--ease-out-bookflix);
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+}
+
+.book3d__front {
+    inset: 0;
+    transform: translateZ(calc(var(--t) / 2));
+    overflow: hidden;
+    border-radius: calc(var(--w) * 0.01) calc(var(--w) * 0.03) calc(var(--w) * 0.03) calc(var(--w) * 0.01);
+    background: var(--color-surface-card);
+
+    img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        user-select: none;
+    }
+}
+
+.book3d__fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+}
+
+.book3d[data-broken] {
+    .book3d__fallback { display: block; }
+    .book3d__front img { display: none; }
+    .book3d__spine::before,
+    .book3d__back::before { display: none; }
+}
+
+/* Light on the cover: the hinge groove, a soft diagonal gloss, a light that follows the pointer, and a hairline where the board ends. */
+.book3d__sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+        linear-gradient(90deg,
+            color-mix(in srgb, var(--k) 40%, transparent) 0,
+            color-mix(in srgb, var(--hi) 14%, transparent) 2.2%,
+            color-mix(in srgb, var(--k) 30%, transparent) 4.4%,
+            transparent 8%),
+        radial-gradient(circle at calc(55% + var(--px) * 40%) calc(30% + var(--py) * 40%), color-mix(in srgb, var(--hi) 14%, transparent), transparent 60%),
+        linear-gradient(115deg, color-mix(in srgb, var(--hi) 10%, transparent), transparent 38%, color-mix(in srgb, var(--k) 22%, transparent));
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--hi) 7%, transparent),
+        inset calc(var(--w) * -0.012) 0 calc(var(--w) * 0.02) color-mix(in srgb, var(--k) 30%, transparent);
+}
+
+.book3d__back {
+    inset: 0;
+    transform: rotateY(180deg) translateZ(calc(var(--t) / 2));
+    overflow: hidden;
+    border-radius: calc(var(--w) * 0.03) calc(var(--w) * 0.01) calc(var(--w) * 0.01) calc(var(--w) * 0.03);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-surface-card) 80%, var(--k)), var(--case));
+
+    /* The jacket carries on round the back: the cover again, blurred and darkened until its title cannot be read. */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: calc(var(--w) * -0.12);
+        background: var(--cover, none) center / cover;
+        filter: blur(calc(var(--w) * 0.09)) brightness(0.42) saturate(0.8);
+    }
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(270deg, color-mix(in srgb, var(--k) 45%, transparent) 0, transparent 9%);
+    }
+}
+
+/*
+ * The spine is the jacket wrapping round the hinge: the cover's own left edge, stretched and blurred into a soft band of the cover's
+ * colours (so no letter is ever mirrored on it, and it still meets the front without a seam), then rounded with light and shadow and
+ * a crease where it meets each board.
+ */
+.book3d__spine {
+    left: calc((var(--w) - var(--t)) / 2);
+    top: 0;
+    width: var(--t);
+    height: var(--h);
+    transform: rotateY(-90deg) translateZ(calc(var(--w) / 2));
+    overflow: hidden;
+    background-color: var(--case);
+    border-radius: calc(var(--w) * 0.012) 0 0 calc(var(--w) * 0.012);
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: calc(var(--w) * -0.06) 0;
+        background: var(--cover, none) left center / calc(var(--w) * 8) 100% no-repeat;
+        filter: blur(calc(var(--w) * 0.045)) brightness(0.8) saturate(1.1);
+    }
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            linear-gradient(90deg,
+                color-mix(in srgb, var(--k) 58%, transparent),
+                color-mix(in srgb, var(--hi) 12%, transparent) 30%,
+                color-mix(in srgb, var(--k) 20%, transparent) 62%,
+                color-mix(in srgb, var(--k) 52%, transparent) 92%,
+                color-mix(in srgb, var(--hi) 10%, transparent) 97%,
+                color-mix(in srgb, var(--k) 40%, transparent));
+    }
+}
+
+/* The board's edge, only at the two covers: the middle is open so the recessed pages show through. */
+.book3d__case {
+    --edge: color-mix(in srgb, var(--color-surface-card) 55%, var(--k));
+}
+
+.book3d__case-right {
+    left: calc((var(--w) - var(--t)) / 2);
+    top: 0;
+    width: var(--t);
+    height: var(--h);
+    transform: rotateY(90deg) translateZ(calc(var(--w) / 2));
+    background: linear-gradient(90deg, var(--edge) 0 var(--c), transparent var(--c) calc(100% - var(--c)), var(--edge) calc(100% - var(--c)) 100%);
+}
+
+.book3d__case-top,
+.book3d__case-bottom {
+    left: 0;
+    top: calc((var(--h) - var(--t)) / 2);
+    width: var(--w);
+    height: var(--t);
+    background: linear-gradient(180deg, var(--edge) 0 var(--c), transparent var(--c) calc(100% - var(--c)), var(--edge) calc(100% - var(--c)) 100%);
+}
+
+.book3d__case-top { transform: rotateX(90deg) translateZ(calc(var(--h) / 2)); }
+.book3d__case-bottom { transform: rotateX(-90deg) translateZ(calc(var(--h) / 2)); }
+
+/*
+ * The page block: paper with a stripe per leaf (`--ln` apart), then a shade that rounds it towards the covers and the light for
+ * its face. The stripes run along the leaves: across the depth on the fore-edge, down the depth on the head and tail.
+ */
+.book3d__pages {
+    --ln: calc(var(--t) / 16);
+    --leaf: color-mix(in srgb, var(--color-paper) 78%, var(--k));
+}
+
+.book3d__pages-right {
+    left: calc((var(--w) - var(--t) + var(--c) * 2) / 2);
+    top: var(--inset);
+    width: calc(var(--t) - var(--c) * 2);
+    height: calc(var(--h) - var(--inset) * 2);
+    transform: rotateY(90deg) translateZ(calc(var(--w) / 2 - var(--inset)));
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--k) 42%, transparent), transparent 22%, transparent 78%, color-mix(in srgb, var(--k) 42%, transparent)),
+        linear-gradient(color-mix(in srgb, var(--k) 12%, transparent), color-mix(in srgb, var(--k) 12%, transparent)),
+        repeating-linear-gradient(90deg, var(--color-paper) 0 calc(var(--ln) * 0.58), var(--leaf) calc(var(--ln) * 0.58) var(--ln));
+}
+
+.book3d__pages-top,
+.book3d__pages-bottom {
+    left: var(--hinge);
+    top: calc((var(--h) - var(--t) + var(--c) * 2) / 2);
+    width: calc(var(--w) - var(--hinge) - var(--inset));
+    height: calc(var(--t) - var(--c) * 2);
+}
+
+.book3d__pages-top {
+    transform: rotateX(90deg) translateZ(calc(var(--h) / 2 - var(--inset)));
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--k) 30%, transparent), transparent 22%, transparent 78%, color-mix(in srgb, var(--k) 30%, transparent)),
+        repeating-linear-gradient(180deg, var(--color-paper) 0 calc(var(--ln) * 0.58), var(--leaf) calc(var(--ln) * 0.58) var(--ln));
+}
+
+.book3d__pages-bottom {
+    transform: rotateX(-90deg) translateZ(calc(var(--h) / 2 - var(--inset)));
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--k) 55%, transparent), color-mix(in srgb, var(--k) 40%, transparent)),
+        repeating-linear-gradient(180deg, var(--color-paper) 0 calc(var(--ln) * 0.58), var(--leaf) calc(var(--ln) * 0.58) var(--ln));
+}
+
+/* The three.js scene (resources/js/book-scene.js) is a canvas over the CSS book, larger than it by the room the book turns and floats in. */
+.book3d__canvas {
+    position: absolute;
+    left: -40%;
+    top: -20%;
+    width: 180%;
+    height: 140%;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 400ms var(--ease-out-bookflix);
+
+    &[data-ready] {
+        opacity: 1;
+    }
+}
+
+/* Once the canvas has faded in, the CSS book behind it steps aside (it stays in the layout, and comes back if the scene is disposed). */
+.book3d[data-scene-live] {
+    .book3d__body,
+    .book3d__shadow {
+        visibility: hidden;
+    }
+}

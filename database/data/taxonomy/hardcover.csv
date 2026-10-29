@@ -1,0 +1,248 @@
+provider_term,kind,bookflix_slug
+Fantasy,genre,fantasy
+Science Fiction,genre,science-fiction
+Sci-Fi,genre,science-fiction
+Romance,genre,romance
+Horror,genre,horror
+Mystery,genre,mystery-crime-and-thriller
+Thriller,genre,mystery-crime-and-thriller
+Crime,genre,mystery-crime-and-thriller
+Adventure,genre,action-and-adventure
+Action,genre,action-and-adventure
+Historical Fiction,genre,historical-war-and-western-fiction
+Historical,genre,historical-war-and-western-fiction
+Humor,genre,comedy-and-satire
+Comedy,genre,comedy-and-satire
+Satire,genre,comedy-and-satire
+Literary Fiction,genre,literary-philosophical-and-experimental-fiction
+Classics,genre,literary-philosophical-and-experimental-fiction
+Drama,genre,drama-and-human-relationships
+Young Adult,genre,childrens-young-adult-and-new-adult
+Children's,genre,childrens-young-adult-and-new-adult
+Middle Grade,genre,childrens-young-adult-and-new-adult
+Picture Books,genre,childrens-young-adult-and-new-adult
+Sports,genre,sports-music-and-performing-arts
+Mythology,genre,mythology-folklore-and-religion
+Religion,genre,mythology-folklore-and-religion
+Spirituality,genre,mythology-folklore-and-religion
+Nonfiction,genre,nonfiction-and-narrative-nonfiction
+Non-fiction,genre,nonfiction-and-narrative-nonfiction
+Biography,genre,nonfiction-and-narrative-nonfiction
+Memoir,genre,nonfiction-and-narrative-nonfiction
+Autobiography,genre,nonfiction-and-narrative-nonfiction
+History,genre,nonfiction-and-narrative-nonfiction
+Science,genre,nonfiction-and-narrative-nonfiction
+Self Help,genre,nonfiction-and-narrative-nonfiction
+Self-Help,genre,nonfiction-and-narrative-nonfiction
+Business,genre,nonfiction-and-narrative-nonfiction
+Travel,genre,nonfiction-and-narrative-nonfiction
+Philosophy,genre,nonfiction-and-narrative-nonfiction
+Psychology,genre,nonfiction-and-narrative-nonfiction
+Health,genre,nonfiction-and-narrative-nonfiction
+Cookbooks,genre,nonfiction-and-narrative-nonfiction
+Art,genre,nonfiction-and-narrative-nonfiction
+Superheroes,genre,superhero-and-superpowered-fiction
+Westerns,genre,historical-war-and-western-fiction
+War,genre,historical-war-and-western-fiction
+Military Fiction,genre,historical-war-and-western-fiction
+Dystopian,subgenre,dystopian-fiction
+Dystopia,subgenre,dystopian-fiction
+Post-Apocalyptic,subgenre,post-apocalyptic-fiction
+Urban Fantasy,subgenre,urban-fantasy
+Epic Fantasy,subgenre,epic-fantasy
+High Fantasy,subgenre,high-fantasy
+Dark Fantasy,subgenre,dark-fantasy
+Paranormal,subgenre,paranormal-fantasy
+Magical Realism,subgenre,magical-realism
+Science Fiction Fantasy,subgenre,science-fantasy
+Cozy Mystery,subgenre,cozy-mystery
+Detective,subgenre,detective-fiction
+Psychological Thriller,subgenre,psychological-thriller
+Legal Thriller,subgenre,legal-thriller
+Political Thriller,subgenre,political-thriller
+Spy Thriller,subgenre,espionage-thriller
+True Crime,subgenre,true-crime
+Noir,subgenre,noir
+Gothic,subgenre,gothic-horror
+Space Opera,subgenre,space-opera
+Cyberpunk,subgenre,cyberpunk
+Steampunk,subgenre,steampunk
+Time Travel,subgenre,time-travel
+Military Science Fiction,subgenre,military-science-fiction
+Hard Science Fiction,subgenre,hard-science-fiction
+LitRPG,subgenre,litrpg
+Progression Fantasy,subgenre,progression-fantasy
+Cultivation,subgenre,cultivation-fantasy
+Isekai,subgenre,isekai
+Romantasy,subgenre,romantasy
+Historical Romance,subgenre,historical-romance
+Contemporary Romance,subgenre,contemporary-romance
+Paranormal Romance,subgenre,paranormal-romance
+Romantic Comedy,subgenre,romantic-comedy
+Dark Romance,subgenre,dark-romance
+Erotica,subgenre,erotica
+Erotic Romance,subgenre,erotic-romance
+M/M Romance,subgenre,m-m-romance
+F/F Romance,subgenre,f-f-romance
+LGBTQ+,subgenre,lgbtq-romance
+Fairy Tales,subgenre,fairy-tales
+Retellings,subgenre,mythological-retellings
+Coming of Age,subgenre,coming-of-age
+Family Saga,subgenre,family-saga
+Medical,subgenre,medical-thriller
+Courtroom,subgenre,courtroom-drama
+Heist,subgenre,heist-fiction
+Pirates,subgenre,pirate-fiction
+Vampires,subgenre,vampire-horror
+Werewolves,subgenre,werewolf-horror
+Zombies,subgenre,zombie-horror
+Ghosts,subgenre,ghost-stories
+Lovecraftian,subgenre,lovecraftian-horror
+Cosmic Horror,subgenre,cosmic-horror
+Slasher,subgenre,slasher
+Cozy Fantasy,subgenre,cozy-fantasy
+Sword and Sorcery,subgenre,sword-and-sorcery
+Grimdark,subgenre,grimdark
+Portal Fantasy,subgenre,portal-fantasy
+Slice of Life,subgenre,slice-of-life
+Cozy,subgenre,cozy-fiction
+Mecha,subgenre,mecha
+Kaiju,subgenre,kaiju
+Wuxia,subgenre,wuxia
+Xianxia,subgenre,xianxia
+Murim,subgenre,murim
+Reverse Harem,subgenre,reverse-harem-romance
+Monster Romance,subgenre,monster-romance
+Enemies to Lovers,subgenre,enemies-to-lovers
+Friends to Lovers,subgenre,friends-to-lovers
+Slow Burn,subgenre,slow-burn
+Fake Dating,subgenre,fake-dating
+Forced Proximity,subgenre,forced-proximity
+Only One Bed,subgenre,only-one-bed
+Grumpy Sunshine,subgenre,grumpy-sunshine
+Second Chance,subgenre,second-chance-romance
+Enemies to Lovers,trope,enemies-to-lovers
+Friends to Lovers,trope,friends-to-lovers
+Slow Burn,trope,slow-burn
+Fake Dating,trope,fake-dating
+Forced Proximity,trope,forced-proximity
+Only One Bed,trope,only-one-bed
+Grumpy Sunshine,trope,grumpy-sunshine
+Second Chance,trope,second-chance
+Love Triangle,trope,love-triangle
+Forbidden Love,trope,forbidden-love
+Marriage of Convenience,trope,marriage-of-convenience
+Arranged Marriage,trope,arranged-marriage
+Opposites Attract,trope,opposites-attract
+Secret Identity,trope,secret-identity
+Hidden Heir,trope,hidden-heir
+Rivals to Lovers,trope,rivals-to-lovers
+Found Family,trope,found-family
+Found Family,theme,found-family
+Chosen One,trope,chosen-one
+Reluctant Hero,trope,reluctant-hero
+Redemption Arc,trope,redemption-arc
+Time Loop,trope,time-loop
+Unreliable Narrator,trope,unreliable-narrator
+Plot Twist,trope,plot-twist
+Secret Society,trope,secret-society
+Underdog,trope,underdog
+Hidden Power,trope,hidden-power
+Reincarnation,trope,reincarnation
+Regression,trope,regression
+Villain Protagonist,trope,villain-protagonist
+Master and Disciple,trope,master-and-disciple
+Training Arc,trope,training-arc
+Friendship,theme,friendship
+Family,theme,family
+Love,theme,love
+Grief,theme,grief
+Identity,theme,identity
+Revenge,theme,revenge
+Redemption,theme,redemption
+Betrayal,theme,betrayal
+Survival,theme,survival
+Power,theme,power
+Politics,theme,political-intrigue
+Corruption,theme,corruption
+Religion,theme,religion
+Faith,theme,faith
+Death,theme,death
+Time,theme,time
+Memory,theme,memory
+Climate Change,theme,climate-change
+Artificial Intelligence,theme,artificial-intelligence
+Colonialism,theme,colonialism
+Social Class,theme,social-class
+Racism,theme,racism
+Sacrifice,theme,sacrifice
+Free Will,theme,free-will
+Immortality,theme,immortality
+Space Exploration,theme,space-exploration
+Propaganda,theme,propaganda
+Justice,theme,justice
+Violence,warning,violence
+Graphic Violence,warning,graphic-violence
+Murder,warning,violence
+Blood,warning,violence
+Kidnapping,warning,violence
+War,warning,war
+War violence,warning,war
+Gore,warning,gore
+Sexual content,warning,sexual-content
+Explicit sexual content,warning,explicit-sexual-content
+Nudity,warning,nudity
+Sexual assault,warning,non-consensual-sexual-acts
+Sexual violence,warning,non-consensual-sexual-acts
+Rape,warning,non-consensual-sexual-acts
+Non-consensual sex,warning,non-consensual-sexual-acts
+Abuse,warning,abuse
+Child abuse,warning,abuse
+Emotional abuse,warning,abuse
+Physical abuse,warning,abuse
+Domestic abuse,warning,domestic-violence
+Domestic violence,warning,domestic-violence
+Abusive relationship,warning,abuse
+Coercion,warning,coercion
+Stalking,warning,stalking
+Harassment,warning,harassment
+Bullying,warning,harassment
+Exploitation,warning,exploitation
+Slavery,warning,exploitation
+Human trafficking,warning,exploitation
+Incest,warning,incest-themes
+Self harm,warning,self-harm
+Self-harm,warning,self-harm
+Suicide,warning,suicide
+Suicidal thoughts,warning,suicide
+Drug use,warning,substance-use
+Drug abuse,warning,substance-use
+Alcohol,warning,substance-use
+Alcoholism,warning,addiction
+Addiction,warning,addiction
+Eating disorder,warning,eating-disorders
+Eating disorders,warning,eating-disorders
+Death,warning,death
+Death of parent,warning,death
+Child death,warning,death
+Death of a loved one,warning,death
+Terminal illness,warning,death
+Cancer,warning,death
+Grief,warning,grief
+Torture,warning,torture
+Body horror,warning,body-horror
+Disturbing imagery,warning,disturbing-imagery
+Religious trauma,warning,religious-trauma
+Discrimination,warning,discrimination
+Racism,warning,racism
+Homophobia,warning,discrimination
+Transphobia,warning,discrimination
+Misogyny,warning,discrimination
+Sexism,warning,discrimination
+Xenophobia,warning,discrimination
+Ableism,warning,discrimination
+Antisemitism,warning,discrimination
+Hate speech,warning,hate-speech
+Slurs,warning,hate-speech
+Animal cruelty,warning,animal-cruelty
+Animal death,warning,animal-cruelty

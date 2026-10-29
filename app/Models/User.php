@@ -2,14 +2,19 @@
 
 namespace App\Models;
 
+use App\Enums\ReadingLength;
+use App\Enums\Visibility;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
@@ -24,6 +29,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
+ * @property bool $is_admin
+ * @property Carbon|null $deactivated_at
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -36,6 +43,15 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
+     * The model's default attribute values.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_admin' => false,
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -45,7 +61,59 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
+            'deactivated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The user's reading profile; unsaved column defaults when no row exists yet.
+     *
+     * @return HasOne<Profile, $this>
+     */
+    public function profile(): HasOne
+    {
+        return $this->hasOne(Profile::class)->withDefault([
+            'preferred_languages' => [],
+            'reading_length' => ReadingLength::Any,
+            'profile_visibility' => Visibility::Private,
+            'library_visibility' => Visibility::Private,
+            'personalization_enabled' => true,
+            'show_mature' => false,
+        ]);
+    }
+
+    public function isDeactivated(): bool
+    {
+        return $this->deactivated_at !== null;
+    }
+
+    /**
+     * Limit the query to accounts that have not been deactivated.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeActive(Builder $query): void
+    {
+        $query->whereNull('deactivated_at');
+    }
+
+    /**
+     * Whether interactions may be recorded and used for personalization.
+     */
+    public function personalizationEnabled(): bool
+    {
+        return $this->profile->personalization_enabled;
+    }
+
+    /**
+     * Public URL of the uploaded avatar, or null when none was uploaded.
+     */
+    public function avatarUrl(): ?string
+    {
+        $path = $this->profile->avatar_path;
+
+        return $path ? Storage::disk(config('bookflix.avatar_disk'))->url($path) : null;
     }
 
     /**

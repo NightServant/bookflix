@@ -1,0 +1,506 @@
+<?php
+
+namespace App\Models;
+
+use App\Access\MatureAccess;
+use App\Classification\DeweyCounts;
+use App\Discovery\Search\SearchTextBuilder;
+use App\Enums\AgeRating;
+use App\Enums\ClassificationType;
+use App\Enums\PublicationStatus;
+use App\Enums\ReviewStatus;
+use App\Enums\WarningStatus;
+use Database\Factories\MediaFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Pivot;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Laravel\Scout\Attributes\SearchUsingFullText;
+use Laravel\Scout\Searchable;
+
+/**
+ * @property int $id
+ * @property string $slug
+ * @property int $media_type_id
+ * @property string $title
+ * @property list<string> $alternative_titles
+ * @property string|null $description
+ * @property string|null $cover_url
+ * @property string|null $cover_path
+ * @property Carbon|null $published_on
+ * @property int|null $publication_year
+ * @property string|null $language
+ * @property string|null $country_of_origin
+ * @property string|null $volume_number
+ * @property string|null $chapter_number
+ * @property string|null $issue_number
+ * @property string|null $format
+ * @property AgeRating $age_rating The audience rating (all ages, children, teen, mature teen, mature, adult); the editorial demographic is a separate facet.
+ * @property list<string> $content_warnings Deprecated: the pre-taxonomy list of warning names, kept readable until the filters switch over. Warnings live in `media_content_warnings` (see warnings()).
+ * @property PublicationStatus $status
+ * @property int|null $page_count
+ * @property int|null $chapter_count
+ * @property string|null $average_rating
+ * @property int $ratings_count
+ * @property float $popularity_score
+ * @property string $search_text
+ * @property list<string> $locked_fields
+ * @property int|null $merged_into_id
+ * @property int|null $primary_external_source_id The provider whose re-syncs may overwrite this media; kept through merges.
+ * @property Carbon|null $deleted_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
+#[Fillable([
+    'slug',
+    'media_type_id',
+    'title',
+    'alternative_titles',
+    'description',
+    'cover_url',
+    'cover_path',
+    'published_on',
+    'publication_year',
+    'language',
+    'country_of_origin',
+    'volume_number',
+    'chapter_number',
+    'issue_number',
+    'format',
+    'age_rating',
+    'content_warnings',
+    'status',
+    'page_count',
+    'chapter_count',
+    'average_rating',
+    'ratings_count',
+    'search_text',
+    'locked_fields',
+    'merged_into_id',
+    'primary_external_source_id',
+])]
+class Media extends Model
+{
+    /** @use HasFactory<MediaFactory> */
+    use HasFactory, Searchable, SoftDeletes;
+
+    /**
+     * The model's default attribute values.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'alternative_titles' => '[]',
+        'content_warnings' => '[]',
+        'locked_fields' => '[]',
+        'age_rating' => 'unknown',
+        'status' => 'unknown',
+        'ratings_count' => 0,
+        'search_text' => '',
+    ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Media $media): void {
+            if (blank($media->slug)) {
+                $media->slug = static::uniqueSlug($media->title, $media->publication_year);
+            }
+        });
+
+        // A removed (merges included) or restored media enters or leaves every class count, so the cached counts are dropped once the change is committed.
+        $flushCounts = fn () => DB::afterCommit(fn () => app(DeweyCounts::class)->flush());
+
+        static::deleted($flushCounts);
+        static::restored($flushCounts);
+    }
+
+    /**
+     * A slug no media (soft-deleted included) uses yet: the title slug, then with the year, then numbered.
+     */
+    /**
+     * The same-origin cover URL the 3D scene textures. `v` changes with `cover_url`, so a replaced cover busts the immutable cache.
+     */
+    public function coverProxyUrl(): string
+    {
+        return route('covers.show', [$this, 'v' => substr(sha1((string) $this->cover_url), 0, 8)]);
+    }
+
+    public static function uniqueSlug(string $title, ?int $year = null): string
+    {
+        $slug = Str::slug($title) ?: 'untitled';
+
+        if ($year !== null && static::slugIsTaken($slug)) {
+            $slug .= "-{$year}";
+        }
+
+        $base = $slug;
+
+        for ($number = 2; static::slugIsTaken($slug); $number++) {
+            $slug = "{$base}-{$number}";
+        }
+
+        return $slug;
+    }
+
+    protected static function slugIsTaken(string $slug): bool
+    {
+        return static::withTrashed()->where('slug', $slug)->exists();
+    }
+
+    /**
+     * The media a public slug points at: the media itself, or the winner when the slug was merged away.
+     * Null for an unknown slug or one that was plainly deleted (a merge target that was deleted too counts as gone).
+     */
+    public static function resolveSlug(string $slug): ?self
+    {
+        $media = static::withTrashed()->where('slug', $slug)->first();
+
+        if ($media?->merged_into_id !== null) {
+            return static::find($media->merged_into_id);
+        }
+
+        return $media?->trashed() ? null : $media;
+    }
+
+    /**
+     * A few of the most-rated stories with a cover, as plain arrays cached for an hour, for decoration (the auth panel, empty states):
+     * a decorative book must never cost a query per visit.
+     *
+     * @return list<array{title: string, cover: string}>
+     */
+    public static function showcaseCovers(): array
+    {
+        // Seen by guests (the sign-in panel) and kept for an hour, so it is the gated list.
+        return Cache::remember('media:showcase-covers:v2', now()->addHour(), fn (): array => array_values(static::query()
+            ->trending()
+            ->visibleTo(null)
+            ->whereNotNull('media.cover_url')
+            ->limit(3)
+            ->get(['media.id', 'media.title', 'media.cover_url'])
+            ->map(fn (self $media): array => ['title' => $media->title, 'cover' => (string) $media->cover_url])
+            ->all()));
+    }
+
+    /**
+     * Rebuild the lowercased, accent-folded names that search reads (see SearchTextBuilder), after the relations may have changed.
+     */
+    public function refreshSearchText(): void
+    {
+        $this->load(SearchTextBuilder::RELATIONS);
+
+        $this->update(['search_text' => app(SearchTextBuilder::class)->build($this)]);
+    }
+
+    /**
+     * Scout's database engine searches the table itself, and only this column, through the `media_search_fts` index.
+     *
+     * @return array{search_text: string}
+     */
+    #[SearchUsingFullText(['search_text'], ['language' => 'simple'])]
+    public function toSearchableArray(): array
+    {
+        return ['search_text' => $this->search_text];
+    }
+
+    /**
+     * Merged and deleted media stay out of every index.
+     */
+    public function shouldBeSearchable(): bool
+    {
+        return ! $this->trashed() && $this->merged_into_id === null;
+    }
+
+    /**
+     * Media that is not a merge loser: the live, public catalogue (deleted media is already hidden by the soft-delete scope).
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeUnmerged(Builder $query): void
+    {
+        $query->whereNull('media.merged_into_id');
+    }
+
+    /**
+     * The access gate: media a reader who has not opted in to mature titles may not see, left out. An adult-rated work is gated, and so is any work
+     * tagged with a mature genre (a genre whose primary parent is the mature family). Applied by the query layer wherever media is listed
+     * (see scopeVisibleTo), never by a filter, so no URL or filter value can lift it.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeWithoutMature(Builder $query): void
+    {
+        $query->where('media.age_rating', '!=', AgeRating::Adult->value)
+            ->whereNotExists(fn ($rows) => $rows->select(DB::raw(1))
+                ->from('media_genres')
+                ->join('genres', 'genres.id', '=', 'media_genres.genre_id')
+                ->whereColumn('media_genres.media_id', 'media.id')
+                ->where('genres.is_mature', true));
+    }
+
+    /**
+     * Media this reader may see: everything for a reader who turned on mature titles and confirmed they are 18 or older (see MatureAccess),
+     * everything but gated media for any other reader, and for a guest (null) always. Use it on every query that lists media to a reader.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeVisibleTo(Builder $query, ?User $viewer): void
+    {
+        $query->unless(MatureAccess::allows($viewer), fn (Builder $media) => $media->withoutMature());
+    }
+
+    /**
+     * Whether this work is behind the access gate: it is adult-rated or tagged with a mature genre (one query unless it is adult-rated).
+     */
+    public function isRestricted(): bool
+    {
+        return $this->age_rating === AgeRating::Adult || $this->genres()->where('genres.is_mature', true)->exists();
+    }
+
+    /**
+     * Whether the reader is kept from this work: it is restricted and they have not opted in. Skips the lookup for a reader who may see everything.
+     */
+    public function isGatedFor(?User $viewer): bool
+    {
+        return ! MatureAccess::allows($viewer) && $this->isRestricted();
+    }
+
+    /**
+     * The stories with the strongest popularity signals (`bookflix:score-popularity`), then the most rated, the newest breaking ties.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeTrending(Builder $query): void
+    {
+        $query->unmerged()
+            ->orderByDesc('media.popularity_score')
+            ->orderByDesc('media.ratings_count')
+            ->orderByRaw('media.published_on desc nulls last')
+            ->orderByDesc('media.id');
+    }
+
+    /**
+     * Media with any of these genres, or any genre below them: selecting a family includes its subgenres.
+     * Several slugs mean any of them. An unknown slug matches nothing.
+     *
+     * @param  Builder<Media>  $query
+     * @param  list<string>  $slugs
+     */
+    public function scopeInGenres(Builder $query, array $slugs): void
+    {
+        $query->whereRaw(
+            'exists (select 1 from media_genres where media_genres.media_id = media.id and media_genres.genre_id in ('.Genre::TREE_IDS_SQL.'))',
+            [Genre::slugArray($slugs)],
+        );
+    }
+
+    /**
+     * Media without any of these warnings recorded as present or disputed. Verified absent and unknown media stay in: unknown is never treated as a warning, nor as safe.
+     *
+     * @param  Builder<Media>  $query
+     * @param  list<string>  $slugs
+     */
+    public function scopeWithoutWarnings(Builder $query, array $slugs): void
+    {
+        $query->whereNotExists(fn ($rows) => $rows->select(DB::raw(1))
+            ->from('media_content_warnings')
+            ->whereColumn('media_content_warnings.media_id', 'media.id')
+            ->whereIn('media_content_warnings.status', WarningStatus::shownValues())
+            ->whereIn('media_content_warnings.content_warning_id', ContentWarning::query()->whereIn('slug', $slugs)->select('id')));
+    }
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'alternative_titles' => 'array',
+            'content_warnings' => 'array',
+            'locked_fields' => 'array',
+            'published_on' => 'date',
+            'age_rating' => AgeRating::class,
+            'status' => PublicationStatus::class,
+        ];
+    }
+
+    /**
+     * @return BelongsTo<MediaType, $this>
+     */
+    public function mediaType(): BelongsTo
+    {
+        return $this->belongsTo(MediaType::class);
+    }
+
+    /**
+     * @return BelongsToMany<Creator, $this, MediaCreator, 'pivot'>
+     */
+    public function creators(): BelongsToMany
+    {
+        return $this->belongsToMany(Creator::class, 'media_creators')
+            ->using(MediaCreator::class)
+            ->withPivot(['role', 'position'])
+            ->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Publisher, $this, Pivot, 'pivot'>
+     */
+    public function publishers(): BelongsToMany
+    {
+        return $this->belongsToMany(Publisher::class, 'media_publishers')->withPivot('region')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Series, $this, Pivot, 'pivot'>
+     */
+    public function series(): BelongsToMany
+    {
+        return $this->belongsToMany(Series::class, 'media_series')->withPivot(['position', 'label'])->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Genre, $this, Pivot, 'pivot'>
+     */
+    public function genres(): BelongsToMany
+    {
+        return $this->belongsToMany(Genre::class, 'media_genres')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Theme, $this, Pivot, 'pivot'>
+     */
+    public function themes(): BelongsToMany
+    {
+        return $this->belongsToMany(Theme::class, 'media_themes')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Tag, $this, Pivot, 'pivot'>
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'media_tags')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Trope, $this, Pivot, 'pivot'>
+     */
+    public function tropes(): BelongsToMany
+    {
+        return $this->belongsToMany(Trope::class, 'media_tropes')->withTimestamps();
+    }
+
+    /**
+     * The editorial demographics (shonen, seinen, young adult...). Not an age rating.
+     *
+     * @return BelongsToMany<Demographic, $this, Pivot, 'pivot'>
+     */
+    public function demographics(): BelongsToMany
+    {
+        return $this->belongsToMany(Demographic::class, 'media_demographics')->withTimestamps();
+    }
+
+    /**
+     * Every warning this media has a recorded status for (present, absent, unknown or disputed). A warning with no row is unknown, not absent.
+     *
+     * @return BelongsToMany<ContentWarning, $this, MediaContentWarning, 'pivot'>
+     */
+    public function warnings(): BelongsToMany
+    {
+        return $this->belongsToMany(ContentWarning::class, 'media_content_warnings')
+            ->using(MediaContentWarning::class)
+            ->withPivot(['status', 'source'])
+            ->withTimestamps()
+            ->orderBy('content_warnings.sort');
+    }
+
+    /**
+     * The warnings a reader is shown: present or disputed. Verified absent and unknown ones are never listed.
+     *
+     * @return BelongsToMany<ContentWarning, $this, MediaContentWarning, 'pivot'>
+     */
+    public function shownWarnings(): BelongsToMany
+    {
+        return $this->warnings()->wherePivotIn('status', WarningStatus::shownValues());
+    }
+
+    /**
+     * @return BelongsToMany<Character, $this, Pivot, 'pivot'>
+     */
+    public function characters(): BelongsToMany
+    {
+        return $this->belongsToMany(Character::class, 'media_characters')->withPivot('role')->withTimestamps();
+    }
+
+    /**
+     * @return HasMany<MediaExternalId, $this>
+     */
+    public function externalIds(): HasMany
+    {
+        return $this->hasMany(MediaExternalId::class);
+    }
+
+    /**
+     * Related media (sequel, adaptation, ...); the kind of relation is the pivot `relation`.
+     *
+     * @return BelongsToMany<Media, $this, Pivot, 'pivot'>
+     */
+    public function relations(): BelongsToMany
+    {
+        return $this->belongsToMany(Media::class, 'media_relations', 'media_id', 'related_media_id')
+            ->withPivot('relation')
+            ->withTimestamps();
+    }
+
+    /**
+     * @return HasMany<MediaDeweyClass, $this>
+     */
+    public function deweyClasses(): HasMany
+    {
+        return $this->hasMany(MediaDeweyClass::class);
+    }
+
+    /**
+     * The live primary class: any primary that has not been rejected.
+     *
+     * @return HasOne<MediaDeweyClass, $this>
+     */
+    public function primaryDewey(): HasOne
+    {
+        return $this->hasOne(MediaDeweyClass::class)
+            ->where('classification_type', ClassificationType::Primary)
+            ->where('review_status', '!=', ReviewStatus::Rejected);
+    }
+
+    /**
+     * The primary class a reader may see on the story (accepted, or pending with enough confidence).
+     *
+     * @return HasOne<MediaDeweyClass, $this>
+     */
+    public function publicPrimaryDewey(): HasOne
+    {
+        return $this->hasOne(MediaDeweyClass::class)->publicPrimary();
+    }
+
+    /**
+     * Media whose public primary class is the given class or one below it.
+     *
+     * @param  Builder<Media>  $query
+     */
+    public function scopeInDeweySubtree(Builder $query, DeweyClass $class): void
+    {
+        $query->whereHas('deweyClasses', fn (Builder $rows) => $rows->publicPrimary()->whereIn('dewey_class_id', DeweyClass::subtree($class)->select('id')));
+    }
+}

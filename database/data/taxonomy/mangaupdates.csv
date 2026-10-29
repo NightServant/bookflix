@@ -1,0 +1,112 @@
+provider_term,kind,bookflix_slug
+Action,genre,action-and-adventure
+Adventure,genre,action-and-adventure
+Comedy,genre,comedy-and-satire
+Drama,genre,drama-and-human-relationships
+Fantasy,genre,fantasy
+Horror,genre,horror
+Mystery,genre,mystery-crime-and-thriller
+Romance,genre,romance
+Sci-fi,genre,science-fiction
+Sports,genre,sports-music-and-performing-arts
+Historical,genre,historical-war-and-western-fiction
+Ecchi,warning,sexual-content
+Ecchi,rating,mature_teen
+Ecchi,tag,ecchi
+Mature,rating,mature
+Smut,rating,mature
+Smut,warning,sexual-content
+Mecha,subgenre,mecha
+Psychological,subgenre,psychological-thriller
+School Life,subgenre,school-life
+Slice of Life,subgenre,slice-of-life
+Supernatural,subgenre,paranormal-fantasy
+Tragedy,subgenre,tragedy
+Martial Arts,subgenre,martial-arts
+Wuxia,subgenre,wuxia
+Xianxia,subgenre,xianxia
+Xuanhuan,subgenre,xuanhuan
+Harem,subgenre,harem-romance
+Yaoi,subgenre,yaoi
+Yuri,subgenre,yuri
+Shounen Ai,subgenre,bl-boys-love
+Shoujo Ai,subgenre,gl-girls-love
+Shounen,demographic,shonen
+Shoujo,demographic,shojo
+Seinen,demographic,seinen
+Josei,demographic,josei
+Isekai,subgenre,isekai
+Reincarnation,subgenre,reincarnation-fantasy
+Reincarnation,trope,reincarnation
+Transmigration,subgenre,transmigration-fantasy
+Regression,subgenre,regression-fantasy
+Regression,trope,regression
+Level System,subgenre,leveling-fantasy
+Leveling Up,trope,leveling-up
+Game Elements,subgenre,litrpg
+Dungeons,subgenre,dungeon-fantasy
+Murim,subgenre,murim
+Cultivation,subgenre,cultivation-fantasy
+Academy,subgenre,academy-fantasy
+Hunters,subgenre,hunter-fantasy
+Tower,subgenre,tower-climbing
+System,subgenre,system-fantasy
+Overpowered Main Characters,trope,overpowered-protagonist
+Overpowered Main Characters,subgenre,overpowered-protagonist
+Revenge,trope,revenge-arc
+Revenge,theme,revenge
+Hidden Identity,trope,secret-identity
+Love Triangle,trope,love-triangle
+Love Triangle,subgenre,love-triangle
+Second Chance,trope,second-chance
+Fake Relationship,trope,fake-dating
+Arranged Marriage,trope,arranged-marriage
+Contract Marriage,trope,marriage-of-convenience
+Time Loop,trope,time-loop
+Reverse Harem,subgenre,reverse-harem-romance
+Time Travel,subgenre,time-travel
+Post-Apocalyptic,subgenre,post-apocalyptic-fiction
+Dystopia,subgenre,dystopian-fiction
+Survival,theme,survival
+Vampires,subgenre,vampire-horror
+Zombies,subgenre,zombie-horror
+Ghosts,subgenre,ghost-stories
+Detectives,subgenre,detective-fiction
+Police,subgenre,police-procedural
+Mafia,subgenre,mafia-fiction
+Assassins,subgenre,assassin-fiction
+Samurai,subgenre,samurai-fiction
+Military,subgenre,military-fiction
+Pirates,subgenre,pirate-adventure
+Cooking,subgenre,food-and-cooking-stories
+Music,subgenre,music-drama
+Idols,subgenre,idol-fiction
+Medical,subgenre,medical-drama
+Superheroes,subgenre,superhero-fiction
+Super Power,subgenre,supernatural-powers
+Mythology,subgenre,mythological-fantasy
+Iyashikei,subgenre,iyashikei
+Coming of Age,subgenre,coming-of-age
+Philosophical,subgenre,philosophical-fiction
+Politics,theme,political-intrigue
+War,theme,war
+Conspiracy,theme,conspiracy
+Gore,warning,gore
+Nudity,warning,nudity
+Rape,warning,non-consensual-sexual-acts
+Sexual Abuse,warning,non-consensual-sexual-acts
+Torture,warning,torture
+Suicides,warning,suicide
+Suicide,warning,suicide
+Self-Harm,warning,self-harm
+Drugs,warning,substance-use
+Alcoholism,warning,addiction
+Bullying,warning,harassment
+Child Abuse,warning,abuse
+Domestic Abuse,warning,domestic-violence
+Stalking,warning,stalking
+Slavery,warning,exploitation
+Incest,warning,incest-themes
+Animal Abuse,warning,animal-cruelty
+Racism,warning,racism
+Body Horror,warning,body-horror

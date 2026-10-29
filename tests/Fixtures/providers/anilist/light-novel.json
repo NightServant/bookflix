@@ -1,0 +1,107 @@
+{
+  "id": 51479,
+  "idMal": 21479,
+  "title": {
+    "romaji": "Sword Art Online",
+    "english": "Sword Art Online",
+    "native": "ソードアート・オンライン"
+  },
+  "synonyms": [
+    "S.A.O",
+    "SAO"
+  ],
+  "description": "In the year 2022, gamers rejoice as Sword Art Online - a VRMMORPG (Virtual Reality Massively Multiplayer Online Role Playing Game) like no other - debuts, allowing players to take full advantage of the ultimate in gaming technology: NerveGear, a system that allows users to completely immerse",
+  "format": "NOVEL",
+  "status": "RELEASING",
+  "countryOfOrigin": "JP",
+  "isAdult": false,
+  "startDate": {
+    "year": 2009,
+    "month": 4,
+    "day": 10
+  },
+  "chapters": null,
+  "genres": [
+    "Action",
+    "Adventure",
+    "Fantasy",
+    "Romance"
+  ],
+  "tags": [
+    {
+      "name": "Virtual World",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Tragedy",
+      "isMediaSpoiler": true
+    },
+    {
+      "name": "Death Game",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Swordplay",
+      "isMediaSpoiler": false
+    }
+  ],
+  "coverImage": {
+    "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/nx51479-ufMREP6e1UkT.jpg",
+    "large": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/nx51479-ufMREP6e1UkT.jpg"
+  },
+  "siteUrl": "https://anilist.co/manga/51479",
+  "updatedAt": 1792672426,
+  "staff": {
+    "edges": [
+      {
+        "role": "Story",
+        "node": {
+          "name": {
+            "full": "Reki Kawahara"
+          }
+        }
+      },
+      {
+        "role": "Illustration",
+        "node": {
+          "name": {
+            "full": "BUNBUN"
+          }
+        }
+      },
+      {
+        "role": "Editing",
+        "node": {
+          "name": {
+            "full": "Kazuma Miki"
+          }
+        }
+      }
+    ]
+  },
+  "characters": {
+    "edges": [
+      {
+        "node": {
+          "name": {
+            "full": "Kazuto Kirigaya"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Asuna Yuuki"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Akihiko Kayaba"
+          }
+        }
+      }
+    ]
+  }
+}

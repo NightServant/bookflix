@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Media;
 use App\Models\User;
 use Laravel\Fortify\Features;
 
@@ -19,7 +20,7 @@ test('users can authenticate using the login screen', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('dashboard', absolute: false));
+        ->assertRedirect(route('home', absolute: false));
 
     $this->assertAuthenticated();
 });
@@ -61,7 +62,23 @@ test('users can logout', function () {
 
     $response = $this->actingAs($user)->post(route('logout'));
 
-    $response->assertRedirect(route('home'));
+    $response->assertRedirect(route('landing'));
 
     $this->assertGuest();
+});
+
+test('the auth side panel shows the most-rated covers and caches them', function () {
+    Cache::forget('media:showcase-covers:v1');
+    Media::factory()->create(['title' => 'Most Rated Tale', 'ratings_count' => 500, 'cover_url' => 'https://example.com/a.jpg']);
+    Media::factory()->create(['title' => 'Coverless Tale', 'ratings_count' => 900, 'cover_url' => null]);
+
+    $this->get(route('login'))
+        ->assertOk()
+        ->assertSee('Most Rated Tale')
+        ->assertSee('https://example.com/a.jpg', false)
+        ->assertDontSee('Coverless Tale');
+
+    DB::enableQueryLog();
+    $this->get(route('register'))->assertOk();
+    expect(collect(DB::getQueryLog())->pluck('query')->filter(fn ($q) => str_contains($q, '"media"')))->toBeEmpty();
 });

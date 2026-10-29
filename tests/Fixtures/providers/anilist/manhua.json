@@ -1,0 +1,99 @@
+{
+  "id": 86707,
+  "idMal": null,
+  "title": {
+    "romaji": "Yao Shen Ji",
+    "english": "Tales of Demons and Gods",
+    "native": "妖神记"
+  },
+  "synonyms": [
+    "Tales of Demons & Gods",
+    "TODAG"
+  ],
+  "description": "Because of the Space-Time Demon Spirit Book, time and space underwent a reversal. Though he was supposed to have died to demon beasts, Nie Li found himself sitting in a classroom when he opened his eyes. He had gone back to the age of thirteen. Now that everything has begun anew... how will he",
+  "format": "MANGA",
+  "status": "RELEASING",
+  "countryOfOrigin": "CN",
+  "isAdult": false,
+  "startDate": {
+    "year": 2015,
+    "month": null,
+    "day": null
+  },
+  "chapters": null,
+  "genres": [
+    "Action",
+    "Adventure",
+    "Fantasy",
+    "Romance"
+  ],
+  "tags": [
+    {
+      "name": "Wuxia",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Reincarnation",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Cultivation",
+      "isMediaSpoiler": false
+    },
+    {
+      "name": "Age Regression",
+      "isMediaSpoiler": false
+    }
+  ],
+  "coverImage": {
+    "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx86707-QD3UyAOHUEaT.jpg",
+    "large": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx86707-QD3UyAOHUEaT.jpg"
+  },
+  "siteUrl": "https://anilist.co/manga/86707",
+  "updatedAt": 1792720859,
+  "staff": {
+    "edges": [
+      {
+        "role": "Original Story",
+        "node": {
+          "name": {
+            "full": "Fabiao De Woniu"
+          }
+        }
+      },
+      {
+        "role": "Art",
+        "node": {
+          "name": {
+            "full": "Jiang Ruo Tai"
+          }
+        }
+      }
+    ]
+  },
+  "characters": {
+    "edges": [
+      {
+        "node": {
+          "name": {
+            "full": "Li Nie"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Ninger Xiao"
+          }
+        }
+      },
+      {
+        "node": {
+          "name": {
+            "full": "Ziyun Ye"
+          }
+        }
+      }
+    ]
+  }
+}
