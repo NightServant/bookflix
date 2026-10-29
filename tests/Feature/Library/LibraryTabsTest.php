@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -17,7 +18,18 @@ function registerLibrarySections(array $names): void
 }
 
 test('the library alone has no tabs to switch between', function () {
-    expect(htmlQuery(renderedComponent('<x-library-tabs current="library.index" />'), '//nav')->length)->toBe(0);
+    // Every section is a real page by now, so strip the router down to the library's own route.
+    $routes = app('router')->getRoutes();
+    $alone = new RouteCollection;
+    $alone->add($routes->getByName('library.index'));
+    $alone->refreshNameLookups();
+    app('router')->setRoutes($alone);
+
+    try {
+        expect(htmlQuery(renderedComponent('<x-library-tabs current="library.index" />'), '//nav')->length)->toBe(0);
+    } finally {
+        app('router')->setRoutes($routes);
+    }
 });
 
 test('the sections that exist are tabs under the library title, and the current one says so', function () {

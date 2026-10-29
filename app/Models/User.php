@@ -94,6 +94,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->hasMany(LibraryEntry::class);
     }
 
+    /**
+     * The reader's own collections (see App\Actions\Library for the only writers).
+     *
+     * @return HasMany<Collection, $this>
+     */
+    public function collections(): HasMany
+    {
+        return $this->hasMany(Collection::class);
+    }
+
     public function isDeactivated(): bool
     {
         return $this->deactivated_at !== null;

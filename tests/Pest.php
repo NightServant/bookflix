@@ -12,6 +12,8 @@ use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
 use App\Enums\ReviewStatus;
+use App\Models\Collection as StoryCollection;
+use App\Models\CollectionItem;
 use App\Models\ContentWarning;
 use App\Models\Creator;
 use App\Models\DeweyClass;
@@ -25,6 +27,7 @@ use App\Models\Publisher;
 use App\Models\Series;
 use App\Models\Tag;
 use App\Models\Theme;
+use App\Models\User;
 use App\Models\UserInteraction;
 use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
@@ -256,6 +259,34 @@ function search(string $query, ?SearchFilters $filters = null): LengthAwarePagin
 function interactionEvents(): array
 {
     return UserInteraction::orderBy('id')->get()->map(fn (UserInteraction $row): string => $row->event->value)->all();
+}
+
+/**
+ * A story behind the mature gate: tagged with a mature family genre.
+ */
+function matureStory(string $title = 'Erotic Tale'): Media
+{
+    $media = Media::factory()->create(['title' => $title]);
+    $media->genres()->attach(Genre::factory()->mature()->create());
+
+    return $media;
+}
+
+/**
+ * A collection of these stories in this order, owned by this reader.
+ *
+ * @param  list<Media>  $stories
+ * @param  array<string, mixed>  $attributes
+ */
+function collectionOf(User $owner, array $stories, array $attributes = []): StoryCollection
+{
+    $collection = StoryCollection::factory()->for($owner)->create($attributes);
+
+    foreach ($stories as $position => $story) {
+        CollectionItem::factory()->for($collection)->for($story)->create(['position' => $position]);
+    }
+
+    return $collection;
 }
 
 /**

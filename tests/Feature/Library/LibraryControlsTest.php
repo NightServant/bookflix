@@ -2,6 +2,8 @@
 
 use App\Actions\Library\AddToLibrary;
 use App\Enums\ReadingStatus;
+use App\Models\Collection;
+use App\Models\CollectionItem;
 use App\Models\Genre;
 use App\Models\LibraryEntry;
 use App\Models\Media;
@@ -38,13 +40,14 @@ test('the status menu lists every status as a 44px item, marks the current one, 
     app(AddToLibrary::class)->handle($user, $media, ReadingStatus::Paused);
 
     $html = Livewire::test('library-controls', ['media' => $media])->html();
-    $items = htmlQuery($html, '//ui-menu//button[@data-flux-menu-item]');
+    // The first menu of the controls: the second is the collections menu.
+    $items = htmlQuery($html, '(//ui-menu)[1]//button[@data-flux-menu-item]');
 
     expect(collect($items)->map(fn (DOMElement $item): string => trim(preg_replace('/\s+/', ' ', $item->textContent)))->all())
         ->toBe(['Want to read', 'Reading', 'Completed', 'Paused', 'Abandoned', 'Remove from library'])
         ->and(htmlQuery($html, "//ui-menu//button[@*[name()='wire:click']=\"setStatus('paused')\"][@aria-current='true']")->length)->toBe(1)
         ->and(htmlQuery($html, '//ui-menu//button[@aria-current="true"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//ui-menu//button[@data-flux-menu-item][contains(@class,"min-h-11!")]')->length)->toBe(6)
+        ->and(htmlQuery($html, '(//ui-menu)[1]//button[@data-flux-menu-item][contains(@class,"min-h-11!")]')->length)->toBe(6)
         ->and(htmlQuery($html, '//button[@data-test="library-status"][normalize-space()="Paused"]')->length)->toBe(1);
 });
 
@@ -127,4 +130,79 @@ test('the controls ask for one query to know the state', function () {
     Livewire::test('library-controls', ['media' => $media]);
 
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], '"user_library"'))->count())->toBe(1);
+});
+
+test('the collection menu lists the readers collections, marks those holding the story, and adds or removes it on a press', function () {
+    $this->actingAs($user = User::factory()->create());
+    $media = Media::factory()->create();
+    $has = Collection::factory()->for($user)->create(['name' => 'Rainy Day']);
+    $hasNot = Collection::factory()->for($user)->create(['name' => 'Cozy Reads']);
+    CollectionItem::factory()->for($has)->for($media)->create(['position' => 0]);
+    Collection::factory()->create(['name' => 'Someone Elses']);
+
+    $controls = Livewire::test('library-controls', ['media' => $media])->assertSee('Add to collection')->assertSee('Rainy Day')->assertSee('Cozy Reads')->assertDontSee('Someone Elses');
+    $items = htmlQuery($controls->html(), '//ui-menu-checkbox');
+
+    expect($items->length)->toBe(2)
+        ->and(htmlQuery($controls->html(), '//ui-menu-checkbox[@checked][contains(.,"Rainy Day")]')->length)->toBe(1)
+        ->and(htmlQuery($controls->html(), '//ui-menu-checkbox[@checked][contains(.,"Cozy Reads")]')->length)->toBe(0);
+
+    $controls->call('toggleCollection', $hasNot->id);
+    expect($hasNot->items()->where('media_id', $media->id)->exists())->toBeTrue()
+        ->and(htmlQuery($controls->html(), '//ui-menu-checkbox[@checked]')->length)->toBe(2);
+
+    $controls->call('toggleCollection', $has->id);
+    expect($has->items()->count())->toBe(0)->and(htmlQuery($controls->html(), '//ui-menu-checkbox[@checked]')->length)->toBe(1);
+
+    // A collection is not the library: adding to one does not shelve the story.
+    expect(LibraryEntry::count())->toBe(0);
+});
+
+test('a new collection is made and holds the story at once', function () {
+    $this->actingAs($user = User::factory()->create());
+    $media = Media::factory()->create();
+
+    $controls = Livewire::test('library-controls', ['media' => $media])->set('newCollection', 'Fresh Start')->call('createCollection')->assertHasNoErrors();
+
+    $collection = $user->collections()->sole();
+    expect($collection->name)->toBe('Fresh Start')->and($collection->items()->sole()->media_id)->toBe($media->id)
+        ->and($controls->get('newCollection'))->toBe('');
+    $controls->assertSee('Fresh Start');
+});
+
+test('a new collection needs a name of at most 100 characters', function () {
+    $this->actingAs($user = User::factory()->create());
+
+    Livewire::test('library-controls', ['media' => Media::factory()->create()])
+        ->set('newCollection', '')->call('createCollection')->assertHasErrors(['newCollection' => 'required'])
+        ->set('newCollection', str_repeat('a', 101))->call('createCollection')->assertHasErrors(['newCollection' => 'max']);
+
+    expect($user->collections()->count())->toBe(0);
+});
+
+test('the collection actions touch only the readers own collections and only stories they may see', function () {
+    $this->actingAs($user = User::factory()->create());
+    $media = Media::factory()->create();
+    $foreign = Collection::factory()->create();
+
+    Livewire::test('library-controls', ['media' => $media])->call('toggleCollection', $foreign->id)->assertNotFound();
+    expect($foreign->items()->count())->toBe(0);
+
+    $mine = Collection::factory()->for($user)->create();
+    $gated = matureStory();
+    Livewire::test('library-controls', ['media' => $gated])->call('toggleCollection', $mine->id)->assertNotFound();
+    Livewire::test('library-controls', ['media' => $gated])->set('newCollection', 'Sneaky')->call('createCollection')->assertNotFound();
+
+    expect($mine->items()->count())->toBe(0)->and($user->collections()->count())->toBe(1);
+});
+
+test('a guest has no collection menu and cannot use it', function () {
+    $media = Media::factory()->create();
+    $collection = Collection::factory()->create();
+
+    Livewire::test('library-controls', ['media' => $media])->assertDontSee('Add to collection');
+    Livewire::test('library-controls', ['media' => $media])->call('toggleCollection', $collection->id)->assertForbidden();
+    Livewire::test('library-controls', ['media' => $media])->set('newCollection', 'Mine')->call('createCollection')->assertForbidden();
+
+    expect(CollectionItem::count())->toBe(0)->and(Collection::count())->toBe(1);
 });

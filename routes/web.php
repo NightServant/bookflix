@@ -20,6 +20,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('stories/{slug}', 'pages::stories.show')->name('stories.show');
     Route::livewire('series/{slug}', 'pages::series.show')->name('series.show');
     Route::livewire('library', 'pages::library.index')->name('library.index');
+    Route::livewire('collections', 'pages::collections.index')->name('collections.index');
+    Route::livewire('collections/{slug}', 'pages::collections.show')->name('collections.show')->where('slug', '[a-z0-9-]+');
 
     // The no-JS way to add a story; the pages add through the `library-add` browser event (see <livewire:library-listener>). Own throttle bucket, so it shares nothing with the other numeric throttles.
     Route::post('library', [LibraryController::class, 'store'])->middleware('throttle:60,1,library')->name('library.store');

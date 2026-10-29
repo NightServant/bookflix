@@ -1,27 +1,35 @@
 <?php
 
+use App\Actions\Library\AddToCollection;
 use App\Actions\Library\AddToLibrary;
+use App\Actions\Library\CreateCollection;
+use App\Actions\Library\RemoveFromCollection;
 use App\Actions\Library\RemoveFromLibrary;
 use App\Actions\Library\SetLibraryStatus;
 use App\Actions\Library\ToggleFavorite;
 use App\Enums\ReadingStatus;
+use App\Models\Collection;
 use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\User;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
- * A reader's library controls for one story, shown on its page: add it, say where they are with it, favorite it, take it out.
- * Every action works on the signed-in reader's own entry and nothing else, and re-checks that the story is one they may see.
- * A guest gets nothing.
+ * A reader's library controls for one story, shown on its page: add it, say where they are with it, favorite it, take it out, and put it in
+ * (or take it out of) their collections. Every action works on the signed-in reader's own entry and collections and nothing else, and
+ * re-checks that the story is one they may see. A guest gets nothing.
  */
 new class extends Component {
     #[Locked]
     public int $mediaId;
+
+    /** The name typed in the new collection dialog. */
+    public string $newCollection = '';
 
     public function mount(Media $media): void
     {
@@ -37,6 +45,27 @@ new class extends Component {
         $user = auth()->user();
 
         return $user?->library()->where('media_id', $this->mediaId)->first();
+    }
+
+    /**
+     * The reader's collections, the most recently changed first (the most they keep in the menu is 50), each with `holds_story` for this story.
+     *
+     * @return EloquentCollection<int, Collection>
+     */
+    #[Computed]
+    public function collections(): EloquentCollection
+    {
+        $user = auth()->user();
+
+        if ($user === null) {
+            return new EloquentCollection;
+        }
+
+        return $user->collections()
+            ->withExists(['items as holds_story' => fn ($items) => $items->where('media_id', $this->mediaId)])
+            ->orderByDesc('updated_at')->orderByDesc('id')
+            ->limit(50)
+            ->get();
     }
 
     public function add(): void
@@ -81,6 +110,54 @@ new class extends Component {
         unset($this->entry);
 
         Flux::toast(text: __(':title was removed from your library.', ['title' => $media->title]));
+    }
+
+    /**
+     * Put the story in one of the reader's collections, or take it out when it is there.
+     */
+    public function toggleCollection(int $collectionId): void
+    {
+        $user = $this->reader();
+        $media = $this->story($user);
+        $collection = $user->collections()->find($collectionId) ?? abort(404);
+
+        $item = $collection->items()->where('media_id', $media->id)->first();
+
+        try {
+            $item === null
+                ? app(AddToCollection::class)->handle($collection, $media)
+                : app(RemoveFromCollection::class)->handle($collection, $item);
+        } catch (ValidationException $e) {
+            Flux::toast(variant: 'danger', text: $e->validator->errors()->first());
+
+            return;
+        }
+
+        unset($this->collections);
+
+        Flux::toast(text: $item === null
+            ? __(':title was added to :collection.', ['title' => $media->title, 'collection' => $collection->name])
+            : __(':title was removed from :collection.', ['title' => $media->title, 'collection' => $collection->name]));
+    }
+
+    /**
+     * Start a collection with the name typed in the dialog, and put the story in it.
+     */
+    public function createCollection(): void
+    {
+        $user = $this->reader();
+        $media = $this->story($user);
+
+        $this->validate(['newCollection' => ['required', 'string', 'max:100']], attributes: ['newCollection' => __('name')]);
+
+        $collection = app(CreateCollection::class)->handle($user, trim($this->newCollection));
+        app(AddToCollection::class)->handle($collection, $media);
+
+        $this->reset('newCollection');
+        unset($this->collections);
+        $this->dispatch('close-new-collection');
+
+        Flux::toast(variant: 'success', text: __(':title was added to :collection.', ['title' => $media->title, 'collection' => $collection->name]));
     }
 
     /**
@@ -145,5 +222,50 @@ new class extends Component {
             :aria-pressed="$favorite ? 'true' : 'false'"
             :aria-label="$favorite ? __('Remove from favorites') : __('Add to favorites')"
         />
+
+        @php $collections = $this->collections; @endphp
+
+        <flux:dropdown position="bottom" align="start">
+            <x-cta variant="secondary" icon="folder-plus" icon:trailing="chevron-down" data-test="collection-menu">{{ __('Add to collection') }}</x-cta>
+
+            <flux:menu class="shadow-overlay!">
+                @if ($collections->isNotEmpty())
+                    <flux:menu.heading>{{ __('Your collections') }}</flux:menu.heading>
+
+                    @foreach ($collections as $collection)
+                        <flux:menu.checkbox
+                            wire:key="collection-{{ $collection->id }}"
+                            wire:click="toggleCollection({{ $collection->id }})"
+                            :checked="$collection->holds_story"
+                            class="min-h-11! pe-4!"
+                        >{{ $collection->name }}</flux:menu.checkbox>
+                    @endforeach
+
+                    <flux:menu.separator />
+                @endif
+
+                <flux:modal.trigger :name="'new-collection-'.$mediaId">
+                    <flux:menu.item icon="plus" class="min-h-11! pe-4!">{{ __('New collection') }}</flux:menu.item>
+                </flux:modal.trigger>
+            </flux:menu>
+        </flux:dropdown>
+
+        <flux:modal :name="'new-collection-'.$mediaId" class="w-full max-w-md text-ink shadow-overlay!" x-on:close-new-collection.window="$flux.modal(@js('new-collection-'.$mediaId)).close()">
+            <form wire:submit="createCollection" class="space-y-6">
+                <div>
+                    <flux:heading size="lg">{{ __('New collection') }}</flux:heading>
+                    <flux:text class="mt-2">{{ __('Name it, and this story goes in. Add a description or more stories later, from the collection.') }}</flux:text>
+                </div>
+
+                <flux:input wire:model="newCollection" :label="__('Name')" maxlength="100" autocomplete="off" autofocus />
+
+                <div class="flex flex-wrap justify-end gap-3">
+                    <flux:modal.close>
+                        <x-cta variant="secondary" icon="x-mark">{{ __('Cancel') }}</x-cta>
+                    </flux:modal.close>
+                    <x-cta type="submit" icon="plus" wire:loading.attr="disabled" wire:target="createCollection">{{ __('Create collection') }}</x-cta>
+                </div>
+            </form>
+        </flux:modal>
     @endauth
 </div>

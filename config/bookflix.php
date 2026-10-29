@@ -63,6 +63,20 @@ return [
         ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit']],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Collections
+    |--------------------------------------------------------------------------
+    |
+    | The most stories one collection may hold. A collection page lists them all
+    | in one reorderable list, so the page stays bounded.
+    |
+    */
+
+    'collections' => [
+        'max_items' => 300,
+    ],
+
     'privacy' => [
 
         /*
