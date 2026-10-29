@@ -396,6 +396,13 @@ test('a fiction or translated literature Dewey class does not turn a picture boo
     'Where the Wild Things Are' => [['title' => 'Where the Wild Things Are', 'deweyCode' => '891.6632', 'subjects' => ['Caldecott Medal', 'Fantasy fiction', 'Fiction', 'Juvenile fiction', 'Monsters', 'Fairy tales', "Children's fiction", 'Picture books']]],
 ]);
 
+test('Sword Art Online as Open Library has it is a light novel: every edition is one, a Yen Audio audiobook among them', function () {
+    expect(classified_as([
+        'provider' => 'openlibrary', 'title' => 'Sword Art Online', 'pageCount' => 360, 'publishers' => ['TOKYOPOP GmbH', 'Yen Audio', '台灣角川', 'Yen Press'],
+        'subjects' => ['Internet games', 'Science fiction', 'Virtual reality', 'Juvenile fiction', 'Fiction', 'Comics & graphic novels, manga, science fiction', 'FICTION / Science Fiction / Adventure', 'Adventure'],
+    ]))->toBe('light-novel');
+});
+
 test('the new publisher kinds and scripts are normalized like the rest', function () {
     expect(PublisherCatalog::kinds('Ize Press'))->toBe(['manhwa'])
         ->and(PublisherCatalog::kinds('Tappytoon'))->toBe(['manhwa'])

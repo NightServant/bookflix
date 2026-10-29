@@ -38,7 +38,7 @@ final class PublisherCatalog
         self::LIGHT_NOVEL => [
             'yen on', 'j novel club', 'seven seas airship', 'airship', 'dengeki bunko', 'ga bunko', 'mf bunko', 'mf bunko j', 'fujimi fantasia bunko',
             'kadokawa sneaker bunko', 'sneaker bunko', 'hj bunko', 'overlap bunko', 'gagaga bunko', 'dash x bunko', 'shueisha dash x bunko',
-            'jump j books', 'kodansha ranobe bunko', 'ranobe bunko', 'famitsu bunko', 'cross infinite world', 'sol press', 'hanashi media',
+            'jump j books', 'kodansha ranobe bunko', 'ranobe bunko', 'famitsu bunko', 'cross infinite world', 'sol press', 'hanashi media', 'yen audio',
             '電撃文庫', 'mf文庫j', 'ファンタジア文庫', 'スニーカー文庫', 'ga文庫', 'hj文庫', 'オーバーラップ文庫', 'ガガガ文庫', 'ダッシュエックス文庫', 'ラノベ文庫',
             'ファミ通文庫', '轻小说', '輕小說', '라이트노벨',
         ],
