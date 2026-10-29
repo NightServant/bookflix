@@ -3,10 +3,6 @@
 use App\Models\User;
 use Livewire\Livewire;
 
-test('guests see the landing page', function () {
-    $this->get(route('landing'))->assertOk()->assertSee('Your Library. Every Story.');
-});
-
 test('authenticated users are sent from the landing page to home', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('landing'))

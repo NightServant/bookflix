@@ -5,10 +5,12 @@
     'tilt' => '-18deg',
     'interactive' => false,
     'scene' => false,
+    'sceneSrc' => null,
     'bind' => null,
     'title' => null,
     'alt' => '',
     'priority' => false,
+    'lazy' => false,
 ])
 
 {{--
@@ -18,7 +20,7 @@
     yaw (-18deg turns the fore-edge towards the reader; a positive angle shows the spine). `interactive` leans the book towards the
     pointer, up to 10deg, on fine pointers only; with reduced motion it stays at its resting angle. A missing or broken cover shows
     <x-cover-fallback> on the front face. `scene` progressively upgrades it to a three.js book (resources/js/book-scene.js) on
-    capable devices: the CSS book renders first and stays as the fallback. The scene reads the cover through the same-origin proxy (`covers.show`). `priority` marks the cover as the page's LCP image (`fetchpriority=high`). The cover is decorative (`alt` is empty unless set): the title is always written out next to it.
+    capable devices: the CSS book renders first and stays as the fallback. The scene reads the cover through the same-origin proxy (`covers.show`); a book made from a `src` (no media) passes that proxy path as `sceneSrc`, or its scene would read the remote URL, which WebGL cannot texture. `priority` marks the cover as the page's LCP image (`fetchpriority=high`); `lazy` loads a book below the fold when it nears the viewport. The cover is decorative (`alt` is empty unless set): the title is always written out next to it.
     `bind` is an Alpine expression for the cover URL that follows state (the hero's active slide): it drives the front image and
     `--cover` (so the spine and back follow). The scene is turned separately, by a `book-scene:turn` event.
     The geometry and the lighting are in resources/css/app.css (`.book3d`); resources/js/book-3d.js drives the lean and the fallback.
@@ -28,7 +30,7 @@
     $tilt = preg_match('/^-?\d+(\.\d+)?deg$/', (string) $tilt) ? $tilt : '-18deg';
     $cover = $src ?? $media?->cover_url;
     $title ??= $media?->title ?? '';
-    $sceneCover = $scene && $cover ? ($media?->exists && $src === null ? $media->coverProxyUrl() : $src) : null;
+    $sceneCover = $scene && $cover ? ($sceneSrc ?? ($media?->exists && $src === null ? $media->coverProxyUrl() : $src)) : null;
     $style = '--tilt: '.$tilt.';'.($cover ? ' --cover: url("'.addcslashes($cover, '"\\').'");' : '');
 @endphp
 
@@ -46,7 +48,7 @@
     <span class="book3d__body" x-ref="body">
         <span class="book3d__face book3d__front">
             @if ($cover)
-                <img x-ref="cover" src="{{ $cover }}" width="{{ $px = ["sm" => 80, "md" => 128, "lg" => 192, "xl" => 272][$size] }}" height="{{ $px * 1.5 }}" @if ($priority) fetchpriority="high" @endif @if ($bind) x-bind:src="{{ $bind }}" @endif alt="{{ $alt }}" decoding="async" draggable="false" x-on:error="broken()">
+                <img x-ref="cover" src="{{ $cover }}" width="{{ $px = ["sm" => 80, "md" => 128, "lg" => 192, "xl" => 272][$size] }}" height="{{ $px * 1.5 }}" @if ($priority) fetchpriority="high" @elseif ($lazy) loading="lazy" @endif @if ($bind) x-bind:src="{{ $bind }}" @endif alt="{{ $alt }}" decoding="async" draggable="false" x-on:error="broken()">
             @endif
 
             <span class="book3d__fallback" data-book-fallback><x-cover-fallback :title="$title" /></span>

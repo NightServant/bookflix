@@ -258,6 +258,23 @@ function enableLibraryRoute(): void
 }
 
 /**
+ * Stories with a cover and a falling popularity score ("Popular Tale 1" is the most popular), for the landing page. `$cover` is the cover
+ * url (`{n}` becomes the story's number); the default is a local file so a browser test needs no network.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return list<Media>
+ */
+function popularStories(int $count, array $overrides = [], string $cover = '/favicon.svg'): array
+{
+    return Media::factory()->count($count)->sequence(fn ($sequence) => [
+        'title' => 'Popular Tale '.($sequence->index + 1),
+        'cover_url' => str_replace('{n}', (string) ($sequence->index + 1), $cover),
+        'popularity_score' => 1 - ($sequence->index / 100),
+        ...$overrides,
+    ])->create()->all();
+}
+
+/**
  * Component acceptance harness, feature side: render Blade markup (`<x-cover-tile :media="$media" />`) to HTML.
  *
  * @param  array<string, mixed>  $data
