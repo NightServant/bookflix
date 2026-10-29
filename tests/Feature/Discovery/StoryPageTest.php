@@ -1,7 +1,9 @@
 <?php
 
+use App\Actions\Library\AddToLibrary;
 use App\Catalog\Ingestion\Deduplicator;
 use App\Discovery\SimilarMedia;
+use App\Enums\ReadingStatus;
 use App\Models\ContentWarning;
 use App\Models\ExternalSource;
 use App\Models\Genre;
@@ -14,6 +16,7 @@ use Database\Seeders\DeweySeeder;
 use Database\Seeders\TaxonomySeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 /**
@@ -60,17 +63,28 @@ test('the story page renders its sections', function () {
         ->assertSee('Adaptation');
 });
 
-test('the story page has no add to library cta until the library route exists', function () {
+test('the story page carries the readers library controls, with the add cta first for a story not in the library', function () {
     $m = fullMedia();
-    $url = route('stories.show', $m->slug);
+    $user = User::factory()->create();
 
-    $this->actingAs(User::factory()->create())->get($url)->assertOk()
-        ->assertDontSee('Add to Library')->assertDontSee('library-add');
+    $html = $this->actingAs($user)->get(route('stories.show', $m->slug))->assertOk()->assertSeeLivewire('library-controls')->getContent();
+    expect(htmlQuery($html, '//main//button[normalize-space()="Add to Library"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//main//button[@aria-label="Add to favorites"]')->length)->toBe(1);
 
-    enableLibraryRoute();
+    app(AddToLibrary::class)->handle($user, $m, ReadingStatus::Reading);
 
-    $this->actingAs(User::factory()->create())->get($url)->assertOk()
-        ->assertSee('Add to Library')->assertSee('library-add', false);
+    $html = $this->actingAs($user)->get(route('stories.show', $m->slug))->assertOk()->getContent();
+    expect(htmlQuery($html, '//main//button[normalize-space()="Add to Library"]')->length)->toBe(0)
+        ->and(htmlQuery($html, '//main//button[@data-test="library-status"][normalize-space()="Reading"]')->length)->toBe(1);
+});
+
+test('the see the series cta is quiet next to the library controls, which hold the one primary button', function () {
+    $m = fullMedia();
+
+    $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertOk()->getContent();
+
+    expect(htmlQuery($html, '//a[@href="'.route('series.show', $m->series->first()->slug).'"][normalize-space()="See the series"][contains(@class,"bg-zinc-800/5")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//main//button[normalize-space()="Add to Library"][contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(1);
 });
 
 test('the page has one h1, the title, and sets the document title', function () {
@@ -305,14 +319,17 @@ test('similar media comes with the relations a shelf tile and a preview read', f
 });
 
 test('the story page runs a bounded number of queries', function () {
+    Queue::fake(); // the view it records is queued work, not page work
     $m = fullMedia();
     $this->actingAs(User::factory()->create());
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
+    // One of the 26 is the reader's library entry, for the controls.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(26);
 });
 
-test('the story page runs at most twenty one queries once the similar ids are cached', function () {
+test('the story page runs at most twenty two queries once the similar ids are cached', function () {
+    Queue::fake();
     $m = fullMedia();
     $this->actingAs(User::factory()->create());
     $this->get(route('stories.show', $m->slug))->assertOk();
@@ -321,8 +338,8 @@ test('the story page runs at most twenty one queries once the similar ids are ca
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
 
-    // One of the twenty one is the mature access gate: whether this story is behind it for the reader.
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(21);
+    // One of the twenty two is the mature access gate (whether this story is behind it for the reader), another the reader's library entry.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(22);
 });
 
 test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {

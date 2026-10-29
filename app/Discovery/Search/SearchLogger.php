@@ -21,13 +21,29 @@ class SearchLogger
 
         return SearchQuery::create([
             'user_id' => $user?->personalizationEnabled() ? $user->id : null,
-            'session_hash' => hash_hmac('sha256', session()->getId(), config('app.key')),
+            'session_hash' => $this->sessionHash(),
             'query' => $query,
             'normalized' => mb_substr($this->normalize($query), 0, self::MAX_LENGTH),
             'filters' => $filters->toArray(),
             'results_count' => $resultsCount,
             'previous_query_id' => $previousQueryId,
         ]);
+    }
+
+    /**
+     * The keyed hash this session's searches are stored under: the session id is never stored.
+     */
+    public function sessionHash(): string
+    {
+        return hash_hmac('sha256', session()->getId(), config('app.key'));
+    }
+
+    /**
+     * Whether this search was made in the current session, which is what lets a story opened with `?sq=` credit it with a click.
+     */
+    public function ranInThisSession(int $searchQueryId): bool
+    {
+        return SearchQuery::whereKey($searchQueryId)->where('session_hash', $this->sessionHash())->exists();
     }
 
     /**

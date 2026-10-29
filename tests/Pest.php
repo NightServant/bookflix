@@ -25,6 +25,7 @@ use App\Models\Publisher;
 use App\Models\Series;
 use App\Models\Tag;
 use App\Models\Theme;
+use App\Models\UserInteraction;
 use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\Eloquent\Collection;
@@ -248,13 +249,13 @@ function search(string $query, ?SearchFilters $filters = null): LengthAwarePagin
 }
 
 /**
- * Register the Phase 5 `library.store` route the Add to Library CTAs wait for, as the library will once it exists.
+ * The names of the interactions recorded so far, oldest first.
+ *
+ * @return list<string>
  */
-function enableLibraryRoute(): void
+function interactionEvents(): array
 {
-    Route::middleware('web')->post('/library', fn () => response()->noContent())->name('library.store');
-
-    app('router')->getRoutes()->refreshNameLookups();
+    return UserInteraction::orderBy('id')->get()->map(fn (UserInteraction $row): string => $row->event->value)->all();
 }
 
 /**

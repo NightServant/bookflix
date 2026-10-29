@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -81,6 +82,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'personalization_enabled' => true,
             'show_mature' => false,
         ]);
+    }
+
+    /**
+     * The stories in the reader's library (see App\Actions\Library for the only writers).
+     *
+     * @return HasMany<LibraryEntry, $this>
+     */
+    public function library(): HasMany
+    {
+        return $this->hasMany(LibraryEntry::class);
     }
 
     public function isDeactivated(): bool

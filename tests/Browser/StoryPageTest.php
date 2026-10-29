@@ -1,6 +1,8 @@
 <?php
 
 use App\Catalog\Ingestion\Deduplicator;
+use App\Enums\ReadingStatus;
+use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\User;
 
@@ -28,6 +30,40 @@ test('the story page passes the shared checks on desktop and on a phone, shelf i
 
         $page->wait(1)->assertSee('More Like This')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
     }
+});
+
+test('the library controls add the story, change its status, favorite it and take it out', function () {
+    $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
+
+    $page->click('main button:has-text("Add to Library")')->wait(1)
+        ->assertSee('was added to your library')
+        ->assertScript('document.querySelector("[data-test=library-status]").textContent.trim()', 'Want to read')
+        ->click('[data-test=library-status]')->wait(0.5)
+        ->click('ui-menu button:has-text("Completed")')->wait(1)
+        ->assertScript('document.querySelector("[data-test=library-status]").textContent.trim()', 'Completed')
+        ->click('[aria-label="Add to favorites"]')->wait(1)
+        ->assertScript('document.querySelector("[aria-label=\"Remove from favorites\"]").getAttribute("aria-pressed")', 'true')
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues();
+
+    $entry = LibraryEntry::sole();
+    expect($entry->status)->toBe(ReadingStatus::Completed)->and($entry->favorited_at)->not->toBeNull();
+
+    $page->click('[data-test=library-status]')->wait(0.5)
+        ->click('ui-menu button:has-text("Remove from library")')->wait(1)
+        ->assertSee('Add to Library');
+
+    expect(LibraryEntry::count())->toBe(0);
+});
+
+test('the library controls pass the audit on a phone too, and their menu items are 44px targets', function () {
+    $page = visit(route('stories.show', $this->story->slug), $this->phone)->wait(1);
+
+    $page->click('main button:has-text("Add to Library")')->wait(1)
+        ->click('[data-test=library-status]')->wait(0.5)
+        ->assertScript('Array.from(document.querySelectorAll("[data-library-controls] ui-menu [data-flux-menu-item]")).every((item) => item.getBoundingClientRect().height >= 44)', true)
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues();
 });
 
 test('the tabs switch between overview, series and related', function () {
