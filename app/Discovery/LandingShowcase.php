@@ -2,13 +2,12 @@
 
 namespace App\Discovery;
 
-use App\Enums\AgeRating;
 use App\Models\Media;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * What the public landing page shows of the catalog, from one cached pool: the most popular stories that have a cover (adult titles
- * stay off a page anyone can open). One query when cold and none when warm; everything else is picked from the cached arrays, so a
+ * What the public landing page shows of the catalog, from one cached pool: the most popular stories that have a cover, as a guest may
+ * see them (the mature gate holds on a page anyone can open). One query when cold and none when warm; everything else is picked from the cached arrays, so a
  * decorative book never costs a query per visit. The hero's books, the cover pictures on the cards and the Top 10 all draw from it.
  *
  * @phpstan-type Cover array{id: int, title: string, cover: string, scene: string, popularity: float}
@@ -30,10 +29,10 @@ class LandingShowcase
      */
     public function pool(): array
     {
-        return Cache::remember('landing:pool:v2', now()->addMinutes(self::CACHE_MINUTES), fn (): array => array_values(Media::query()
+        return Cache::remember('landing:pool:v3', now()->addMinutes(self::CACHE_MINUTES), fn (): array => array_values(Media::query()
             ->trending()
+            ->visibleTo(null)
             ->whereNotNull('media.cover_url')
-            ->whereNot('media.age_rating', AgeRating::Adult->value)
             ->limit(self::POOL)
             ->get(['media.id', 'media.title', 'media.cover_url', 'media.popularity_score'])
             ->map(fn (Media $media): array => [
