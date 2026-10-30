@@ -30,7 +30,7 @@
 | Landing page: centred hero with 3D books, Top 10 marquee, problem and solution sections, FAQ, CTA, footer | #13 | done |
 | Landing showcase behind the mature gate | #16 | open |
 | Media-type classification: a `nonfiction` type, manhwa vs manga, translated comics take the original's form, books of more than one type (`media_additional_types`, `Media::ofTypes()`) (`handoff-media-type-classification.md`) | #17 | done |
-| Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29; ledger `phase-5-ledger.md`) | #18 | CI, then merge |
+| Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29; ledger `phase-5-ledger.md`) | #18 | done |
 
 After pulling these merges, run locally: `php artisan migrate`, `php artisan db:seed --class=TaxonomySeeder`, then for each of `openlibrary`, `comicvine`, `metron` and `hardcover`: `php artisan bookflix:reclassify --resync --source=X` and `php artisan bookflix:sync X --full`.
 
