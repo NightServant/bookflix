@@ -28,7 +28,7 @@
 | Taxonomy part 1: genre tree, tropes, demographics, warning statuses, audience ratings, `MediaTypeClassifier`, `bookflix:reclassify` (`genre-taxonomy-spec.md`) | #14 | done |
 | Taxonomy part 2: `<x-filter-panel>` genre-tree filters on Search and Discover; mature access gate (`Media::visibleTo()`, Settings → Privacy) | #15 | done |
 | Landing page: centred hero with 3D books, Top 10 marquee, problem and solution sections, FAQ, CTA, footer | #13 | done |
-| Landing showcase behind the mature gate | #16 | open |
+| Landing showcase behind the mature gate | #16 | done |
 | Media-type classification: a `nonfiction` type, manhwa vs manga, translated comics take the original's form, books of more than one type (`media_additional_types`, `Media::ofTypes()`) (`handoff-media-type-classification.md`) | #17 | done |
 | Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29; ledger `phase-5-ledger.md`) | #18 | done |
 
