@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Testing\TestResponse;
 use Livewire\Livewire;
 
 const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json'];
@@ -581,11 +582,39 @@ test('the download route is the only way in: nothing serves the private disk', f
     $this->actingAs($user)->get('/exports/'.$user->id)->assertNotFound();
 });
 
-test('the download is throttled per reader, not shared with other numeric throttles', function () {
-    $user = User::factory()->create();
+test('the download is refused after 30 requests a minute to that reader alone, and shares no counter with the other throttled routes', function () {
+    $user = exportFixture();
+    $other = exportFixture('Theirs');
     (new ExportUserData($user->id))->handle();
-    $route = app('router')->getRoutes()->getByName('exports.download');
+    (new ExportUserData($other->id))->handle();
+    $story = Media::factory()->create();
+    $remaining = fn (TestResponse $response): int => (int) $response->headers->get('X-RateLimit-Remaining');
 
-    expect($route->gatherMiddleware())->toContain('auth', 'signed')
-        ->and(collect($route->gatherMiddleware())->first(fn ($m) => str_starts_with((string) $m, 'throttle:')))->toBe('throttle:30,1,exports');
+    // The other throttled routes count on their own: one request each, before and after the downloads.
+    $this->actingAs($user);
+    expect($remaining($this->post(route('library.store'), ['media_id' => $story->id])))->toBe(59)
+        ->and($remaining($this->get(route('covers.show', $story))))->toBe(119);
+
+    $link = exportLink($user);
+
+    foreach (range(1, 30) as $request) {
+        $response = $this->get($link)->assertOk();
+
+        // It starts at its own 30, whatever the other routes have counted.
+        expect($remaining($response))->toBe(30 - $request);
+    }
+
+    $this->get($link)->assertStatus(429)->assertHeader('Retry-After');
+
+    // Past its limit the reader is still let into the other routes, which have not counted the refused downloads.
+    expect($remaining($this->post(route('library.store'), ['media_id' => $story->id])))->toBe(58)
+        ->and($remaining($this->get(route('covers.show', $story))))->toBe(118);
+
+    // Another reader has a count of their own.
+    $this->actingAs($other);
+    expect($remaining($this->get(exportLink($other))->assertOk()))->toBe(29);
+
+    // And the minute comes round.
+    $this->travel(61)->seconds();
+    $this->actingAs($user)->get($link)->assertOk();
 });
