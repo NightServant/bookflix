@@ -101,6 +101,26 @@ test('a near duplicate becomes a review candidate once', function () {
         ->and(DuplicateCandidate::count())->toBe(1);
 });
 
+test('a Comic Vine translation of a stored manhwa is stored as a manhwa and left for review, not merged', function () {
+    app(MediaTypeSeeder::class)->run();
+    $original = Media::factory()->ofType('manhwa')->create(['title' => 'Solo Leveling', 'publication_year' => 2018]);
+    $original->creators()->attach(Creator::factory()->create(['name' => 'Chugong (추공)']), ['role' => 'author', 'position' => 0]);
+    $original->update(['primary_external_source_id' => ExternalSource::factory()->create(['key' => 'mangaupdates'])->id]);
+    ExternalSource::factory()->create(['key' => 'comicvine']);
+
+    $comicVine = Mockery::mock(MetadataProvider::class);
+    $comicVine->shouldReceive('key')->andReturn('comicvine');
+    $comicVine->shouldReceive('normalize')->andReturn(new NormalizedMedia(title: 'Solo Leveling', mediaTypeSlug: 'comic-book', credits: ['Chugong', 'DUBU'], publicationYear: 2021, sourceUrl: 'https://comicvine.gamespot.com/solo-leveling/4050-1/'));
+
+    $outcome = app(IngestionPipeline::class)->import(new ProviderRecord('comicvine', '1', ['id' => 1], null, now()->toImmutable()), $comicVine);
+    $translation = Media::whereKeyNot($original->id)->sole();
+
+    expect($outcome)->toBe(ImportOutcome::Created)
+        ->and($translation->mediaType->slug)->toBe('manhwa')
+        ->and($translation->creators)->toBeEmpty()
+        ->and(DuplicateCandidate::count())->toBe(1);
+});
+
 test('a new media remembers the provider that created it as its primary', function () {
     importFixture('anilist', 'manga-berserk');
 

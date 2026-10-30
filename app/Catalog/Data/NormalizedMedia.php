@@ -22,6 +22,8 @@ final readonly class NormalizedMedia
      * @param  array<string, string>  $crossIds  Other providers' ids, keyed by provider.
      * @param  list<string>  $contentWarnings  Raw provider terms the provider labels as content warnings.
      * @param  array<string, int|float>  $metrics  Popularity signals by name (popularity, favourites, follows, ratings_count, average_rating on a 0-5 scale, pageviews_30d).
+     * @param  list<string>  $credits  Names credited on the work whose roles the provider does not say (a Comic Vine volume credits translators and letterers
+     *                                 alike): they help recognise the same work and are never stored as creators.
      */
     public function __construct(
         public string $title,
@@ -52,5 +54,14 @@ final readonly class NormalizedMedia
         public ?string $sourceUrl = null,
         public bool $isAdult = false,
         public array $metrics = [],
+        public array $credits = [],
     ) {}
+
+    /**
+     * The same record filed under another media type.
+     */
+    public function withMediaTypeSlug(string $slug): self
+    {
+        return new self(...[...get_object_vars($this), 'mediaTypeSlug' => $slug]);
+    }
 }

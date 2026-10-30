@@ -416,3 +416,13 @@ test('the new publisher kinds and scripts are normalized like the rest', functio
         ->and(PublisherCatalog::kinds('台灣角川'))->toBe([])
         ->and(PublisherCatalog::kinds('대원씨아이'))->toBe([]);
 });
+
+test('Comic Vine says where a translated comic comes from in its blurb', function (array $signals, string $slug) {
+    expect(classified_as(['provider' => 'comicvine', ...$signals]))->toBe($slug);
+})->with([
+    'Akira, Epic\'s English edition' => [['title' => 'Akira', 'publishers' => ['Epic'], 'description' => 'English translation of the Japanese manga Akira, this was one of the first manga published in colour.'], 'manga'],
+    'a Japanese title in kanji only' => [['title' => 'Number Five', 'publishers' => ['Viz'], 'description' => 'Proper Japanese Title: 吾 Originally serialized in Spirits Zōkan Ikki.'], 'manga'],
+    'the Korean original of Tower of God' => [['title' => 'Sin-ui Tap', 'publishers' => ['Young Com'], 'alternativeTitles' => ['신의 탑', 'Tower of God'], 'description' => 'Proper Korean Title: 신의 탑 (Sin-ui Tap) Originally serialized in Naver Webtoon.'], 'manhwa'],
+    'a Chinese title' => [['title' => 'Quanzhi Gaoshou', 'description' => 'Proper Chinese Title: 全职高手. Originally published on Tencent Comics.'], 'manhua'],
+    'a French edition that says nothing' => [['title' => 'Blacksad', 'publishers' => ['Dargaud'], 'description' => 'French publication.'], 'comic-book'],
+]);

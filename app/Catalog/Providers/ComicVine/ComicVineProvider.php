@@ -30,6 +30,15 @@ class ComicVineProvider implements MetadataProvider
 
     private const FIELDS = 'id,name,aliases,deck,description,image,publisher,start_year,count_of_issues,site_detail_url,date_last_updated';
 
+    /** Fields only the single-volume endpoint returns: everyone credited on its issues, and its concepts (an imprint such as Ize Press). */
+    private const CREDIT_FIELDS = 'people,concepts';
+
+    /**
+     * A blurb that marks a volume as an edition of a work from elsewhere ("French publication.", "English translation of the Korean manhwa").
+     * Its credits are fetched so it can be recognised as that work; about one volume in seventy, so the hourly quota hardly notices.
+     */
+    private const FOREIGN_EDITION = '/\b(?:english|french|german|spanish|italian|portuguese|brazilian|polish|dutch|swedish|danish|norwegian|finnish|czech|hungarian|turkish|russian|indonesian|thai|vietnamese) (?:translation|publication|edition)\b|\btranslation of\b|\bproper (?:japanese|korean|chinese) title\b/i';
+
     public function key(): string
     {
         return 'comicvine';
@@ -60,7 +69,7 @@ class ComicVineProvider implements MetadataProvider
         $newest = null;
 
         foreach ($results as $item) {
-            $records[] = $this->record($item);
+            $records[] = $this->record($this->isForeignEdition($item) ? $this->withCredits($item) : $item);
             $updated = $this->date($item['date_last_updated'] ?? null);
             $newest = $updated && (! $newest || $updated->greaterThan($newest)) ? $updated : $newest;
         }
@@ -73,7 +82,7 @@ class ComicVineProvider implements MetadataProvider
 
     public function find(string $externalId): ?ProviderRecord
     {
-        $body = $this->get('/volume/4050-'.rawurlencode($externalId).'/', ['field_list' => self::FIELDS]);
+        $body = $this->get('/volume/4050-'.rawurlencode($externalId).'/', ['field_list' => self::FIELDS.','.self::CREDIT_FIELDS]);
         $item = $body['results'] ?? null;
 
         return is_array($item) && $item !== [] && ! array_is_list($item) ? $this->record($item) : null;
@@ -91,6 +100,7 @@ class ComicVineProvider implements MetadataProvider
 
         $deck = $this->plainText($item['deck'] ?? null);
         $description = $this->plainText($item['description'] ?? null) ?? $deck;
+        $concepts = $this->names($item['concepts'] ?? null);
 
         return new NormalizedMedia(
             title: $title,
@@ -100,7 +110,9 @@ class ComicVineProvider implements MetadataProvider
                 title: $title,
                 alternativeTitles: $aliases,
                 description: trim("{$deck} {$description}"),
-                publishers: $publisher !== '' ? [$publisher] : [],
+                // A concept can be an imprint (Ize Press) or a format (Webtoon), so it is read as both.
+                subjects: $concepts,
+                publishers: [...($publisher !== '' ? [$publisher] : []), ...$concepts],
                 chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
                 language: 'en',
             )),
@@ -112,7 +124,43 @@ class ComicVineProvider implements MetadataProvider
             chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
             coverUrl: $this->safeUrl($image['medium_url'] ?? $image['original_url'] ?? null),
             sourceUrl: $this->safeUrl($record->sourceUrl),
+            credits: $this->names($item['people'] ?? null),
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function isForeignEdition(array $item): bool
+    {
+        return preg_match(self::FOREIGN_EDITION, ($this->plainText($item['deck'] ?? null) ?? '').' '.($this->plainText($item['description'] ?? null) ?? '')) === 1;
+    }
+
+    /**
+     * The volume with its credits and concepts from the single-volume endpoint; unchanged when that answers nothing.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function withCredits(array $item): array
+    {
+        $id = $item['id'] ?? null;
+        $detail = is_int($id) ? ($this->get("/volume/4050-{$id}/", ['field_list' => self::CREDIT_FIELDS])['results'] ?? null) : null;
+
+        return is_array($detail) && ! array_is_list($detail) ? [...$item, ...array_intersect_key($detail, ['people' => true, 'concepts' => true])] : $item;
+    }
+
+    /**
+     * The names in a Comic Vine list of objects (`[{"name": "Chugong"}, ...]`).
+     *
+     * @return list<string>
+     */
+    private function names(mixed $objects): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            fn (mixed $object): string => $this->text(is_array($object) ? ($object['name'] ?? null) : null),
+            is_array($objects) ? $objects : [],
+        ))));
     }
 
     /**

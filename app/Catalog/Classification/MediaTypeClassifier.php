@@ -308,13 +308,18 @@ class MediaTypeClassifier
             $form['novel'] += 3.0;
         }
 
-        // Only the comic's form: "the novel behind the hit manhwa" is still a novel when the rest says prose.
-        if (preg_match('/\bmanhwa\b|\bkorean (?:webtoon|web ?comic|comic)s?\b/', $text) === 1) {
+        // Only the comic's form: "the novel behind the hit manhwa" is still a novel when the rest says prose. Comic Vine says where a translated
+        // volume comes from ("English translation of the Japanese manga", "Proper Korean Title: ... Originally serialized in Naver Webtoon").
+        if (preg_match('/\bmanhwa\b|\bkorean (?:webtoon|web ?comic|comic)s?\b|\bproper korean title\b|\b(?:naver|daum|kakao ?page|lezhin)\b/', $text) === 1) {
             $form['manhwa'] += 6.0;
         }
 
-        if (preg_match('/\bmanhua\b|\bchinese (?:web ?comic|comic)s?\b/', $text) === 1) {
+        if (preg_match('/\bmanhua\b|\bchinese (?:web ?comic|comic)s?\b|\bproper chinese title\b|\b(?:bilibili|tencent comics|kuaikan)\b/', $text) === 1) {
             $form['manhua'] += 6.0;
+        }
+
+        if (preg_match('/\bjapanese (?:manga|comics?)\b|\bproper japanese title\b/', $text) === 1) {
+            $form['manga'] += 6.0;
         }
 
         if (preg_match('/\b(?:is|was) an? ((?:[a-z0-9\'-]+ ){0,4}?)light novel\b/', $text, $match) === 1 && preg_match($adapts, $match[0]) === 0) {
