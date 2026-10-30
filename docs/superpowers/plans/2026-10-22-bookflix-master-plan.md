@@ -29,7 +29,8 @@
 | Taxonomy part 2: `<x-filter-panel>` genre-tree filters on Search and Discover; mature access gate (`Media::visibleTo()`, Settings → Privacy) | #15 | done |
 | Landing page: centred hero with 3D books, Top 10 marquee, problem and solution sections, FAQ, CTA, footer | #13 | done |
 | Landing showcase behind the mature gate | #16 | open |
-| Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29) | `phase-5-library` | in progress |
+| Media-type classification: a `nonfiction` type, manhwa vs manga, translated comics take the original's form, books of more than one type (`media_additional_types`, `Media::ofTypes()`) (`handoff-media-type-classification.md`) | #17 | done |
+| Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29; ledger `phase-5-ledger.md`) | #18 | CI, then merge |
 
 After pulling these merges, run locally: `php artisan migrate`, `php artisan db:seed --class=TaxonomySeeder`, then for each of `openlibrary`, `comicvine`, `metron` and `hardcover`: `php artisan bookflix:reclassify --resync --source=X` and `php artisan bookflix:sync X --full`.
 
@@ -1761,5 +1762,7 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 2026-10-29 | Merge order | #12 → #14 → #15 → #13, squash; each branch brought up to date with main before merging | user |
 | 2026-10-29 | D-36 Reader ratings | `ratings.score` 1–10 per reader; the readers' aggregate is one more `media_metrics` source (`bookflix`), blended into `media.average_rating` (0–5) like any provider; Phase 6 decides its weight in the popularity score | user (via lead session) |
 | 2026-10-29 | D-37 Onboarding for existing accounts | Accounts created before Phase 5 are backfilled `onboarded_at = now()` so nobody is forced through it; onboarding stays reachable from Settings → Preferences | user (via lead session) |
+| 2026-10-30 | D-38 Nonfiction and multi-type books (PR #17) | A `nonfiction` media type (prose family) instead of filing nonfiction as novels; a story can also be other types (`media_additional_types`), and every type filter uses `Media::ofTypes()` so it is found under each | user |
+| 2026-10-30 | Merge order | #17 before #18; #18 merged main with the plan from #17's comment (two textual conflicts, onboarding picks and the library format filter on `ofTypes()`) | user |
 | — | D-1 … D-18, Q1 … Q17, A4 approvals | pending | — |
 | — | Figma file keys: Bookflix · Design System / Prototypes / Architecture & Flows | pending (F0) | — |
