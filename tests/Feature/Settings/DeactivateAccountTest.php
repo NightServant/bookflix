@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -73,7 +72,7 @@ test('purge deletes only accounts past the retention window', function () {
 test('purge also deletes the avatar file', function () {
     $disk = Storage::fake(config('bookflix.avatar_disk'));
     $user = User::factory()->create(['deactivated_at' => now()->subDays(31)]);
-    Profile::factory()->for($user)->create(['avatar_path' => 'avatars/1/a.jpg']);
+    $user->profile()->updateOrCreate([], ['avatar_path' => 'avatars/1/a.jpg']);
     $disk->put('avatars/1/a.jpg', 'x');
 
     $this->artisan('bookflix:purge-deactivated-accounts')->assertSuccessful();

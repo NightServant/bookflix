@@ -514,6 +514,122 @@ export default function components(Alpine) {
             });
         },
     }));
+
+    // <x-rating-input>: a score from 1 to 10 on five stars with halves, a radio group after the APG pattern (arrows move focus and select,
+    // wrapping; Home and End jump to the ends; only the checked radio, or the first while none is, is in the tab order). Delete or Backspace
+    // clears it. `value` is the model (null or a whole score); `preview` is the score under the pointer. A choice is announced to the parent with
+    // a bubbling `rated` event ({ value }): at once for a click, the clear button or Space, and after `settle` ms of quiet (or on leaving the
+    // group) for arrow keys, so walking along the stars asks the server for one save, not ten. Nothing here animates, so reduced motion needs no case.
+    Alpine.data('ratingInput', ({ hint, rated, cleared, settle = 700 }) => ({
+        value: null,
+        preview: null,
+        announcement: '',
+        timer: null,
+
+        // The model can arrive as anything (null before the server sets it, a string, a score out of range): only a whole score of 1 to 10 counts.
+        get score() {
+            const number = Number(this.value);
+
+            return this.value !== null && Number.isInteger(number) && number >= 1 && number <= 10 ? number : null;
+        },
+
+        get caption() {
+            const shown = this.preview ?? this.score;
+
+            return shown === null ? hint : `${shown}/10`;
+        },
+
+        isChecked(score) {
+            return this.score === score;
+        },
+
+        // Roving tabindex: the checked radio, or the first one while nothing is checked.
+        tabindex(score) {
+            return (this.score ?? 1) === score ? 0 : -1;
+        },
+
+        // How much of a star is filled, in percent: each star holds two scores.
+        fill(star) {
+            return Math.max(0, Math.min(2, (this.preview ?? this.score ?? 0) - (star - 1) * 2)) * 50;
+        },
+
+        hover(event, score) {
+            event.pointerType === 'mouse' && (this.preview = score);
+        },
+
+        choose(score) {
+            this.value = score;
+            this.preview = null;
+            this.commit();
+        },
+
+        clear() {
+            this.value = null;
+            this.preview = null;
+            this.commit();
+        },
+
+        commit() {
+            clearTimeout(this.timer);
+            this.timer = null;
+            this.announcement = this.score === null ? cleared : rated.replace(':score', this.score);
+            this.$dispatch('rated', { value: this.score });
+        },
+
+        keydown(event) {
+            const radios = Array.from(this.$root.querySelectorAll('[role=radio]'));
+            const at = radios.indexOf(event.target);
+
+            if (at === -1 || event.altKey || event.ctrlKey || event.metaKey) {
+                return;
+            }
+
+            let target;
+
+            switch (event.key) {
+                case 'ArrowRight':
+                case 'ArrowDown':
+                    target = at + 1;
+                    break;
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    target = at - 1;
+                    break;
+                case 'Home':
+                    target = 0;
+                    break;
+                case 'End':
+                    target = radios.length - 1;
+                    break;
+                case 'Delete':
+                case 'Backspace':
+                    event.preventDefault();
+                    this.clear();
+
+                    return;
+                default:
+                    return;
+            }
+
+            event.preventDefault();
+            const next = radios[(target + radios.length) % radios.length];
+
+            next.focus();
+            this.value = Number(next.dataset.value);
+            this.preview = null;
+            clearTimeout(this.timer);
+            this.timer = setTimeout(() => this.commit(), settle);
+        },
+
+        // Focus left the group with a keyboard choice still waiting: send it now.
+        leave(event) {
+            this.timer !== null && ! this.$root.contains(event.relatedTarget) && this.commit();
+        },
+
+        destroy() {
+            clearTimeout(this.timer);
+        },
+    }));
 }
 
 const fold = (text) => String(text).normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase();

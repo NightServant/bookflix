@@ -202,7 +202,7 @@ test('a shelf with nothing in it renders nothing at all', function () {
     expect($html)->toContain('Trending Now')->not->toContain('Explore by Subject');
 });
 
-test('hero renders eyebrow, one h1, blurb, the CTA, the next three cards and the 01 counter', function () {
+test('hero renders eyebrow, one h1, blurb, the CTAs, the next three cards and the 01 counter', function () {
     ratedStories(6);
     $first = Media::query()->where('title', 'Rated Story 1')->first();
 
@@ -213,7 +213,7 @@ test('hero renders eyebrow, one h1, blurb, the CTA, the next three cards and the
         ->and(htmlQuery($html, '//article[@aria-label="1 of 5"]//p[contains(@class,"uppercase")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//article[@aria-label="1 of 5"]//p[contains(@class,"line-clamp-2")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//article[@aria-label="1 of 5"]//a[@href="'.route('stories.show', $first->slug).'"][normalize-space()="View story"]')->length)->toBe(1)
-        ->and($html)->not->toContain('Add to Library')
+        ->and(htmlQuery($html, '//article[@aria-label="1 of 5"]//button[normalize-space()="Add to Library"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@x-text="String(current + 1).padStart(2, \'0\')"]')->item(0)->textContent)->toBe('01')
         ->and(htmlQuery($html, '//img[@data-backdrop="0"][@fetchpriority="high"]')->length)->toBe(1);
 });

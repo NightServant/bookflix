@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\ReadingLength;
-use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -111,7 +110,7 @@ test('the avatar url comes from the configured avatar disk', function () {
         'bookflix.avatar_disk' => 'cdn',
     ]);
     $user = User::factory()->create();
-    Profile::factory()->for($user)->create(['avatar_path' => 'avatars/1/a.jpg']);
+    $user->profile()->updateOrCreate([], ['avatar_path' => 'avatars/1/a.jpg']);
 
     expect($user->avatarUrl())->toBe('https://cdn.test/avatars/1/a.jpg');
 });

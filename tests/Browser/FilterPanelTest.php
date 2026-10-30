@@ -133,6 +133,27 @@ test('a content warning is hidden, never required: the chip says Hide, and works
         ->assertScript('document.querySelector("button[aria-controls=fp-warnings]").textContent.replace(/\s+/g, " ")', ' Content warnings 1 chosen ');
 });
 
+test('the reader rating offers stars on the five point scale, and an old link from the ten point scale means the same stars', function () {
+    Media::factory()->manga()->create(['title' => 'Dune Beloved', 'search_text' => 'dune beloved', 'average_rating' => '4.60']);
+    $options = 'Array.from(document.querySelectorAll("#fp-rating option")).map((option) => option.textContent.trim()).join("|")';
+
+    $page = visit(route('search', ['q' => 'dune']), $this->desktop)->wait(1);
+
+    $page->click('button[aria-controls=fp-more]')->wait(0.3)
+        ->assertScript($options, 'Any rating|3+ stars|3.5+ stars|4+ stars|4.5+ stars')
+        ->select('#fp-rating', '4')->wait(1.5)
+        ->assertScript($this->chips, '4+ stars')
+        ->assertScript($this->titles, 'Dune Beloved')
+        ->assertScript($this->query.'.includes("filters[minRating]=4")', true);
+
+    $legacy = visit(route('search', ['q' => 'dune', 'filters' => ['minRating' => '9']]), $this->desktop)->wait(1.5);
+
+    $legacy->assertScript($this->chips, '4.5+ stars')
+        ->assertScript($this->titles, 'Dune Beloved')
+        ->assertScript('document.querySelector("#fp-rating").value', '4.5')
+        ->assertNoJavaScriptErrors();
+});
+
 test('Clear all removes every chip and every choice', function () {
     $page = visit(route('search', ['q' => 'dune']), $this->desktop)->wait(1);
 

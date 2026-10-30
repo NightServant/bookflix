@@ -92,6 +92,12 @@ abstract class FilteredPage extends Component
             $filters[$key] === '' && $filters = Arr::except($filters, $key);
         }
 
+        // The reader rating is in stars (0 to 5); a link from the ten point scale it once had ("8") becomes the stars it meant ("4"), and a value that means nothing is dropped.
+        if (isset($filters['minRating'])) {
+            $stars = SearchFilters::minStars($filters['minRating']);
+            $filters = $stars === null ? Arr::except($filters, 'minRating') : [...$filters, 'minRating' => SearchFilters::starsKey($stars)];
+        }
+
         // A bookmarked genre or theme slug from before the taxonomy becomes the slug that replaced it, so its chip can be shown and removed.
         $filters = [...$filters, ...app(LegacySlugs::class)->upgrade(['genres' => $filters['genres'], 'themes' => $filters['themes']])];
 
@@ -297,7 +303,8 @@ abstract class FilteredPage extends Component
         }
 
         if ($filters->minRating !== null) {
-            $add('minRating', __('Reader rating'), null, $labels['minRatings'][(int) $filters->minRating] ?? __(':stars stars and up', ['stars' => $filters->minRating / 2]));
+            $stars = SearchFilters::starsKey($filters->minRating);
+            $add('minRating', __('Reader rating'), null, $labels['minRatings'][$stars] ?? __(':stars+ stars', ['stars' => $stars]));
         }
 
         $order = ['family', ...array_keys(self::NO_FILTERS)];

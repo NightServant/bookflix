@@ -2,12 +2,15 @@
 
 namespace App\Catalog\Ingestion;
 
+use App\Actions\Library\RemoveFromCollection;
 use App\Catalog\Classification\Reclassifier;
 use App\Catalog\Data\NormalizedMedia;
 use App\Enums\ClassificationType;
 use App\Enums\DuplicateStatus;
 use App\Enums\ReviewStatus;
 use App\Enums\WarningStatus;
+use App\Jobs\RecalculateMediaRating;
+use App\Models\CollectionItem;
 use App\Models\DuplicateCandidate;
 use App\Models\ExternalSource;
 use App\Models\Media;
@@ -123,9 +126,10 @@ class Deduplicator
     }
 
     /**
-     * Fold the loser into the winner: external ids, Dewey classes, pivot rows and relations move over, the winner's search text is rebuilt,
-     * the pair being merged is closed and every other pending pair of the loser is repointed at the winner, then the loser is
-     * soft deleted and points at the winner so its URL can still resolve (media already merged into the loser follow along).
+     * Fold the loser into the winner: external ids, Dewey classes, pivot rows and relations move over, the readers' data follows (see
+     * moveUserData), the winner's search text is rebuilt, the pair being merged is closed and every other pending pair of the loser is
+     * repointed at the winner, then the loser is soft deleted and points at the winner so its URL can still resolve (media already merged
+     * into the loser follow along). Once the merge has committed the winner's reader rating is recalculated, since it now holds more scores.
      *
      * Both rows are locked and re-checked first: a loser that is already gone is a no-op, and a winner merged away meanwhile
      * is replaced by the media it went into.
@@ -162,6 +166,7 @@ class Deduplicator
             $this->moveWarnings($winner, $loser);
             $this->moveRelations($winner, $loser);
             $this->moveClassifications($winner, $loser);
+            $this->moveUserData($winner, $loser);
             $this->movePendingCandidates($winner, $loser, $resolvedBy);
 
             Media::withTrashed()->where('merged_into_id', $loser->id)->update(['merged_into_id' => $winner->id]);
@@ -171,7 +176,85 @@ class Deduplicator
             $loser->update(['merged_into_id' => $winner->id]);
             $loser->delete();
             $winner->refreshSearchText();
+
+            RecalculateMediaRating::dispatch($winner->id)->afterCommit();
         });
+    }
+
+    /**
+     * The loser's readers keep what they had. Library entries, ratings and reading progress are one row per reader and story: where the reader
+     * already has a row for the winner it stays and the loser's is dropped, otherwise the row moves over. A dropped library row or progress row
+     * first gives the winner's what it had that the winner's lacks (see carryOver), so a favorite or further progress is never lost to a merge.
+     * Reading history and recorded signals are a log, so they all move. The loser's stored reader rating (the `bookflix` rows in `media_metrics`) is dropped with its ratings;
+     * the winner's is rebuilt from `ratings` by the job merge queues. The media rows are locked, so no reader can add either story meanwhile.
+     */
+    private function moveUserData(Media $winner, Media $loser): void
+    {
+        $this->carryOver($winner, $loser);
+
+        foreach (['user_library', 'ratings', 'reading_progress'] as $table) {
+            DB::table($table)->where('media_id', $loser->id)
+                ->whereIn('user_id', DB::table($table)->where('media_id', $winner->id)->select('user_id'))
+                ->delete();
+            DB::table($table)->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
+        }
+
+        $this->moveCollectionItems($winner, $loser);
+
+        DB::table('reading_history')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
+        DB::table('user_interactions')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
+        DB::table('media_metrics')->where('media_id', $loser->id)
+            ->whereIn('external_source_id', ExternalSource::query()->where('key', ExternalSource::READERS)->select('id'))
+            ->delete();
+    }
+
+    /**
+     * For a reader who has both stories, before the loser's rows are dropped: the winner's library row takes the loser's favorite when it has none,
+     * the earlier of the two added and started dates (a date only one of them has is kept) and the loser's completion when it has none of its own;
+     * its status stays. The winner's progress row becomes the loser's place (percent, page, chapter, locator and source together) when the loser got
+     * further, and takes the later of the two last read times either way. One statement for each table, whatever the number of readers.
+     */
+    private function carryOver(Media $winner, Media $loser): void
+    {
+        DB::update(<<<'SQL'
+            update user_library as kept set
+                favorited_at = coalesce(kept.favorited_at, dropped.favorited_at),
+                created_at = least(kept.created_at, dropped.created_at),
+                started_at = least(kept.started_at, dropped.started_at),
+                completed_at = coalesce(kept.completed_at, dropped.completed_at)
+            from user_library as dropped
+            where kept.media_id = ? and dropped.media_id = ? and dropped.user_id = kept.user_id
+            SQL, [$winner->id, $loser->id]);
+
+        DB::update(<<<'SQL'
+            update reading_progress as kept set
+                percent = case when dropped.percent > kept.percent then dropped.percent else kept.percent end,
+                page = case when dropped.percent > kept.percent then dropped.page else kept.page end,
+                chapter = case when dropped.percent > kept.percent then dropped.chapter else kept.chapter end,
+                locator = case when dropped.percent > kept.percent then dropped.locator else kept.locator end,
+                content_source_id = case when dropped.percent > kept.percent then dropped.content_source_id else kept.content_source_id end,
+                last_read_at = greatest(kept.last_read_at, dropped.last_read_at)
+            from reading_progress as dropped
+            where kept.media_id = ? and dropped.media_id = ? and dropped.user_id = kept.user_id
+            SQL, [$winner->id, $loser->id]);
+    }
+
+    /**
+     * In a collection that holds both stories the winner's item stays and the loser's is removed (through the action that closes the gap, so
+     * the positions stay contiguous); in any other the loser's item takes the winner's place where it stood.
+     */
+    private function moveCollectionItems(Media $winner, Media $loser): void
+    {
+        $remove = app(RemoveFromCollection::class);
+
+        CollectionItem::query()
+            ->where('media_id', $loser->id)
+            ->whereIn('collection_id', CollectionItem::query()->where('media_id', $winner->id)->select('collection_id'))
+            ->with('collection')
+            ->lazyById(100)
+            ->each(fn (CollectionItem $item) => $remove->handle($item->collection, $item));
+
+        DB::table('collection_items')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
     }
 
     /**

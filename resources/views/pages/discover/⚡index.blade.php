@@ -3,7 +3,9 @@
 use App\Access\MatureAccess;
 use App\Catalog\Taxonomy\LegacyTaxonomy;
 use App\Classification\DeweyCounts;
+use App\Discovery\EditorialCollections;
 use App\Discovery\Search\HybridSearch;
+use App\Discovery\Shelf;
 use App\Enums\MediaFamily;
 use App\Livewire\FilteredPage;
 use App\Models\Genre;
@@ -218,6 +220,17 @@ new #[Title('Discover')] class extends FilteredPage {
     }
 
     /**
+     * The staff picks as themed shelves: the editorial collections with something in them that the reader may see.
+     *
+     * @return SupportCollection<int, Shelf>
+     */
+    #[Computed]
+    public function editorial(): SupportCollection
+    {
+        return app(EditorialCollections::class)->shelves(auth()->user());
+    }
+
+    /**
      * The genres with the most stories, each with its live `media_count`.
      *
      * @return Collection<int, Genre>
@@ -360,8 +373,9 @@ new #[Title('Discover')] class extends FilteredPage {
     $total = $this->types->sum('main_count');
     $hasCatalog = $total > 0;
     $quickLinks = collect([
-        ['label' => __('Continue reading'), 'route' => 'library', 'icon' => 'book-open'],
+        ['label' => __('My library'), 'route' => 'library.index', 'icon' => 'book-open'],
         ['label' => __('My collections'), 'route' => 'collections.index', 'icon' => 'rectangle-stack'],
+        ['label' => __('My history'), 'route' => 'history.index', 'icon' => 'clock'],
     ])->filter(fn (array $link): bool => Route::has($link['route']))->values()->all();
 @endphp
 
@@ -400,6 +414,8 @@ new #[Title('Discover')] class extends FilteredPage {
     @if ($quickLinks !== [])
         <x-quick-links :links="$quickLinks" class="mt-8" />
     @endif
+
+    <x-editorial-shelves :shelves="$this->editorial" class="mt-12 lg:mt-16" />
 
     @if ($hasCatalog)
         <section aria-labelledby="formats-title" class="mt-12 lg:mt-16">

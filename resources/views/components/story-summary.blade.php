@@ -4,9 +4,9 @@
 
 {{--
     The short version of a story that <x-story-preview> keeps for the shared card (hover) and quick view (touch) to clone: a small cover, the title,
-    <x-story-info>, a three-line blurb and the ctas: a primary "View story" with, once the library exists, an icon-only add button beside it.
+    <x-story-info>, a three-line blurb and the ctas: a primary "View story" with an icon-only add button beside it (for a signed-in reader).
     Eager-load `mediaType` and `publicPrimaryDewey.deweyClass` on fetched media (story-info reads them).
-    "Add to Library" dispatches a `library-add` event with the media id (rendered only once the Phase 5 `library.store` route exists), as <x-hero> does.
+    "Add to Library" is <x-library-add>, as in <x-hero>: it raises a `library-add` event with the media id.
 --}}
 <div data-story-summary {{ $attributes }}>
     <div class="flex gap-4">
@@ -30,8 +30,6 @@
 
     <div class="mt-4 flex gap-2">
         <x-cta icon="book-open" :href="route('stories.show', $media->slug)" wire:navigate class="flex-1">{{ __('View story') }}</x-cta>
-        @if (Route::has('library.store'))
-            <x-cta variant="secondary" @click="$dispatch('library-add', { id: {{ $media->id }} })" icon="plus" aria-label="{{ __('Add to Library') }}" class="shrink-0" />
-        @endif
+        <x-library-add :media="$media" icon-only :form="false" class="shrink-0" />
     </div>
 </div>

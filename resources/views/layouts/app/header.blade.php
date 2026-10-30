@@ -36,6 +36,9 @@
 
         <x-bottom-nav />
 
+        {{-- Hears the `library-add` event of the Add to Library buttons (<x-library-add>) and adds the story. --}}
+        <livewire:library-listener />
+
         @persist('toast')
             <flux:toast.group>
                 <flux:toast />
