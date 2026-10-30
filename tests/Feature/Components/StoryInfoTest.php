@@ -2,7 +2,9 @@
 
 use App\Enums\AgeRating;
 use App\Models\Media;
+use App\Models\MediaType;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Support\Facades\DB;
 
 function renderStoryInfo(Media $media): string
@@ -23,6 +25,16 @@ test('facts come in order: type, year, length, age rating, class code', function
     $media = classified(Media::factory()->manga()->create(['publication_year' => 1989, 'page_count' => 224, 'age_rating' => AgeRating::Teen]), '813');
 
     expect(infoParts(renderStoryInfo($media)))->toBe(['Manga', '1989', '224 pages', 'Teen', 'Class 813']);
+});
+
+test('a book that is more than one type names them all', function () {
+    $media = Media::factory()->graphicNovel()->create(['publication_year' => 2003, 'page_count' => null, 'chapter_count' => null, 'age_rating' => AgeRating::Unknown]);
+    $media->additionalTypes()->attach([
+        MediaType::firstOrCreate(['slug' => 'comic-book'], MediaTypeSeeder::TYPES['comic-book'])->id,
+        MediaType::firstOrCreate(['slug' => 'nonfiction'], MediaTypeSeeder::TYPES['nonfiction'])->id,
+    ]);
+
+    expect(infoParts(renderStoryInfo($media->load('additionalTypes'))))->toBe(['Graphic Novel, Comic Book & Nonfiction', '2003']);
 });
 
 test('parts that are missing are left out', function () {

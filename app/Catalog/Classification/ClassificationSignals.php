@@ -18,6 +18,7 @@ final readonly class ClassificationSignals
      * @param  int|null  $chapterCount  Chapters, or issues for a comic series.
      * @param  string|null  $country  ISO 3166-1 alpha-2 country of origin.
      * @param  string|null  $language  ISO 639-1 original language ("zh-hk" is read as Chinese).
+     * @param  string|null  $deweyCode  The Dewey class a library gave an edition ("741.5952", "813.54").
      */
     public function __construct(
         public string $provider = '',
@@ -32,5 +33,6 @@ final readonly class ClassificationSignals
         public ?int $chapterCount = null,
         public ?string $country = null,
         public ?string $language = null,
+        public ?string $deweyCode = null,
     ) {}
 }

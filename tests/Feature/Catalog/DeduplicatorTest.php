@@ -1,5 +1,6 @@
 <?php
 
+use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Ingestion\Deduplicator;
 use App\Classification\DeweyCounts;
 use App\Enums\ClassificationType;
@@ -14,6 +15,7 @@ use App\Models\MediaDeweyClass;
 use App\Models\MediaExternalId;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Support\Facades\Schema;
 
 test('the same work from two providers resolves to one media with two external ids', function () {
@@ -52,6 +54,58 @@ test('same title and creator but a different year beyond the window does not aut
 
     expect(app(Deduplicator::class)->match(normalized(title: 'Akira', year: 2001, creators: ['Katsuhiro Otomo'])))->toBeNull();
     expect(app(Deduplicator::class)->candidates(normalized(title: 'Akira', year: 2001, creators: ['Katsuhiro Otomo'])))->toHaveCount(1);
+});
+
+/**
+ * A manhwa as MangaUpdates stores it, its creators with their names in Hangul too.
+ */
+function storedManhwa(string $title = 'Solo Leveling', int $year = 2018, string $provider = 'mangaupdates', string $type = 'manhwa'): Media
+{
+    app(MediaTypeSeeder::class)->run();
+    $media = Media::factory()->ofType($type)->create(['title' => $title, 'publication_year' => $year]);
+    $media->creators()->attach(Creator::factory()->create(['name' => 'Chugong (추공)']), ['role' => 'author', 'position' => 0]);
+    $media->update(['primary_external_source_id' => ExternalSource::factory()->create(['key' => $provider])->id]);
+
+    return $media;
+}
+
+test('a translation takes the form of the manhwa it translates, and D-21 still keeps the pair a review candidate', function () {
+    storedManhwa();
+    $translation = new NormalizedMedia(title: 'Solo Leveling', mediaTypeSlug: 'comic-book', credits: ['Chugong', 'DUBU', 'h-goon'], publicationYear: 2021);
+
+    expect(app(Deduplicator::class)->originalForm($translation))->toBe('manhwa')
+        ->and(app(Deduplicator::class)->match($translation))->toBeNull()
+        ->and(app(Deduplicator::class)->candidates($translation))->toHaveCount(1);
+});
+
+test('a same titled comic is not taken for a translation without a shared creator, an earlier original, or an original from a provider that names the format', function (array $incoming, array $stored) {
+    storedManhwa(...$stored);
+
+    expect(app(Deduplicator::class)->originalForm(new NormalizedMedia(...['title' => 'Solo Leveling', 'mediaTypeSlug' => 'comic-book', ...$incoming])))->toBeNull();
+})->with([
+    'no shared creator (Marvel\'s Black Knight against the manga)' => [['credits' => ['Stan Lee'], 'publicationYear' => 2021], []],
+    'published before the original' => [['credits' => ['Chugong'], 'publicationYear' => 2010], []],
+    'the original came from Comic Vine itself' => [['credits' => ['Chugong'], 'publicationYear' => 2021], ['provider' => 'comicvine']],
+    'the match is a Western comic' => [['credits' => ['Chugong'], 'publicationYear' => 2021], ['type' => 'comic-book']],
+]);
+
+test('creator names match across romanisations, name order and spacing', function (string $stored, string $credited) {
+    app(MediaTypeSeeder::class)->run();
+    $original = Media::factory()->manga()->create(['title' => 'Akira', 'publication_year' => 1982]);
+    $original->creators()->attach(Creator::factory()->create(['name' => $stored]), ['role' => 'author', 'position' => 0]);
+    $original->update(['primary_external_source_id' => ExternalSource::factory()->create(['key' => 'anilist'])->id]);
+
+    expect(app(Deduplicator::class)->originalForm(new NormalizedMedia(title: 'Akira', mediaTypeSlug: 'comic-book', credits: [$credited], publicationYear: 1992)))->toBe('manga');
+})->with([
+    'a long vowel written out' => ['Katsuhiro Ootomo', 'Katsuhiro Otomo'],
+    'family name first, with the name in kanji' => ['Oda Eiichirou (尾田栄一郎)', 'Eiichiro Oda'],
+    'a pen name spaced differently' => ['sing N song (싱숑)', 'singNsong'],
+]);
+
+test('a record\'s own media is never its original, so a wrong type cannot keep itself', function () {
+    $own = storedManhwa(type: 'manga');
+
+    expect(app(Deduplicator::class)->originalForm(new NormalizedMedia(title: 'Solo Leveling', mediaTypeSlug: 'comic-book', credits: ['Chugong'], publicationYear: 2021), except: $own->id))->toBeNull();
 });
 
 test('titles compare without case, accents or punctuation', function () {
