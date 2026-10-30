@@ -43,8 +43,9 @@ test('the library controls add the story, change its status, favorite it and tak
         ->click('[data-test=library-status]')->wait(0.5)
         ->click('ui-menu button:has-text("Completed")')->wait(1)
         ->assertScript('document.querySelector("[data-test=library-status]").textContent.trim()', 'Completed')
-        ->click('[aria-label="Add to favorites"]')->wait(1)
-        ->assertScript('document.querySelector("[aria-label=\"Remove from favorites\"]").getAttribute("aria-pressed")', 'true')
+        ->assertScript('document.querySelector("[aria-label=Favorite]").getAttribute("aria-pressed")', 'false')
+        ->click('[aria-label="Favorite"]')->wait(1)
+        ->assertScript('document.querySelector("[aria-label=Favorite]").getAttribute("aria-pressed")', 'true')
         ->assertNoJavaScriptErrors()
         ->assertNoAccessibilityIssues();
 
@@ -56,6 +57,24 @@ test('the library controls add the story, change its status, favorite it and tak
         ->assertSee('Add to Library');
 
     expect(LibraryEntry::count())->toBe(0);
+});
+
+test('past the limit of changes in a minute the controls say so in a toast and change nothing', function () {
+    config(['bookflix.library.writes_per_minute' => 2]);
+
+    $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
+
+    $page->click('[aria-label="Favorite"]')->wait(0.8)
+        ->click('[aria-label="Favorite"]')->wait(0.8)
+        ->assertDontSee('Give it a moment')
+        ->click('[aria-label="Favorite"]')->wait(1)
+        ->assertSee('Give it a moment')
+        ->assertScript('document.querySelector("[aria-label=Favorite]").getAttribute("aria-pressed")', 'false')
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues();
+
+    // Two presses: on, then off. The third was refused.
+    expect(LibraryEntry::sole()->favorited_at)->toBeNull();
 });
 
 test('a reader rates the story from the controls, finds the score again after a reload, and clears it', function () {

@@ -69,12 +69,29 @@ return [
     |--------------------------------------------------------------------------
     |
     | The most stories one collection may hold. A collection page lists them all
-    | in one reorderable list, so the page stays bounded.
+    | in one reorderable list, so the page stays bounded. `max_per_reader` is how
+    | many collections one reader may keep, so the lists of them stay bounded too.
     |
     */
 
     'collections' => [
         'max_items' => 300,
+        'max_per_reader' => 200,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Library Writes
+    |--------------------------------------------------------------------------
+    |
+    | How many changes one reader may make to their library in a minute through
+    | the pages (status, favorite, progress, rating, collections and the stories
+    | in them), counted together for all of them. Looking is not limited.
+    |
+    */
+
+    'library' => [
+        'writes_per_minute' => 60,
     ],
 
     'privacy' => [

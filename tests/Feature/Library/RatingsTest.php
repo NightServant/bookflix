@@ -236,6 +236,31 @@ test('saving the same score again is no new signal, and a new score is', functio
     expect(UserInteraction::where('event', 'rating')->orderBy('id')->pluck('value')->map(fn ($value): float => (float) $value)->all())->toBe([8.0, 6.0]);
 });
 
+test('saving the same score again queues no new aggregate run, and a new score or taking it back does', function () {
+    Queue::fake([RecalculateMediaRating::class]);
+    $user = User::factory()->create();
+    $media = Media::factory()->create();
+
+    app(RateMedia::class)->handle($user, $media, 8);
+    app(RateMedia::class)->handle($user, $media, 8);
+    Queue::assertPushed(RecalculateMediaRating::class, 1);
+
+    app(RateMedia::class)->handle($user, $media, 6);
+    Queue::assertPushed(RecalculateMediaRating::class, 2);
+
+    app(RateMedia::class)->forget($user, $media);
+    Queue::assertPushed(RecalculateMediaRating::class, 3);
+});
+
+test('a double press of save in the controls queues the aggregate run once', function () {
+    Queue::fake([RecalculateMediaRating::class]);
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test('library-controls', ['media' => Media::factory()->create()])->set('rating', 9)->call('saveRating')->call('saveRating');
+
+    Queue::assertPushed(RecalculateMediaRating::class, 1);
+});
+
 test('opted out users can rate without an interaction row', function () {
     $user = User::factory()->create();
     $user->profile()->updateOrCreate([], ['personalization_enabled' => false]);

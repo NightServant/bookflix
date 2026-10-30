@@ -62,18 +62,19 @@ test('favoriting adds the story and a second press removes only the favorite', f
     expect($user->library()->sole()->favorited_at)->toBeNull();
 });
 
-test('the favorite button says what it will do', function () {
+test('the favorite button keeps one name and says whether it is on with aria-pressed', function () {
     $this->actingAs($user = User::factory()->create());
     $media = Media::factory()->create();
 
     $controls = Livewire::test('library-controls', ['media' => $media]);
-    expect(htmlQuery($controls->html(), '//button[@aria-pressed="false"][@aria-label="Add to favorites"]')->length)->toBe(1);
-
-    expect(htmlQuery($controls->html(), '//button[@aria-label="Add to favorites"]//svg[@stroke="currentColor"]')->length)->toBe(1);
+    expect(htmlQuery($controls->html(), '//button[@aria-pressed="false"][@aria-label="Favorite"]')->length)->toBe(1)
+        ->and(htmlQuery($controls->html(), '//button[@aria-label="Favorite"]//svg[@stroke="currentColor"]')->length)->toBe(1);
 
     $controls->call('toggleFavorite');
-    expect(htmlQuery($controls->html(), '//button[@aria-pressed="true"][@aria-label="Remove from favorites"]')->length)->toBe(1)
-        ->and(htmlQuery($controls->html(), '//button[@aria-label="Remove from favorites"]//svg[@fill="currentColor"]')->length)->toBe(1);
+    expect(htmlQuery($controls->html(), '//button[@aria-pressed="true"][@aria-label="Favorite"]')->length)->toBe(1)
+        ->and(htmlQuery($controls->html(), '//button[@aria-label="Favorite"]//svg[@fill="currentColor"]')->length)->toBe(1)
+        // The name does not change with the state, or a screen reader would say "pressed" on a button called "Remove".
+        ->and(htmlQuery($controls->html(), '//button[@aria-label="Remove from favorites" or @aria-label="Add to favorites"]')->length)->toBe(0);
 });
 
 test('removing takes the story out and brings the add button back', function () {

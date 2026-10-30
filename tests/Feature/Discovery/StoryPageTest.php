@@ -69,7 +69,7 @@ test('the story page carries the readers library controls, with the add cta firs
 
     $html = $this->actingAs($user)->get(route('stories.show', $m->slug))->assertOk()->assertSeeLivewire('library-controls')->getContent();
     expect(htmlQuery($html, '//main//button[normalize-space()="Add to Library"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//main//button[@aria-label="Add to favorites"]')->length)->toBe(1);
+        ->and(htmlQuery($html, '//main//button[@aria-label="Favorite"][@aria-pressed="false"]')->length)->toBe(1);
 
     app(AddToLibrary::class)->handle($user, $m, ReadingStatus::Reading);
 

@@ -3,11 +3,11 @@
 {{--
     One collection as a row of a list: a stack of its first covers, the name, and a line of facts (how many stories the reader may see,
     who may see it, when it last changed). The whole row is the link, 44px tall at the least. `preview` is what CollectionPreviews gives:
-    `count` and `covers`. `editorial` links to the staff pick itself (a reader's own collection of the same name cannot take its place) and
-    swaps the visibility for "Staff pick". Give each row a `wire:key` in the loop.
+    `count` and `covers`. A link names its owner, so a collection of the same name by another reader cannot take its place; `editorial` links to
+    the staff pick itself (a reader's own collection of the same name cannot take its place) and swaps the visibility for "Staff pick". Give each row a `wire:key` in the loop.
 --}}
 @php
-    $href = route('collections.show', $editorial ? ['slug' => $collection->slug, 'editors' => 1] : $collection->slug);
+    $href = route('collections.show', ['slug' => $collection->slug] + ($editorial ? ['editors' => 1] : ['owner' => $collection->user_id]));
     $public = $collection->visibility === \App\Enums\Visibility::Public;
 @endphp
 

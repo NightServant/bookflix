@@ -10,6 +10,7 @@ use App\Actions\Library\SetLibraryStatus;
 use App\Actions\Library\ToggleFavorite;
 use App\Actions\Ratings\RateMedia;
 use App\Enums\ReadingStatus;
+use App\Library\WriteLimit;
 use App\Models\Collection;
 use App\Models\LibraryEntry;
 use App\Models\Media;
@@ -236,7 +237,13 @@ new class extends Component {
 
         $this->validate(['newCollection' => ['required', 'string', 'max:100']], attributes: ['newCollection' => __('name')]);
 
-        $collection = app(CreateCollection::class)->handle($user, trim($this->newCollection));
+        try {
+            $collection = app(CreateCollection::class)->handle($user, trim($this->newCollection));
+        } catch (ValidationException $e) {
+            // The reader has as many collections as they may keep: say so under the field they typed in.
+            throw ValidationException::withMessages(['newCollection' => $e->validator->errors()->first()]);
+        }
+
         app(AddToCollection::class)->handle($collection, $media);
 
         $this->reset('newCollection');
@@ -247,12 +254,15 @@ new class extends Component {
     }
 
     /**
-     * The signed-in, verified reader these controls act for.
+     * The signed-in, verified reader these controls act for. Every action starts here, so this is where a change is counted against the reader's
+     * minute (see WriteLimit): one past the limit stops the action before it writes.
      */
     private function reader(): User
     {
         $user = auth()->user();
         abort_unless($user !== null && $user->hasVerifiedEmail(), 403);
+
+        app(WriteLimit::class)->ensure($user);
 
         return $user;
     }
@@ -306,7 +316,7 @@ new class extends Component {
             :icon:variant="$favorite ? 'solid' : 'outline'"
             wire:click="toggleFavorite"
             :aria-pressed="$favorite ? 'true' : 'false'"
-            :aria-label="$favorite ? __('Remove from favorites') : __('Add to favorites')"
+            :aria-label="__('Favorite')"
         />
 
         @php

@@ -3,6 +3,7 @@
 use App\Actions\Library\CreateCollection;
 use App\Discovery\CollectionPreviews;
 use App\Discovery\EditorialCollections;
+use App\Library\WriteLimit;
 use App\Models\Collection;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -28,13 +29,14 @@ new #[Title('Collections')] class extends Component {
     {
         $user = auth()->user();
         abort_unless($user !== null && $user->hasVerifiedEmail(), 403);
+        app(WriteLimit::class)->ensure($user);
 
         $this->validate(['name' => ['required', 'string', 'max:100']], attributes: ['name' => __('name')]);
 
         $collection = app(CreateCollection::class)->handle($user, trim($this->name));
         $this->reset('name');
 
-        $this->redirectRoute('collections.show', $collection->slug, navigate: true);
+        $this->redirectRoute('collections.show', ['slug' => $collection->slug, 'owner' => $user->id], navigate: true);
     }
 
     /**

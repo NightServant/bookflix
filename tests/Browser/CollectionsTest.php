@@ -84,6 +84,28 @@ test('dragging a story by its handle reorders the collection', function () {
     expect($this->collection->items()->orderBy('position')->with('media')->get()->pluck('media.title')->first())->not->toBe('Alpha Tale');
 });
 
+test('dragging animates the list unless the reader has asked for less motion', function (array $options, int $animation) {
+    visit(route('collections.show', $this->collection->slug), $this->desktop + $options)->wait(1)
+        // SortableJS keeps its instance on the list, under a key it makes up from the load time.
+        ->assertScript('(() => { const list = document.querySelector("[data-view=rows]"); return list[Object.keys(list).find((key) => /^Sortable\\d+$/.test(key))].options.animation; })()', $animation)
+        ->assertNoJavaScriptErrors();
+})->with([
+    'motion allowed' => [[], 150],
+    'reduced motion' => [['reducedMotion' => 'reduce'], 0],
+]);
+
+test('the address of a collection names its owner, so a link copied from it opens the right one', function () {
+    visit(route('collections.show', $this->collection->slug), $this->desktop)->wait(1)
+        ->assertQueryStringHas('owner', (string) $this->user->id)
+        ->assertNoJavaScriptErrors();
+
+    // A staff pick has the editors in its address instead.
+    visit(route('collections.show', ['slug' => $this->pick->slug, 'editors' => 1]), $this->desktop)->wait(1)
+        ->assertQueryStringHas('editors')
+        ->assertQueryStringMissing('owner')
+        ->assertNoJavaScriptErrors();
+});
+
 test('the collection menu on a story adds and removes it, and a new collection takes it in', function () {
     $story = $this->stories->first();
     $page = visit(route('stories.show', $story->slug), $this->desktop)->wait(1);

@@ -44,6 +44,19 @@ test('the sections that exist are tabs under the library title, and the current 
         ->and(htmlQuery($html, '//nav//a[@href="'.route('library.index').'"]')->length)->toBe(1);
 });
 
+test('a tab is current for the page, or only the current section when the page sits deeper', function () {
+    registerLibrarySections(['collections.index', 'history.index']);
+
+    $exact = renderedComponent('<x-library-tabs current="collections.index" />');
+    $deeper = renderedComponent('<x-library-tabs current="collections.index" :exact="false" />');
+
+    expect(htmlQuery($exact, '//nav//a[@aria-current="page"]')->length)->toBe(1)
+        ->and(htmlQuery($exact, '//nav//a[@aria-current="true"]')->length)->toBe(0)
+        ->and(htmlQuery($deeper, '//nav//a[@aria-current="page"]')->length)->toBe(0)
+        ->and(trim(htmlQuery($deeper, '//nav//a[@aria-current="true"]')->item(0)->textContent))->toBe('Collections')
+        ->and(htmlQuery($deeper, '//nav//a[@aria-current]')->length)->toBe(1);
+});
+
 test('a section whose page does not exist is left out', function () {
     // Every section is a real page by now, so keep only the library and its collections in the router.
     $routes = app('router')->getRoutes();

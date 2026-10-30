@@ -6,6 +6,7 @@ use App\Actions\Library\RemoveFromCollection;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
 use App\Enums\Visibility;
+use App\Library\WriteLimit;
 use App\Models\Collection;
 use App\Models\CollectionItem;
 use App\Models\Media;
@@ -32,6 +33,14 @@ new class extends Component {
     #[Url]
     public bool $editors = false;
 
+    /**
+     * Whose collection the link means (`?owner=7`; 0 for none), so two readers' public collections of the same name are told apart. Read when the page
+     * opens, which then sets it to the collection's owner, so the address the reader copies the link from names them. A staff pick has no owner in its
+     * address (`except`): it is found by `editors`.
+     */
+    #[Url(except: 0)]
+    public int $owner = 0;
+
     public string $name = '';
 
     public string $description = '';
@@ -48,10 +57,11 @@ new class extends Component {
 
     public function mount(string $slug): void
     {
-        $collection = Collection::resolveFor($slug, auth()->user(), $this->editors) ?? abort(404);
+        $collection = Collection::resolveFor($slug, auth()->user(), $this->editors, $this->owner ?: null) ?? abort(404);
         abort_unless(Gate::allows('view', $collection), 404);
 
         $this->collectionId = $collection->id;
+        $this->owner = $collection->is_editorial ? 0 : $collection->user_id;
         $this->name = $collection->name;
         $this->description = (string) $collection->description;
         $this->visibility = $collection->visibility->value;
@@ -220,12 +230,14 @@ new class extends Component {
     }
 
     /**
-     * The collection, for an action only its owner may take.
+     * The collection, for an action only its owner may take. Every change starts here, so this is where it is counted against the owner's minute
+     * (see WriteLimit): one past the limit stops the action before it writes.
      */
     private function owned(string $ability = 'update'): Collection
     {
         $collection = $this->collection;
         Gate::authorize($ability, $collection);
+        app(WriteLimit::class)->ensure(auth()->user());
 
         return $collection;
     }
@@ -256,7 +268,7 @@ new class extends Component {
             @endif
         </x-page-header>
 
-        <x-library-tabs current="collections.index" class="mt-6" />
+        <x-library-tabs current="collections.index" :exact="false" class="mt-6" />
     </header>
 
     <div class="px-gutter">
@@ -288,7 +300,7 @@ new class extends Component {
                     </div>
                 </x-empty-state>
             @elseif ($isOwner)
-                <ul wire:sort="reorder" data-view="rows" class="divide-y divide-hairline border-y border-hairline">
+                <ul wire:sort="reorder" wire:sort:config="{ animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 150 }" data-view="rows" class="divide-y divide-hairline border-y border-hairline">
                     @foreach ($items as $item)
                         @php $story = $item->media; @endphp
                         <li wire:sort:item="{{ $item->id }}" wire:key="item-{{ $item->id }}" class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 bg-canvas py-3 sm:grid-cols-[auto_auto_1fr_auto] sm:gap-x-4">

@@ -58,15 +58,17 @@ class Collection extends Model
 
     /**
      * The collection a reader means by this slug, among those they may view: their own first, then an editorial one, then a public one of
-     * another reader (slugs are unique per owner only, so the order settles a clash). A link to a staff pick passes `$editorial` so a reader's
-     * own collection of the same name cannot take its place. Null when there is none.
+     * another reader (slugs are unique per owner only, so the order settles a clash). A link says which it means: a staff pick passes `$editorial`
+     * so a reader's own collection of the same name cannot take its place, and a link to a reader's collection passes `$owner`, so two public
+     * "Favorites" never open each other's page. Null when there is none.
      */
-    public static function resolveFor(string $slug, User $viewer, bool $editorial = false): ?self
+    public static function resolveFor(string $slug, User $viewer, bool $editorial = false, ?int $owner = null): ?self
     {
         return static::query()
             ->where('slug', $slug)
             ->viewableBy($viewer)
             ->when($editorial, fn (Builder $query) => $query->where('collections.is_editorial', true))
+            ->when($owner !== null, fn (Builder $query) => $query->where('collections.user_id', $owner))
             ->orderByRaw('case when collections.user_id = ? then 0 when collections.is_editorial then 1 else 2 end', [$viewer->id])
             ->orderBy('collections.id')
             ->first();

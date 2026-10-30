@@ -16,8 +16,8 @@ use Illuminate\Validation\ValidationException;
  * does not put the story in the library (that is the reader's call), and the story's own rating is not touched here: the aggregate job folds the
  * active readers' scores into it. The caller decides who the reader is and whether they may see the story.
  *
- * Only a score that changed is a signal: saving the same one again (a double click) records nothing, but still queues the job, which is idempotent
- * and heals an aggregate a failed run left behind. An opted-out reader keeps the rating and records no interaction (see InteractionRecorder).
+ * Only a score that changed does anything beyond the save: saving the same one again (a double click) records nothing and queues no new aggregate
+ * run, since the aggregate already holds it. An opted-out reader keeps the rating and records no interaction (see InteractionRecorder).
  */
 class RateMedia
 {
@@ -41,9 +41,8 @@ class RateMedia
             ['score', 'updated_at'],
         );
 
-        RecalculateMediaRating::dispatch($media->id)->afterCommit();
-
         if ($previous !== $score) {
+            RecalculateMediaRating::dispatch($media->id)->afterCommit();
             $this->interactions->record($user, InteractionEvent::Rating, $media, value: (float) $score);
             LibraryChanged::dispatch($user, $media);
         }
