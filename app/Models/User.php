@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Ratings\RecalculateRatedMedia;
 use App\Enums\ReadingLength;
 use App\Enums\Visibility;
 use Database\Factories\UserFactory;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -51,6 +53,17 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         'is_admin' => false,
     ];
 
+    protected static function booted(): void
+    {
+        // A deactivated reader is left out of every rating (see RecalculateMediaRating), so deactivating or reactivating one, whichever way it is done,
+        // refreshes the stories they rated.
+        static::updated(function (User $user): void {
+            if ($user->wasChanged('deactivated_at')) {
+                app(RecalculateRatedMedia::class)->handle($user);
+            }
+        });
+    }
+
     /**
      * Get the attributes that should be cast.
      *
@@ -81,6 +94,46 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'personalization_enabled' => true,
             'show_mature' => false,
         ]);
+    }
+
+    /**
+     * The stories in the reader's library (see App\Actions\Library for the only writers).
+     *
+     * @return HasMany<LibraryEntry, $this>
+     */
+    public function library(): HasMany
+    {
+        return $this->hasMany(LibraryEntry::class);
+    }
+
+    /**
+     * The reader's own collections (see App\Actions\Library for the only writers).
+     *
+     * @return HasMany<Collection, $this>
+     */
+    public function collections(): HasMany
+    {
+        return $this->hasMany(Collection::class);
+    }
+
+    /**
+     * The reader's own scores (see App\Actions\Ratings\RateMedia for the only writer).
+     *
+     * @return HasMany<Rating, $this>
+     */
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(Rating::class);
+    }
+
+    /**
+     * What the reader said they like (see App\Actions\Preferences\SavePreferences for the only writer).
+     *
+     * @return HasMany<UserPreference, $this>
+     */
+    public function preferences(): HasMany
+    {
+        return $this->hasMany(UserPreference::class);
     }
 
     public function isDeactivated(): bool

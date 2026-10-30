@@ -1,7 +1,10 @@
 <?php
 
+use App\Discovery\Recommendations\InteractionRecorder;
+use App\Discovery\Search\SearchLogger;
 use App\Discovery\SimilarMedia;
 use App\Enums\ClassificationType;
+use App\Enums\InteractionEvent;
 use App\Models\DeweyClass;
 use App\Models\ExternalSource;
 use App\Models\Media;
@@ -41,6 +44,30 @@ new #[Title('Story')] class extends Component {
 
         $this->mediaId = $media->id;
         $this->resolved = $media;
+
+        $this->recordVisit($media);
+    }
+
+    /**
+     * Opening a story is a `view`; opening it from a search result (`?sq=`) is also a `click` on that search. The search only counts when it ran in this
+     * very session, so a number typed into the address bar cannot credit someone else's search. An opted-out reader records nothing, and the check is skipped.
+     */
+    private function recordVisit(Media $media): void
+    {
+        $user = auth()->user();
+
+        if ($user === null) {
+            return;
+        }
+
+        $interactions = app(InteractionRecorder::class);
+        $interactions->record($user, InteractionEvent::View, $media);
+
+        $search = request()->query('sq');
+
+        if (is_string($search) && ctype_digit($search) && $user->personalizationEnabled() && app(SearchLogger::class)->ranInThisSession((int) $search)) {
+            $interactions->record($user, InteractionEvent::Click, $media, ['surface' => 'search', 'search_query_id' => (int) $search]);
+        }
     }
 
     public function render(): View
@@ -228,17 +255,13 @@ new #[Title('Story')] class extends Component {
                         <x-clamped-text class="mt-4">{{ $media->description }}</x-clamped-text>
                     @endif
 
-                    @if (Route::has('library.store') || ($neighbours && $linkSeries))
-                        <div class="mt-6 flex flex-wrap gap-3">
-                            @if (Route::has('library.store'))
-                                <x-cta icon="plus" @click="$dispatch('library-add', { id: {{ $media->id }} })">{{ __('Add to Library') }}</x-cta>
-                            @endif
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <livewire:library-controls :media="$media" />
 
-                            @if ($neighbours && $linkSeries)
-                                <x-cta :variant="Route::has('library.store') ? 'secondary' : 'primary'" icon="rectangle-stack" :href="route('series.show', $neighbours['series']->slug)" wire:navigate>{{ __('See the series') }}</x-cta>
-                            @endif
-                        </div>
-                    @endif
+                        @if ($neighbours && $linkSeries)
+                            <x-cta variant="secondary" icon="rectangle-stack" :href="route('series.show', $neighbours['series']->slug)" wire:navigate>{{ __('See the series') }}</x-cta>
+                        @endif
+                    </div>
 
                     @if ($neighbours)
                         @unless ($linkSeries)

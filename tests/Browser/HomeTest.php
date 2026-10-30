@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Genre;
+use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
@@ -45,6 +46,16 @@ test('home passes the shared checks on desktop and on a phone with its shelves l
             ->assertNoJavaScriptErrors()
             ->assertNoAccessibilityIssues();
     }
+});
+
+test('the hero adds the featured story to the library, and a toast confirms it', function () {
+    $page = visit(route('home'), $this->desktop + ['reducedMotion' => 'reduce'])->wait(1.5);
+
+    $page->click('article[data-slide="0"] button:has-text("Add to Library")')->wait(1.5)
+        ->assertSee('was added to your library')
+        ->assertNoJavaScriptErrors();
+
+    expect(LibraryEntry::count())->toBe(1);
 });
 
 test('the hero runs under the translucent header, its content clears it, and every band spans the page, content on the header gutter', function () {

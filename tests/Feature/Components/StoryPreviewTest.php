@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Media;
+use App\Models\User;
 
 function renderStoryPreview(Media $media, string $attributes = ''): string
 {
@@ -38,7 +39,7 @@ test('the shared card sits after the tiles in a popover root, hidden and anchore
         ->and(htmlQuery($html, '//*[@data-story-card]//*[@x-effect="fill($el, active)"]')->length)->toBe(1);
 });
 
-test('the summary has the cover, title, story facts, description and the view story cta', function () {
+test('the summary has the cover, title, story facts, description and the view story cta, and for a guest nothing else', function () {
     $html = renderStoryPreview(frankenstein());
     $summary = '//template/*[@data-story-summary]';
 
@@ -52,15 +53,21 @@ test('the summary has the cover, title, story facts, description and the view st
         ->and($html)->not->toContain('library-add')->not->toContain('Add to Library');
 });
 
-test('once the library route exists the summary adds an icon-only add to library button that announces the media id', function () {
-    enableLibraryRoute();
+test('for a reader the summary adds an icon-only add to library button that announces the media id', function () {
+    $this->actingAs(User::factory()->create());
     $media = frankenstein();
     $html = renderStoryPreview($media);
 
     expect(htmlQuery($html, "//template//button[@data-flux-button][@aria-label='Add to Library'][normalize-space()='']//*[@data-flux-icon]")->length)->toBe(1)
         ->and(htmlQuery($html, "//template//a[@data-flux-button][contains(@class,'flex-1')][normalize-space()='View story']")->length)->toBe(1)
-        ->and(htmlQuery($html, "//template//a[@data-flux-button]/parent::div[contains(@class,'flex-col')]")->length)->toBe(0);
-    expect(renderStoryPreview($media))->toContain("\$dispatch('library-add', { id: {$media->id} })");
+        ->and(htmlQuery($html, "//template//a[@data-flux-button]/parent::div[contains(@class,'flex-col')]")->length)->toBe(0)
+        ->and($html)->toContain("\$dispatch('library-add', { id: {$media->id} })");
+});
+
+test('the card holds no form: it only exists once scripts have cloned it', function () {
+    $this->actingAs(User::factory()->create());
+
+    expect(htmlQuery(renderStoryPreview(frankenstein()), '//template//form')->length)->toBe(0);
 });
 
 test('without a cover or a description the summary falls back to a placeholder and leaves the blurb out', function () {

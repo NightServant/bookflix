@@ -13,7 +13,7 @@
     it. On a phone the next three stories are cards under the text. Pass `:slides` (Media list) or one `:media`.
     `size` is L|M|S (S has no cards). `bleed` makes it a band that spans the whole page (in a `flush` layout) with its content
     on the header's gutter; otherwise it is a rounded card inside the page's container. There is no autoplay. The `cta` slot replaces the two per-slide buttons.
-    "Add to Library" dispatches a `library-add` event with the media id; it renders only once the Phase 5 `library.store` route exists.
+    "Add to Library" is <x-library-add>: it raises a `library-add` event with the media id, and only a signed-in reader sees it.
     Eager-load `mediaType` and `genres` on fetched media (the eyebrow reads them).
 --}}
 @php
@@ -100,9 +100,7 @@
                                 {{ $cta }}
                             @else
                                 <x-cta icon="book-open" :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('View story') }}</x-cta>
-                                @if (Route::has('library.store'))
-                                    <x-cta variant="secondary" icon="plus" @click="$dispatch('library-add', { id: {{ $slide->id }} })">{{ __('Add to Library') }}</x-cta>
-                                @endif
+                                <x-library-add :media="$slide" />
                             @endif
                         </div>
                     </article>

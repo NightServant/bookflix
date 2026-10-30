@@ -2,6 +2,7 @@
 
 namespace App\Catalog\Popularity;
 
+use App\Models\ExternalSource;
 use Illuminate\Support\Facades\DB;
 
 class PopularityScorer
@@ -12,7 +13,7 @@ class PopularityScorer
      * Blend every media's metrics into `media.popularity_score` (0 to 1). Each (source, metric) pair ranks its media by ln(1+value)
      * as a percentile, so a source's scale never matters, and a media's score is the weighted mean of the ranks it has.
      * Ranking happens once in SQL into a temporary table; the media rows are then updated in id chunks with one UPDATE...FROM each.
-     * Media that lost all their metrics fall back to 0.
+     * The readers' own aggregate (the `bookflix` source) is left out. Media that lost all their metrics fall back to 0.
      *
      * @return int Media scored.
      */
@@ -26,6 +27,9 @@ class PopularityScorer
             array_push($bindings, (string) $metric, (float) $weight);
         }
 
+        // The readers' own ratings (the synthetic `bookflix` source) carry no weight until the recommender can use them (Phase 6).
+        $bindings[] = ExternalSource::READERS;
+
         DB::statement('drop table if exists popularity_scores');
         DB::statement(
             "create temporary table popularity_scores as
@@ -33,6 +37,7 @@ class PopularityScorer
                 select m.media_id, {$case} as weight,
                     percent_rank() over (partition by m.external_source_id, m.metric order by ln(1 + greatest(m.value, 0))) as rank
                 from media_metrics m
+                where m.external_source_id not in (select id from external_sources where key = ?)
             ) ranked group by media_id",
             $bindings,
         );

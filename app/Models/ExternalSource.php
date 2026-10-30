@@ -41,6 +41,12 @@ class ExternalSource extends Model
     /** @use HasFactory<ExternalSourceFactory> */
     use HasFactory;
 
+    /** The synthetic source that holds the readers' own rating aggregate in `media_metrics` (see App\Catalog\MediaRatings). */
+    public const READERS = 'bookflix';
+
+    /** The sources no provider backs: they carry data Bookflix derives itself, so no admin manages, enables or syncs them. */
+    public const SYNTHETIC = ['isbn', self::READERS];
+
     /**
      * The model's default attribute values.
      *
@@ -69,13 +75,14 @@ class ExternalSource extends Model
     }
 
     /**
-     * The sources an admin manages. The synthetic `isbn` source only carries ISBN ids for matching, so it is never listed or enabled.
+     * The sources an admin manages. The synthetic ones (`isbn` only carries ISBN ids for matching, `bookflix` the readers' rating aggregate)
+     * are never listed, enabled or synced.
      *
      * @param  Builder<ExternalSource>  $query
      */
     public function scopeProviders(Builder $query): void
     {
-        $query->where('key', '!=', 'isbn');
+        $query->whereNotIn('key', self::SYNTHETIC);
     }
 
     /**

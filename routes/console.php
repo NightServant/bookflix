@@ -12,6 +12,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('bookflix:purge-deactivated-accounts')->daily();
 Schedule::command('bookflix:prune-covers')->weekly();
+Schedule::command('bookflix:prune-exports')->daily();
 Schedule::command('bookflix:score-popularity')->daily();
 Schedule::command('bookflix:sync-signals')->daily();
 

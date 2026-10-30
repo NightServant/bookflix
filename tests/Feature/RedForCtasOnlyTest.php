@@ -22,5 +22,6 @@ test('settings save buttons are not styled with the red accent', function (strin
     ['pages::settings.profile', 'update-profile-button'],
     ['pages::settings.profile', 'update-reading-profile-button'],
     ['pages::settings.privacy', 'update-privacy-button'],
+    ['pages::settings.preferences', 'update-preferences-button'],
     ['pages::settings.security', 'update-password-button'],
 ]);

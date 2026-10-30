@@ -15,6 +15,13 @@ test('the toggle is a radio group of two options, grid then list, each with a vi
         ->and(collect(htmlQuery($html, '//*[@*[name()="x-radio:option"]]'))->map(fn ($option) => $option->getAttribute('value').':'.trim($option->textContent))->all())->toBe(['grid:Grid', 'list:List']);
 });
 
+test('a page with shelves asks for a third option, after list', function () {
+    $html = renderViewToggle('wire:model.live="view" :shelves="true"');
+
+    expect(collect(htmlQuery($html, '//*[@*[name()="x-radio:option"]]'))->map(fn ($option) => $option->getAttribute('value').':'.trim($option->textContent))->all())->toBe(['grid:Grid', 'list:List', 'shelves:Shelves'])
+        ->and(htmlQuery($html, '//button[@*[name()="x-radio:option"]][contains(@class,"min-h-11")]//svg[@aria-hidden="true"]')->length)->toBe(3);
+});
+
 test('the group is named, and the model attribute reaches the radio root', function () {
     $html = renderViewToggle();
 

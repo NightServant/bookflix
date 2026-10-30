@@ -20,8 +20,12 @@ dataset('signed in pages', [
     'discover' => fn () => route('discover'),
     'explore' => fn () => route('explore.index'),
     'search' => fn () => route('search'),
+    'library' => fn () => route('library.index'),
+    'history' => fn () => route('history.index'),
     'profile settings' => fn () => route('profile.edit'),
     'privacy settings' => fn () => route('privacy.edit'),
+    'preferences settings' => fn () => route('preferences.edit'),
+    'onboarding' => fn () => route('onboarding'),
 ]);
 
 test('a signed-in page guides the reader right after its h1', function (string $url) {

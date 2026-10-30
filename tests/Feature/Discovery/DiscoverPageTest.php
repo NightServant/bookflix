@@ -128,9 +128,6 @@ test('the top genres show their counts and link to the filtered view', function 
 });
 
 test('quick links point at existing routes', function () {
-    Route::get('/library', fn () => '')->name('library');
-    app('router')->getRoutes()->refreshNameLookups();
-
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
     $links = htmlQuery($html, '//nav[@aria-label="Quick links"]//a');
 
@@ -144,9 +141,10 @@ test('quick links point at existing routes', function () {
 test('quick links only list destinations that exist yet', function () {
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
 
-    expect($html)->not->toContain('Continue reading')->not->toContain('My collections')
+    expect($html)->not->toContain('Continue reading')
         ->not->toContain('Filter the catalog')->not->toContain('Browse by subject')
-        ->and(htmlQuery($html, '//nav[@aria-label="Quick links"]')->length)->toBe(0);
+        ->and(collect(htmlQuery($html, '//nav[@aria-label="Quick links"]//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all())
+        ->toBe(['My library', 'My collections', 'My history']);
 });
 
 test('discover opens with the search panel and ends its subject row with the way into the library', function () {
@@ -257,4 +255,10 @@ test('a genre family filter lists the stories of its subgenres, and an old genre
     Livewire::test('pages::discover.index')->set('genre', 'drama-and-human-relationships')->assertSee('Courtroom')->assertDontSee('Isekai Hero');
     Livewire::test('pages::discover.index')->set('genre', 'mystery-crime-and-thriller')->assertSee('Courtroom');
     Livewire::test('pages::discover.index')->set('genre', 'drama')->assertSee('Courtroom')->assertDontSee('Isekai Hero');
+});
+
+test('the library quick link opens the library', function () {
+    $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
+
+    expect(htmlQuery($html, '//nav[@aria-label="Quick links"]//a[@href="'.route('library.index').'"][normalize-space()="My library"]')->length)->toBe(1);
 });
