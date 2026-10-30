@@ -2,6 +2,7 @@
 
 namespace App\Catalog\Ingestion;
 
+use App\Catalog\Classification\Reclassifier;
 use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Providers\MetadataProvider;
@@ -56,6 +57,13 @@ class IngestionPipeline
 
         if ($known?->payload_hash === $hash) {
             return ImportOutcome::Skipped;
+        }
+
+        // A comic from a catalogue that does not name the format (a Comic Vine French edition, a Hardcover volume) takes the form of the manga,
+        // manhwa or manhua it translates; the pair itself is left for review.
+        if (! in_array($provider->key(), Reclassifier::FORMAT_PROVIDERS, true) && in_array($incoming->mediaTypeSlug, ['comic-book', 'graphic-novel', 'manga', 'manhwa', 'manhua', 'webcomic'], true)) {
+            $form = $this->deduplicator->originalForm($incoming, $known?->media_id);
+            $incoming = $form !== null ? $incoming->withMediaTypeSlug($form) : $incoming;
         }
 
         return DB::transaction(function () use ($record, $incoming, $source, $hash, $known): ImportOutcome {

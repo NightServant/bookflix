@@ -122,18 +122,21 @@ class MetronProvider implements MetadataProvider
         $title = $this->text($item['name'] ?? null);
         $description = $this->plainText($item['desc'] ?? null);
 
+        $verdict = $this->classifyMediaType(new ClassificationSignals(
+            provider: $this->key(),
+            format: $type,
+            title: $title,
+            description: $description,
+            subjects: array_values(array_unique($genres)),
+            publishers: array_values(array_filter([$publisher, $imprint])),
+            chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
+            language: 'en',
+        ));
+
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
-                provider: $this->key(),
-                format: $type,
-                title: $title,
-                description: $description,
-                subjects: array_values(array_unique($genres)),
-                publishers: array_values(array_filter([$publisher, $imprint])),
-                chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
-                language: 'en',
-            )),
+            mediaTypeSlug: $verdict->slug,
+            additionalMediaTypes: $verdict->additional,
             description: $description,
             publishers: $publisher !== '' ? [$publisher] : [],
             genres: array_values(array_unique($genres)),

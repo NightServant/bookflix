@@ -2,8 +2,10 @@
 
 use App\Models\Genre;
 use App\Models\Media;
+use App\Models\MediaType;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\MediaTypeSeeder;
 use Database\Seeders\TaxonomySeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -52,6 +54,18 @@ test('a type filter lists only that type and a genre filter only that genre', fu
     Livewire::test('pages::discover.index')->set('type', 'manga')->assertSee('Manga One')->assertSee('Manga Two')->assertDontSee('Novel One');
     Livewire::test('pages::discover.index')->set('genre', 'action')->assertSee('Manga One')->assertSee('Novel One')->assertDontSee('Manga Two');
     Livewire::test('pages::discover.index')->set('type', 'novel')->set('genre', 'action')->assertSee('Novel One')->assertDontSee('Manga One');
+});
+
+test('a book that is two types counts on both tiles but once in the catalogue total', function () {
+    $watchmen = Media::factory()->ofType('comic-book')->create();
+    $watchmen->additionalTypes()->attach(MediaType::firstOrCreate(['slug' => 'graphic-novel'], MediaTypeSeeder::TYPES['graphic-novel']));
+    Media::factory()->ofType('comic-book')->create();
+
+    $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
+    $tiles = collect(htmlQuery($html, '//a[@data-format-tile]/span[1]'))->map(fn ($tile) => trim(preg_replace('/\s+/', ' ', $tile->textContent)));
+
+    expect($tiles->all())->toBe(['Comic Book 2 stories', 'Graphic Novel 1 story'])
+        ->and($html)->toContain('2 stories');
 });
 
 test('type tiles show counts', function () {

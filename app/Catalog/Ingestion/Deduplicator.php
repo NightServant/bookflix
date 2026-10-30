@@ -2,12 +2,14 @@
 
 namespace App\Catalog\Ingestion;
 
+use App\Catalog\Classification\Reclassifier;
 use App\Catalog\Data\NormalizedMedia;
 use App\Enums\ClassificationType;
 use App\Enums\DuplicateStatus;
 use App\Enums\ReviewStatus;
 use App\Enums\WarningStatus;
 use App\Models\DuplicateCandidate;
+use App\Models\ExternalSource;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
 use App\Models\MediaExternalId;
@@ -45,6 +47,26 @@ class Deduplicator
         return $this->matchByExternalId($incoming)
             ?? $this->similar($incoming)->firstWhere('auto', true)['media']
             ?? null;
+    }
+
+    /**
+     * The form of the manga, manhwa or manhua this record is a translation or edition of: a near-identical title, a shared creator, an original no
+     * younger than it, and an original from a provider that names the format (AniList, MangaDex, MangaUpdates). The pair stays a review candidate,
+     * not a merge (D-21: a year gap never auto-merges), but the form is the work's in every language. `$except` is the record's own media,
+     * which must not vouch for itself.
+     */
+    public function originalForm(NormalizedMedia $incoming, ?int $except = null): ?string
+    {
+        $formats = ExternalSource::query()->whereIn('key', Reclassifier::FORMAT_PROVIDERS)->pluck('id')->all();
+
+        $original = $this->similar($incoming)->first(fn (array $hit): bool => $hit['media']->id !== $except
+            && $hit['score'] >= (float) config('bookflix.dedup.auto_title_similarity')
+            && in_array($hit['media']->mediaType->slug, ['manga', 'manhwa', 'manhua'], true)
+            && in_array($hit['media']->primary_external_source_id, $formats, true)
+            && ($incoming->publicationYear === null || $hit['media']->publication_year === null || $incoming->publicationYear >= $hit['media']->publication_year)
+            && $this->sharesCreator($incoming, $hit['media']));
+
+        return $original['media']->mediaType->slug ?? null;
     }
 
     /**
@@ -291,7 +313,7 @@ class Deduplicator
             ->whereRaw(self::SIMILARITY.' >= cast(? as real)', [$incoming->title, (float) config('bookflix.dedup.review_min_similarity')])
             ->orderByDesc('title_score')
             ->limit(25)
-            ->with('creators')
+            ->with(['creators', 'mediaType'])
             ->get()
             ->map(function (Media $media) use ($incoming): array {
                 $score = round((float) $media->getAttribute('title_score'), 4);
@@ -321,15 +343,26 @@ class Deduplicator
             && $incoming->publicationYear === $media->publication_year;
     }
 
+    /**
+     * Whether a credited name appears on both. Providers write the same person differently: MangaUpdates adds the name in its own script and puts
+     * the family name first ("Oda Eiichirou (尾田栄一郎)"), AniList writes long vowels out ("Katsuhiro Ootomo"), Comic Vine closes up pen names
+     * ("singNsong"). So the script part is dropped, long vowels folded, and a name matches in its own word order or with its words sorted.
+     */
     private function sharesCreator(NormalizedMedia $incoming, Media $media): bool
     {
         $names = fn (iterable $names): array => collect($names)
-            ->map(fn (string $name): string => trim(preg_replace('/[^\p{L}\p{N}]+/u', ' ', Str::lower(Str::ascii($name)))))
-            ->filter()
+            ->flatMap(function (string $name): array {
+                $folded = str_replace(['ou', 'oo', 'uu'], ['o', 'o', 'u'], Str::lower(Str::ascii(preg_replace('/\s*\([^)]*\)\s*$/u', '', $name) ?? $name)));
+                $words = preg_split('/[^a-z0-9]+/', $folded, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                $sorted = $words;
+                sort($sorted);
+
+                return $words === [] ? [] : [implode('', $words), implode('', $sorted)];
+            })
             ->all();
 
         return array_intersect(
-            $names(array_map(fn ($creator): string => $creator->name, $incoming->creators)),
+            $names([...array_map(fn ($creator): string => $creator->name, $incoming->creators), ...$incoming->credits]),
             $names($media->creators->pluck('name')),
         ) !== [];
     }

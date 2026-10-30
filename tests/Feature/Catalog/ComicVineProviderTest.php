@@ -95,6 +95,27 @@ test('the token is the next offset and stops at the total or an empty page', fun
     'empty page' => [100, 500, [], null],
 ]);
 
+test('a volume that is a foreign edition has its credits and concepts fetched, the rest cost no extra request', function () {
+    $french = comicVineVolume(['id' => 7, 'name' => 'Solo Leveling', 'deck' => null, 'description' => 'French publication.', 'publisher' => ['name' => 'Delcourt']]);
+    $yen = comicVineVolume(['id' => 8, 'name' => 'Solo Leveling', 'deck' => null, 'description' => null, 'publisher' => ['name' => 'Yen Press']]);
+    Http::fake([
+        'comicvine.gamespot.com/api/volumes/*' => Http::response(['status_code' => 1, 'number_of_total_results' => 3, 'results' => [comicVineVolume(), $french, $yen]]),
+        'comicvine.gamespot.com/api/volume/4050-7/*' => Http::response(['status_code' => 1, 'results' => ['people' => [['name' => 'Chugong'], ['name' => 'DUBU']], 'concepts' => []]]),
+    ]);
+
+    $page = app(ComicVineProvider::class)->page(null, null);
+    $translation = app(ComicVineProvider::class)->normalize($page->records[1]);
+
+    Http::assertSentCount(2);
+    expect($translation->credits)->toBe(['Chugong', 'DUBU'])->and($translation->creators)->toBe([]);
+});
+
+test('concepts such as an imprint are weighed with the publisher', function () {
+    $volume = comicVineVolume(['name' => 'Solo Leveling', 'description' => 'English edition.', 'publisher' => ['name' => 'Yen Press'], 'concepts' => [['name' => 'Ize Press']]]);
+
+    expect(app(ComicVineProvider::class)->normalize(new ProviderRecord('comicvine', '1', $volume, null, now()->toImmutable()))->mediaTypeSlug)->toBe('manhwa');
+});
+
 test('find fetches the volume by its 4050 id and returns null when missing', function () {
     Http::fake(['comicvine.gamespot.com/api/volume/4050-2127/*' => Http::response(['status_code' => 1, 'results' => comicVineVolume()])]);
 

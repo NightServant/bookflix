@@ -67,7 +67,7 @@ class Reclassifier
             return new ReclassifyOutcome($media->id, $old, $old, prohibited: true);
         }
 
-        [$type, $confidence] = $this->type($media, $provider, $minConfidence);
+        [$type, $confidence, $additional] = $this->type($media, $provider, $minConfidence);
         $mapped = $this->mapped($media, $provider);
         $folded = $this->foldedTags($media, $provider);
         $locked = $media->locked_fields;
@@ -98,9 +98,13 @@ class Reclassifier
         $foldTags = ! in_array('tags', $locked, true) ? $folded : [];
 
         if ($apply) {
-            DB::transaction(function () use ($media, $type, $old, $ratingSet, $mapped, $foldTags): void {
+            DB::transaction(function () use ($media, $type, $old, $additional, $ratingSet, $mapped, $foldTags): void {
                 if ($type !== $old) {
                     $media->update(['media_type_id' => $this->typeId($type)]);
+                }
+
+                if ($additional !== null) {
+                    $media->additionalTypes()->sync(array_values(array_filter(array_map($this->typeId(...), $additional))));
                 }
 
                 if ($ratingSet) {
@@ -123,25 +127,25 @@ class Reclassifier
     }
 
     /**
-     * The new type slug and its confidence; the old slug when nothing may or should change.
+     * The new type slug, its confidence and the other types the work also is; the old slug, and null for the others, when nothing may or should change.
      *
-     * @return array{string, float}
+     * @return array{string, float, list<string>|null}
      */
     private function type(Media $media, string $provider, float $minConfidence): array
     {
         $current = $media->mediaType->slug;
 
         if ($provider === '' || in_array($provider, self::FORMAT_PROVIDERS, true) || in_array('media_type_id', $media->locked_fields, true)) {
-            return [$current, 1.0];
+            return [$current, 1.0, null];
         }
 
         $verdict = $this->classifier->classify($this->signals($media, $provider));
 
         if (! $verdict->isSupported() || $verdict->confidence < $minConfidence || $this->typeId($verdict->slug) === null) {
-            return [$current, $verdict->confidence];
+            return [$current, $verdict->confidence, null];
         }
 
-        return [$verdict->slug, $verdict->confidence];
+        return [$verdict->slug, $verdict->confidence, $verdict->additional];
     }
 
     /**
@@ -162,6 +166,7 @@ class Reclassifier
             chapterCount: $media->chapter_count,
             country: $media->country_of_origin,
             language: $media->language,
+            deweyCode: $media->externalIds->whereNotNull('dewey_code')->first()?->dewey_code,
         );
     }
 

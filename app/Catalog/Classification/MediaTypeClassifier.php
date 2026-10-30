@@ -16,10 +16,19 @@ use Illuminate\Support\Str;
  * - publishers, credited roles (penciller, colorist), and comic or prose subjects follow;
  * - a "Graphic Novels" subject on its own is weak, because Open Library and Hardcover also file prose adaptations of comics under it. It counts for more
  *   when the page count looks like a graphic novel, and for little next to a prose publisher, a long page count or a "novelization" blurb;
+ * - a library's Dewey class is strong: 741.5 is comics (741.5952 Japanese, 741.595195 Korean, 741.5951 Chinese), 8x3 fiction, 0xx-7xx and 9xx nonfiction;
  * - page counts, chapter counts and the provider's usual output are tie-breakers.
  *
+ * Subjects are read as headings, not only exact phrases: "Comics & Graphic Novels / Manga / Action" and "Comic books, strips, etc. -- Japan" name a form,
+ * "Comic books, strips, etc. -- Fiction" (a novel about comics) and "Manga -- Technique" (a how-to) do not. A record with several craft subjects
+ * (technique, drawing, history and criticism) is a book about comics, so its comic subjects count for little.
+ *
+ * Book catalogues file all Asian comics under "Manga" (BISAC has no manhwa heading), so specific evidence (a manhwa subject, a Korean imprint or Dewey
+ * class, Hangul in the titles, a blurb saying manhwa) outweighs that umbrella label.
+ *
  * Prose wins ties, and a record with no evidence at all is a novel; a comic book is the default only for Comic Vine and Metron, whose records are issue-based
- * comic series, and only while nothing points at prose.
+ * comic series, and only while nothing points at prose. Prose is nonfiction when its Dewey class or subjects say so and clearly outweigh the fiction
+ * evidence, so a novel with one stray "History" or "Nonfiction" tag stays a novel.
  *
  * Vertical-scroll comics (a MangaDex "Long Strip", a webtoon) follow the country: Korean is manhwa, Chinese manhua, and a Japanese or other work is a webcomic.
  * A "Web Comic" tag alone (published online, format unsaid) leaves Japanese work manga and changes only work from elsewhere.
@@ -46,6 +55,37 @@ class MediaTypeClassifier
     /** @var array<string, string> Original language to the comic form it implies. */
     private const ORIGIN_BY_LANGUAGE = ['ja' => 'manga', 'ko' => 'manhwa', 'zh' => 'manhua', 'zh-hk' => 'manhua', 'zh-tw' => 'manhua', 'zh-cn' => 'manhua'];
 
+    /** @var array<string, string> Subject words in other scripts, as the English terms the subject patterns read. 漫画 is manga or manhua, so only comics. */
+    private const WRITTEN_TERMS = [
+        'ライトノベル' => 'light novels', 'ラノベ' => 'light novels', '轻小说' => 'light novels', '輕小說' => 'light novels', '라이트노벨' => 'light novels',
+        '웹툰' => 'webtoon', 'マンガ' => 'manga', 'まんが' => 'manga', '漫画' => 'comics', '漫畫' => 'comics', 'コミック' => 'comics', '만화' => 'comics',
+        '小説' => 'novel', '小说' => 'novel', '小說' => 'novel', '소설' => 'novel',
+    ];
+
+    /** @var array<string, list<string>> The comic headings a subject can name, most specific first. */
+    private const FORM_HEADINGS = [
+        'manhwa' => ['manhwa', 'manhwas'],
+        'manhua' => ['manhua', 'manhuas'],
+        'manga' => ['manga', 'mangas'],
+        'comics' => ['comic books strips etc', 'comic books strips', 'comics', 'comic books', 'comic book', 'comic strips', 'comics and graphic novels', 'cartoons and comics'],
+        'graphic novels' => ['graphic novels', 'graphic novel'],
+    ];
+
+    /** What follows a comics heading when the subject is about comics rather than one: "-- Fiction", "in fiction", "-- Technique". */
+    private const ABOUT_TAIL = '/^(?:in |juvenile |young adult )*fiction\b|\b(?:history and criticism|criticism|technique|techniques|drawing|study and teaching|authorship|bibliography|catalogs?|collectors?|collecting|publishing|industry|adaptations?)\b/';
+
+    /** Subjects of a book about making or studying comics; two of them make it one. */
+    private const CRAFT = '/\b(?:technique|techniques|drawing|cartooning|history and criticism|criticism and interpretation|study and teaching|authorship)\b/';
+
+    /** Headings of nonfiction subjects (BISAC and Hardcover genres); a subject that also says fiction is not one. */
+    private const NONFICTION_TOPICS = '/^(?:biography|autobiography|memoirs?|personal memoirs|self help|personal growth|personal development|self improvement|success|business|economics|personal finance|finance|investing|psychology|history|science|popular science|philosophy|religion|spirituality|politics|political science|social science|sociology|true crime|travel|cooking|cookbooks?|cookery|health|parenting|education|reference|essays|journalism|productivity|leadership|management|mathematics|technology|computers|nature|art|music|sports|language arts|literary criticism|study aids|family and relationships|body mind and spirit|house and home|crafts and hobbies|gardening|law|medical)\b/';
+
+    /**
+     * Fiction genres and romance subgenres, counted with the subjects that say fiction outright, against nonfiction evidence. Hardcover's
+     * reader tags about characters and plot ("Character Driven", "Loveable Characters") answer questions it asks about fiction only.
+     */
+    private const FICTION_GENRES = '/^(?:fantasy|romance|mystery|thrillers?|horror|dystopian|dystopia|adventure|action and adventure|romantasy|paranormal|suspense|magical realism|fairy tales|westerns?|space opera)\b|\bromance$|\bcharacter development$|\bcharacters$|\b(?:character|plot|mix) driven$/';
+
     public function classify(ClassificationSignals $signals): MediaTypeVerdict
     {
         $provider = $signals->provider;
@@ -57,7 +97,8 @@ class MediaTypeClassifier
         }
 
         $family = [self::PROSE => 0.0, self::COMIC => 0.0, self::PICTURE => 0.0, self::VISUAL => 0.0];
-        $form = ['novel' => 0.0, 'light-novel' => 0.0, 'manga' => 0.0, 'manhwa' => 0.0, 'manhua' => 0.0, 'webcomic' => 0.0, 'comic-book' => 0.0, 'graphic-novel' => 0.0];
+        // `novel` and `nonfiction` weigh fiction against nonfiction once the record is prose; the comic forms pick the comic.
+        $form = ['novel' => 0.0, 'nonfiction' => 0.0, 'light-novel' => 0.0, 'manga' => 0.0, 'manhwa' => 0.0, 'manhua' => 0.0, 'webcomic' => 0.0, 'comic-book' => 0.0, 'graphic-novel' => 0.0];
         $flags = ['vertical' => false, 'web' => false, 'webnovel' => false];
         $reasons = [];
 
@@ -70,8 +111,10 @@ class MediaTypeClassifier
         $this->titleEvidence($signals, $add, $form);
         $this->descriptionEvidence($signals, $add, $form);
         $this->subjectEvidence($signals, $add, $form, $flags);
-        $this->publisherEvidence($signals, $add, $form);
+        $this->publisherEvidence($signals, $add, $form, $flags);
         $this->creatorEvidence($signals, $add);
+        $this->deweyEvidence($signals, $add, $form);
+        $this->scriptEvidence($signals, $form);
         $this->sizeEvidence($signals, $add, $form);
         $this->prior($provider, $add, $form);
 
@@ -106,8 +149,63 @@ class MediaTypeClassifier
         return new MediaTypeVerdict(
             $slug,
             round(min(0.99, 0.5 + 0.5 * (1 - exp(-max($margin, 0.0) / 5))), 2),
-            array_map(fn (array $reason): string => $reason[1], array_slice($reasons, 0, 5)),
+            array_slice(array_values(array_unique(array_map(fn (array $reason): string => $reason[1], $reasons))), 0, 5),
+            $this->additionalForms($slug, $form, $flags, $signals, $origin),
         );
+    }
+
+    /**
+     * The other types a work also is, from explicit evidence only, never from a close call between families: a comic book series collected as
+     * a graphic novel (or the collection of one), a novel carrying a picture book award (Hugo Cabret's Caldecott) or told in cartoons, a comic
+     * filed as a picture book (The Arrival, told without words), a graphic memoir, a webtoon.
+     *
+     * @param  array<string, float>  $form
+     * @param  array{vertical: bool, web: bool, webnovel: bool}  $flags
+     * @return list<string>
+     */
+    private function additionalForms(string $slug, array $form, array $flags, ClassificationSignals $signals, ?string $origin): array
+    {
+        $text = $this->fold($signals->title.' '.mb_substr((string) $signals->description, 0, 600));
+        $subjects = implode(' | ', array_map($this->phrase(...), $signals->subjects));
+        $prose = in_array($slug, ['novel', 'light-novel', 'nonfiction'], true);
+        $comic = ! $prose && ! in_array($slug, ['picture-book', 'visual-novel'], true);
+        $also = [];
+
+        // A comic book series that says it was collected, and a collection that says what it collects: an issue range alone is a series' history.
+        $collectedLater = preg_match('/\bcollected (?:in|as)\b|\bcollected editions?\b/', $text) === 1;
+        $collects = preg_match('/\bcollect(?:s|ing)\b[^.]{0,80}#\s?\d|#\s?\d+\s?(?:-|and|&)\s?#?\s?\d+|\bsingle (?:magazine|issue) form\b|\b(?:omnibus|compendium|deluxe edition|library edition|trade paperback|tpb|collected edition)\b/', $text) === 1
+            || ($signals->provider === 'metron' && preg_match('/hard ?cover|trade paperback|\btpb\b|omnibus|collect|compendium|deluxe|library/', Str::lower((string) $signals->format)) === 1)
+            || array_filter($signals->subjects, fn (string $subject): bool => preg_match('/\(comic strip\)\s*$/i', $subject) === 1) !== [];
+
+        if ($slug === 'comic-book' && $collectedLater) {
+            $also[] = 'graphic-novel';
+        }
+
+        if ($slug === 'graphic-novel' && ($collects || $collectedLater)) {
+            $also[] = 'comic-book';
+        }
+
+        if ($prose && preg_match('/\bcaldecott\b|\billustrated novels?\b|\bnovels? in (?:words and )?pictures\b|\btold in words and pictures\b/', "{$subjects} {$text}") === 1) {
+            $also[] = 'picture-book';
+        }
+
+        if ($prose && preg_match('/\bnovels? in cartoons\b|\bhybrid (?:graphic )?novels?\b/', "{$subjects} {$text}") === 1) {
+            $also[] = 'graphic-novel';
+        }
+
+        if ($comic && preg_match('/(?:^| \| )(?:picture books?|picture books for children|stories without words|board books)(?: \||$)/', $subjects) === 1) {
+            $also[] = 'picture-book';
+        }
+
+        if ($comic && $form['nonfiction'] >= 6.0 && $form['nonfiction'] > 1.5 * $form['novel']) {
+            $also[] = 'nonfiction';
+        }
+
+        if (($flags['vertical'] || $flags['web']) && $origin !== null) {
+            $also[] = $slug === 'webcomic' ? $origin : 'webcomic';
+        }
+
+        return array_values(array_diff(array_unique($also), [$slug]));
     }
 
     /**
@@ -199,6 +297,7 @@ class MediaTypeClassifier
 
             if ($novel || $lightNovel || $webNovel) {
                 $add(self::PROSE, ($novel ? self::TITLE_MARKER : 8.0) * $scale, 'title says novel');
+                $form['novel'] += 3.0 * $scale;
             }
 
             if ($lightNovel || $webNovel) {
@@ -219,8 +318,12 @@ class MediaTypeClassifier
                 $form['comic-book'] += 3.0 * $scale;
             }
 
-            if (preg_match('/\(manga\)|\(manhwa\)|\(manhua\)|\(webtoon\)/', $title) === 1) {
+            if (preg_match('/\((manga|manhwa|manhua|webtoon)\)/', $title, $marker) === 1) {
                 $add(self::COMIC, 6.0 * $scale, 'title says comic');
+
+                if ($marker[1] !== 'webtoon') {
+                    $form[$marker[1]] += 6.0 * $scale;
+                }
             }
 
             if (preg_match('/\bvisual novel\b|\(vn\)/', $title) === 1) {
@@ -250,11 +353,33 @@ class MediaTypeClassifier
 
         if (preg_match('/\b(?:novelizations?|novelisations?|prose (?:novel|adaptation|edition|retelling))\b/', $text) === 1) {
             $add(self::PROSE, 8.0, 'description says novelization');
+            $form['novel'] += 3.0;
             $novelization = true;
         } elseif (preg_match('/^(?:an? |the )?((?:[a-z0-9\'-]+ ){0,3}?)novel\b/', $text, $match) === 1 && $plain($match[1])) {
             $add(self::PROSE, 5.0, 'description opens with a novel');
+            $form['novel'] += 3.0;
         } elseif (preg_match('/\b(?:is|was) an? ((?:[a-z0-9\'-]+ ){0,4}?)novel\b/', $text, $match) === 1 && $plain($match[1])) {
             $add(self::PROSE, 3.5, 'description calls it a novel');
+            $form['novel'] += 3.0;
+        }
+
+        // Only the comic's form: "the novel behind the hit manhwa" is still a novel when the rest says prose. Comic Vine says where a translated
+        // volume comes from ("English translation of the Japanese manga", "Proper Korean Title: ... Originally serialized in Naver Webtoon").
+        if (preg_match('/\bmanhwa\b|\bkorean (?:webtoon|web ?comic|comic)s?\b|\bproper korean title\b|\b(?:naver|daum|kakao ?page|lezhin)\b/', $text) === 1) {
+            $form['manhwa'] += 6.0;
+        }
+
+        if (preg_match('/\bmanhua\b|\bchinese (?:web ?comic|comic)s?\b|\bproper chinese title\b|\b(?:bilibili|tencent comics|kuaikan)\b/', $text) === 1) {
+            $form['manhua'] += 6.0;
+        }
+
+        if (preg_match('/\bjapanese (?:manga|comics?)\b|\bproper japanese title\b/', $text) === 1) {
+            $form['manga'] += 6.0;
+        }
+
+        // "Trade paperback collecting Fantastic Four #525-526": a bound collection of issues.
+        if (preg_match('/\b(?:trade paperback|hard ?cover|omnibus|collected edition|tpb)s? (?:collecting|that collects|which collects)\b/', $text) === 1) {
+            $form['graphic-novel'] += 4.0;
         }
 
         if (preg_match('/\b(?:is|was) an? ((?:[a-z0-9\'-]+ ){0,4}?)light novel\b/', $text, $match) === 1 && preg_match($adapts, $match[0]) === 0) {
@@ -283,30 +408,63 @@ class MediaTypeClassifier
      */
     private function subjectEvidence(ClassificationSignals $signals, callable $add, array &$form, array &$flags): void
     {
-        $subjects = array_values(array_filter(array_map($this->phrase(...), $signals->subjects)));
+        $subjects = array_values(array_filter(array_map($this->phrase(...), $this->withWrittenTerms($signals->subjects))));
         $has = fn (array $needles): bool => array_filter($subjects, fn (string $subject): bool => in_array($subject, $needles, true)) !== [];
+        $count = fn (callable $test): int => count(array_filter($subjects, $test));
         $pages = $signals->pageCount;
 
-        if ($has(['comic books strips etc', 'comics', 'comic books', 'comic book', 'comic strips', 'comics and graphic novels', 'cartoons and comics'])) {
-            $add(self::COMIC, 3.5, 'comics subject');
-            $form['comic-book'] += $has(['comics', 'comic books', 'comic book']) ? 1.5 : 0.0;
-        }
+        // Each subject counts once, for the most specific form it names: "Comics & Graphic Novels / Manga" is manga, not also comics and a graphic novel.
+        $named = array_fill_keys(array_keys(self::FORM_HEADINGS), false);
 
-        if ($has(['graphic novels', 'graphic novel'])) {
-            // Prose adaptations of comics are filed under this too, so on its own it is weak; a graphic novel sized book makes it more likely.
-            $add(self::COMIC, 1.5 + ($pages !== null && $pages >= 24 && $pages <= 320 ? 1.5 : 0.0), 'graphic novels subject');
-            $form['graphic-novel'] += 1.0;
-        }
+        foreach ($subjects as $subject) {
+            foreach (self::FORM_HEADINGS as $heading => $needles) {
+                if ($this->namesForm($subject, $needles)) {
+                    $named[$heading] = true;
 
-        foreach (['manga' => 'manga', 'manhwa' => 'manhwa', 'manhua' => 'manhua'] as $word => $slug) {
-            if ($has([$word, $word.'s'])) {
-                $add(self::COMIC, 5.0, "{$word} subject");
-                $form[$slug] += 5.0;
+                    break;
+                }
             }
         }
 
-        if ($has(['webtoon', 'webtoons', 'webcomic', 'webcomics', 'web comic', 'web comics'])) {
-            $add(self::COMIC, 3.0, 'webcomic subject');
+        // A craft subject counts when it stands alone ("Technique") or is about comics ("Manga -- Technique"); "Children's literature -- History
+        // and criticism" is about something else.
+        $comical = fn (string $subject): bool => preg_match('/\b(?:comic|comics|manga|manhwa|manhua|cartoon|cartoons|cartooning|graphic novels?)\b/', $subject) === 1;
+        $craft = array_filter($subjects, $comical) !== [] && $count(fn (string $subject): bool => ! $this->saysFiction($subject)
+            && preg_match(self::CRAFT, $subject, $term) === 1 && ($term[0] === $subject || $comical($subject))) >= 2;
+        $scale = $craft ? 0.4 : 1.0;
+
+        if ($craft) {
+            $add(self::PROSE, 4.0, 'a book about the craft of comics');
+            $form['nonfiction'] += 4.0;
+        }
+
+        if ($named['comics']) {
+            $add(self::COMIC, 3.5 * $scale, 'comics subject');
+            $form['comic-book'] += $has(['comics', 'comic books', 'comic book']) ? 1.5 * $scale : 0.0;
+        }
+
+        if ($named['graphic novels']) {
+            // Prose adaptations of comics are filed under this too, so on its own it is weak; a graphic novel sized book makes it more likely.
+            $add(self::COMIC, (1.5 + ($pages !== null && $pages >= 24 && $pages <= 320 ? 1.5 : 0.0)) * $scale, 'graphic novels subject');
+            $form['graphic-novel'] += 1.0 * $scale;
+        }
+
+        // "Manga" is also the book trade's label for every Asian comic, so a manhwa or manhua subject counts for a little more.
+        foreach (['manga' => 5.0, 'manhwa' => 6.0, 'manhua' => 6.0] as $word => $weight) {
+            if ($named[$word]) {
+                $add(self::COMIC, 5.0 * $scale, "{$word} subject");
+                $form[$word] += $weight * $scale;
+            }
+        }
+
+        foreach (['manga' => '/\bjapan/', 'manhwa' => '/\bkorea/', 'manhua' => '/\b(?:china|chinese|taiwan|hong kong)\b/'] as $slug => $place) {
+            if ($count(fn (string $subject): bool => preg_match($place, $subject) === 1 && $this->namesForm($subject, self::FORM_HEADINGS['comics'])) > 0) {
+                $form[$slug] += ($slug === 'manga' ? 5.0 : 6.0) * $scale;
+            }
+        }
+
+        if ($count(fn (string $subject): bool => $this->namesForm($subject, ['webtoon', 'webtoons', 'webcomic', 'webcomics', 'web comic', 'web comics'])) > 0) {
+            $add(self::COMIC, 3.0 * $scale, 'webcomic subject');
             $flags['web'] = true;
         }
 
@@ -325,15 +483,20 @@ class MediaTypeClassifier
             $flags['webnovel'] = true;
         }
 
-        if ($has(['novel', 'novels'])) {
+        if ($has(['novel', 'novels', 'novella', 'novellas', 'short stories', 'short story'])) {
             $add(self::PROSE, 3.0, 'novel subject');
+            $form['novel'] += 3.0;
         }
 
-        $fiction = count(array_filter($subjects, fn (string $subject): bool => $subject === 'fiction' || str_ends_with($subject, ' fiction') || str_ends_with($subject, ' stories')));
+        $fiction = $count(fn (string $subject): bool => ($subject === 'fiction' || str_ends_with($subject, ' fiction') || str_ends_with($subject, ' stories')) && ! str_ends_with($subject, 'non fiction'));
 
         if ($fiction > 0) {
             $add(self::PROSE, min(1.5, $fiction * 0.5), 'fiction subjects');
         }
+
+        $form['novel'] += 1.5 * $count(fn (string $subject): bool => $this->saysFiction($subject) || preg_match(self::FICTION_GENRES, $subject) === 1);
+        $form['nonfiction'] += min(4.5, 1.5 * $count(fn (string $subject): bool => ! $this->saysFiction($subject) && preg_match(self::NONFICTION_TOPICS, $subject) === 1));
+        $form['nonfiction'] += $count(fn (string $subject): bool => preg_match('/\bnon ?fiction\b/', $subject) === 1) > 0 ? 5.0 : 0.0;
 
         if ($has(['visual novel', 'visual novels'])) {
             // A manga or comic filed under "Visual novels" adapts one; it is not one.
@@ -341,16 +504,20 @@ class MediaTypeClassifier
             $add(self::VISUAL, $adapts ? 2.0 : 8.0, 'visual novel subject');
         }
 
-        if ($has(['picture book', 'picture books', 'picture books for children'])) {
-            $add(self::PICTURE, 6.0, 'picture book subject');
+        // Each further picture book heading a cataloguer gave adds to the first, and a picture book sized book more.
+        $pictures = $count(fn (string $subject): bool => in_array($subject, ['picture book', 'picture books', 'picture books for children', 'board books', 'toy and movable books', 'counting books', 'stories without words'], true));
+
+        if ($pictures > 0) {
+            $add(self::PICTURE, 6.0 + min(6.0, 2.0 * ($pictures - 1)) + ($pages !== null && $pages <= 48 ? 2.0 : 0.0), 'picture book subject');
         }
     }
 
     /**
      * @param  callable(string, float, string): void  $add
      * @param  array<string, float>  $form
+     * @param  array{vertical: bool, web: bool, webnovel: bool}  $flags
      */
-    private function publisherEvidence(ClassificationSignals $signals, callable $add, array &$form): void
+    private function publisherEvidence(ClassificationSignals $signals, callable $add, array &$form, array &$flags): void
     {
         $kinds = array_unique(array_merge(...array_map(PublisherCatalog::kinds(...), $signals->publishers ?: [''])));
 
@@ -362,8 +529,20 @@ class MediaTypeClassifier
 
                     break;
                 case PublisherCatalog::MANGA:
+                    // Enough to beat the book catalogues' graphic novel default on its own, not a manhwa imprint or subject.
                     $add(self::COMIC, 4.0, 'manga publisher');
-                    $form['manga'] += 3.0;
+                    $form['manga'] += 4.0;
+
+                    break;
+                case PublisherCatalog::MANHWA:
+                case PublisherCatalog::MANHUA:
+                    $add(self::COMIC, 4.0, "{$kind} publisher");
+                    $form[$kind] += 6.0;
+
+                    break;
+                case PublisherCatalog::WEBCOMIC:
+                    $add(self::COMIC, 4.0, 'webtoon publisher');
+                    $flags['web'] = true;
 
                     break;
                 case PublisherCatalog::COMIC:
@@ -391,6 +570,61 @@ class MediaTypeClassifier
             $add(self::PROSE, 1.0, 'only prose credits');
         } elseif (array_intersect($roles, ['writer', 'artist', 'illustrator']) !== []) {
             $add(self::COMIC, 0.5, 'writer and artist credits');
+        }
+    }
+
+    /**
+     * The Dewey class a library gave an edition: 741.5 is comics (its place says which), 8x3 prose fiction, the rest of 8xx says nothing, everything else nonfiction.
+     * 741.50 (history and criticism) and 741.51 (technique) are books about comics.
+     *
+     * @param  callable(string, float, string): void  $add
+     * @param  array<string, float>  $form
+     */
+    private function deweyEvidence(ClassificationSignals $signals, callable $add, array &$form): void
+    {
+        if (preg_match('/^\d{3}(?:\.\d+)?/', str_replace(['/', "'"], '', trim((string) $signals->deweyCode)), $match) !== 1) {
+            return;
+        }
+
+        $code = $match[0];
+
+        if (preg_match('/^741\.5(?![01])/', $code) === 1) {
+            $place = match (true) {
+                str_starts_with($code, '741.59519') => 'manhwa',
+                str_starts_with($code, '741.5951') => 'manhua',
+                str_starts_with($code, '741.5952') => 'manga',
+                default => null,
+            };
+
+            $add(self::COMIC, 6.0, "Dewey {$code}");
+            $form[$place ?? 'graphic-novel'] += $place !== null ? 10.0 : 3.0;
+        } elseif ($code[0] === '8') {
+            // A fiction class (813, 823, 895.63) says a story told in words or pictures, not a comic: picture books are shelved there too
+            // (813.54 [E]), so it backs both. The rest of 8xx (poetry, letters, a translation's class) says nothing.
+            if (preg_match('/^8[1-8]3(?:\.|$)|^89\d\.\d3/', $code) === 1) {
+                $add(self::PROSE, 2.0, "Dewey {$code}");
+                $add(self::PICTURE, 2.0, "Dewey {$code}");
+                $form['novel'] += 3.0;
+            }
+        } else {
+            $add(self::PROSE, 1.0, "Dewey {$code}");
+            $form['nonfiction'] += 6.0;
+        }
+    }
+
+    /**
+     * Hangul in the titles or blurb points at a Korean comic and kana at a Japanese one; Chinese characters alone say nothing, Japanese uses them too.
+     *
+     * @param  array<string, float>  $form
+     */
+    private function scriptEvidence(ClassificationSignals $signals, array &$form): void
+    {
+        $text = implode(' ', [$signals->title, ...$signals->alternativeTitles, mb_substr((string) $signals->description, 0, 600)]);
+        $korean = preg_match('/\p{Hangul}/u', $text) === 1;
+        $japanese = preg_match('/[\p{Hiragana}\p{Katakana}]/u', $text) === 1;
+
+        if ($korean !== $japanese) {
+            $form[$korean ? 'manhwa' : 'manga'] += 4.0;
         }
     }
 
@@ -438,7 +672,8 @@ class MediaTypeClassifier
     }
 
     /**
-     * A light novel when the evidence says so (an Asian web novel counts as one); everything else prose is a novel.
+     * A light novel when the evidence says so (an Asian web novel counts as one); nonfiction when that evidence is real and clearly outweighs the
+     * fiction evidence; everything else prose is a novel.
      *
      * @param  array<string, float>  $form
      * @param  array{vertical: bool, web: bool, webnovel: bool}  $flags
@@ -447,7 +682,11 @@ class MediaTypeClassifier
     {
         $asian = $origin !== null || in_array(Str::upper((string) $signals->country), ['JP', 'KR', 'CN', 'TW', 'HK'], true);
 
-        return $form['light-novel'] >= 3.0 || ($flags['webnovel'] && $asian) ? 'light-novel' : 'novel';
+        if ($form['light-novel'] >= 3.0 || ($flags['webnovel'] && $asian)) {
+            return 'light-novel';
+        }
+
+        return $form['nonfiction'] >= 3.0 && $form['nonfiction'] > 1.5 * $form['novel'] ? 'nonfiction' : 'novel';
     }
 
     /**
@@ -508,10 +747,59 @@ class MediaTypeClassifier
     }
 
     /**
-     * A subject or tag as a whole phrase: lowercase, accents folded, punctuation as single spaces ("Comic books, strips, etc." is `comic books strips etc`).
+     * A subject or tag as a whole phrase: lowercase, accents folded, `&` as "and", punctuation as single spaces ("Comic books, strips, etc." is
+     * `comic books strips etc`, "Comics & Graphic Novels" is `comics and graphic novels`).
      */
     private function phrase(string $term): string
     {
-        return trim(preg_replace('/[^a-z0-9]+/', ' ', Str::lower(Str::ascii($term))) ?? '');
+        return trim(preg_replace('/[^a-z0-9]+/', ' ', Str::lower(Str::ascii(str_replace('&', ' and ', $term)))) ?? '');
+    }
+
+    /**
+     * Whether a subject names one of these forms: the whole subject, or a heading inside it ("comics and graphic novels manga action",
+     * "comic books strips etc japan") that is not followed by what makes comics the topic ("in fiction", "technique"). "Web comics" is not "comics".
+     *
+     * @param  list<string>  $forms
+     */
+    private function namesForm(string $subject, array $forms): bool
+    {
+        foreach ($forms as $form) {
+            if (preg_match('/(?<![a-z])(?<!web )'.preg_quote($form, '/').'(?![a-z])(.*)$/', $subject, $match) === 1 && preg_match(self::ABOUT_TAIL, trim($match[1])) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether a subject says fiction ("science fiction", "dogs fiction", "short stories"); "nonfiction" and "non fiction" do not.
+     */
+    private function saysFiction(string $subject): bool
+    {
+        return preg_match('/(?<!non )\bfiction\b|\bstories$/', $subject) === 1;
+    }
+
+    /**
+     * The subjects plus the English term for any word they hold in another script (ライトノベル is `light novels`).
+     *
+     * @param  list<string>  $subjects
+     * @return list<string>
+     */
+    private function withWrittenTerms(array $subjects): array
+    {
+        $terms = [];
+
+        foreach ($subjects as $subject) {
+            $written = PublisherCatalog::written($subject);
+
+            foreach (self::WRITTEN_TERMS as $word => $term) {
+                if (str_contains($written, $word)) {
+                    $terms[] = $term;
+                }
+            }
+        }
+
+        return [...$subjects, ...$terms];
     }
 }
