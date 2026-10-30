@@ -8,9 +8,31 @@
 
 **Tech Stack:** PHP 8.4 · Laravel 13.38 · Livewire 4.4 · Flux 2.21 (free edition) · Fortify 1.41 · Alpine 3.17 + `@alpinejs/ui` · Tailwind 4 · Motion (motion.dev, vanilla JS API) · Vite 8 · Pest 5.3 · Larastan 3.13 (level 7) · Pint · Neon Postgres + pgvector · Redis + Horizon (from Phase 2) · Laravel Scout (database engine, from Phase 4) · S3-compatible storage (R2/S3) · Python 3.12 · FastAPI · scikit-learn · NumPy · pandas · sentence-transformers · implicit · LightGBM (Phase 8) · uv · pytest · ruff · mypy · Figma (MCP) for design.
 
-**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md`. Task 1.1 copies it to `docs/superpowers/specs/bookflix-specification.md` so executors can read it from inside the repo. Section references below (§N) point to it.
+**Spec:** `/Users/gabe/Documents/Bookflix Documentation/Bookflix_Specification.md`. The repo is public, so the spec is **not** copied into it (decision D-27); executors read it at that absolute local path. Section references below (§N) point to it.
 
 **Design reference:** Figma "Netflix Design System 2024 (Website ver.)": file key `vHWecJSYA5Afuwr0ntLzbA` (pages: UI Kit `0:1`, Screen Templates `212:22353`, Cover `3:77`).
+
+---
+
+## Progress (updated 2026-10-29)
+
+| Work | PR | State |
+|---|---|---|
+| Phase 1: Foundation | #4 | done |
+| Phase 2: Catalog and ingestion | #6 | done |
+| Phase 3: Dewey-inspired classification | #7 | done |
+| Logo mark and wordmark | #8 | done |
+| Phase 4: Discovery, review fixes and the 3D redesign (`phase-4-redesign.md`) | #9, #10 | done |
+| Catalog expansion wave 1: `media_metrics`, popularity score, AniList/MangaDex/MangaUpdates/Open Library trending, Comic Vine, Metron, Hardcover, Wikidata, Wikipedia pageviews | #11 | done |
+| MangaDex covers: `Referrer-Policy: same-origin` (hotlink placeholder fix) | #12 | done |
+| Taxonomy part 1: genre tree, tropes, demographics, warning statuses, audience ratings, `MediaTypeClassifier`, `bookflix:reclassify` (`genre-taxonomy-spec.md`) | #14 | done |
+| Taxonomy part 2: `<x-filter-panel>` genre-tree filters on Search and Discover; mature access gate (`Media::visibleTo()`, Settings → Privacy) | #15 | done |
+| Landing page: centred hero with 3D books, Top 10 marquee, problem and solution sections, FAQ, CTA, footer | #13 | done |
+| Landing showcase behind the mature gate | #16 | done |
+| Media-type classification: a `nonfiction` type, manhwa vs manga, translated comics take the original's form, books of more than one type (`media_additional_types`, `Media::ofTypes()`) (`handoff-media-type-classification.md`) | #17 | done |
+| Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29; ledger `phase-5-ledger.md`) | #18 | done |
+
+After pulling these merges, run locally: `php artisan migrate`, `php artisan db:seed --class=TaxonomySeeder`, then for each of `openlibrary`, `comicvine`, `metron` and `hardcover`: `php artisan bookflix:reclassify --resync --source=X` and `php artisan bookflix:sync X --full`.
 
 ---
 
@@ -44,6 +66,7 @@ Every task follows these. Values are copied from the spec or the repo.
 - Vectors use Laravel 13's built-in support, confirmed in `vendor/laravel/framework`: `Schema::ensureVectorExtensionExists()`, `$table->vector($column, $dimensions)` with HNSW `vector_cosine_ops` indexes, and `whereVectorSimilarTo($column, $vector, $minSimilarity = 0.6)`. No pgvector PHP package.
 - Use `php artisan make:* --no-interaction` to create files. Run `vendor/bin/pint --dirty --format agent` after PHP edits. Run `search-docs` (Boost) before relying on any Laravel-ecosystem API.
 - No new Composer/npm/Python dependencies and no new top-level folders unless approved. The list awaiting approval is in A4.
+- Primary navigation lives once in `config('bookflix.navigation')`; later phases add items there, not to the layouts. Red (Flux `primary`) is for CTAs only; Save buttons in settings/admin use `variant="filled"`. Livewire temporary uploads never use a public disk.
 - Design tokens (§51): red `#e50914` is **only** for primary CTAs, active-state accents and the logo mark. No drop shadows; depth comes from stepping through surfaces (canvas → deep → card → input). Radii are 0 / 4 / 8 / 16 px. Spacing is 2, 3, 8, 12, 16, 24, 64 px, with a 148 px desktop gutter.
 - The UI is dark only (D-4). Fonts: `'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif`. Netflix Sans is **never shipped or embedded** because it's proprietary.
 - No Netflix logos, wordmarks, posters, artwork or screen copies anywhere: code, Figma prototypes or demo data (§51 "not a license to reproduce Netflix's actual browse screens").
@@ -128,16 +151,26 @@ Runtime rules:
 | D-14 | Ratings stored as integers 1–10 and shown as 5 stars with half stars | §39 | Allows half stars without decimals | adopt |
 | D-15 | Interaction weights and hybrid weights stored as `model_versions` rows (`name = interaction-weights` / `hybrid-weights`), seeded from `config/bookflix.php` | §29 | Configurable and versioned, never hard-coded, and learnable later | adopt |
 | D-16 | Motion for animation; CSS for hover and focus | (user) | Using CSS where it's enough keeps the JS small; Motion handles the rest | adopt |
-| D-17 | Optionally self-host Inter (OFL-1.1) ahead of the OS fonts in the stack | §51 | Netflix Sans can't ship; Helvetica Neue exists only on Apple devices and has no 900 weight | optional (default: spec stack) |
+| D-17 | Optionally self-host Inter (OFL-1.1) ahead of the OS fonts in the stack | §51 | Netflix Sans can't ship; Helvetica Neue exists only on Apple devices and has no 900 weight | rejected for code; Inter is Figma-only |
+| D-19 | `media.merged_into_id` (nullable self FK) records a merge; the loser is soft-deleted and its slug resolves to the winner (301) | §10, §42 | A9 promised reversible merges and slug redirects but A6 had no column for them | adopt |
+| D-20 | ISBN-13s are stored as `media_external_ids` rows under a synthetic `external_sources` key `isbn` | §5, §9 | Reuses the unique `(source, external_id)` constraint for exact-match dedup; no new column or table | adopt |
+| D-21 | Dedup: a same-family match that is not auto-merge-eligible (including title similarity ≥ 0.90 without a shared creator or year within ±1) and has similarity ≥ 0.75 becomes a `duplicate_candidates` row | §42, §43 | A9's bands left ≥ 0.90 without a creator or year match undefined; false merges are costlier than review work (R8) | adopt |
+| D-22 | `search_queries` is created in Phase 4 (task 4.3), not Phase 5. Search click-through is a `?sq={id}` URL parameter until Phase 5's `InteractionRecorder` turns it into a `click` interaction. | §46 | Task 4.3 logs queries before `user_interactions` exists | adopt |
+| D-23 | Phase 4 ships an interim `Media::scopeTrending()` (ratings_count, then recency); Phase 6 task 6.3 redefines it over `media_popularity` | §35 | The materialized view only exists in Phase 6 | adopt |
+| D-24 | Natural-language parsing is vocabulary-driven and lives in PHP (`QueryParser`); the Python `/v1/query/parse` endpoint is dropped from A8 | §47 | The vocabulary lives in Postgres; a Python endpoint would need the whole catalog vocabulary round-tripped | adopt |
+| D-25 | Tables and columns added beyond A6, each in the phase that needs it: `ml_job_runs` (6), `ltr_scores` (8), `ai_usage` (11), `profiles.handle` (10), `media_features.review_summary` (10), `media_features.ai_summary` + `ai_summary_model_version_id` (11), `creators.bio_summary`, `series.description_summary` (7); enum values `ReasonType::PopularWithFollowed` (10) and `ModelKind::Llm` (11); optional discussions tables (10, lowest priority) | various | Each backs a spec requirement A6 did not name a table or column for | adopt |
+| D-26 | All pages except landing/auth sit behind `auth` + `verified`. "Guest-safe" queries means user-independent, not publicly reachable. | §8 | Matches the starter kit and Phase 1 as built | adopt |
+| D-27 | The spec is not copied into the repo (public repo); plans reference its absolute local path | Q13 | Spec is private | adopt |
+| D-28 | Interpretations of spec ambiguities: ε-greedy exploration = one fixed slot in ten on "Recommended For You" plus a randomized pool for "Discover Something New"; opted-out users get cold-start shelves only and no `recommendations` rows; comics use Bookflix-defined section codes `741.52`–`741.59` under `741.5` (Q1); admin "Users" monitoring (§43) is a read-only list in Phase 2 (task 2.10); extra ML job names `embed-media`, `train-dewey-classifier`, `train-ltr`, `score-ltr` | §32, §41, §43, §60 | Spec leaves these open | adopt |
 | D-18 | Headless widgets come from `@alpinejs/ui` instead of being hand-built | (user: open source) | Alpine's own accessible implementations (combobox, tabs, dialog, popover, …); MIT; same version as Livewire's Alpine | adopt |
 
 ## A4. Dependency and folder approvals
 
 | Addition | Phase | Purpose | Notes |
 |---|---|---|---|
-| `league/flysystem-aws-s3-v3` | 1 | S3/R2 disk | Required by Laravel's `s3` driver |
+| `league/flysystem-aws-s3-v3` | deploy setup (deferred from Phase 1) | S3/R2 disk | Required by Laravel's `s3` driver. Until then `FILESYSTEM_DISK=local`; Python artifact storage uses its own boto3/`ARTIFACT_DIR` |
 | `pestphp/pest-plugin-browser` + `playwright` (npm, dev) | 1 (first browser test in 4) | Browser/E2E tests (D-5) | — |
-| `laravel/nightwatch` (optional) | 1 | Error tracking and monitoring (§58) | Alternatives: Sentry, or logs only (Q12) |
+| `laravel/nightwatch` (optional) | deploy setup (deferred) | Error tracking and monitoring (§58) | Alternatives: Sentry, or logs only (Q12) |
 | `laravel/horizon` | 2 | Queue monitoring (§4) | Needs Redis and the `phpredis` extension on hosts |
 | `laravel/scout` | 4 | Search abstraction (§4), `database` engine | Lets a future Meilisearch swap avoid app changes |
 | `motion` (npm) | 4 | Animation (D-16) | Pin the latest 12.x at install time. Free core only. |
@@ -208,13 +241,13 @@ Notation: `column type [null] [default]`. Every table has `timestamps` unless no
 
 **Identity and preferences (Phase 1; preferences in Phase 5)**
 - `users` (existing) + `is_admin bool default false`, `deactivated_at timestamp null`.
-- `profiles`: `user_id` unique · `avatar_path string null` · `bio text null` (≤ 1000) · `preferred_languages jsonb default []` (ISO 639-1) · `reading_length` enum(short, medium, long, any) default any · `profile_visibility` enum(private, public) default private · `library_visibility` same · `personalization_enabled bool default true` · `onboarded_at timestamp null`.
+- `profiles` (Phase 10 adds `handle string(32) null unique`, D-25): `user_id` unique · `avatar_path string null` · `bio text null` (≤ 1000) · `preferred_languages jsonb default []` (ISO 639-1) · `reading_length` enum(short, medium, long, any) default any · `profile_visibility` enum(private, public) default private · `library_visibility` same · `personalization_enabled bool default true` · `onboarded_at timestamp null`.
 - `user_preferences`: `user_id` · `morphs(preferable)` (Genre, Theme, MediaType, Creator) · `weight smallint default 1` · unique(`user_id`, `preferable_type`, `preferable_id`). Backs favorite genres, themes, media types and authors (§8, §41).
 
 **Catalog (Phase 2)**
 - `media_types`: `slug` unique · `name` · `family` enum(prose, sequential_art, illustrated, interactive) · `reading_mode` enum(reflowable, paged, vertical_scroll, interactive). Seeded with the 10 types from §2.
-- `media`: `slug` unique · `media_type_id` · `title` · `alternative_titles jsonb default []` · `description text null` · `cover_url text null` · `cover_path string null` · `published_on date null` · `publication_year smallint null` · `language string(8) null` · `country_of_origin char(2) null` · `volume_number string(16) null` · `chapter_number string(16) null` · `issue_number string(16) null` · `format string null` · `age_rating` enum(all, teen, mature, adult, unknown) · `content_warnings jsonb default []` · `status` enum(upcoming, ongoing, completed, hiatus, cancelled, unknown) · `page_count int null` · `chapter_count int null` · `average_rating decimal(4,2) null` · `ratings_count int default 0` · `search_text text` (denormalized: titles, creators, series, characters, genres, publisher, keywords) · `locked_fields jsonb default []` (fields an admin edited, which sync must not overwrite) · `softDeletes`.
-  Indexes: GIN trigram on `title`; a GIN full-text expression index that **matches the SQL Scout's database engine generates** (check with `toRawSql()` in the 4.1 test); btree indexes on `media_type_id`, `publication_year`, `status`.
+- `media`: `slug` unique · `media_type_id` · `title` · `alternative_titles jsonb default []` · `description text null` · `cover_url text null` · `cover_path string null` · `published_on date null` · `publication_year smallint null` · `language string(8) null` · `country_of_origin char(2) null` · `volume_number string(16) null` · `chapter_number string(16) null` · `issue_number string(16) null` · `format string null` · `age_rating` enum(all, teen, mature, adult, unknown) · `content_warnings jsonb default []` · `status` enum(upcoming, ongoing, completed, hiatus, cancelled, unknown) · `page_count int null` · `chapter_count int null` · `average_rating decimal(4,2) null` · `ratings_count int default 0` · `search_text text` (denormalized: titles, creators, series, characters, genres, publisher, keywords) · `locked_fields jsonb default []` (fields an admin edited, which sync must not overwrite) · `merged_into_id` bigint null FK → `media.id` (D-19) · `softDeletes`.
+  Indexes: GIN trigram on `title`; a GIN full-text index `media_search_fts` on `to_tsvector('simple', search_text)`, with `search_text` stored lowercase plus an accent-folded copy; GIN trigram indexes on `immutable_unaccent(lower(title))` and `immutable_unaccent(lower(alternative_titles::text))` (an immutable wrapper around `unaccent`). Task 4.1's `EXPLAIN` test proves the Scout query uses the FTS index; btree indexes on `media_type_id`, `publication_year`, `status`.
 - `creators`: `name` · `slug` unique · `alternative_names jsonb` · `bio text null`. `media_creators`: `media_id`, `creator_id`, `role` enum (D-1), `position smallint`; primary key (media, creator, role).
 - `publishers` (`name`, `slug`). `media_publishers`: `media_id`, `publisher_id`, `region string null`.
 - `series`: `title`, `slug`, `description`, `status`. `media_series`: `media_id`, `series_id`, `position decimal(8,2) null` (allows 1.5), `label string null`.
@@ -237,17 +270,25 @@ Notation: `column type [null] [default]`. Every table has `timestamps` unless no
 - `ratings`: primary key (`user_id`, `media_id`) · `score smallint` (CHECK 1–10).
 - `collections`: `user_id` · `name` · `slug` · `description null` · `visibility` enum · `is_editorial bool default false` (editorial collections for cold start, §33); unique(user, slug). `collection_items`: `collection_id`, `media_id`, `position int`, `note null`.
 - `user_interactions` (no updated_at): `id bigint identity` · `user_id` · `media_id null` · `event` enum (the 12 events in §44) · `value real null` · `context jsonb` {surface, shelf, position, recommendation_id, search_query_id} · `occurred_at`; indexes (user, occurred_at) and (media, event, occurred_at). `ponytail:` no partitioning; add monthly partitions past ~50M rows.
-- `search_queries`: `user_id null` · `session_hash char(64)` · `query` · `normalized` · `filters jsonb` · `intent jsonb null` · `results_count int` · `previous_query_id null` (refinement chains, §46) · `created_at`.
+- `search_queries` (**created in Phase 4**, D-22): `user_id null` · `session_hash char(64)` · `query` · `normalized` · `filters jsonb` · `intent jsonb null` · `results_count int` · `previous_query_id null` (refinement chains, §46) · `created_at`.
 
 **Intelligence (Phases 6–8; §22–§30, §63)**
-- `model_versions`: `name` · `version` · `kind` enum(lsa, embedding, item_cf, als, ltr, dewey_classifier, hybrid_weights, interaction_weights) · `status` enum(training, candidate, active, retired) · `trained_at null` · `dataset_ref text null` · `parameters jsonb` · `metrics jsonb` · `artifact_uri null`; unique(name, version); partial unique(name) WHERE status = 'active'.
-- `media_features`: primary key (media, model_version) · `top_terms jsonb` · `summary text null` · `computed_at`.
+- `model_versions`: `name` · `version` · `kind` enum(lsa, embedding, item_cf, als, ltr, dewey_classifier, hybrid_weights, interaction_weights, llm) · `status` enum(training, candidate, active, retired) · `trained_at null` · `dataset_ref text null` · `parameters jsonb` · `metrics jsonb` · `artifact_uri null`; unique(name, version); partial unique(name) WHERE status = 'active'.
+- `media_features`: primary key (media, model_version) · `top_terms jsonb` · `summary text null` · `computed_at` (Phase 10 adds `review_summary`, `review_summary_count`; Phase 11 adds `ai_summary`, `ai_summary_model_version_id`).
 - `media_lsa_vectors`: primary key (media, model_version) · `vector vector(200)`, HNSW index.
 - `media_embeddings`: primary key (media, model_version) · `embedding vector(384)`, HNSW index. A new model with different dimensions gets a new column or table through a migration.
 - `media_similarities`: `media_id` · `similar_media_id` · `method` enum(lsa, embedding, item_cf, als, dewey) · `score real` · `model_version_id`; primary key (media, method, similar); top 50 per method.
 - `media_popularity` (materialized view, refreshed hourly with `CONCURRENTLY`): media_id, interactions_7d, interactions_30d, trending_score, popularity_percentile.
-- `recommendations`: `user_id` · `media_id` · `shelf` · `score real` · `reason_type` enum(because_you_read, similar_themes, popular_with_similar_readers, matches_interest, trending, editorial, new_release, exploration) · `reason_media_id null` · `reason_payload jsonb` · `model_version_id` · `generated_at`. Stores what was shown, for explanations and evaluation.
+- `recommendations`: `user_id` · `media_id` · `shelf` · `score real` · `reason_type` enum(because_you_read, similar_themes, popular_with_similar_readers, matches_interest, trending, editorial, new_release, exploration, popular_with_followed) · `reason_media_id null` · `reason_payload jsonb` (always includes `features`, the eight ranker feature values, for Phase 8) · `model_version_id` · `generated_at`. Stores what was shown, for explanations and evaluation.
 - `recommendation_events`: `recommendation_id` · `event` enum(impression, click, dismiss, library_add) · `occurred_at`.
+
+**Changed since A6 was written (2026-10-27 to 2026-10-29):**
+- `media.average_rating` is the blended **0–5** average of every source's rating, weighted by ratings count; `media.ratings_count` is the sum. Both come from `media_metrics` (`media_id`, `external_source_id`, `metric`, `value`, `observed_at`; unique per media, source and metric). `media.popularity_score` is the weighted percentile blend of the signals (`bookflix:score-popularity`).
+- `media.age_rating` is enum(all, children, teen, mature_teen, mature, adult, unknown); the stricter rating wins on merge.
+- `genres` is a tree: `parent_id`, `group`, `sort`, `is_mature`, `description`, plus `genre_secondary_parents`. New facets `tropes`, `demographics`, `content_warnings` with pivots; `media_content_warnings.status` is enum(present, absent, unknown, disputed).
+- `profiles.show_mature bool default false`, `profiles.adult_confirmed_at timestamp null` (the mature access gate, D-35).
+
+**Added by phases (D-25):** `ml_job_runs` (Phase 6: name, run_id, status queued|running|succeeded|failed, params, metrics, error, started_at, finished_at) · `ltr_scores` (Phase 8: user_id, media_id, score, model_version_id, generated_at) · `ai_usage` (Phase 11: user_id null, feature, model, input/output/cached tokens) · `creators.bio_summary`, `series.description_summary` (Phase 7).
 
 **Social (Phase 10)**: `reviews` (user, media, body, has_spoilers, status enum(published, hidden), softDeletes, unique(user, media)) · `reports` (reporter, `morphs(reportable)`, reason, details, status enum(open, actioned, dismissed), handled_by, handled_at) · `follows` (follower_id, followed_id, primary key on both).
 
@@ -303,7 +344,7 @@ interface CandidateSource
 
 ## A8. Python service interfaces (§48; §56 item 8)
 
-All `/v1/*` routes require `Authorization: Bearer ${ML_SERVICE_TOKEN}` (checked with constant-time comparison). Laravel forwards `X-Request-Id`. JSON in and out. FastAPI publishes OpenAPI at `/openapi.json`. Contract fixtures live in `tests/Fixtures/ml-contracts/`.
+All `/v1/*` routes require `Authorization: Bearer ${ML_SERVICE_TOKEN}` (checked with constant-time comparison). Laravel forwards `X-Request-Id`. JSON in and out. FastAPI docs/OpenAPI endpoints are **off** unless `ML_ENABLE_DOCS=true`. `ML_SERVICE_TOKEN` must be at least 32 characters; `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when it is empty. (`/v1/query/parse` was dropped, D-24.) Contract fixtures live in `tests/Fixtures/ml-contracts/`.
 
 | Endpoint | Phase | Request | Response | Laravel caller |
 |---|---|---|---|---|
@@ -312,8 +353,7 @@ All `/v1/*` routes require `Authorization: Bearer ${ML_SERVICE_TOKEN}` (checked 
 | `POST /v1/summarize` | 7 | `{text, max_sentences=3}` | `{summary, sentence_indices, method:"lsa", model_version}` | `MlClient::summarize(string $text, int $maxSentences = 3): SummaryResult` |
 | `POST /v1/embed` | 7 | `{texts:[str], kind:"query"\|"passage"}` | `{model_version, dims, vectors:[[float]]}` | `MlClient::embed(array $texts, string $kind): EmbeddingResult` |
 | `POST /v1/classify/dewey` | 7 | `{media_id, text, genres, themes, subjects, external_code}` | `{candidates:[{code, confidence}], model_version}` | `MlClient::classifyDewey(Media $media): list<ClassificationCandidate>` |
-| `POST /v1/query/parse` | 7 | `{query}` | `{media_types, genres, themes, dewey_codes, length_hint, semantic_text}` | `MlClient::parseQuery(string $query): QueryIntent` |
-| `POST /v1/jobs/{name}` | 6 | `{params}`; name ∈ train-lsa, train-item-cf, train-als, build-similarities, refresh-popularity, evaluate | `{run_id}` (202) | `MlClient::startJob(string $name, array $params = []): string` |
+| `POST /v1/jobs/{name}` | 6 | `{params}`; name ∈ train-lsa, train-item-cf, train-als, build-similarities, refresh-popularity, evaluate, embed-media (7), train-dewey-classifier (7), train-ltr, score-ltr (8) | `{run_id}` (202) | `MlClient::startJob(string $name, array $params = []): string` |
 | `GET /v1/jobs/{run_id}` | 6 | — | `{status, started_at, finished_at, metrics, error}` | `MlClient::job(string $runId): array` |
 
 Batch jobs read interactions and catalog text **directly from Postgres** through `DB_DIRECT_URL` (not the pooler), write to `media_lsa_vectors`, `media_embeddings`, `media_similarities` and `model_versions`, and store artifacts (vectorizer, SVD, item-CF matrices; joblib) in S3 under `ml-artifacts/<name>/<version>/`. They only load artifacts they wrote themselves (pickle safety).
@@ -333,7 +373,7 @@ Scheduler → SyncProvider(job, per source) ──► adapter.changedSince(curso
    → IngestionRun counts / status; failures logged with request/run context (§58)
 ```
 
-Dedup bands: an exact match on provider ID, ISBN-13 or a provider cross-ID (AniList ↔ MAL ↔ MangaDex links) merges automatically. Otherwise, normalized-title trigram similarity ≥ 0.90 **plus** a shared creator **plus** a publication year within ±1 merges automatically. Similarity 0.75–0.90 creates a `duplicate_candidates` row for admin review. Merges are reversible (the loser is soft-deleted and its slug redirects).
+Dedup bands: an exact match on provider ID, ISBN-13 or a provider cross-ID (AniList ↔ MAL ↔ MangaDex links) merges automatically. Otherwise, normalized-title trigram similarity ≥ 0.90 **plus** a shared creator **plus** a publication year within ±1 merges automatically. Any other same-family match with similarity ≥ 0.75 (including ≥ 0.90 without the creator/year match) creates a `duplicate_candidates` row for admin review (D-21). Merges are reversible: the loser is soft-deleted with `merged_into_id` set and its slug 301-redirects (D-19). ISBN-13s are matched as `media_external_ids` under the `isbn` source (D-20).
 
 | Provider | Covers | Auth | Change detection | Phase |
 |---|---|---|---|---|
@@ -349,7 +389,7 @@ Before an adapter is enabled, record each provider's current rate limits, terms,
 
 ## A10. Dewey classification architecture (§11–§19, §49; §56 item 11)
 
-- **Hierarchy seed:** `database/data/dewey_classes.csv`, written in-house. It covers the 10 main classes, all 100 divisions, and the sections that matter for stories: 813, 823, 833, 843, 853, 863, 891.7, 895.1, 895.6, 895.7, and the 741.5 comics subtree by country (pending Q1). Class names are Bookflix's own wording, and the UI never says "DDC" (§11).
+- **Hierarchy seed:** `database/data/dewey_classes.csv`, written in-house. It covers the 10 main classes, all 100 divisions, and the sections that matter for stories: 813, 823, 833, 843, 853, 863, 891.7, 895.1, 895.6, 895.7, and the 741.5 comics subtree by country (Q1 default adopted: Bookflix-defined section codes 741.52 Japanese, 741.53 Korean, 741.54 Chinese, 741.55 American/English, 741.56 French/Belgian, 741.59 other). Class names are Bookflix's own wording, and the UI never says "DDC" (§11).
 - **Resolution order and confidence:**
   1. manual (admin) → 1.0
   2. external (provider DDC through `DeweyResolver`) → 0.95
@@ -394,7 +434,7 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 
 **Cold start (§33):** an onboarding step (5.8) collects media types, genres and at least 3 seed stories. With fewer than 5 strong interactions, shelves lean on popular, trending, editorial, new-release and preference-filtered popularity.
 
-**Exploration (§32):** ε-greedy with ε = 0.10 for the "Discover Something New" shelf and 1 slot in 10 on "Recommended For You", drawn from well-rated stories outside the user's top genres. Bandit methods only arrive in Phase 8, and only if the data justifies them.
+**Exploration (§32):** the ε = 0.10 budget is realized as one fixed slot in ten (positions 10, 20) on "Recommended For You" plus a randomized pool for the "Discover Something New" shelf, both drawn from well-rated stories outside the user's top genres (D-28). Opted-out users get cold-start shelves only and no `recommendations` rows. Bandit methods only arrive in Phase 8, and only if the data justifies them.
 
 **Explanations (§34):** each candidate carries `reason_type` + `reason_media_id`, rendered from copy templates: "Because you read {title}", "Similar themes to {title}", "Popular with readers who enjoyed {title}", "Matches your interest in {genre}".
 
@@ -419,7 +459,7 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 
 1. **Keyword/full-text leg:** Scout `database` engine with full-text over `search_text`, plus a `pg_trgm` similarity fallback on `title` and `alternative_titles` (`unaccent` on both sides).
 2. **Subject leg:** query terms matching Dewey class names or codes → subtree boost or filter.
-3. **Semantic leg (Phase 7):** query embedding → `whereVectorSimilarTo` on `media_embeddings` (active version).
+3. **Semantic leg (Phase 7):** (a `SearchLeg` implementation like the keyword and subject legs, Phase 4) query embedding → `whereVectorSimilarTo` on `media_embeddings` (active version).
 4. **Fusion:** RRF (D-12) → personalization boost (affinity × 0.1) → filters applied in SQL *before* fusion.
 5. **Natural-language intent (Phase 7, then LLM in Phase 11):** `QueryParser` builds media type, genre, theme, Dewey and length hints from the catalog vocabulary. "Dark fantasy manga with political intrigue" → `{media_types:[manga], genres:[fantasy], themes:[politics], semantic_text:"dark fantasy political intrigue"}`.
 6. **Analytics:** one `search_queries` row per search. Clicks are recorded in `user_interactions.context.search_query_id`. The admin page shows zero-result queries and refinement chains.
@@ -437,11 +477,11 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 | `SESSION_DRIVER` | app | `database` |
 | `CACHE_STORE`, `QUEUE_CONNECTION` | app | `database` → `redis` from Phase 2 |
 | `REDIS_URL` (or `REDIS_HOST`/`PORT`/`PASSWORD`), `REDIS_CLIENT=phpredis` | app | Phase 2 |
-| `FILESYSTEM_DISK` | app | `s3` in production, `public` locally |
+| `FILESYSTEM_DISK` | app | `local` (default). Avatars use `config('bookflix.avatar_disk')` (default `public`); Livewire temporary uploads never use a public disk. `s3` arrives with deploy setup. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `AWS_ENDPOINT`, `AWS_URL`, `AWS_USE_PATH_STYLE_ENDPOINT` | app + ml | R2: region `auto`, endpoint `https://<account>.r2.cloudflarestorage.com` |
 | `MAIL_MAILER` + `MAIL_*` | app | verification and reset emails |
 | `SCOUT_DRIVER` | app | `database` (Phase 4) |
-| `ML_SERVICE_URL`, `ML_SERVICE_TOKEN`, `ML_SERVICE_TIMEOUT` | app + ml | token ≥ 32 random bytes; timeout `5` |
+| `ML_SERVICE_URL`, `ML_SERVICE_TOKEN`, `ML_SERVICE_TIMEOUT`, `ML_ENABLE_DOCS` | app + ml | local URL `http://localhost:8001`; token ≥ 32 characters; timeout `5`; docs off unless `ML_ENABLE_DOCS=true` |
 | `BOOKFLIX_PROVIDER_USER_AGENT` | app | `Bookflix/1.0 (+contact email)`; required by Open Library and MangaDex etiquette |
 | `METRON_USERNAME`, `METRON_PASSWORD` | app | Phase 2b |
 | `VNDB_API_TOKEN` (optional), `TADDY_API_KEY`, `TADDY_USER_ID` | app | Phase 2b |
@@ -520,8 +560,8 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 | Q9 | MVP providers | Open Library + AniList |
 | Q10 | Cover images: hotlink or cache? | Hotlink provider-sanctioned URLs until each provider's terms are reviewed |
 | Q11 | CBR support (needs the non-free `unrar`) | Convert CBR to CBZ on upload with `unar` if available, otherwise CBZ only |
-| Q12 | Error tracking | Nightwatch |
-| Q13 | Copy the spec into the repo? | Yes, `docs/superpowers/specs/` |
+| Q12 | Error tracking | Nightwatch, deferred to deploy setup |
+| Q13 | Copy the spec into the repo? | **No** (public repo); plans cite the absolute local path (D-27) |
 | Q14 | Reviews in the MVP? | No, they come in Phase 10 per §54; ratings are in the MVP |
 | Q15 | Adult content | Skip provider records flagged adult at ingestion; show content warnings and age rating for the rest |
 | Q16 | Motion versus plain CSS for the shelf scroll | Native `scroll-snap`; Motion only for the arrow-button scroll easing; Embla only if that feels flat |
@@ -601,6 +641,7 @@ Weights come from the active `model_versions` row named `hybrid-weights`. The se
 | Figma MCP | connected; `whoami`: Full seat, education plan | use as in Part C |
 | Laravel Boost MCP | project `.mcp.json` | use as in B2 |
 | Notion | connected | optional: mirror the roadmap and decision log |
+| **TypeUI** (Claude plugin `typeui@bergside`; hosted MCP `https://mcp.typeui.sh/mcp`, one-time user sign-in) | available, needs sign-in | **Design-inspiration resource only** for the Figma and UI steps (F2-F4, C7). It never overrides the Bookflix tokens, D-17 font stack or any decision in this plan; anything it suggests is re-expressed in C2 tokens and Flux/open-source components |
 | Linear / Asana / Atlassian | need `/mcp` authorization | optional task tracking |
 | GitHub (`gh`) | CLI | PRs, CI |
 | Vercel plugin, Next.js/React skills, Supabase MCP | installed | **don't use**: the spec replaced Next.js and Supabase, and Vercel functions' size limits don't fit a torch-based ML service |
@@ -700,8 +741,8 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 | Icon button (add, favorite, rate) | Buttons → Media Control (circle) | `<flux:button icon="…" square>` | default, active, focus |
 | Cover tile | MoviePreview cards (16:9) **re-proportioned to 2:3 portrait** | `<x-cover-tile>` | S/M/L · default/hover/focus · with progress · media-type badge |
 | Story preview (hover expand) | MoviePreview patterns | `<x-story-preview>` (Alpine + Motion spring) | collapsed / expanded |
-| Shelf | Account Home rails | `<x-shelf>` (CSS scroll-snap + Alpine arrows) | plain (`surface/deep`) / featured (gradient) |
-| Hero | HeroBanners + TitlePreview | `<x-hero>` | L / M / S |
+| Shelf | Account Home rails | `<x-shelf>` (CSS scroll-snap + Alpine arrows; optional "See all" `href`, C7 #5) | plain (`surface/deep`) / featured (gradient) |
+| Hero | HeroBanners + TitlePreview | `<x-hero>` (C7 #1: next-3 card row, backdrop morph, line-by-line title reveal, prev/next, progress line, `01` counter, no autoplay) | L / M / S, with/without slide controls |
 | Story info row | Icons&Labels → MovieInfo | `<x-story-info>` | media type · year · length · age rating · Dewey code |
 | Accordion | ContentBlocks → FAQ (Default/Hover/Open) | `<x-accordion>` = native `<details>` | closed / hover / open |
 | Top nav (desktop) | ContentBlocks → Header / HeaderLinear-gradient | `<flux:navbar>` in `layouts/app/header` | default / scrolled (flush black) |
@@ -712,6 +753,7 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 | Avatar | UserProfileAvatar S/L | `<flux:avatar>` / `<flux:profile>` | — |
 | Sign-in card | InputFields → SignIn Email + Password | auth pages | — |
 | Reader chrome | VideoPlayer → Next Episode → **Next Chapter**, Playback Speed → **Reading settings**, Subtitles → **Display panel** | Phase 9 | — |
+| New from C7: Search panel (#2), Quick links row (#3), View toggle grid/list + filter chips (#7), Path card with count (#12), Stat row (#11), Feature card (#5) | InputFields, Buttons, ContentBlocks (restyled) | `<x-search-panel>`, `<x-quick-links>`, `<x-view-toggle>`, `<x-path-card>`, `<x-stat-row>`, `flux:card` | default / hover / focus / empty |
 | New: Dewey class tile + breadcrumb, Rating input (stars as a radio group), Reading progress, Reason label, Filter chip, Onboarding pick card, Empty state, Toast, Modal, Pagination | — | `flux:breadcrumbs`, `flux:radio`, `flux:progress`, `flux:badge`, `flux:checkbox`, `flux:card`, `flux:toast`, `flux:modal`, `flux:pagination` | — |
 | New, open-source (C6): Command palette (⌘K search), Combobox (multi-select genres/themes/languages), Tabs, Range filter, Filter sheet, Stepper (onboarding), Story preview | `@alpinejs/ui` behavior + Pines/Basecoat markup, restyled; noUiSlider for ranges | `<x-command-palette>`, `<x-combobox>`, `<x-tabs>`, `<x-range-filter>`, `<flux:modal variant="flyout">`, `<x-stepper>` | default / open / focus / empty / loading |
 
@@ -723,10 +765,10 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 |---|---|
 | 1 | Landing, Sign in, Register, Forgot/Reset, Verify email, Home shell (empty state), Settings: Profile (reading profile, avatar), Security, Privacy, Deactivate modal, Admin shell |
 | 2 | Admin: Providers & sync runs, Media edit (lock fields), Duplicate review / merge |
-| 3 | Explore the Library (classes → divisions → sections → stories), Classification shelves, Admin classification review queue |
-| 4 | Home v1, Discover, Search + filters (desktop sidebar / mobile sheet), zero results, Story detail (content warnings accordion, series, related, similar), Series page |
+| 3 | Explore the Library (Choose-your-path class cards with counts, C7 #12; classes → divisions → sections → stories), Classification shelves, Admin classification review queue |
+| 4 | Home v1 (numbered hero slider, C7 #1; search panel #2; quick links #3), Discover (browse tiles #6, quick links), Search + filters (desktop sidebar / mobile sheet), zero results, Story detail (content warnings accordion, series, related, similar), Series page |
 | 5 | Onboarding (types → genres → 3 stories), Library (status filters, sort, shelves), Collections (list/detail/edit), History, Rating control, Progress logging |
-| 6 | Personalized Home (10 shelves, reason labels), "Why this?" explanation popover |
+| 6 | Personalized Home (10 shelves, reason labels, per-shelf "See all", themed editorial banner), "Why this?" explanation popover |
 | 7 | Natural-language search (intent chips), semantic results explanation |
 | 8 | Admin model versions and metrics |
 | 9 | Reader: EPUB, PDF, manga pager (LTR/RTL), webtoon vertical scroll, reading settings |
@@ -818,7 +860,40 @@ Run `design:accessibility-review` in F6 to recheck these ratios.
 
 ---
 
-# Part D — Phase 1: Foundation (ready to execute)
+## C7. Visual inspiration and interaction patterns
+
+Researched 2026-10-25 by fetching each site and summarizing layout, typography, navigation, motion and signature moments (summaries only, nothing copied). **Unreadable:** `nypl.org` (empty response, likely JS-rendered or blocking) and `cinematypography.com` (title only); neither contributed a pattern. `nextjs-animated-slider` is a placeholder demo whose motion details were not visible; its numbered-slide hero pattern is the part adopted.
+
+**Fixed constraints for every pattern:** dark-only C2 tokens; red only for CTAs, active accents and the logo mark; no shadows; Flux free plus open-source additions only (`@alpinejs/ui`, Motion vanilla, Embla if needed, CSS); code keeps the spec's font stack (D-17), so expressive type comes from the existing 7 text tokens through scale, weight, tracking and layout, never new fonts; WCAG AA, visible focus (`accent-electric`), `prefers-reduced-motion` respected; no site's brand assets, imagery or exact layouts are reused. Recurring type recipe, built from existing tokens: an **eyebrow** (`text-legal`, uppercase, `tracking-widest`, `text-ink-subtle`) over a **title** (`text-hero` or `text-section`), with numbered labels (`01`) in `text-meta` tabular figures.
+
+**The Bookflix brand mark now exists** (PR #8): a red rounded square with a white "B" made of a book spine and stacked books, plus a white title-case wordmark. Use it only as supplied; the red mark is the one non-CTA red allowed besides active accents.
+
+| # | Source site | Pattern | Where in Bookflix | How to build it here | Priority |
+|---|---|---|---|---|---|
+| 1 | nextjs-animated-slider (inspected live) | **Cinematic hero slider.** Layout: full-bleed backdrop of the current item; left column with eyebrow, large title, blurb and CTA; right column with a row of the **next 3 items as cards**; prev/next buttons, a progress line and a large `01` counter bottom right. **No autoplay.** Transition: the next or clicked card **morphs into the backdrop** (shared element); the remaining cards shift by one; the new title **reveals line by line** from a mask; counter and progress line advance | Phase 4.7 Home hero; `<x-hero>` | Native View Transitions API for the card-to-backdrop morph (`view-transition-name` on the active card and backdrop, set per transition) with a Motion crossfade fallback where unsupported; title reveal with Motion `animate` + `stagger` over per-line masked spans (`overflow: clip`, transform only); card row shifts by one with a transform; 2:3 cover cards; CTAs "Start reading" and "Add to Library" (`<x-cta>`); counter in tabular `text-hero`-scale figures. Reduced motion swaps instantly (no morph, no reveal). Carousel ARIA: `aria-roledescription="carousel"` / `"slide"`, labels "N of M", ←/→ keys, an `aria-live="polite"` region; no pause control because there is no autoplay | MVP |
+| 2 | SPL | Search-first panel ("What would you like to find?") above the content, plus a catalogue entry point | Phase 4.3 Search, 4.6 Discover, Home top; new `<x-search-panel>` | A large `flux:input` bound to the same Livewire search with the `<x-combobox>` suggestions and a "Browse the catalogue" secondary CTA to Discover; ⌘K command palette stays | MVP |
+| 3 | SPL | "Common tasks" shortcut row | Phase 4.6 Discover, Home empty state; `<x-quick-links>` | 4-6 `flux:card` links (Continue reading, New releases, Browse by subject, My collections, Surprise me), icons from Heroicons/Lucide, equal-height row, 44 px targets | MVP |
+| 4 | SPL | Staff Picks as themed lists (seasonal, awareness weeks) | Phase 5.3 editorial collections, Phase 6.4 `EditorialSource`, Home shelf "Picked by our editors" | Editorial collections get `theme_label` (reuse the collection `name`/`description`) and a banner row on Discover; the shelf eyebrow shows the theme; no new table | MVP |
+| 5 | YPRL | Per-shelf "See more" link and stacked feature cards (headline, blurb, button) | Phase 4.0b `<x-shelf>`, 4.7 Home, 4.6 Discover | `<x-shelf>` gets an optional `href` rendered as a "See all" text link in the header, to a pre-filtered Search or the collection; feature cards are `flux:card` blocks with eyebrow + title + CTA | MVP |
+| 6 | YPRL | "Browse the Catalogue" as an explicit card leading into filtered browsing | Phase 4.6 Discover, Phase 3.4 Explore | Discover leads with browse-by media type, genre, subject tiles; each tile shows a live count (reuse `DeweyCounts`) | MVP |
+| 7 | forms.world | Filter chips above a grid plus Grid/List toggle | Phase 4.3 Search results, 5.2 Library, 4.6 Discover; new `<x-view-toggle>` | Chip row of active filters (removable) above results; `<x-view-toggle>` is a two-option `@alpinejs/ui` radio group (icon buttons, `aria-label`s); the choice persists in the URL (`#[Url] view`) and `localStorage` as a convenience; list view = compact row with cover, title, creators, type, year | MVP |
+| 8 | forms.world | Preview on hover/focus with an expandable viewer | Phase 4.0b `<x-story-preview>` | Existing spring-expand popover (Motion `x-motion-expand`); add a "Quick view" modal (`flux:modal`) for touch devices instead of hover | MVP |
+| 9 | ethanandtom | Numbered index (`[01]`), breadcrumb trail and sequential "next" links | Phase 4.5 Series page, 4.4 Story detail; `<x-dewey-breadcrumb>` | Series volumes listed with bracketed index numbers in tabular figures; story page shows breadcrumb (Dewey path), then "Previous / Next in series" links; keyboard-reachable | MVP |
+| 10 | theperformancelab | Numbered process steps (`001-004`) with bold uppercase headings | Phase 5.8 onboarding `<x-stepper>`, landing "How it works" | Stepper labels `01 Types`, `02 Genres`, `03 Stories`; landing section of three numbered cards; headings use the eyebrow + `text-section` recipe | MVP |
+| 11 | theperformancelab | Stats row (large numbers with small labels) | Phase 5.6 History header, Phase 10 profile, landing (catalogue counts); new `<x-stat-row>` | 3-4 `text-hero`-scale numbers over `text-legal` uppercase labels on `surface-card`; values come from real queries (total reading time, completed, ratings), never invented marketing numbers | MVP (History) / later (landing, profile) |
+| 12 | ciphermuseum | "Choose your path" entry cards with counts and an "exhibits / halls" framing | Phase 3.4 Explore index; new `<x-path-card>` | The 10 Dewey-inspired classes as large path cards (code, name, story count, "Enter" affordance), a hero stat line ("N stories across 10 classes"); the "halls" metaphor stays copy-only, never "DDC" | MVP |
+| 13 | ciphermuseum | Live interactive playground and three-act story section | Landing page | "Try a search" demo on the landing page (anonymous, read-only, over editorial collection items only) and a three-step story block; no personalization, no logging | later |
+| 14 | SPL | Skip link and accessible mega-menu with clear grouping | Layouts (Phase 1 already has the skip link), nav config | Keep the skip link; if a mega-menu is ever needed use `@alpinejs/ui` disclosure/menu; Bookflix's nav stays a flat list | MVP (verify only) |
+| 15 | ethanandtom, forms.world | Media controls with live progress percentage and timecode | Phase 9 reader chrome; Phase 5.4 progress on cover tiles | Reader toolbar shows `% read` and estimated time left in tabular `text-meta`; tile progress bars show the same figure to screen readers (`aria-valuenow`) | later (reader) |
+| 16 | theperformancelab | Parallax or layered hero imagery (inferred, not confirmed) | Phase 4.7 hero | Optional: Motion `scroll()` moves the cover layer by a few px with `transform` only; skipped entirely under reduced motion; drop it if it hurts performance | later |
+
+**Not adopted:** live clock and decorative marquee elements (no purpose in a library), uppercase-everything headings (hurts readability; limited to eyebrows), any imagery or brand asset from the studied sites.
+
+---
+
+# Part D — Phase 1: Foundation — ✅ DONE
+
+> **Status: implemented** in PR #4 (branch `phase-1-foundation`). The ledger of what was actually built, including deviations from the tasks below, is `docs/superpowers/plans/phase-1-ledger.md` (on that branch until merged). The tasks below are kept as written for reference; where they conflict with the ledger or with decisions D-26/D-27 (spec not copied; nav in `config('bookflix.navigation')`; `FILESYSTEM_DISK=local`), the ledger wins.
 
 **Phase goal:** the starter kit becomes Bookflix's foundation: Postgres + extensions, design tokens, app shell and navigation, admin access, extended profile, deactivation, privacy settings, the ML service skeleton, request context and security headers. All green in CI.
 
@@ -1498,6 +1573,7 @@ Each outline gives the goal, prerequisites, tables (A6), tasks (each a single TD
 7. **`SyncProvider` job, scheduler, rate limiting, retries, `ingestion_runs`.** **Review Focus #4** tests: 429 → released with backoff; 5xx until tries run out → run `failed`, existing media untouched; malformed payload → `skipped` +1; retries don't duplicate rows.
 8. **Admin: providers and sync runs, media edit (with field locking), duplicate review and merge, remove invalid record (soft delete).** Tests: a merge moves external IDs, pivots and relations, and the loser's slug redirects with a 301; non-admins get 403.
 9. **(2b, parallel) MangaDex, Metron, VNDB, Taddy adapters,** one task each with the task 3/4 test template.
+10. **Admin users list** (read-only; spec §43 "Users"). Tests: admins only; active/deactivated status; search; no secrets in HTML.
 **Exit:** 10k+ stories synced from 2 providers with no duplicates; runs visible in admin; Horizon green.
 
 ## Phase 3 — Dewey classification (§11–§19, §49)
@@ -1519,7 +1595,7 @@ Each outline gives the goal, prerequisites, tables (A6), tasks (each a single TD
 4. **Story detail page** (identity, format, classification, genre, themes, tags, series, related, content-warnings accordion, attribution, simple "similar" through SQL: same series, genre and Dewey). Tests: sections render; soft-deleted → 404; a merged slug → 301.
 5. **Series page with ordering.** Test: order 1, 1.5, 2.
 6. **Discover page** (by media type, genre, subject entry). Test: filters by family.
-7. **Home v1** (hero, Trending gradient shelf, New Releases, Explore by Subject) + components `cover-tile`, `shelf`, `hero`, `story-info`, `cta` + `motion.js` directives (C5). Tests: guest-safe queries; shelves render without N+1 (query count assertion); reduced motion respected (browser test).
+7. **Home v1** (hero, Trending gradient shelf via the interim `Media::scopeTrending()`, New Releases, Explore by Subject) + components `cover-tile`, `shelf`, `hero`, `story-info`, `cta` + `motion.js` directives (C5). Tests: user-independent queries (D-26); shelves render without N+1 (query count assertion); reduced motion respected (browser test).
 8. **Browser smoke tests + accessibility** (Pest browser): landing → login → home → search → detail at 1440 and 390.
 **Exit:** discovery works end to end; Lighthouse performance ≥ 90 on Home at 390.
 
@@ -1529,10 +1605,12 @@ Each outline gives the goal, prerequisites, tables (A6), tasks (each a single TD
 2. **Library page** (status, type and favorite filters; sort by added, title, last read, rating; classification shelves). Tests: each filter and sort; only the owner sees a private library.
 3. **Collections CRUD + ordering + visibility + `is_editorial` for admins.** Tests: only the owner edits; positions reorder; non-admins can't set editorial.
 4. **Reading progress (manual) + `reading_history` + Continue Reading shelf.** Tests: percent is limited to 0–100; reaching 100 sets `completed` and records `reading_complete`; the shelf is ordered by `last_read_at`.
-5. **Ratings 1–10 + an aggregate job** (`average_rating`, `ratings_count`). Tests: upsert per user; the aggregate is recomputed; rating outside 1–10 rejected.
+5. **Ratings 1–10 + an aggregate job.** The readers' aggregate is written to `media_metrics` under a synthetic `bookflix` source (`ratings_count`, `average_rating` = mean score ÷ 2), then the media's blended `average_rating`/`ratings_count` are recomputed with the same blend the ingestion pipeline uses (D-36). Tests: upsert per user; the aggregate is recomputed from active users only; rating outside 1–10 rejected; removing the last rating leaves the external average in place.
 6. **History page.** Test: sessions are listed with total reading time.
 7. **Data export** (queued JSON zip, signed link that expires in 24 h). Tests: contains profile, library, collections, ratings, history and interactions; another user's link → 403; an expired link → 403.
-8. **Onboarding (§33):** types → genres → ≥ 3 stories → `user_preferences` + `onboarded_at`. Tests: fewer than 3 stories → validation error; preferences saved; skipping is allowed.
+8. **Onboarding (§33):** types → genre families and subgenres (the taxonomy tree; the mature family only for readers past the gate) → ≥ 3 stories → `user_preferences` + `onboarded_at`. Accounts that exist before the phase are backfilled as onboarded (D-37). Tests: fewer than 3 stories → validation error; preferences saved; skipping is allowed.
+9. **Merge safety for user data:** `Deduplicator::merge` carries library, ratings, progress, history, collection items and interactions to the winner without unique-key crashes.
+**Every list in this phase goes through `Media::visibleTo($viewer)`** (library, collections, Continue Reading, history, onboarding picks); gated entries stay stored and reappear when the reader opts in. The export holds all of the reader's own rows.
 **Exit:** the MVP library flow works; export works.
 
 ## Phase 6 — Recommendation MVP (§22–§24, §27–§29, §31–§35, §45 baseline)
@@ -1623,7 +1701,7 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 40 social | Phase 10 |
 | 41 personalization | 1.5, 1.7, 5.8 |
 | 42 ingestion | A9, Phase 2 |
-| 43 admin | 1.4, 2.8, 3.6, 6.9, 8.4, Phase 10 moderation |
+| 43 admin | 1.4, 2.8, 2.10, 3.6, 6.9, 8.4, Phase 10 moderation |
 | 44 analytics | A6 `user_interactions`, 5.1 |
 | 45 evaluation | A12, 6.10, Phase 8 |
 | 46 search analytics | A13, 4.3 |
@@ -1656,5 +1734,35 @@ Tasks: LLM intent extraction behind the `QueryParser` interface, falling back to
 | 2026-10-22 | Bookflix · Design System file | Reference duplicated by the user; **file key pending** (share the URL) | user |
 | 2026-10-22 | Component sourcing | **Open-source libraries only** (MIT / Apache-2.0 / ISC / OFL); C6 list adopted (`@alpinejs/ui`, Motion, noUiSlider, foliate-js, pdf.js, Chart.js; Pines/Basecoat as markup references); paid suites dropped | user |
 | 2026-10-22 | Flux free's proprietary license (Q17) | **Keep Flux free as the base UI library; the open-source-only rule applies to everything added** | user |
+| 2026-10-23 | D-19 `merged_into_id` for reversible merges | adopt: column on `media`, loser soft-deleted, 301 from its slug. Rationale: A9 required redirects with no storage for them. | user (via lead session) |
+| 2026-10-23 | D-20 ISBN storage | adopt: synthetic `isbn` external source. Rationale: reuses the unique constraint, no new schema. | user (via lead session) |
+| 2026-10-23 | D-21 dedup gap (≥ 0.90 without creator/year) | adopt: review candidate, never auto-merge. Rationale: false merges cost more than review time (R8). | user (via lead session) |
+| 2026-10-23 | D-22 `search_queries` timing | adopt: created in Phase 4; click-through via `?sq=` until Phase 5. Rationale: task 4.3 needs it before `user_interactions` exists. | user (via lead session) |
+| 2026-10-23 | D-23 interim trending | adopt: `scopeTrending` by `ratings_count`/recency in Phase 4, redefined in 6.3. Rationale: `media_popularity` arrives in Phase 6. | user (via lead session) |
+| 2026-10-23 | D-24 `/v1/query/parse` | adopt: dropped; PHP `QueryParser`. Rationale: vocabulary lives in Postgres. | user (via lead session) |
+| 2026-10-23 | D-25 schema additions beyond A6 | adopt (list in A6 "Added by phases"). Rationale: each backs a spec requirement. | user (via lead session) |
+| 2026-10-23 | D-26 guest-safe meaning | adopt: user-independent queries, pages stay behind `auth` + `verified`. | user (via lead session) |
+| 2026-10-23 | D-27 / Q13 spec not in repo | adopt: no copy; absolute path references. Rationale: public repo. | user |
+| 2026-10-23 | D-28 spec interpretations (ε-greedy, opted-out recs, comics codes, admin users, extra ML job names) | adopt as written in A10/A12/A8/Phase 2.10. Rationale: spec silent. | user (via lead session) |
+| 2026-10-23 | Phase 1 done (PR #4) | Part D marked done; navigation in `config('bookflix.navigation')`, `FILESYSTEM_DISK=local`, `flysystem-s3`/Nightwatch deferred to deploy, ML docs off by default | user |
+| 2026-10-23 | D-13 reaffirmed | Phone bottom nav stays Home, Discover, Search, Library, Profile. Phase 1's placeholder bar (Home, Library, Option 1, Option 2, Settings) is replaced as Phases 4, 5 and 10 add their items to `config('bookflix.navigation')`; each phase must also mark which items show on the phone bar. | user |
+| 2026-10-23 | D-17 font | Code keeps the spec's font stack (`'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif`); Inter is used only in the Figma design system, because Figma couldn't load Helvetica Neue. Design QA (F7) ignores font-rendering differences. | user |
+| 2026-10-25 | Design inspiration (C7) | 16 patterns adopted from SPL, YPRL, forms.world, ethanandtom, theperformancelab, ciphermuseum and the slider demo; NYPL and cinematypography unreadable; TypeUI added to Part B as inspiration-only; Bookflix logo (PR #8) recorded. Rationale: borrow interaction patterns within the fixed tokens/stack, no assets or layouts. | user (via lead session) |
+| 2026-10-26 | C7 #1 hero slider motion | Updated from live inspection of nextjs-animated-slider: backdrop + left copy column + next-3 card row, card-to-backdrop morph via View Transitions with Motion fallback, line-by-line title reveal, progress line and large counter, no autoplay (no pause control), Bookflix 2:3 covers with "Start reading" and "Add to Library". Rationale: user preference; the earlier row came from a text-only fetch. | user |
+| 2026-10-27 | Catalog expansion wave 1 (PR #11) | adopt: `media_metrics` per source, `popularity_score` blend, nine sources; exact normalized title + format family + year auto-merges | user |
+| 2026-10-27 | Pager label | `__('Pages')`; a test rejects `__()` keys that name a translation group in any letter case (macOS crash, PR #10) | user |
+| 2026-10-28 | D-29 MangaDex covers | `Referrer-Policy: same-origin`: other sites get no Referer, so hotlink-protected hosts serve the real cover (PR #12) | user |
+| 2026-10-28 | D-30 Landing page | Guest `/`: hero with 3D books, trending Top 10 marquee with Netflix-style numerals, problem and solution sections in different layouts, Netflix-style FAQ with an email box (`POST /start`, email kept in the session), closing CTA, footer (PR #13) | user |
+| 2026-10-28 | D-31 No three-card layouts | Never use a row of three cards for content sections; it reads as AI-generated design. Applies to every later page (stats, features, onboarding) | user |
+| 2026-10-29 | D-32 Landing hero | Centred eyebrow, title and description; no buttons in the hero (the header keeps Sign in and Get started); seven books in a bowl around the text, five in a fan below 1024 px | user |
+| 2026-10-28 | D-33 Taxonomy | `genre-taxonomy-spec.md` adopted: genre families and subgenres as a tree with secondary parents, independent themes, tropes, demographics, audience ratings and content warnings with present/absent/unknown/disputed statuses; filters OR within a group and AND between groups; excluding a warning keeps unknown ones | user |
+| 2026-10-28 | D-34 Media-type classification | `MediaTypeClassifier` decides format from format fields, publishers, subjects, page vs chapter counts and country; prose wins ties; `bookflix:reclassify` re-derives stored data, respecting locked fields. Fixes novels labelled comics | user |
+| 2026-10-28 | Prohibited content (hard rule) | Sexual content involving minors, or sexualized depictions of minors, is never supported: such works are rejected at ingestion (`ProhibitedContent`) | user |
+| 2026-10-28 | D-35 Mature access gate | Adult-rated works and works tagged with a mature-family genre are hidden unless the reader turns on Settings → Privacy → "Show mature and adult titles" with an 18+ confirmation; guests are always gated; enforced in the query layer (`Media::visibleTo()`), a gated story URL returns 403 | user (via lead session) |
+| 2026-10-29 | Merge order | #12 → #14 → #15 → #13, squash; each branch brought up to date with main before merging | user |
+| 2026-10-29 | D-36 Reader ratings | `ratings.score` 1–10 per reader; the readers' aggregate is one more `media_metrics` source (`bookflix`), blended into `media.average_rating` (0–5) like any provider; Phase 6 decides its weight in the popularity score | user (via lead session) |
+| 2026-10-29 | D-37 Onboarding for existing accounts | Accounts created before Phase 5 are backfilled `onboarded_at = now()` so nobody is forced through it; onboarding stays reachable from Settings → Preferences | user (via lead session) |
+| 2026-10-30 | D-38 Nonfiction and multi-type books (PR #17) | A `nonfiction` media type (prose family) instead of filing nonfiction as novels; a story can also be other types (`media_additional_types`), and every type filter uses `Media::ofTypes()` so it is found under each | user |
+| 2026-10-30 | Merge order | #17 before #18; #18 merged main with the plan from #17's comment (two textual conflicts, onboarding picks and the library format filter on `ofTypes()`) | user |
 | — | D-1 … D-18, Q1 … Q17, A4 approvals | pending | — |
 | — | Figma file keys: Bookflix · Design System / Prototypes / Architecture & Flows | pending (F0) | — |
