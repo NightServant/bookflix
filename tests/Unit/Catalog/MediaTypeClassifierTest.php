@@ -426,3 +426,32 @@ test('Comic Vine says where a translated comic comes from in its blurb', functio
     'a Chinese title' => [['title' => 'Quanzhi Gaoshou', 'description' => 'Proper Chinese Title: 全职高手. Originally published on Tencent Comics.'], 'manhua'],
     'a French edition that says nothing' => [['title' => 'Blacksad', 'publishers' => ['Dargaud'], 'description' => 'French publication.'], 'comic-book'],
 ]);
+
+test('a book that is more than one type of book gets its additional types from explicit evidence', function (array $signals, string $slug, array $additional) {
+    $verdict = verdict_of($signals);
+
+    expect($verdict->slug)->toBe($slug)->and($verdict->additional)->toBe($additional);
+})->with([
+    'a comic book series later collected' => [['provider' => 'comicvine', 'title' => 'Solo', 'publishers' => ['Marvel'], 'chapterCount' => 5, 'description' => 'A Marvel NOW! five issue mini-series. Collected in Solo: The One-Man War On Terror.'], 'comic-book', ['graphic-novel']],
+    'a trade paperback collecting issues' => [['provider' => 'comicvine', 'title' => 'Fantastic Four: The Beginning of the End', 'publishers' => ['Marvel'], 'description' => 'Trade paperback collecting Fantastic Four #525-526 and #551-553.'], 'graphic-novel', ['comic-book']],
+    'an omnibus' => [['provider' => 'comicvine', 'title' => 'X-Men Omnibus', 'publishers' => ['Marvel Comics']], 'graphic-novel', ['comic-book']],
+    'a Metron trade paperback of an ongoing series' => [['provider' => 'metron', 'format' => 'Trade Paperback', 'title' => 'Saga Vol. 1', 'publishers' => ['Image Comics']], 'graphic-novel', ['comic-book']],
+    'Watchmen as Open Library has it' => [['provider' => 'openlibrary', 'title' => 'Watchmen', 'pageCount' => 418, 'publishers' => ['DC Comics'], 'deweyCode' => '741.5942', 'subjects' => ['Watchmen (Comic strip)', 'Graphic novels', 'Comic books, strips', 'Superhero graphic novels']], 'graphic-novel', ['comic-book']],
+    'Hugo Cabret, a novel with a Caldecott' => [['provider' => 'openlibrary', 'title' => 'The Invention of Hugo Cabret', 'pageCount' => 533, 'deweyCode' => '813.54', 'publishers' => ['Scholastic Press'], 'subjects' => ['historical fiction', 'Juvenile fiction', 'Fiction', 'Orphans', 'award:Caldecott_award']], 'novel', ['picture-book']],
+    'The Arrival, a graphic novel without words' => [['provider' => 'openlibrary', 'title' => 'The Arrival', 'pageCount' => 128, 'subjects' => ['Stories without words', 'Juvenile fiction', 'Graphic novels', 'Fiction', 'Cartoons and comics', 'Comic books, strips, etc.', 'Pictorial works']], 'graphic-novel', ['picture-book']],
+    'Persepolis, a graphic memoir' => [[
+        'provider' => 'openlibrary', 'title' => 'Persepolis', 'deweyCode' => '955', 'pageCount' => 74, 'publishers' => ['Penguin Random House', "L'Association"],
+        'subjects' => ['Comic books, strips, etc.', 'Graphic novels', 'History', 'Biography', 'Cartoons and comics', 'COMICS & GRAPHIC NOVELS / Nonfiction', 'BIOGRAPHY & AUTOBIOGRAPHY / Personal Memoirs'],
+    ], 'graphic-novel', ['nonfiction']],
+    'a Korean webtoon' => [['provider' => 'mangadex', 'language' => 'ko', 'subjects' => ['Long Strip', 'Action']], 'manhwa', ['webcomic']],
+    'a Japanese vertical comic' => [['provider' => 'mangadex', 'language' => 'ja', 'subjects' => ['Long Strip']], 'webcomic', ['manga']],
+    'a single issue' => [['provider' => 'comicvine', 'title' => 'Saga #1', 'publishers' => ['Image Comics'], 'chapterCount' => 1], 'comic-book', []],
+    'a series with its publishing history' => [['provider' => 'comicvine', 'title' => 'U.S. Air Force Comics', 'publishers' => ['Charlton'], 'chapterCount' => 37, 'description' => 'Publishing History (#1-37) U.S. Air Force Comics. These issues did not see print.'], 'comic-book', []],
+    'an original graphic novel' => [['provider' => 'comicvine', 'title' => 'Batman: Hush (Graphic Novel)', 'publishers' => ['DC Comics']], 'graphic-novel', []],
+    'a plain novel' => [['provider' => 'openlibrary', 'title' => 'Dune', 'subjects' => ['Fiction', 'Science fiction'], 'publishers' => ['Ace Books'], 'pageCount' => 412], 'novel', []],
+    'a picture book with a stray comics heading' => [[
+        'provider' => 'openlibrary', 'title' => 'Goodnight Moon', 'deweyCode' => '816', 'pageCount' => 31, 'publishers' => ['Harper & Row', 'Pan Macmillan'],
+        'subjects' => ["Children's fiction", 'Picture books', 'Juvenile fiction', 'Board books', 'Fiction', 'Picture books for children', 'Counting books', 'Short stories', 'Comic books, strips'],
+    ], 'picture-book', []],
+    'a Caldecott picture book' => [['provider' => 'openlibrary', 'title' => 'Where the Wild Things Are', 'subjects' => ['Caldecott Medal', 'Picture books', 'Juvenile fiction'], 'pageCount' => 40], 'picture-book', []],
+]);

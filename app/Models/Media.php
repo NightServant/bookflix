@@ -344,6 +344,16 @@ class Media extends Model
     }
 
     /**
+     * The other types the work also is, besides its main one (a graphic novel that is also a comic book series), by name.
+     *
+     * @return BelongsToMany<MediaType, $this, Pivot, 'pivot'>
+     */
+    public function additionalTypes(): BelongsToMany
+    {
+        return $this->belongsToMany(MediaType::class, 'media_additional_types')->withTimestamps()->orderBy('media_types.name');
+    }
+
+    /**
      * @return BelongsToMany<Creator, $this, MediaCreator, 'pivot'>
      */
     public function creators(): BelongsToMany

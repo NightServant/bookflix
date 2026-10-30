@@ -166,6 +166,15 @@ test('the Dewey class stored on an external id is weighed, so stored nonfiction 
     expect($media->fresh()->mediaType->slug)->toBe('nonfiction');
 });
 
+test('reclassifying records the additional types a stored book also is', function () {
+    $omnibus = sourced('comicvine', 'comic-book', ['title' => 'X-Men Omnibus', 'description' => null]);
+
+    $this->artisan('bookflix:reclassify')->assertSuccessful();
+
+    expect($omnibus->fresh()->mediaType->slug)->toBe('graphic-novel')
+        ->and($omnibus->fresh()->additionalTypes->pluck('slug')->all())->toBe(['comic-book']);
+});
+
 test('a source that does not exist is refused', function () {
     $this->artisan('bookflix:reclassify', ['--source' => 'nope'])->assertFailed();
 });

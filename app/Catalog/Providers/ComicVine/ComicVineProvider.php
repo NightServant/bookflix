@@ -102,20 +102,23 @@ class ComicVineProvider implements MetadataProvider
         $description = $this->plainText($item['description'] ?? null) ?? $deck;
         $concepts = $this->names($item['concepts'] ?? null);
 
+        // Comic Vine lists prose too (novelizations, "Batman: The Novel"): the deck and the name say which, so they are read together.
+        $verdict = $this->classifyMediaType(new ClassificationSignals(
+            provider: $this->key(),
+            title: $title,
+            alternativeTitles: $aliases,
+            description: trim("{$deck} {$description}"),
+            // A concept can be an imprint (Ize Press) or a format (Webtoon), so it is read as both.
+            subjects: $concepts,
+            publishers: [...($publisher !== '' ? [$publisher] : []), ...$concepts],
+            chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
+            language: 'en',
+        ));
+
         return new NormalizedMedia(
             title: $title,
-            // Comic Vine lists prose too (novelizations, "Batman: The Novel"): the deck and the name say which, so they are read together.
-            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
-                provider: $this->key(),
-                title: $title,
-                alternativeTitles: $aliases,
-                description: trim("{$deck} {$description}"),
-                // A concept can be an imprint (Ize Press) or a format (Webtoon), so it is read as both.
-                subjects: $concepts,
-                publishers: [...($publisher !== '' ? [$publisher] : []), ...$concepts],
-                chapterCount: is_int($issues) && $issues > 0 ? $issues : null,
-                language: 'en',
-            )),
+            mediaTypeSlug: $verdict->slug,
+            additionalMediaTypes: $verdict->additional,
             alternativeTitles: array_slice($aliases, 0, 25),
             description: $description,
             publishers: $publisher !== '' ? [$publisher] : [],

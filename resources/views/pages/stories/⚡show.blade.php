@@ -57,6 +57,7 @@ new #[Title('Story')] class extends Component {
     {
         $media = ($this->resolved ?? Media::query()->findOrFail($this->mediaId))->load([
             'mediaType',
+            'additionalTypes',
             'creators',
             'publishers',
             'genres',

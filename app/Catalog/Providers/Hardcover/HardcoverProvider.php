@@ -98,18 +98,21 @@ class HardcoverProvider implements MetadataProvider
         $description = $this->plainText($book['description'] ?? null);
         $alternativeTitles = $subtitle !== '' && $title !== '' ? ["{$title}: {$subtitle}"] : [];
 
+        // Hardcover files prose tie-ins of comics under "Graphic Novels" too, so the tag is weighed against the credits, the page count and the blurb.
+        $verdict = $this->classifyMediaType(new ClassificationSignals(
+            provider: $this->key(),
+            title: $title,
+            alternativeTitles: $alternativeTitles,
+            description: $description,
+            subjects: [...$tags['Genre'], ...$tags['Tag']],
+            creatorRoles: $this->roles($book['contributions'] ?? null),
+            pageCount: is_int($pages) && $pages > 0 ? $pages : null,
+        ));
+
         return new NormalizedMedia(
             title: $title,
-            // Hardcover files prose tie-ins of comics under "Graphic Novels" too, so the tag is weighed against the credits, the page count and the blurb.
-            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
-                provider: $this->key(),
-                title: $title,
-                alternativeTitles: $alternativeTitles,
-                description: $description,
-                subjects: [...$tags['Genre'], ...$tags['Tag']],
-                creatorRoles: $this->roles($book['contributions'] ?? null),
-                pageCount: is_int($pages) && $pages > 0 ? $pages : null,
-            )),
+            mediaTypeSlug: $verdict->slug,
+            additionalMediaTypes: $verdict->additional,
             alternativeTitles: $alternativeTitles,
             description: $description,
             creators: $this->creators($book['contributions'] ?? null),

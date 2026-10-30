@@ -6,9 +6,11 @@ use App\Discovery\Search\SearchTextBuilder;
 use App\Models\Creator;
 use App\Models\Genre;
 use App\Models\Media;
+use App\Models\MediaType;
 use App\Models\Publisher;
 use App\Models\Theme;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\MediaTypeSeeder;
 
 beforeEach(fn () => $this->seed(DeweySeeder::class));
 
@@ -141,4 +143,14 @@ test('a crafted payload cannot flood a list filter past the cap', function () {
 
     // The genre tree has about six hundred nodes, so a reader may pick that many; anything past it is dropped.
     expect($filters->genres)->toHaveCount(SearchFilters::MAX_GENRES)->and($filters->creatorIds)->toHaveCount(SearchFilters::MAX_VALUES);
+});
+
+test('a type filter also finds a book that is that type besides its main one', function () {
+    $watchmen = Media::factory()->ofType('comic-book')->create(['title' => 'Watchmen']);
+    $watchmen->additionalTypes()->attach(MediaType::firstOrCreate(['slug' => 'graphic-novel'], MediaTypeSeeder::TYPES['graphic-novel']));
+    Media::factory()->ofType('comic-book')->create(['title' => 'Saga #1']);
+    Media::factory()->graphicNovel()->create(['title' => 'Maus']);
+
+    expect(app(HybridSearch::class)->browse(new SearchFilters(mediaTypes: ['graphic-novel']))->pluck('title')->sort()->values()->all())->toBe(['Maus', 'Watchmen'])
+        ->and(app(HybridSearch::class)->browse(new SearchFilters(mediaTypes: ['comic-book']))->pluck('title')->sort()->values()->all())->toBe(['Saga #1', 'Watchmen']);
 });

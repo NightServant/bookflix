@@ -150,7 +150,62 @@ class MediaTypeClassifier
             $slug,
             round(min(0.99, 0.5 + 0.5 * (1 - exp(-max($margin, 0.0) / 5))), 2),
             array_slice(array_values(array_unique(array_map(fn (array $reason): string => $reason[1], $reasons))), 0, 5),
+            $this->additionalForms($slug, $form, $flags, $signals, $origin),
         );
+    }
+
+    /**
+     * The other types a work also is, from explicit evidence only, never from a close call between families: a comic book series collected as
+     * a graphic novel (or the collection of one), a novel carrying a picture book award (Hugo Cabret's Caldecott) or told in cartoons, a comic
+     * filed as a picture book (The Arrival, told without words), a graphic memoir, a webtoon.
+     *
+     * @param  array<string, float>  $form
+     * @param  array{vertical: bool, web: bool, webnovel: bool}  $flags
+     * @return list<string>
+     */
+    private function additionalForms(string $slug, array $form, array $flags, ClassificationSignals $signals, ?string $origin): array
+    {
+        $text = $this->fold($signals->title.' '.mb_substr((string) $signals->description, 0, 600));
+        $subjects = implode(' | ', array_map($this->phrase(...), $signals->subjects));
+        $prose = in_array($slug, ['novel', 'light-novel', 'nonfiction'], true);
+        $comic = ! $prose && ! in_array($slug, ['picture-book', 'visual-novel'], true);
+        $also = [];
+
+        // A comic book series that says it was collected, and a collection that says what it collects: an issue range alone is a series' history.
+        $collectedLater = preg_match('/\bcollected (?:in|as)\b|\bcollected editions?\b/', $text) === 1;
+        $collects = preg_match('/\bcollect(?:s|ing)\b[^.]{0,80}#\s?\d|#\s?\d+\s?(?:-|and|&)\s?#?\s?\d+|\bsingle (?:magazine|issue) form\b|\b(?:omnibus|compendium|deluxe edition|library edition|trade paperback|tpb|collected edition)\b/', $text) === 1
+            || ($signals->provider === 'metron' && preg_match('/hard ?cover|trade paperback|\btpb\b|omnibus|collect|compendium|deluxe|library/', Str::lower((string) $signals->format)) === 1)
+            || array_filter($signals->subjects, fn (string $subject): bool => preg_match('/\(comic strip\)\s*$/i', $subject) === 1) !== [];
+
+        if ($slug === 'comic-book' && $collectedLater) {
+            $also[] = 'graphic-novel';
+        }
+
+        if ($slug === 'graphic-novel' && ($collects || $collectedLater)) {
+            $also[] = 'comic-book';
+        }
+
+        if ($prose && preg_match('/\bcaldecott\b|\billustrated novels?\b|\bnovels? in (?:words and )?pictures\b|\btold in words and pictures\b/', "{$subjects} {$text}") === 1) {
+            $also[] = 'picture-book';
+        }
+
+        if ($prose && preg_match('/\bnovels? in cartoons\b|\bhybrid (?:graphic )?novels?\b/', "{$subjects} {$text}") === 1) {
+            $also[] = 'graphic-novel';
+        }
+
+        if ($comic && preg_match('/(?:^| \| )(?:picture books?|picture books for children|stories without words|board books)(?: \||$)/', $subjects) === 1) {
+            $also[] = 'picture-book';
+        }
+
+        if ($comic && $form['nonfiction'] >= 6.0 && $form['nonfiction'] > 1.5 * $form['novel']) {
+            $also[] = 'nonfiction';
+        }
+
+        if (($flags['vertical'] || $flags['web']) && $origin !== null) {
+            $also[] = $slug === 'webcomic' ? $origin : 'webcomic';
+        }
+
+        return array_values(array_diff(array_unique($also), [$slug]));
     }
 
     /**
@@ -322,6 +377,11 @@ class MediaTypeClassifier
             $form['manga'] += 6.0;
         }
 
+        // "Trade paperback collecting Fantastic Four #525-526": a bound collection of issues.
+        if (preg_match('/\b(?:trade paperback|hard ?cover|omnibus|collected edition|tpb)s? (?:collecting|that collects|which collects)\b/', $text) === 1) {
+            $form['graphic-novel'] += 4.0;
+        }
+
         if (preg_match('/\b(?:is|was) an? ((?:[a-z0-9\'-]+ ){0,4}?)light novel\b/', $text, $match) === 1 && preg_match($adapts, $match[0]) === 0) {
             $add(self::PROSE, 4.0, 'description calls it a light novel');
             $form['light-novel'] += 4.0;
@@ -445,7 +505,7 @@ class MediaTypeClassifier
         }
 
         // Each further picture book heading a cataloguer gave adds to the first, and a picture book sized book more.
-        $pictures = $count(fn (string $subject): bool => in_array($subject, ['picture book', 'picture books', 'picture books for children', 'board books', 'toy and movable books', 'counting books'], true));
+        $pictures = $count(fn (string $subject): bool => in_array($subject, ['picture book', 'picture books', 'picture books for children', 'board books', 'toy and movable books', 'counting books', 'stories without words'], true));
 
         if ($pictures > 0) {
             $add(self::PICTURE, 6.0 + min(6.0, 2.0 * ($pictures - 1)) + ($pages !== null && $pages <= 48 ? 2.0 : 0.0), 'picture book subject');

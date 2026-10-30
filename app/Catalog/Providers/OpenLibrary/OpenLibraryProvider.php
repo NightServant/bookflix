@@ -267,18 +267,21 @@ class OpenLibraryProvider implements MetadataProvider
         $language = self::LANGUAGES[basename($this->text($primary['languages'][0]['key'] ?? null))] ?? null;
         $pages = is_int($primary['number_of_pages'] ?? null) && $primary['number_of_pages'] > 0 ? $primary['number_of_pages'] : null;
 
+        $verdict = $this->classifyMediaType(new ClassificationSignals(
+            provider: $this->key(),
+            title: $title,
+            description: $description,
+            subjects: $subjects,
+            publishers: $this->publishers($editions),
+            pageCount: $pages,
+            language: $language,
+            deweyCode: $this->deweyCode($editions),
+        ));
+
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
-                provider: $this->key(),
-                title: $title,
-                description: $description,
-                subjects: $subjects,
-                publishers: $this->publishers($editions),
-                pageCount: $pages,
-                language: $language,
-                deweyCode: $this->deweyCode($editions),
-            )),
+            mediaTypeSlug: $verdict->slug,
+            additionalMediaTypes: $verdict->additional,
             description: $description,
             creators: array_map(
                 fn (string $name) => new NormalizedCreator($name, CreatorRole::Author),

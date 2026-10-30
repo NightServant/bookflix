@@ -260,3 +260,27 @@ test('metrics are stored per source and fill the rating columns from every sourc
 
     expect($media->fresh()->ratings_count)->toBe(7);
 });
+
+test('a book that is more than one type keeps its additional types; another provider or an admin lock leaves them alone', function () {
+    app(MediaTypeSeeder::class)->run();
+    $source = ExternalSource::factory()->create(['key' => 'comicvine']);
+    $provider = function (string $key, array $additional): MetadataProvider {
+        $mock = Mockery::mock(MetadataProvider::class);
+        $mock->shouldReceive('key')->andReturn($key);
+        $mock->shouldReceive('normalize')->andReturn(new NormalizedMedia(title: 'Watchmen', mediaTypeSlug: 'graphic-novel', additionalMediaTypes: $additional, publicationYear: 1987, sourceUrl: 'https://comicvine.gamespot.com/watchmen/4050-1/'));
+
+        return $mock;
+    };
+
+    app(IngestionPipeline::class)->import(new ProviderRecord('comicvine', '1', ['v' => 1], null, now()->toImmutable()), $provider('comicvine', ['comic-book']));
+    $media = Media::sole();
+
+    expect($media->additionalTypes->pluck('slug')->all())->toBe(['comic-book']);
+
+    ExternalSource::factory()->create(['key' => 'metron']);
+    app(IngestionPipeline::class)->import(new ProviderRecord('metron', '9', ['v' => 1], null, now()->toImmutable()), $provider('metron', ['nonfiction']));
+    $media->update(['locked_fields' => ['media_type_id']]);
+    app(IngestionPipeline::class)->import(new ProviderRecord('comicvine', '1', ['v' => 2], null, now()->toImmutable()), $provider('comicvine', []));
+
+    expect($media->fresh()->additionalTypes->pluck('slug')->all())->toBe(['comic-book'])->and($source->exists)->toBeTrue();
+});

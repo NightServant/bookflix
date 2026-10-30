@@ -138,7 +138,10 @@ final readonly class SearchFilters
     {
         return $query
             ->unless($this->matureAccess, fn (Builder $media) => $media->withoutMature())
-            ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $slugs)->select('id')))
+            // A type matches a book's main type or any type it also is (a comic book series collected as a graphic novel is found under both).
+            ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->where(fn (Builder $typed) => $typed
+                ->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $slugs)->select('id'))
+                ->orWhereHas('additionalTypes', fn (Builder $types) => $types->whereIn('media_types.slug', $slugs))))
             ->when($this->genres, fn (Builder $media, array $slugs) => $media->inGenres($slugs))
             ->when($this->themes, fn (Builder $media, array $slugs) => $media->whereHas('themes', fn (Builder $themes) => $themes->whereIn('themes.slug', $slugs)))
             ->when($this->tropes, fn (Builder $media, array $slugs) => $media->whereHas('tropes', fn (Builder $tropes) => $tropes->whereIn('tropes.slug', $slugs)))
