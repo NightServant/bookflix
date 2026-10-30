@@ -1,5 +1,6 @@
 <?php
 
+use App\Discovery\OnboardingPicks;
 use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
 use App\Events\LibraryChanged;
@@ -556,4 +557,12 @@ test('deleting the reader deletes their preferences', function () {
     $user->delete();
 
     expect(UserPreference::count())->toBe(0);
+});
+
+test('a format choice also picks stories that are that format besides their main one', function () {
+    $collected = Media::factory()->ofType('comic-book')->create(['title' => 'Watchmen', 'cover_url' => 'https://covers.test/w.jpg', 'popularity_score' => 0.1]);
+    $collected->additionalTypes()->attach(MediaType::firstOrCreate(['slug' => 'graphic-novel'], MediaTypeSeeder::TYPES['graphic-novel']));
+    Media::factory()->ofType('comic-book')->create(['title' => 'Saga #1', 'cover_url' => 'https://covers.test/s.jpg', 'popularity_score' => 0.9]);
+
+    expect(app(OnboardingPicks::class)->for(User::factory()->create(), ['graphic-novel'], [])->first()->title)->toBe('Watchmen');
 });

@@ -123,7 +123,7 @@ class MangaUpdatesProvider implements MetadataProvider
                 subjects: [...$genres, ...$categories],
                 country: $country,
                 language: $language,
-            )),
+            ))->slug,
             alternativeTitles: $alternativeTitles,
             description: $description,
             creators: $this->creators($payload['authors'] ?? null),

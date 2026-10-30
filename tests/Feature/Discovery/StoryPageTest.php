@@ -324,11 +324,11 @@ test('the story page runs a bounded number of queries', function () {
     $this->actingAs(User::factory()->create());
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
-    // Three of the 28 are the controls': the reader's rating, their library entry, and their collections (with whether each holds this story).
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(28);
+    // Three of the 29 are the controls': the reader's rating, their library entry, and their collections (with whether each holds this story); one is the types the story also is.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(29);
 });
 
-test('the story page runs at most twenty four queries once the similar ids are cached', function () {
+test('the story page runs at most twenty five queries once the similar ids are cached', function () {
     Queue::fake();
     $m = fullMedia();
     $this->actingAs(User::factory()->create());
@@ -338,8 +338,8 @@ test('the story page runs at most twenty four queries once the similar ids are c
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
 
-    // One of the twenty four is the mature access gate (whether this story is behind it for the reader), another the reader's rating, another their library entry, another their collections.
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(24);
+    // One of the twenty five is the mature access gate (whether this story is behind it for the reader), another the reader's rating, another their library entry, another their collections, another the types the story also is.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
 });
 
 test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {

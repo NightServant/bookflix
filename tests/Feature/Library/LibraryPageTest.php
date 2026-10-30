@@ -4,10 +4,12 @@ use App\Enums\ReadingStatus;
 use App\Models\Genre;
 use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\MediaType;
 use App\Models\Rating;
 use App\Models\ReadingProgress;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Url;
@@ -464,4 +466,16 @@ test('a crafted url with lists where text belongs still opens the library', func
     $this->actingAs(libraryFixture());
 
     $this->get(route('library.index', ['status' => ['a'], 'type' => ['b'], 'sort' => ['c'], 'view' => ['d']]))->assertOk();
+});
+
+test('the format filter and its options also go by the types a story also is', function () {
+    $user = libraryFixture();
+    $collected = Media::factory()->ofType('comic-book')->create(['title' => 'E']);
+    $collected->additionalTypes()->attach(MediaType::firstOrCreate(['slug' => 'graphic-novel'], MediaTypeSeeder::TYPES['graphic-novel']));
+    LibraryEntry::factory()->for($user)->for($collected)->create();
+
+    $page = Livewire::actingAs($user)->test('pages::library.index');
+
+    expect($page->instance()->typeOptions->pluck('slug')->all())->toBe(['comic-book', 'graphic-novel', 'manga', 'novel'])
+        ->and(libraryTitles($page->set('type', 'graphic-novel')))->toBe(['E']);
 });

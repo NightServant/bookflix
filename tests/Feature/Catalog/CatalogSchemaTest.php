@@ -15,7 +15,8 @@ use Illuminate\Database\QueryException;
 test('media types are seeded with family and reading mode', function () {
     $this->seed(MediaTypeSeeder::class);
 
-    expect(MediaType::count())->toBe(10)
+    expect(MediaType::count())->toBe(11)
+        ->and(MediaType::firstWhere('slug', 'nonfiction')->family)->toBe(MediaFamily::Prose)
         ->and(MediaType::firstWhere('slug', 'manga')->family)->toBe(MediaFamily::SequentialArt)
         ->and(MediaType::firstWhere('slug', 'manga')->reading_mode)->toBe(ReadingMode::Paged)
         ->and(MediaType::firstWhere('slug', 'manhwa')->reading_mode)->toBe(ReadingMode::VerticalScroll)

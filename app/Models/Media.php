@@ -289,6 +289,20 @@ class Media extends Model
     }
 
     /**
+     * Media that are any of these types, as their main type or one they also are (a comic book series collected as a graphic novel is both).
+     * Every type filter goes through here, so a book is found under each of its types. An unknown slug matches nothing.
+     *
+     * @param  Builder<Media>  $query
+     * @param  list<string>  $slugs
+     */
+    public function scopeOfTypes(Builder $query, array $slugs): void
+    {
+        $query->where(fn (Builder $typed) => $typed
+            ->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $slugs)->select('id'))
+            ->orWhereHas('additionalTypes', fn (Builder $types) => $types->whereIn('media_types.slug', $slugs)));
+    }
+
+    /**
      * Media with any of these genres, or any genre below them: selecting a family includes its subgenres.
      * Several slugs mean any of them. An unknown slug matches nothing.
      *
@@ -341,6 +355,16 @@ class Media extends Model
     public function mediaType(): BelongsTo
     {
         return $this->belongsTo(MediaType::class);
+    }
+
+    /**
+     * The other types the work also is, besides its main one (a graphic novel that is also a comic book series), by name.
+     *
+     * @return BelongsToMany<MediaType, $this, Pivot, 'pivot'>
+     */
+    public function additionalTypes(): BelongsToMany
+    {
+        return $this->belongsToMany(MediaType::class, 'media_additional_types')->withTimestamps()->orderBy('media_types.name');
     }
 
     /**

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -140,9 +141,12 @@ new #[Title('Library')] class extends Component {
     public function typeOptions(): Collection
     {
         $user = auth()->user();
+        $shelved = Media::query()->unmerged()->visibleTo($user)->whereIn('id', $user->library()->select('media_id'));
 
+        // A story offers its main type and every type it also is, as the format filter below finds it under each.
         return MediaType::query()
-            ->whereIn('id', Media::query()->unmerged()->visibleTo($user)->whereIn('id', $user->library()->select('media_id'))->select('media_type_id'))
+            ->where(fn (Builder $types) => $types->whereIn('id', (clone $shelved)->select('media_type_id'))
+                ->orWhereIn('id', DB::table('media_additional_types')->whereIn('media_id', (clone $shelved)->select('media.id'))->select('media_type_id')))
             ->orderBy('name')
             ->get(['id', 'name', 'slug']);
     }
@@ -161,7 +165,7 @@ new #[Title('Library')] class extends Component {
         return LibraryEntry::query()
             ->where('user_library.user_id', $user->id)
             ->visibleTo($user)
-            ->when($type, fn (Builder $entries) => $entries->whereHas('media', fn (Builder $media) => $media->where('media.media_type_id', $type->id)))
+            ->when($type, fn (Builder $entries) => $entries->whereHas('media', fn (Builder $media) => $media->ofTypes([$type->slug])))
             ->when($this->favorites, fn (Builder $entries) => $entries->whereNotNull('user_library.favorited_at'))
             ->when($withStatus && $this->status !== null, fn (Builder $entries) => $entries->where('user_library.status', $this->status));
     }

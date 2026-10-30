@@ -7,7 +7,6 @@ use App\Catalog\Taxonomy\LegacySlugs;
 use App\Enums\PublicationStatus;
 use App\Models\DeweyClass;
 use App\Models\Media;
-use App\Models\MediaType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
@@ -162,7 +161,7 @@ final readonly class SearchFilters
     {
         return $query
             ->unless($this->matureAccess, fn (Builder $media) => $media->withoutMature())
-            ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $slugs)->select('id')))
+            ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->ofTypes($slugs))
             ->when($this->genres, fn (Builder $media, array $slugs) => $media->inGenres($slugs))
             ->when($this->themes, fn (Builder $media, array $slugs) => $media->whereHas('themes', fn (Builder $themes) => $themes->whereIn('themes.slug', $slugs)))
             ->when($this->tropes, fn (Builder $media, array $slugs) => $media->whereHas('tropes', fn (Builder $tropes) => $tropes->whereIn('tropes.slug', $slugs)))

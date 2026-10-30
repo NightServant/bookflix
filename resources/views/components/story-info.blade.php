@@ -3,7 +3,7 @@
 {{--
     One quiet line of facts: type, year, length, age rating, Dewey-inspired class code (public primary only; `:class-code="false"` leaves it out where a breadcrumb already says it).
     Missing parts are left out; the dots between parts are CSS, so there is never a stray separator.
-    Eager-load `mediaType` and `publicPrimaryDewey.deweyClass` when rendering fetched media.
+    Eager-load `mediaType` and `publicPrimaryDewey.deweyClass` when rendering fetched media, and `additionalTypes` where the other types should show.
 --}}
 @php
     $length = match (true) {
@@ -14,8 +14,11 @@
 
     $code = $classCode ? $media->publicPrimaryDewey?->deweyClass?->code : null;
 
+    // A book that is more than one type names them all, its main type first ("Graphic Novel & Comic Book"), when they were loaded.
+    $types = Illuminate\Support\Arr::join([$media->mediaType->name, ...($media->relationLoaded('additionalTypes') ? $media->additionalTypes->pluck('name')->all() : [])], ', ', ' & ');
+
     $parts = collect([
-        $media->mediaType->name,
+        $types,
         $media->publication_year,
         $length,
         $media->age_rating->label(),

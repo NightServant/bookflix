@@ -3,7 +3,6 @@
 namespace App\Discovery;
 
 use App\Models\Media;
-use App\Models\MediaType;
 use App\Models\User;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -39,7 +38,7 @@ class OnboardingPicks
 
         if ($typeSlugs !== [] || $genreSlugs !== []) {
             $ids = $offer()
-                ->when($typeSlugs !== [], fn ($stories) => $stories->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $typeSlugs)->select('id')))
+                ->when($typeSlugs !== [], fn ($stories) => $stories->ofTypes($typeSlugs))
                 ->when($genreSlugs !== [], fn ($stories) => $stories->inGenres($genreSlugs))
                 ->limit(self::LIMIT)
                 ->pluck('media.id')

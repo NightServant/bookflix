@@ -122,7 +122,7 @@ class AniListProvider implements MetadataProvider
                 chapterCount: $chapters,
                 country: $country,
                 language: self::LANGUAGES[$country] ?? null,
-            )),
+            ))->slug,
             alternativeTitles: $alternativeTitles,
             description: $description,
             creators: $this->creators($payload['staff']['edges'] ?? null),

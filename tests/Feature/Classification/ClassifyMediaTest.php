@@ -54,6 +54,14 @@ test('a fiction genre raises the prose confidence', function () {
     expect(app(ClassificationService::class)->classify($media)->first()->confidence)->toBe(.85);
 });
 
+test('nonfiction is shelved by its subjects and codes, never under literature', function () {
+    $media = Media::factory()->ofType('nonfiction')->create(['country_of_origin' => 'US', 'language' => 'en', 'description' => null]);
+    $media->tags()->attach(Tag::factory()->create(['name' => 'Psychology'])->id);
+
+    expect(app(ClassificationService::class)->classify($media)->pluck('code')->all())->toBe(['150'])
+        ->and(app(ClassificationService::class)->classify($media, '940.53')->pluck('code')->all())->toBe(['940', '150']);
+});
+
 test('a berserk style manga gets 741.52 as primary', function () {
     $media = Media::factory()->manga()->create(['country_of_origin' => 'JP', 'language' => 'ja']);
     expect(app(ClassificationService::class)->classify($media)->first()->code)->toBe('741.52');
