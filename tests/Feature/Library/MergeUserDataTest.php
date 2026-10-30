@@ -86,6 +86,7 @@ test('a reader with both stories in the library keeps the winner\'s row and gain
 test('the winner\'s library row takes the earlier added and started dates, and the loser\'s completion only when it has none', function () {
     [$winner, $loser] = Media::factory()->count(2)->create();
     [$first, $second, $third] = User::factory()->count(3)->create();
+    $this->freezeSecond();
     $day = fn (int $ago) => now()->subDays($ago)->startOfSecond();
 
     // The loser's row is the older one, started earlier and finished; the winner's has no completion.
@@ -117,6 +118,7 @@ test('the winner\'s library row takes the earlier added and started dates, and t
 test('a reader with progress on both stories keeps the further one, with its page and chapter, and the later last read', function () {
     [$winner, $loser] = Media::factory()->count(2)->create();
     [$further, $behind, $even] = User::factory()->count(3)->create();
+    $this->freezeSecond();
     $day = fn (int $ago) => now()->subDays($ago)->startOfSecond();
 
     ReadingProgress::factory()->create(['user_id' => $further->id, 'media_id' => $winner->id, 'percent' => 30, 'page' => 60, 'chapter' => '3', 'last_read_at' => $day(1)]);
