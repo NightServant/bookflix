@@ -321,7 +321,7 @@ test('the story page runs at most twenty two queries once the similar ids are ca
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
 
-    // One of the twenty one is the mature access gate: whether this story is behind it for the reader.
+    // One of the twenty two is the mature access gate: whether this story is behind it for the reader.
     expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(22);
 });
 
