@@ -1,9 +1,13 @@
 <?php
 
+use App\Discovery\ContinueReading;
+use App\Discovery\EditorialCollections;
 use App\Discovery\HomeShelves;
+use App\Discovery\Shelf;
 use App\Models\Media;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -33,6 +37,26 @@ new #[Title('Home')] class extends Component {
     {
         return app(HomeShelves::class)->hero(viewer: auth()->user());
     }
+
+    /**
+     * What the reader is in the middle of, the first shelf; null when nothing is in progress.
+     */
+    #[Computed]
+    public function continueReading(): ?Shelf
+    {
+        return app(ContinueReading::class)->shelf(auth()->user());
+    }
+
+    /**
+     * The staff picks as themed shelves, for the row between the story shelves and the subjects.
+     *
+     * @return SupportCollection<int, Shelf>
+     */
+    #[Computed]
+    public function editorial(): SupportCollection
+    {
+        return app(EditorialCollections::class)->shelves(auth()->user());
+    }
 }; ?>
 
 <div>
@@ -45,7 +69,25 @@ new #[Title('Home')] class extends Component {
 
         <x-search-panel :action="route('search')" :placeholder="__('Titles, authors, series and subjects')" class="my-12 px-gutter lg:my-16" />
 
+        @if ($continue = $this->continueReading)
+            {{-- The reader's own shelf comes first, ahead of the shelves that are the same for everyone. --}}
+            <x-shelf :title="$continue->title" :description="$continue->description" :href="route('library.index', ['status' => 'reading', 'sort' => 'last_read'])" id="shelf-continue-reading" previews="quick-view-continue-reading" bleed>
+                @foreach ($continue->items as $item)
+                    @php $where = filled($item->progress_chapter) ? __('Chapter :chapter', ['chapter' => $item->progress_chapter]) : ($item->progress_page ? __('Page :page', ['page' => $item->progress_page]) : null); @endphp
+                    <li wire:key="continue-reading-{{ $item->id }}">
+                        <x-story-preview :media="$item">
+                            <x-cover-tile :media="$item" :progress="$item->progress_percent" :reason="$where" />
+                        </x-story-preview>
+                    </li>
+                @endforeach
+            </x-shelf>
+        @endif
+
         @foreach (array_keys(App\Discovery\HomeShelves::SHELVES) as $shelf)
+            @if ($shelf === 'explore-by-subject')
+                <x-editorial-shelves :shelves="$this->editorial" bleed />
+            @endif
+
             {{-- The shelves are bands that butt together: each brings its own padding, so there is no strip of bare canvas between two of them. --}}
             <div>
                 <livewire:home-shelf :$shelf :key="'home-shelf-'.$shelf" />

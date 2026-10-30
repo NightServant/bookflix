@@ -58,6 +58,45 @@ test('active filters render as removable chips, grouped and labelled, and a cont
         ->and(htmlQuery($html, '//ul[@aria-label="Hidden content warnings"]')->length)->toBe(1);
 });
 
+test('the reader rating filter offers stars on the five point scale, names its chip, and filters the blended average', function () {
+    Media::factory()->manga()->create(['title' => 'Loved Tale', 'average_rating' => '4.70']);
+    Media::factory()->manga()->create(['title' => 'Fine Tale', 'average_rating' => '3.60']);
+    Media::factory()->manga()->create(['title' => 'Unrated Tale', 'average_rating' => null]);
+    $this->actingAs(User::factory()->create());
+
+    foreach ([route('search'), route('discover')] as $url) {
+        expect(filterIsland($this->get($url)->assertOk()->getContent())['minRatings'])->toBe([
+            ['value' => '3', 'label' => '3+ stars'],
+            ['value' => '3.5', 'label' => '3.5+ stars'],
+            ['value' => '4', 'label' => '4+ stars'],
+            ['value' => '4.5', 'label' => '4.5+ stars'],
+        ]);
+    }
+
+    $page = Livewire::test('pages::search.index');
+    $page->set('filters.minRating', '3.5')->assertSee('Loved Tale')->assertSee('Fine Tale')->assertDontSee('Unrated Tale');
+    expect(chipSummary($page->html()))->toBe('Reader rating: 3.5+ stars');
+
+    $page->set('filters.minRating', '4.5')->assertSee('Loved Tale')->assertDontSee('Fine Tale');
+    expect(chipSummary($page->html()))->toBe('Reader rating: 4.5+ stars');
+
+    $page->call('removeFilter', 'minRating')->assertSet('filters.minRating', '')->assertDontSee('Active filters');
+});
+
+test('a link from the ten point scale finds what it meant: 8 is 4 stars, and the page, the chip and the panel agree', function () {
+    Media::factory()->manga()->create(['title' => 'Loved Tale', 'average_rating' => '4.70']);
+    Media::factory()->manga()->create(['title' => 'Fine Tale', 'average_rating' => '3.60']);
+    $this->actingAs(User::factory()->create());
+
+    $page = Livewire::withQueryParams(['filters' => ['minRating' => '8']])->test('pages::search.index');
+
+    $page->assertSet('filters.minRating', '4')->assertSee('Loved Tale')->assertDontSee('Fine Tale');
+    expect(chipSummary($page->html()))->toBe('Reader rating: 4+ stars');
+
+    expect(Livewire::withQueryParams(['filters' => ['minRating' => '9']])->test('pages::discover.index')->get('filters.minRating'))->toBe('4.5')
+        ->and(Livewire::withQueryParams(['filters' => ['minRating' => '40']])->test('pages::search.index')->get('filters'))->not->toHaveKey('minRating');
+});
+
 test('a chip removes its own value, Clear all removes every chip, and a content warning chip removes only that warning', function () {
     $this->actingAs(User::factory()->create());
 
@@ -113,7 +152,7 @@ test('filters are kept in the url with a history entry per change, and a link re
         'languages' => ['en'],
         'years' => [1990, 2010],
         'length' => 'short',
-        'minRating' => '8',
+        'minRating' => '3.5',
     ];
 
     foreach (['pages::search.index', 'pages::discover.index'] as $page) {

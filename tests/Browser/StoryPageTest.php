@@ -1,7 +1,11 @@
 <?php
 
 use App\Catalog\Ingestion\Deduplicator;
+use App\Enums\ReadingStatus;
+use App\Models\Collection;
+use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\Rating;
 use App\Models\User;
 
 beforeEach(function () {
@@ -28,6 +32,99 @@ test('the story page passes the shared checks on desktop and on a phone, shelf i
 
         $page->wait(1)->assertSee('More Like This')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
     }
+});
+
+test('the library controls add the story, change its status, favorite it and take it out', function () {
+    $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
+
+    $page->click('main button:has-text("Add to Library")')->wait(1)
+        ->assertSee('was added to your library')
+        ->assertScript('document.querySelector("[data-test=library-status]").textContent.trim()', 'Want to read')
+        ->click('[data-test=library-status]')->wait(0.5)
+        ->click('ui-menu button:has-text("Completed")')->wait(1)
+        ->assertScript('document.querySelector("[data-test=library-status]").textContent.trim()', 'Completed')
+        ->assertScript('document.querySelector("[aria-label=Favorite]").getAttribute("aria-pressed")', 'false')
+        ->click('[aria-label="Favorite"]')->wait(1)
+        ->assertScript('document.querySelector("[aria-label=Favorite]").getAttribute("aria-pressed")', 'true')
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues();
+
+    $entry = LibraryEntry::sole();
+    expect($entry->status)->toBe(ReadingStatus::Completed)->and($entry->favorited_at)->not->toBeNull();
+
+    $page->click('[data-test=library-status]')->wait(0.5)
+        ->click('ui-menu button:has-text("Remove from library")')->wait(1)
+        ->assertSee('Add to Library');
+
+    expect(LibraryEntry::count())->toBe(0);
+});
+
+test('past the limit of changes in a minute the controls say so in a toast and change nothing', function () {
+    config(['bookflix.library.writes_per_minute' => 2]);
+
+    $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
+
+    $page->click('[aria-label="Favorite"]')->wait(0.8)
+        ->click('[aria-label="Favorite"]')->wait(0.8)
+        ->assertDontSee('Give it a moment')
+        ->click('[aria-label="Favorite"]')->wait(1)
+        ->assertSee('Give it a moment')
+        ->assertScript('document.querySelector("[aria-label=Favorite]").getAttribute("aria-pressed")', 'false')
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues();
+
+    // Two presses: on, then off. The third was refused.
+    expect(LibraryEntry::sole()->favorited_at)->toBeNull();
+});
+
+test('a reader rates the story from the controls, finds the score again after a reload, and clears it', function () {
+    $checked = 'Array.from(document.querySelectorAll("[data-test=rating] [role=radio]")).filter((r) => r.getAttribute("aria-checked") === "true").map((r) => r.dataset.value).join("|")';
+    providerMetrics($this->story, 'openlibrary', ['average_rating' => 4.5, 'ratings_count' => 120]);
+    $page = visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1);
+
+    $page->assertSee('Rated 4.5 out of 5 from 120 ratings')
+        ->assertSee('Not rated yet')
+        ->click('[data-test=rating] [aria-label="7 out of 10"]')->wait(1)
+        ->assertScript($checked, '7');
+
+    expect(Rating::sole()->score)->toBe(7)->and(LibraryEntry::count())->toBe(0);
+
+    $page->navigate(route('stories.show', $this->story->slug))->wait(1)
+        ->assertScript($checked, '7')
+        ->assertSee('Rated 4.5 out of 5 from 121 ratings')
+        ->click('[data-test=rating] [aria-label="Clear your rating"]')->wait(1)
+        ->assertScript($checked, '');
+
+    expect(Rating::count())->toBe(0)->and($this->story->fresh()->ratings_count)->toBe(120)
+        ->and((float) $this->story->fresh()->average_rating)->toBe(4.5);
+});
+
+test('the rating input is on its own row under the buttons, and passes the audit on a phone', function () {
+    $page = visit(route('stories.show', $this->story->slug), $this->phone)->wait(1);
+
+    $page->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues()
+        ->assertScript('(() => { const rating = document.querySelector("[data-test=rating]").getBoundingClientRect(); const status = document.querySelector("[data-test=collection-menu]").getBoundingClientRect(); return rating.top >= status.bottom - 1 && rating.right <= window.innerWidth && document.documentElement.scrollWidth <= window.innerWidth; })()', true);
+});
+
+test('the library controls pass the audit on a phone too, and their menu items are 44px targets', function () {
+    $collection = Collection::factory()->for(auth()->user())->create(['name' => 'Rainy Day']);
+    $open = 'Array.from(document.querySelectorAll("[data-library-controls] ui-menu:popover-open [data-flux-menu-item], [data-library-controls] ui-menu:popover-open [data-flux-menu-checkbox]"))';
+    $page = visit(route('stories.show', $this->story->slug), $this->phone)->wait(1);
+
+    $page->click('main button:has-text("Add to Library")')->wait(1)
+        ->click('[data-test=library-status]')->wait(0.5)
+        ->assertScript("{$open}.length", 6)
+        ->assertScript("{$open}.every((item) => item.getBoundingClientRect().height >= 44)", true)
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues()
+        ->keys('[data-test=library-status]', 'Escape')->wait(0.3)
+        ->click('[data-test=collection-menu]')->wait(0.5)
+        ->assertScript("{$open}.length", 2) // the collection and "New collection"
+        ->assertScript("{$open}.every((item) => item.getBoundingClientRect().height >= 44)", true)
+        ->assertNoAccessibilityIssues();
+
+    expect($collection->items()->count())->toBe(0);
 });
 
 test('the tabs switch between overview, series and related', function () {

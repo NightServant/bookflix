@@ -110,3 +110,14 @@ test('with the documented eager loads a fetched row never lazy loads', function 
 test('attributes land on the article', function () {
     expect(htmlQuery(renderResultRow(resultMedia(), 'data-test="row" class="mb-3"'), '//article[@data-test="row"][contains(@class,"mb-3")]')->length)->toBe(1);
 });
+
+test('a page can add its own line under the facts through the slot, and a row without one has none', function () {
+    $media = resultMedia();
+
+    $with = renderedComponent('<x-result-row :media="$media"><p data-test="extra">Reading</p></x-result-row>', ['media' => $media]);
+    $without = renderResultRow($media);
+
+    expect(htmlQuery($with, '//article//p[@data-test="extra"]')->length)->toBe(1)
+        ->and(htmlQuery($without, '//article//p[@data-test="extra"]')->length)->toBe(0)
+        ->and(htmlQuery($without, '//article/div/div[@data-row-extra]')->length)->toBe(0);
+});

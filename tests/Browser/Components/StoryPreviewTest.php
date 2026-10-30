@@ -1,9 +1,10 @@
 <?php
 
 use App\Models\Media;
+use App\Models\User;
 
 beforeEach(function () {
-    enableLibraryRoute();
+    $this->actingAs(User::factory()->create());
 
     $this->media = Media::factory()->count(3)->novel()->sequence(
         ['title' => 'Frankenstein', 'slug' => 'frankenstein'],

@@ -37,6 +37,23 @@ class UserFactory extends Factory
     }
 
     /**
+     * Readers are onboarded by default, so the pages under test are reachable (see EnsureOnboarded). The profile is written the way a saved
+     * setting writes it, so the other states can change it in either order. A reader who has not onboarded is `notOnboarded()`.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(fn (User $user) => $user->profile()->updateOrCreate([], ['onboarded_at' => now()]));
+    }
+
+    /**
+     * Indicate that the reader has not been through onboarding, like one who just registered.
+     */
+    public function notOnboarded(): static
+    {
+        return $this->afterCreating(fn (User $user) => $user->profile()->updateOrCreate([], ['onboarded_at' => null]));
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

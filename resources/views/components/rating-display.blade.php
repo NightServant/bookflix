@@ -4,20 +4,22 @@
 ])
 
 {{--
-    The read-only rating: `average` is `media.average_rating` (0-10, a decimal or its string) drawn as five stars in half-star steps
-    (D-14), with `count` (`media.ratings_count`) beside it. Screen readers get the sentence ("Rated 4.5 out of 5 from 1,234 ratings"),
-    never the stars. Without ratings it says "No ratings yet". The input that writes a rating is <x-rating-input>.
+    The read-only rating: `average` is `media.average_rating` (0-5, the blend of every source's average; a decimal or its string) drawn as
+    five stars in half-star steps (D-14), with `count` (`media.ratings_count`) beside it when there is one. Screen readers get the sentence
+    ("Rated 4.5 out of 5 from 1,234 ratings"), never the stars. A source can give an average and no count (MangaDex): the average is shown as
+    it is, with no count. Only when there is no average does it say "No ratings yet". The input that writes a reader's own rating (a score of
+    1 to 10, shown on the same five stars) is <x-rating-input>.
 --}}
 @php
     $count = (int) $count;
-    $rated = filled($average) && $count > 0;
-    $score = $rated ? max(0, min(10, (float) $average)) : 0;
-    $halves = (int) round($score);
+    $rated = filled($average) && ((float) $average > 0 || $count > 0);
+    $score = $rated ? max(0, min(5, (float) $average)) : 0;
+    $halves = (int) round($score * 2);
 @endphp
 
 @if ($rated)
     <p {{ $attributes->class('inline-flex items-center gap-2') }}>
-        <span class="sr-only">{{ trans_choice('Rated :average out of 5 from :total rating|Rated :average out of 5 from :total ratings', $count, ['average' => number_format($score / 2, 1), 'total' => number_format($count)]) }}</span>
+        <span class="sr-only">{{ $count > 0 ? trans_choice('Rated :average out of 5 from :total rating|Rated :average out of 5 from :total ratings', $count, ['average' => number_format($score, 1), 'total' => number_format($count)]) : __('Rated :average out of 5', ['average' => number_format($score, 1)]) }}</span>
 
         <span aria-hidden="true" class="inline-flex gap-0.5">
             @foreach (range(1, 5) as $star)
@@ -33,7 +35,7 @@
             @endforeach
         </span>
 
-        <span aria-hidden="true" class="text-meta tabular-nums text-ink-subtle">{{ number_format($score / 2, 1) }} ({{ number_format($count) }})</span>
+        <span aria-hidden="true" class="text-meta tabular-nums text-ink-subtle">{{ number_format($score, 1) }}@if ($count > 0) ({{ number_format($count) }})@endif</span>
     </p>
 @else
     <p {{ $attributes->class('text-meta text-ink-subtle') }}>{{ __('No ratings yet') }}</p>

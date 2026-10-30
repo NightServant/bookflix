@@ -125,18 +125,21 @@ class MangaDexProvider implements MetadataProvider
         [$genres, $themes, $tags] = $this->tags($attributes['tags'] ?? null);
         $description = $this->plainText($this->localized($attributes['description'] ?? null));
 
+        $verdict = $this->classifyMediaType(new ClassificationSignals(
+            provider: $this->key(),
+            title: $title,
+            alternativeTitles: $titles,
+            description: $description,
+            subjects: [...$genres, ...$themes, ...$tags],
+            chapterCount: ctype_digit($chapters) && (int) $chapters > 0 ? (int) $chapters : null,
+            country: self::COUNTRIES[$language] ?? null,
+            language: $language,
+        ));
+
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
-                provider: $this->key(),
-                title: $title,
-                alternativeTitles: $titles,
-                description: $description,
-                subjects: [...$genres, ...$themes, ...$tags],
-                chapterCount: ctype_digit($chapters) && (int) $chapters > 0 ? (int) $chapters : null,
-                country: self::COUNTRIES[$language] ?? null,
-                language: $language,
-            )),
+            mediaTypeSlug: $verdict->slug,
+            additionalMediaTypes: $verdict->additional,
             alternativeTitles: array_slice(array_values(array_diff($titles, [$title])), 0, 25),
             description: $description,
             creators: $this->creators($payload['relationships'] ?? null),

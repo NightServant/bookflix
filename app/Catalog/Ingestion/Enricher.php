@@ -56,6 +56,11 @@ class Enricher
         }
 
         $media->save();
+
+        // The other types the work also is follow its main type: its own provider sets them, and the type lock covers them too.
+        if ($authoritative && ! in_array('media_type_id', $media->locked_fields, true) && $incoming->mediaTypeSlug !== '') {
+            $media->additionalTypes()->sync(MediaType::query()->whereIn('slug', array_diff($incoming->additionalMediaTypes, [$incoming->mediaTypeSlug]))->pluck('id')->all());
+        }
     }
 
     private function isEmpty(mixed $value): bool

@@ -3,7 +3,9 @@
 use App\Access\MatureAccess;
 use App\Catalog\Taxonomy\LegacyTaxonomy;
 use App\Classification\DeweyCounts;
+use App\Discovery\EditorialCollections;
 use App\Discovery\Search\HybridSearch;
+use App\Discovery\Shelf;
 use App\Enums\MediaFamily;
 use App\Livewire\FilteredPage;
 use App\Models\Genre;
@@ -151,9 +153,11 @@ new #[Title('Discover')] class extends FilteredPage {
         // Kept ten minutes as `[type id => count]` (the cache refuses to unserialize models), once for readers who may see mature titles and once for the rest.
         $viewer = auth()->user();
         $counts = Cache::remember('discover:type-counts:v2:'.MatureAccess::cacheKey($viewer), 600, fn (): array => Media::query()->unmerged()->visibleTo($viewer)->selectRaw('media.media_type_id, count(*) as total')->groupBy('media.media_type_id')->pluck('total', 'media_type_id')->map(fn (mixed $total): int => (int) $total)->all());
+        // A book that is more than one type is on each of its tiles, and counted once in the catalogue (`main_count`).
+        $also = Cache::remember('discover:additional-type-counts:v1:'.MatureAccess::cacheKey($viewer), 600, fn (): array => Media::query()->unmerged()->visibleTo($viewer)->join('media_additional_types as additional', 'additional.media_id', '=', 'media.id')->selectRaw('additional.media_type_id, count(*) as total')->groupBy('additional.media_type_id')->pluck('total', 'media_type_id')->map(fn (mixed $total): int => (int) $total)->all());
 
         return MediaType::query()->orderBy('name')->get()
-            ->each(fn (MediaType $type) => $type->setAttribute('stories_count', $counts[$type->id] ?? 0))
+            ->each(fn (MediaType $type) => $type->setAttribute('main_count', $counts[$type->id] ?? 0)->setAttribute('stories_count', ($counts[$type->id] ?? 0) + ($also[$type->id] ?? 0)))
             ->filter(fn (MediaType $type): bool => $type->stories_count > 0)
             ->sortByDesc('stories_count')
             ->values();
@@ -213,6 +217,17 @@ new #[Title('Discover')] class extends FilteredPage {
     public function collage(): array
     {
         return $this->types->map(fn (MediaType $type): ?string => $this->covers[$type->id][0] ?? null)->filter()->take(3)->values()->all();
+    }
+
+    /**
+     * The staff picks as themed shelves: the editorial collections with something in them that the reader may see.
+     *
+     * @return SupportCollection<int, Shelf>
+     */
+    #[Computed]
+    public function editorial(): SupportCollection
+    {
+        return app(EditorialCollections::class)->shelves(auth()->user());
     }
 
     /**
@@ -355,11 +370,12 @@ new #[Title('Discover')] class extends FilteredPage {
 }; ?>
 
 @php
-    $total = $this->types->sum('stories_count');
+    $total = $this->types->sum('main_count');
     $hasCatalog = $total > 0;
     $quickLinks = collect([
-        ['label' => __('Continue reading'), 'route' => 'library', 'icon' => 'book-open'],
+        ['label' => __('My library'), 'route' => 'library.index', 'icon' => 'book-open'],
         ['label' => __('My collections'), 'route' => 'collections.index', 'icon' => 'rectangle-stack'],
+        ['label' => __('My history'), 'route' => 'history.index', 'icon' => 'clock'],
     ])->filter(fn (array $link): bool => Route::has($link['route']))->values()->all();
 @endphp
 
@@ -398,6 +414,8 @@ new #[Title('Discover')] class extends FilteredPage {
     @if ($quickLinks !== [])
         <x-quick-links :links="$quickLinks" class="mt-8" />
     @endif
+
+    <x-editorial-shelves :shelves="$this->editorial" class="mt-12 lg:mt-16" />
 
     @if ($hasCatalog)
         <section aria-labelledby="formats-title" class="mt-12 lg:mt-16">

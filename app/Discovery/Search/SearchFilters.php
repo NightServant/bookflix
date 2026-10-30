@@ -7,7 +7,6 @@ use App\Catalog\Taxonomy\LegacySlugs;
 use App\Enums\PublicationStatus;
 use App\Models\DeweyClass;
 use App\Models\Media;
-use App\Models\MediaType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
@@ -99,7 +98,7 @@ final readonly class SearchFilters
             languages: self::strings($input['languages'] ?? []),
             yearFrom: filter_var($input['yearFrom'] ?? null, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
             yearTo: filter_var($input['yearTo'] ?? null, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
-            minRating: filter_var($input['minRating'] ?? null, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE),
+            minRating: self::minStars($input['minRating'] ?? null),
             statuses: array_values(array_filter(self::strings($input['statuses'] ?? []), fn (string $status): bool => PublicationStatus::tryFrom($status) !== null)),
             length: in_array($input['length'] ?? null, self::LENGTHS, true) ? $input['length'] : null,
             creatorIds: self::ids($input['creatorIds'] ?? []),
@@ -110,6 +109,30 @@ final readonly class SearchFilters
             ratings: array_values(array_filter(self::strings($input['ratings'] ?? []), fn (string $rating): bool => in_array($rating, self::RATINGS, true))),
             excludeWarnings: self::strings($input['excludeWarnings'] ?? []),
         );
+    }
+
+    /**
+     * The least average rating, in stars (0 to 5, the scale of `media.average_rating`), a value of the reader rating filter stands for, or null for none.
+     * The filter once took the ten point scale ("8" for 4 stars) and old links still carry it, so a value above 5 is read as that scale and halved;
+     * anything that is not a number from 0 to 10, or is 0, filters nothing.
+     */
+    public static function minStars(mixed $value): ?float
+    {
+        $number = is_scalar($value) ? filter_var($value, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE) : null;
+
+        if ($number === null || ! is_finite($number) || $number <= 0 || $number > 10) {
+            return null;
+        }
+
+        return $number > 5 ? $number / 2 : $number;
+    }
+
+    /**
+     * A star rating as the filter panel and the chip name it: "4", "3.5", never "4.00".
+     */
+    public static function starsKey(float $stars): string
+    {
+        return rtrim(rtrim(number_format($stars, 2, '.', ''), '0'), '.');
     }
 
     /**
@@ -138,7 +161,7 @@ final readonly class SearchFilters
     {
         return $query
             ->unless($this->matureAccess, fn (Builder $media) => $media->withoutMature())
-            ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->whereIn('media.media_type_id', MediaType::query()->whereIn('slug', $slugs)->select('id')))
+            ->when($this->mediaTypes, fn (Builder $media, array $slugs) => $media->ofTypes($slugs))
             ->when($this->genres, fn (Builder $media, array $slugs) => $media->inGenres($slugs))
             ->when($this->themes, fn (Builder $media, array $slugs) => $media->whereHas('themes', fn (Builder $themes) => $themes->whereIn('themes.slug', $slugs)))
             ->when($this->tropes, fn (Builder $media, array $slugs) => $media->whereHas('tropes', fn (Builder $tropes) => $tropes->whereIn('tropes.slug', $slugs)))

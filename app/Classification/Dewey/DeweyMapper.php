@@ -32,8 +32,9 @@ class DeweyMapper
     {
         $media->loadMissing(['mediaType', 'genres', 'themes', 'tags']);
 
+        // Nonfiction is shelved by its subject, which only its codes and subject keywords know; literature would be a wrong guess.
         $candidates = match ($media->mediaType->family) {
-            MediaFamily::Prose => [$this->literature($media, $media->genres->isNotEmpty() ? 0.85 : 0.75)],
+            MediaFamily::Prose => $media->mediaType->slug === 'nonfiction' ? [] : [$this->literature($media, $media->genres->isNotEmpty() ? 0.85 : 0.75)],
             MediaFamily::Interactive => [$this->literature($media, 0.70)],
             MediaFamily::SequentialArt, MediaFamily::Illustrated => $this->comics($media),
         };

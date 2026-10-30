@@ -4,6 +4,7 @@
     One search result in list view: a small 2:3 cover, the linked title, creators, the facts line, a two-line blurb and up to four
     genre chips. The grid view of the same results is a plain <x-cover-tile>. The cover also links to the story, but only for
     pointers: it is out of the tab order and hidden from screen readers, so the title is the one link.
+    The slot is an optional line of the page's own under the facts (the library puts the status and the date added there).
     Rows are rendered from fetched media, and `preventLazyLoading` is on, so eager-load these first:
     `mediaType`, `publicPrimaryDewey.deweyClass` (story-info), `creators` and `genres`. Give each row a `wire:key` in the loop.
 --}}
@@ -31,6 +32,10 @@
         @endif
 
         <x-story-info :media="$media" class="mt-1" />
+
+        @if ($slot->isNotEmpty())
+            <div data-row-extra class="mt-2">{{ $slot }}</div>
+        @endif
 
         @if ($media->description)
             <p class="mt-2 line-clamp-2 text-body text-ink-subtle">{{ $media->description }}</p>

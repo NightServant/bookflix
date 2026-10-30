@@ -36,6 +36,17 @@ test('a work and edition normalize to NormalizedMedia', function () {
     Http::assertSent(fn ($r) => $r->hasHeader('User-Agent', config('bookflix.provider_user_agent')));
 });
 
+test('a Dewey class written with prime marks keeps its place, and it is weighed with the rest', function () {
+    $record = new ProviderRecord('openlibrary', 'OL1W', [
+        'work' => ['title' => 'Attack on Titan', 'subjects' => ['Comics & graphic novels, manga']],
+        'editions' => [['publish_date' => '2012', 'publishers' => ['Yen Press'], 'dewey_decimal_class' => ['741.5/95195']]],
+    ], null, CarbonImmutable::now());
+
+    $media = app(OpenLibraryProvider::class)->normalize($record);
+
+    expect($media->externalDeweyCode)->toBe('741.595195')->and($media->mediaTypeSlug)->toBe('manhwa');
+});
+
 test('find returns null for a 404', function () {
     Http::fake(['openlibrary.org/*' => Http::response(null, 404)]);
     expect(app(OpenLibraryProvider::class)->find('OL0W'))->toBeNull();

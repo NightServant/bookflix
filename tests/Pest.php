@@ -12,6 +12,8 @@ use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
 use App\Enums\ReviewStatus;
+use App\Models\Collection as StoryCollection;
+use App\Models\CollectionItem;
 use App\Models\ContentWarning;
 use App\Models\Creator;
 use App\Models\DeweyClass;
@@ -25,12 +27,17 @@ use App\Models\Publisher;
 use App\Models\Series;
 use App\Models\Tag;
 use App\Models\Theme;
+use App\Models\User;
+use App\Models\UserInteraction;
 use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Queue\Connectors\ConnectorInterface;
+use Illuminate\Queue\SyncQueue;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
@@ -212,7 +219,7 @@ function fullMedia(): Media
         'title' => 'Dune',
         'alternative_titles' => ['Duna'],
         'description' => 'A desert planet and the spice that rules it.',
-        'average_rating' => '9.0',
+        'average_rating' => '4.5',
         'ratings_count' => 120,
     ]);
 
@@ -248,13 +255,111 @@ function search(string $query, ?SearchFilters $filters = null): LengthAwarePagin
 }
 
 /**
- * Register the Phase 5 `library.store` route the Add to Library CTAs wait for, as the library will once it exists.
+ * The names of the interactions recorded so far, oldest first.
+ *
+ * @return list<string>
  */
-function enableLibraryRoute(): void
+function interactionEvents(): array
 {
-    Route::middleware('web')->post('/library', fn () => response()->noContent())->name('library.store');
+    return UserInteraction::orderBy('id')->get()->map(fn (UserInteraction $row): string => $row->event->value)->all();
+}
 
-    app('router')->getRoutes()->refreshNameLookups();
+/**
+ * Make the default queue one that only notes what it is given, and that holds a job flagged `afterCommit` back until the open transaction commits
+ * (and forgets it on a rollback), as a real driver does. The sync queue runs a job at once and Queue::fake ignores the flag, so neither can show it.
+ * `$queue->pushed` lists the class of each job that reached the queue, in order.
+ */
+function recordingQueue(): SyncQueue
+{
+    $queue = new class extends SyncQueue
+    {
+        /** @var list<class-string> */
+        public array $pushed = [];
+
+        public function push($job, $data = '', $queue = null)
+        {
+            return $this->enqueueUsing($job, $this->createPayload($job, $queue, $data), $queue, null, function () use ($job): int {
+                $this->pushed[] = $job::class;
+
+                return 0;
+            });
+        }
+    };
+
+    $queue->setContainer(app());
+    $queue->setConnectionName('recording');
+
+    app('queue')->addConnector('recording', fn (): ConnectorInterface => new class($queue) implements ConnectorInterface
+    {
+        public function __construct(private readonly SyncQueue $queue) {}
+
+        public function connect(array $config): SyncQueue
+        {
+            return $this->queue;
+        }
+    });
+    config(['queue.connections.recording' => ['driver' => 'recording'], 'queue.default' => 'recording']);
+
+    return $queue;
+}
+
+/**
+ * A story behind the mature gate: tagged with a mature family genre.
+ */
+function matureStory(string $title = 'Erotic Tale'): Media
+{
+    $media = Media::factory()->create(['title' => $title]);
+    $media->genres()->attach(Genre::factory()->mature()->create());
+
+    return $media;
+}
+
+/**
+ * What the readers' aggregate (the synthetic `bookflix` source) holds for one metric of this story, or null when it holds none.
+ */
+function bookflixMetric(Media $media, string $metric): ?float
+{
+    $value = DB::table('media_metrics')
+        ->where('media_id', $media->id)
+        ->where('metric', $metric)
+        ->whereIn('external_source_id', ExternalSource::where('key', 'bookflix')->select('id'))
+        ->value('value');
+
+    return $value === null ? null : (float) $value;
+}
+
+/**
+ * Give this story a provider's metrics (`ratings_count`, `average_rating` on the 0-5 scale, and so on), creating the provider's source when missing.
+ * The story's own rating columns are not touched: run `MediaRatings::blend` or the aggregate job to fold them in.
+ *
+ * @param  array<string, int|float>  $metrics
+ */
+function providerMetrics(Media $media, string $provider, array $metrics): ExternalSource
+{
+    $source = ExternalSource::where('key', $provider)->first() ?? ExternalSource::factory()->create(['key' => $provider]);
+
+    foreach ($metrics as $metric => $value) {
+        DB::table('media_metrics')->insert(['media_id' => $media->id, 'external_source_id' => $source->id, 'metric' => $metric, 'value' => $value, 'observed_at' => now()]);
+    }
+
+    return $source;
+}
+
+/**
+ * A collection of these stories in this order, owned by this reader.
+ *
+ * @param  list<Media>  $stories
+ * @param  array<string, mixed>  $attributes
+ */
+function collectionOf(User $owner, array $stories, array $attributes = []): StoryCollection
+{
+    $collection = StoryCollection::factory()->for($owner)->create($attributes);
+
+    foreach ($stories as $position => $story) {
+        CollectionItem::factory()->for($collection)->for($story)->create(['position' => $position]);
+    }
+
+    return $collection;
 }
 
 /**

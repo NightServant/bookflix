@@ -59,7 +59,39 @@ return [
         ['label' => 'Home', 'icon' => 'home', 'route' => 'home', 'active' => ['home']],
         ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'discover', 'active' => ['discover', 'explore.*']],
         ['label' => 'Search', 'icon' => 'magnifying-glass', 'route' => 'search', 'active' => ['search'], 'desktop' => false],
-        ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit']],
+        ['label' => 'Library', 'icon' => 'book-open', 'route' => 'library.index', 'active' => ['library.*', 'collections.*', 'history.*']],
+        ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Collections
+    |--------------------------------------------------------------------------
+    |
+    | The most stories one collection may hold. A collection page lists them all
+    | in one reorderable list, so the page stays bounded. `max_per_reader` is how
+    | many collections one reader may keep, so the lists of them stay bounded too.
+    |
+    */
+
+    'collections' => [
+        'max_items' => 300,
+        'max_per_reader' => 200,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Library Writes
+    |--------------------------------------------------------------------------
+    |
+    | How many changes one reader may make to their library in a minute through
+    | the pages (status, favorite, progress, rating, collections and the stories
+    | in them), counted together for all of them. Looking is not limited.
+    |
+    */
+
+    'library' => [
+        'writes_per_minute' => 60,
     ],
 
     'privacy' => [
@@ -70,6 +102,26 @@ return [
 
         'deactivated_retention_days' => (int) env('BOOKFLIX_DEACTIVATED_RETENTION_DAYS', 30),
 
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Data Export
+    |--------------------------------------------------------------------------
+    |
+    | "Export my data" (Settings, Privacy) writes one zip per reader to `disk` and
+    | emails a signed link that works for `link_hours`. The disk holds a reader's
+    | whole history: it must be private, and a public disk is refused. A file is
+    | deleted after `retention_days`, and a reader may ask again after
+    | `cooldown_minutes`.
+    |
+    */
+
+    'exports' => [
+        'disk' => env('BOOKFLIX_EXPORT_DISK', 'local'),
+        'link_hours' => 24,
+        'retention_days' => 7,
+        'cooldown_minutes' => 10,
     ],
 
     /*
@@ -211,6 +263,8 @@ return [
     |
     | `bookflix:score-popularity` ranks every (source, metric) pair as a percentile
     | and averages a media's ranks with these weights. A metric not listed weighs 1.
+    | The readers' own rating aggregate (the synthetic `bookflix` source) is left
+    | out until Phase 6 gives it a place in the recommender.
     |
     */
 

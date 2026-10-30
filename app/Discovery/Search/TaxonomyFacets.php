@@ -217,18 +217,18 @@ class TaxonomyFacets
     }
 
     /**
-     * @return array<int, string> minimum rating (on the ten point scale) to label
+     * @return array<int|string, string> least average rating, in stars on the 0 to 5 scale of `media.average_rating` (see SearchFilters::starsKey), to label
      */
     public function minRatings(): array
     {
-        return ['6' => (string) __('3 stars and up'), '7' => (string) __('3.5 stars and up'), '8' => (string) __('4 stars and up'), '9' => (string) __('4.5 stars and up')];
+        return ['3' => (string) __('3+ stars'), '3.5' => (string) __('3.5+ stars'), '4' => (string) __('4+ stars'), '4.5' => (string) __('4.5+ stars')];
     }
 
     /**
      * The label of every value of every filter group, as `group => [slug => label]`: what the chips above the results are named from. Genres are
      * every family and subgenre the reader may be offered, flattened.
      *
-     * @return array{mediaTypes: array<string, string>, statuses: array<string, string>, genres: array<string, string>, themes: array<string, string>, tropes: array<string, string>, demographics: array<string, string>, ratings: array<string, string>, excludeWarnings: array<string, string>, languages: array<string, string>, lengths: array<string, string>, minRatings: array<int, string>}
+     * @return array{mediaTypes: array<string, string>, statuses: array<string, string>, genres: array<string, string>, themes: array<string, string>, tropes: array<string, string>, demographics: array<string, string>, ratings: array<string, string>, excludeWarnings: array<string, string>, languages: array<string, string>, lengths: array<string, string>, minRatings: array<int|string, string>}
      */
     public function labels(bool $includeMature = false): array
     {

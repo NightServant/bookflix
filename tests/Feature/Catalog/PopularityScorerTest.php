@@ -44,6 +44,28 @@ test('weights decide how much each metric counts', function () {
     expect($popular->fresh()->popularity_score)->toBe(0.75)->and($rated->fresh()->popularity_score)->toBe(0.25);
 });
 
+test('the readers source carries no popularity weight: its metrics move nobody', function () {
+    $anilist = ExternalSource::factory()->create(['key' => 'anilist']);
+    $readers = ExternalSource::factory()->create(['key' => 'bookflix']);
+    [$low, $high, $readersOnly] = Media::factory()->count(3)->create();
+
+    foreach ([[$low, 10], [$high, 1000]] as [$media, $ratings]) {
+        metric($media, $anilist, 'ratings_count', $ratings);
+    }
+
+    // The readers' rows would lift $low to the top of their own ranking, and give $readersOnly a score, if they were weighed.
+    foreach ([[$low, 90], [$high, 5], [$readersOnly, 40]] as [$media, $ratings]) {
+        metric($media, $readers, 'ratings_count', $ratings);
+        metric($media, $readers, 'average_rating', 4.5);
+    }
+
+    expect(app(PopularityScorer::class)->run())->toBe(2);
+
+    $scores = Media::pluck('popularity_score', 'id');
+
+    expect($scores[$high->id])->toBe(1.0)->and($scores[$low->id])->toBe(0.0)->and($scores[$readersOnly->id])->toBe(0.0);
+});
+
 test('trending orders by popularity score, then ratings count', function () {
     $a = Media::factory()->create(['popularity_score' => 0.2, 'ratings_count' => 900]);
     $b = Media::factory()->create(['popularity_score' => 0.9, 'ratings_count' => 1]);

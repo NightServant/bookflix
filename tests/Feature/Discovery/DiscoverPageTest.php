@@ -2,8 +2,10 @@
 
 use App\Models\Genre;
 use App\Models\Media;
+use App\Models\MediaType;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Database\Seeders\MediaTypeSeeder;
 use Database\Seeders\TaxonomySeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -52,6 +54,18 @@ test('a type filter lists only that type and a genre filter only that genre', fu
     Livewire::test('pages::discover.index')->set('type', 'manga')->assertSee('Manga One')->assertSee('Manga Two')->assertDontSee('Novel One');
     Livewire::test('pages::discover.index')->set('genre', 'action')->assertSee('Manga One')->assertSee('Novel One')->assertDontSee('Manga Two');
     Livewire::test('pages::discover.index')->set('type', 'novel')->set('genre', 'action')->assertSee('Novel One')->assertDontSee('Manga One');
+});
+
+test('a book that is two types counts on both tiles but once in the catalogue total', function () {
+    $watchmen = Media::factory()->ofType('comic-book')->create();
+    $watchmen->additionalTypes()->attach(MediaType::firstOrCreate(['slug' => 'graphic-novel'], MediaTypeSeeder::TYPES['graphic-novel']));
+    Media::factory()->ofType('comic-book')->create();
+
+    $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
+    $tiles = collect(htmlQuery($html, '//a[@data-format-tile]/span[1]'))->map(fn ($tile) => trim(preg_replace('/\s+/', ' ', $tile->textContent)));
+
+    expect($tiles->all())->toBe(['Comic Book 2 stories', 'Graphic Novel 1 story'])
+        ->and($html)->toContain('2 stories');
 });
 
 test('type tiles show counts', function () {
@@ -114,9 +128,6 @@ test('the top genres show their counts and link to the filtered view', function 
 });
 
 test('quick links point at existing routes', function () {
-    Route::get('/library', fn () => '')->name('library');
-    app('router')->getRoutes()->refreshNameLookups();
-
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
     $links = htmlQuery($html, '//nav[@aria-label="Quick links"]//a');
 
@@ -130,9 +141,10 @@ test('quick links point at existing routes', function () {
 test('quick links only list destinations that exist yet', function () {
     $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
 
-    expect($html)->not->toContain('Continue reading')->not->toContain('My collections')
+    expect($html)->not->toContain('Continue reading')
         ->not->toContain('Filter the catalog')->not->toContain('Browse by subject')
-        ->and(htmlQuery($html, '//nav[@aria-label="Quick links"]')->length)->toBe(0);
+        ->and(collect(htmlQuery($html, '//nav[@aria-label="Quick links"]//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all())
+        ->toBe(['My library', 'My collections', 'My history']);
 });
 
 test('discover opens with the search panel and ends its subject row with the way into the library', function () {
@@ -243,4 +255,10 @@ test('a genre family filter lists the stories of its subgenres, and an old genre
     Livewire::test('pages::discover.index')->set('genre', 'drama-and-human-relationships')->assertSee('Courtroom')->assertDontSee('Isekai Hero');
     Livewire::test('pages::discover.index')->set('genre', 'mystery-crime-and-thriller')->assertSee('Courtroom');
     Livewire::test('pages::discover.index')->set('genre', 'drama')->assertSee('Courtroom')->assertDontSee('Isekai Hero');
+});
+
+test('the library quick link opens the library', function () {
+    $html = $this->actingAs(User::factory()->create())->get(route('discover'))->getContent();
+
+    expect(htmlQuery($html, '//nav[@aria-label="Quick links"]//a[@href="'.route('library.index').'"][normalize-space()="My library"]')->length)->toBe(1);
 });

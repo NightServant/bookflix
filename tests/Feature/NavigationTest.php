@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Illuminate\Support\Facades\Route;
 
 test('the profile item is current on every settings page', function (string $routeName) {
     $response = $this->actingAs(User::factory()->create())
@@ -19,7 +20,7 @@ test('the profile item is current on every settings page', function (string $rou
         ->and($navs['bottom'])
         ->toMatch('#<a\s+href="'.$profile.'"[^>]*aria-current="page"#')
         ->not->toMatch('#<a\s+href="'.$home.'"[^>]*aria-current="page"#');
-})->with(['profile.edit', 'security.edit', 'privacy.edit']);
+})->with(['profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']);
 
 test('the discover item is current on every explore page', function (string $routeName, array $parameters) {
     $this->seed(DeweySeeder::class);
@@ -75,3 +76,37 @@ test('search is in the bottom nav only: the desktop header has the palette trigg
     expect($navs['header'])->not->toMatch('#<a href="'.$search.'"#')
         ->and($navs['bottom'])->toMatch('#<a\s+href="'.$search.'"#');
 });
+
+test('the primary navigation is home, discover, search, library and profile on a phone, without search on a desktop', function () {
+    $response = $this->actingAs(User::factory()->create())->get(route('home'))->assertOk();
+
+    $navs = primaryNavs($response->getContent());
+    $labels = fn (string $nav) => collect(htmlQuery($nav, '//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all();
+
+    expect($labels($navs['bottom']))->toBe(['Home', 'Discover', 'Search', 'Library', 'Profile'])
+        ->and($labels($navs['header']))->toBe(['Home', 'Discover', 'Library', 'Profile']);
+});
+
+test('the library item is current on the library page and only there', function () {
+    $response = $this->actingAs(User::factory()->create())->get(route('library.index'))->assertOk();
+
+    $navs = primaryNavs($response->getContent());
+    $library = preg_quote(route('library.index'), '#');
+    $home = preg_quote(route('home'), '#');
+
+    expect($navs['header'])
+        ->toMatch('#<a href="'.$library.'"[^>]*data-current="data-current"#')
+        ->not->toMatch('#<a href="'.$home.'"[^>]*data-current="data-current"#')
+        ->and($navs['bottom'])
+        ->toMatch('#<a\s+href="'.$library.'"[^>]*aria-current="page"#')
+        ->not->toMatch('#<a\s+href="'.$home.'"[^>]*aria-current="page"#');
+});
+
+test('the library item stays current on the pages that sit under it', function (string $name) {
+    Route::middleware('web')->get('/_test/'.$name, fn () => view('layouts.app', ['slot' => 'x']))->name($name);
+    app('router')->getRoutes()->refreshNameLookups();
+
+    $navs = primaryNavs($this->actingAs(User::factory()->create())->get('/_test/'.$name)->getContent());
+
+    expect($navs['bottom'])->toMatch('#<a\s+href="'.preg_quote(route('library.index'), '#').'"[^>]*aria-current="page"#');
+})->with(['collections.index', 'collections.show', 'history.index']);

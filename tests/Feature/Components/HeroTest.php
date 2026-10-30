@@ -2,6 +2,7 @@
 
 use App\Models\Genre;
 use App\Models\Media;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
@@ -64,8 +65,8 @@ test('the eyebrow is the media type and the first genre, then the title and a tw
         ->and(htmlQuery($html, '//article[@aria-label="1 of 2"]/p[contains(@class,"line-clamp-2")]')->length)->toBe(1);
 });
 
-test('each slide offers a primary view story link and, with the library route, a quiet add to library button', function () {
-    enableLibraryRoute();
+test('each slide offers a primary view story link and, for a reader, a quiet add to library button', function () {
+    $this->actingAs(User::factory()->create());
     $slides = heroSlides(2);
     $html = renderHero(slides: $slides);
 
@@ -73,10 +74,23 @@ test('each slide offers a primary view story link and, with the library route, a
         ->and(htmlQuery($html, '//article[@aria-label="2 of 2"]//button[normalize-space()="Add to Library"][contains(@class,"text-body!")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//article[@aria-label="2 of 2"]//a[contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(1)
         ->and(htmlQuery($html, '//button[normalize-space()="Add to Library"][contains(@class,"bg-[var(--color-accent)]")]')->length)->toBe(0)
-        ->and($html)->toContain('library-add');
+        ->and($html)->toContain("\$dispatch('library-add', { id: {$slides[1]->id} })");
 });
 
-test('a slide has no add to library button while the library route is missing', function () {
+test('the add to library button is also a form that posts to the library, for a browser without scripts', function () {
+    $this->actingAs(User::factory()->create());
+    $slides = heroSlides(2);
+    $html = renderHero(slides: $slides);
+
+    $form = '//article[@aria-label="2 of 2"]//form[@method="POST"][@action="'.route('library.store').'"]';
+
+    expect(htmlQuery($html, $form)->length)->toBe(1)
+        ->and(htmlQuery($html, $form.'/input[@name="_token"]')->length)->toBe(1)
+        ->and(htmlQuery($html, $form.'/input[@type="hidden"][@name="media_id"][@value="'.$slides[1]->id.'"]')->length)->toBe(1)
+        ->and(htmlQuery($html, $form.'//button[@type="submit"][normalize-space()="Add to Library"]')->length)->toBe(1);
+});
+
+test('a guest sees no add to library button', function () {
     $html = renderHero(slides: heroSlides(2));
 
     expect($html)->not->toContain('library-add')->not->toContain('Add to Library')

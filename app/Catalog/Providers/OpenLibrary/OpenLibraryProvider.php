@@ -267,17 +267,21 @@ class OpenLibraryProvider implements MetadataProvider
         $language = self::LANGUAGES[basename($this->text($primary['languages'][0]['key'] ?? null))] ?? null;
         $pages = is_int($primary['number_of_pages'] ?? null) && $primary['number_of_pages'] > 0 ? $primary['number_of_pages'] : null;
 
+        $verdict = $this->classifyMediaType(new ClassificationSignals(
+            provider: $this->key(),
+            title: $title,
+            description: $description,
+            subjects: $subjects,
+            publishers: $this->publishers($editions),
+            pageCount: $pages,
+            language: $language,
+            deweyCode: $this->deweyCode($editions),
+        ));
+
         return new NormalizedMedia(
             title: $title,
-            mediaTypeSlug: $this->classifyMediaType(new ClassificationSignals(
-                provider: $this->key(),
-                title: $title,
-                description: $description,
-                subjects: $subjects,
-                publishers: $this->publishers($editions),
-                pageCount: $pages,
-                language: $language,
-            )),
+            mediaTypeSlug: $verdict->slug,
+            additionalMediaTypes: $verdict->additional,
             description: $description,
             creators: array_map(
                 fn (string $name) => new NormalizedCreator($name, CreatorRole::Author),
@@ -375,7 +379,8 @@ class OpenLibraryProvider implements MetadataProvider
     }
 
     /**
-     * The first Dewey class an edition carries, as `813.54` (Open Library stores `813/.54`).
+     * The first Dewey class an edition carries, as `813.54` (Open Library stores `813/.54`). Prime marks can sit anywhere in the number
+     * (`741.5/952`), and the digits after one are the place, so they are all dropped rather than cutting the class short.
      *
      * @param  list<array<string, mixed>>  $editions
      */
@@ -383,7 +388,7 @@ class OpenLibraryProvider implements MetadataProvider
     {
         foreach ($editions as $edition) {
             foreach ($this->asArray($edition['dewey_decimal_class'] ?? null) as $class) {
-                if (is_string($class) && preg_match('#^(\d{3})(?:/?\.(\d+))?#', trim($class), $match)) {
+                if (is_string($class) && preg_match('#^(\d{3})(?:\.(\d+))?#', str_replace(['/', "'"], '', trim($class)), $match)) {
                     return $match[1].(isset($match[2]) ? ".{$match[2]}" : '');
                 }
             }
