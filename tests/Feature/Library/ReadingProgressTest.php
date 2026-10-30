@@ -2,6 +2,7 @@
 
 use App\Actions\Library\AddToLibrary;
 use App\Actions\Library\LogProgress;
+use App\Actions\Library\RemoveFromLibrary;
 use App\Discovery\ContinueReading;
 use App\Discovery\Shelf;
 use App\Enums\ReadingStatus;
@@ -113,6 +114,33 @@ test('reaching 100 completes the story once', function () {
     app(LogProgress::class)->handle($user, $media, 5);
     app(LogProgress::class)->handle($user, $media, 100);
     expect(UserInteraction::where('event', 'reading_complete')->count())->toBe(1)->and($user->library()->sole()->completed_at->equalTo($first))->toBeTrue();
+});
+
+test('finishing, taking the story out of the library and logging 100 again does not record a second completion', function () {
+    $user = User::factory()->create();
+    $media = Media::factory()->create();
+    app(LogProgress::class)->handle($user, $media, 100);
+
+    // The library entry goes (and with it completed_at); the place the reader reached stays.
+    app(RemoveFromLibrary::class)->handle($user, $media);
+    expect($user->library()->count())->toBe(0)->and((float) ReadingProgress::sole()->percent)->toBe(100.0);
+
+    app(LogProgress::class)->handle($user, $media, 100);
+
+    expect(UserInteraction::where('event', 'reading_complete')->count())->toBe(1)
+        ->and($user->library()->sole()->status)->toBe(ReadingStatus::Completed);
+});
+
+test('a story put back after being taken out and read to the end again is completed a second time', function () {
+    $user = User::factory()->create();
+    $media = Media::factory()->create();
+    app(LogProgress::class)->handle($user, $media, 100);
+    app(RemoveFromLibrary::class)->handle($user, $media);
+    app(LogProgress::class)->handle($user, $media, 20);
+
+    app(LogProgress::class)->handle($user, $media, 100);
+
+    expect(UserInteraction::where('event', 'reading_complete')->count())->toBe(2);
 });
 
 test('moving backwards neither lowers completed_at nor changes the completed status', function () {

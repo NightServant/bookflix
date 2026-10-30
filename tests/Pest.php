@@ -34,6 +34,8 @@ use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Queue\Connectors\ConnectorInterface;
+use Illuminate\Queue\SyncQueue;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -260,6 +262,45 @@ function search(string $query, ?SearchFilters $filters = null): LengthAwarePagin
 function interactionEvents(): array
 {
     return UserInteraction::orderBy('id')->get()->map(fn (UserInteraction $row): string => $row->event->value)->all();
+}
+
+/**
+ * Make the default queue one that only notes what it is given, and that holds a job flagged `afterCommit` back until the open transaction commits
+ * (and forgets it on a rollback), as a real driver does. The sync queue runs a job at once and Queue::fake ignores the flag, so neither can show it.
+ * `$queue->pushed` lists the class of each job that reached the queue, in order.
+ */
+function recordingQueue(): SyncQueue
+{
+    $queue = new class extends SyncQueue
+    {
+        /** @var list<class-string> */
+        public array $pushed = [];
+
+        public function push($job, $data = '', $queue = null)
+        {
+            return $this->enqueueUsing($job, $this->createPayload($job, $queue, $data), $queue, null, function () use ($job): int {
+                $this->pushed[] = $job::class;
+
+                return 0;
+            });
+        }
+    };
+
+    $queue->setContainer(app());
+    $queue->setConnectionName('recording');
+
+    app('queue')->addConnector('recording', fn (): ConnectorInterface => new class($queue) implements ConnectorInterface
+    {
+        public function __construct(private readonly SyncQueue $queue) {}
+
+        public function connect(array $config): SyncQueue
+        {
+            return $this->queue;
+        }
+    });
+    config(['queue.connections.recording' => ['driver' => 'recording'], 'queue.default' => 'recording']);
+
+    return $queue;
 }
 
 /**

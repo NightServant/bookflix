@@ -8,6 +8,7 @@ use App\Models\Media;
 use App\Models\SearchQuery;
 use App\Models\User;
 use App\Models\UserInteraction;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 
@@ -64,6 +65,38 @@ test('an opted out user queues nothing', function () {
 
     Queue::assertNothingPushed();
     expect(UserInteraction::count())->toBe(0);
+});
+
+test('an interaction waits for the open transaction to commit, and a rollback drops it', function () {
+    $queue = recordingQueue();
+    $user = User::factory()->create();
+    $media = Media::factory()->create();
+
+    try {
+        DB::transaction(function () use ($queue, $user, $media): void {
+            app(InteractionRecorder::class)->record($user, InteractionEvent::LibraryAdd, $media);
+
+            expect($queue->pushed)->toBe([]);
+
+            throw new RuntimeException('rolled back');
+        });
+    } catch (RuntimeException) {
+        // The transaction is gone, and so is what the reader did in it.
+    }
+
+    expect($queue->pushed)->toBe([]);
+
+    DB::transaction(fn () => app(InteractionRecorder::class)->record($user, InteractionEvent::LibraryAdd, $media));
+
+    expect($queue->pushed)->toBe([RecordInteraction::class]);
+});
+
+test('outside a transaction an interaction is queued at once', function () {
+    $queue = recordingQueue();
+
+    app(InteractionRecorder::class)->record(User::factory()->create(), InteractionEvent::View, Media::factory()->create());
+
+    expect($queue->pushed)->toBe([RecordInteraction::class]);
 });
 
 test('the queued job inserts the row with the dispatch time', function () {

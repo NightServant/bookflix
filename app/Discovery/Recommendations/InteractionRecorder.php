@@ -9,7 +9,7 @@ use App\Models\User;
 
 /**
  * The one place an interaction is recorded from. A reader who opted out of personalization produces nothing, whichever path asks, and the write
- * is queued, so a page never waits for it. What is kept is narrow on purpose: no IP address, no user agent, and only the context keys below.
+ * is queued, so a page never waits for it. Inside a transaction the job waits for the commit, so a rollback leaves no interaction behind. What is kept is narrow on purpose: no IP address, no user agent, and only the context keys below.
  */
 class InteractionRecorder
 {
@@ -25,6 +25,6 @@ class InteractionRecorder
             return;
         }
 
-        RecordInteraction::dispatch($user->id, $event, $media?->id, array_intersect_key($context, array_flip(self::CONTEXT_KEYS)), $value, now());
+        RecordInteraction::dispatch($user->id, $event, $media?->id, array_intersect_key($context, array_flip(self::CONTEXT_KEYS)), $value, now())->afterCommit();
     }
 }

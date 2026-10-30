@@ -2,7 +2,9 @@
 
 use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
+use App\Events\LibraryChanged;
 use App\Http\Middleware\EnsureOnboarded;
+use App\Jobs\RecordInteraction;
 use App\Models\Genre;
 use App\Models\LibraryEntry;
 use App\Models\Media;
@@ -15,6 +17,7 @@ use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Livewire\Livewire;
 
 /**
@@ -345,6 +348,36 @@ test('finishing saves the preferences, adds the stories as completed with the on
         ->and(interactionEvents())->toBe(['library_add', 'library_add', 'library_add']);
 
     $this->get(route('home'))->assertOk();
+});
+
+test('a finish that fails half way leaves no library entries, no onboarding mark and no interaction queued', function () {
+    onboardingTaxonomy();
+    $stories = onboardingStories(3);
+    $this->actingAs($user = User::factory()->notOnboarded()->create());
+    $queue = recordingQueue();
+
+    // The third add fails after the first two were recorded.
+    $adds = 0;
+    Event::listen(LibraryChanged::class, function () use (&$adds): void {
+        ++$adds === 3 && throw new RuntimeException('the third add failed');
+    });
+
+    expect(fn () => Livewire::test('pages::onboarding.index')->set('stories', onboardingIds($stories))->call('finish'))->toThrow(RuntimeException::class, 'the third add failed');
+
+    expect($queue->pushed)->toBe([])
+        ->and($user->library()->count())->toBe(0)
+        ->and($user->fresh()->profile->onboarded_at)->toBeNull();
+});
+
+test('a finish that works queues one interaction for each story once it has committed', function () {
+    onboardingTaxonomy();
+    $stories = onboardingStories(3);
+    $this->actingAs(User::factory()->notOnboarded()->create());
+    $queue = recordingQueue();
+
+    Livewire::test('pages::onboarding.index')->set('stories', onboardingIds($stories))->call('finish')->assertRedirect(route('home'));
+
+    expect($queue->pushed)->toBe([RecordInteraction::class, RecordInteraction::class, RecordInteraction::class]);
 });
 
 test('an opted out reader finishes the same way and leaves no interaction rows', function () {

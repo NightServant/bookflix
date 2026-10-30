@@ -19,8 +19,9 @@ use Illuminate\Validation\ValidationException;
  * appended to the history, and the story is put in the library if it is not there. The caller decides who the reader is and whether they may see the story.
  *
  * The status follows the log. A story that was wanted, paused or abandoned becomes Reading (a log is the reader picking it up). Reaching 100
- * completes it, once: `completed_at` is set the first time only and `reading_complete` is recorded only while there is no `completed_at`, so a
- * re-read, a move back, or logging 100 again counts nothing twice. A completed story stays completed when the reader logs a lower percent.
+ * completes it, once: `completed_at` is set the first time only and `reading_complete` is recorded only while there is no `completed_at` and the
+ * place logged before was below 100, so a re-read, a move back, or logging 100 again (also after the story was taken out of the library and put
+ * back, which loses `completed_at` but not the place) counts nothing twice. A completed story stays completed when the reader logs a lower percent.
  * Signals: `reading_start` on the first log of a story that was not yet Reading (one already set to Reading by hand had its start stamped then),
  * `reading_progress` on every log with the distance moved (never negative), and `reading_complete`. An opted-out reader records none of them
  * (see InteractionRecorder) but keeps progress and history. Two logs of one story at once are serialized on the library row.
@@ -78,7 +79,8 @@ class LogProgress
             $events[] = [InteractionEvent::ReadingProgress, round(max(0.0, $to - $from), 2)];
 
             if ($to >= 100.0) {
-                $entry->completed_at === null && $events[] = [InteractionEvent::ReadingComplete, null];
+                // Not for a reader already at 100: the entry may be new (the story was taken out of the library and put back), but the story was finished before.
+                $entry->completed_at === null && $from < 100.0 && $events[] = [InteractionEvent::ReadingComplete, null];
 
                 $entry->update(['status' => ReadingStatus::Completed, 'started_at' => $entry->started_at ?? now(), 'completed_at' => $entry->completed_at ?? now()]);
             } elseif ($picksUp) {
