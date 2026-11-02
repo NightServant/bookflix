@@ -195,16 +195,16 @@ new #[Title('Discover')] class extends FilteredPage {
     {
         $viewer = auth()->user();
 
-        return Cache::remember('discover:covers:v2:'.MatureAccess::cacheKey($viewer), 600, fn (): array => DB::query()
+        return Cache::remember('discover:covers:v3:'.MatureAccess::cacheKey($viewer), 600, fn (): array => DB::query()
             ->fromSub(
-                Media::query()->unmerged()->visibleTo($viewer)->whereNotNull('media.cover_url')->selectRaw('media.media_type_id, media.cover_url, row_number() over (partition by media.media_type_id order by media.ratings_count desc, media.id) as position')->toBase(),
+                Media::query()->unmerged()->visibleTo($viewer)->whereNotNull('media.cover_url')->selectRaw('media.id, media.media_type_id, media.cover_url, row_number() over (partition by media.media_type_id order by media.ratings_count desc, media.id) as position')->toBase(),
                 'ranked',
             )
             ->where('position', '<=', 3)
             ->orderBy('media_type_id')->orderBy('position')
             ->get()
             ->groupBy('media_type_id')
-            ->map(fn (SupportCollection $rows): array => $rows->pluck('cover_url')->all())
+            ->map(fn (SupportCollection $rows): array => $rows->map(fn (stdClass $row): string => (string) Media::displayCover((int) $row->id, $row->cover_url))->all())
             ->all());
     }
 

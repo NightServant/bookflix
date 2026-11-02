@@ -29,6 +29,8 @@ class ExternalSourceSeeder extends Seeder
                 'name' => 'MangaDex',
                 'base_url' => 'https://mangadex.org',
                 'attribution' => 'Manga data and covers from MangaDex (mangadex.org).',
+                // MangaDex refuses its images to other sites, so its covers are served from our own copy.
+                'cover_policy' => CoverPolicy::Cache,
             ],
             'mangaupdates' => [
                 'name' => 'MangaUpdates',
