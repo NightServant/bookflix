@@ -76,19 +76,18 @@ test('the top 10 lists the ten most popular stories with a cover, numbered 1 to 
 
     expect(landingTexts($html, '//section[@data-section="top-ten"]//ol[@aria-label]//li/span[@class="sr-only"]'))->toBe($expected)
         ->and(landingTexts($html, '//section[@data-section="top-ten"]//ol[@aria-label]//span[contains(@class,"landing-top__rank")]'))->toBe(array_map('strval', range(1, 10)))
-        ->and(htmlQuery($html, '//section[@data-section="top-ten"]//ol')->length)->toBe(2)
-        ->and(landingTexts($html, '//section[@data-section="top-ten"]//ol[@aria-hidden="true"]//span[contains(@class,"landing-top__rank")]'))->toBe(array_map('strval', range(1, 10)))
+        ->and(htmlQuery($html, '//section[@data-section="top-ten"]//ol')->length)->toBe(1)
         ->and($html)->not->toContain('Hit Without Cover');
 });
 
-test('the top 10 copy is hidden from assistive tech and offers nothing to tab to; the posters link nowhere', function () {
+test('the top 10 is one still list sharing the heading container: no posters to tab to, nothing to pause', function () {
     popularStories(12);
 
     $html = $this->get(route('landing'))->getContent();
 
-    expect(htmlQuery($html, '//section[@data-section="top-ten"]//ol[@aria-hidden="true"]//a | //section[@data-section="top-ten"]//ol[@aria-hidden="true"]//button')->length)->toBe(0)
-        ->and(htmlQuery($html, '//section[@data-section="top-ten"]//ol//a')->length)->toBe(0)
-        ->and(htmlQuery($html, '//section[@data-section="top-ten"]//button[@aria-pressed]')->length)->toBe(1);
+    expect(htmlQuery($html, '//section[@data-section="top-ten"]//a | //section[@data-section="top-ten"]//button')->length)->toBe(0)
+        ->and(htmlQuery($html, '//section[@data-section="top-ten"]//*[@aria-hidden="true"]//li')->length)->toBe(0)
+        ->and(htmlQuery($html, '//section[@data-section="top-ten"]//h2/ancestor::div[contains(@class,"max-w-[100rem]")]//ol[contains(@class,"landing-top")]')->length)->toBe(1);
 });
 
 test('the hero shows seven books picked at random from the forty most popular, the front one as the scene book', function () {
@@ -185,27 +184,14 @@ test('the call to action buttons go to register and login: the header, the closi
         ->and(htmlQuery($html, '//footer//a[@href="'.route('login').'"]')->length)->toBe(1);
 });
 
-test('the sign-up box under the FAQ posts a labelled email to the start route', function () {
+test('the FAQ ends with its five questions and the page has no email sign-up box', function () {
     popularStories(12);
 
     $html = $this->get(route('landing'))->getContent();
 
-    expect(htmlQuery($html, '//form[@id="start"][@method="POST"][@action="'.route('landing.start').'"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//form[@id="start"]//input[@name="_token"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//form[@id="start"]//input[@type="email"][@name="email"][@required][@id="start-email"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//form[@id="start"]//label[@for="start-email"]')->length)->toBe(1);
-});
-
-test('a bad email shows its message in the sign-up box, tied to the input', function () {
-    popularStories(12);
-
-    $this->from(route('landing'))->post(route('landing.start'), ['email' => 'nope']);
-
-    $html = $this->get(route('landing'))->getContent();
-
-    expect(htmlQuery($html, '//input[@id="start-email"][@aria-invalid="true"][@aria-describedby="start-error"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//*[@id="start-error"][@role="alert"]')->length)->toBe(1)
-        ->and($html)->toContain('value="nope"');
+    expect(htmlQuery($html, '//section[@data-section="faq"]//form | //section[@data-section="faq"]//input')->length)->toBe(0)
+        ->and(htmlQuery($html, '//main//input[@type="email"]')->length)->toBe(0)
+        ->and(htmlQuery($html, '//section[@data-section="faq"]//*[@data-faq-item]')->length)->toBe(5);
 });
 
 test('the footer credits the data sources and has a legal line', function () {

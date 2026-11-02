@@ -5,24 +5,6 @@
 const reducedMotion = '(prefers-reduced-motion: reduce)';
 
 export default function landing(Alpine) {
-    // The Top 10 marquee: a pause button (WCAG 2.2.2) and a flag for reduced motion, where the list scrolls by hand and so must take focus.
-    Alpine.data('landingMarquee', () => ({
-        paused: false,
-        reduced: window.matchMedia(reducedMotion).matches,
-
-        init() {
-            const query = window.matchMedia(reducedMotion);
-            const change = (event) => (this.reduced = event.matches);
-
-            query.addEventListener('change', change);
-            this.off = () => query.removeEventListener('change', change);
-        },
-
-        destroy() {
-            this.off?.();
-        },
-    }));
-
     /*
      * The walkthrough: on a wide screen with motion allowed, the product preview pins beside a column of statements and swaps as each
      * statement passes a line a third of the way down the viewport (`data-live` turns the pinned layout on in CSS, and `data-current` marks the step
