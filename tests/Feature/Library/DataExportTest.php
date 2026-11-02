@@ -593,7 +593,7 @@ test('the download is refused after 30 requests a minute to that reader alone, a
     // The other throttled routes count on their own: one request each, before and after the downloads.
     $this->actingAs($user);
     expect($remaining($this->post(route('library.store'), ['media_id' => $story->id])))->toBe(59)
-        ->and($remaining($this->get(route('covers.show', $story))))->toBe(119);
+        ->and($remaining($this->get(route('covers.show', $story))))->toBe(599);
 
     $link = exportLink($user);
 
@@ -608,7 +608,7 @@ test('the download is refused after 30 requests a minute to that reader alone, a
 
     // Past its limit the reader is still let into the other routes, which have not counted the refused downloads.
     expect($remaining($this->post(route('library.store'), ['media_id' => $story->id])))->toBe(58)
-        ->and($remaining($this->get(route('covers.show', $story))))->toBe(118);
+        ->and($remaining($this->get(route('covers.show', $story))))->toBe(598);
 
     // Another reader has a count of their own.
     $this->actingAs($other);

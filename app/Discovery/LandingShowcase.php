@@ -29,7 +29,7 @@ class LandingShowcase
      */
     public function pool(): array
     {
-        return Cache::remember('landing:pool:v3', now()->addMinutes(self::CACHE_MINUTES), fn (): array => array_values(Media::query()
+        return Cache::remember('landing:pool:v4', now()->addMinutes(self::CACHE_MINUTES), fn (): array => array_values(Media::query()
             ->trending()
             ->visibleTo(null)
             ->whereNotNull('media.cover_url')
@@ -40,7 +40,7 @@ class LandingShowcase
                 'title' => $media->title,
                 'cover' => (string) $media->cover_url,
                 'popularity' => round((float) $media->popularity_score, 3),
-                'scene' => route('covers.show', ['media' => $media->id, 'v' => substr(sha1((string) $media->cover_url), 0, 8)], false),
+                'scene' => route('covers.show', ['media' => $media->id, 'v' => substr(sha1((string) $media->coverSourceUrl()), 0, 8)], false),
             ])
             ->all()));
     }

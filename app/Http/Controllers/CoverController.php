@@ -12,7 +12,8 @@ use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Streams a media's own stored cover from our origin, so WebGL can texture it without CORS. Not an open proxy: the URL is never
+ * Streams a media's own stored cover from our origin, so WebGL can texture it without CORS and a host that refuses its images to other
+ * sites (MangaDex, whose source has the `cache` cover policy) still shows. Not an open proxy: the URL is never
  * taken from the request, only from the media row, and only https hosts the providers allow are fetched (without following redirects).
  */
 class CoverController extends Controller
@@ -23,7 +24,7 @@ class CoverController extends Controller
 
     public function show(Media $media): Response
     {
-        $url = $media->cover_url;
+        $url = $media->coverSourceUrl();
 
         abort_unless(is_string($url) && $this->isAllowed($url), 404);
 
