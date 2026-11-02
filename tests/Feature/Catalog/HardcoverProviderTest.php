@@ -162,9 +162,20 @@ test('a genre almost no reader gave is dropped, so one vote for Comics does not 
     'New Moon' => [['Fantasy' => 8, 'Romance' => 8, 'Juvenile Fiction' => 2, 'General' => 2, 'Graphic Novels' => 1, 'Young Adult' => 1, 'Comics' => 1], ['title' => 'New Moon', 'subtitle' => 'The Graphic Novel', 'pages' => 497], 'novel'],
     'Heartstopper' => [['LGBTQ' => 8, 'Young Adult' => 6, 'Romance' => 5, 'Graphic Novels' => 5, 'Comics' => 2, 'Lgbt' => 2, 'Boys' => 1], ['title' => 'Heartstopper: Volume One', 'subtitle' => 'Volume One', 'pages' => 263], 'graphic-novel'],
     'Maus' => [['Graphic Novels' => 4, 'History' => 2, 'General' => 1, 'Biography' => 1, 'Comics' => 1, 'War' => 1], ['title' => 'Maus', 'subtitle' => "A Survivor's Tale", 'pages' => 295], 'graphic-novel'],
+    'Huckleberry Finn, one Comics vote against four for Classics' => [['Classics' => 4, 'Adventure' => 2, 'Young Adult' => 2, 'Comics' => 1, 'Realistic Fiction' => 1, 'History' => 1, 'Humor' => 1, 'Friendship' => 1], ['title' => 'The Adventures of Huckleberry Finn', 'subtitle' => "Man's Place in History", 'pages' => 327], 'novel'],
+    'Journey to the Center of the Earth, one Comics vote against two' => [['Science Fiction' => 2, 'Fantasy' => 1, 'Young Adult' => 1, 'Adventure' => 1, 'Thriller' => 1, 'Comics' => 1, 'Literature' => 1, 'Classics' => 1], ['title' => 'Journey to the Center of the Earth', 'pages' => 191], 'novel'],
     'every tag at one vote keeps them all' => [['Fantasy' => 1, 'Dystopian' => 1, 'Comics' => 1, 'Adventure' => 1], ['title' => 'Tower of God', 'pages' => 288], 'graphic-novel'],
     'Atomic Habits' => [['Nonfiction' => 40, 'Self Help' => 30, 'Business' => 12, 'Psychology' => 10, 'Personal Development' => 9, 'Fantasy' => 1], ['title' => 'Atomic Habits', 'pages' => 320], 'nonfiction'],
 ]);
+
+test('a book every reader tagged once is read on its other evidence, and "Roman" is a novel', function () {
+    $book = hardcoverBook(1, ['title' => 'The Screwtape Letters', 'subtitle' => 'Annotated Edition', 'pages' => 272, 'contributions' => [['contribution' => 'Author', 'author' => ['name' => 'C. S. Lewis']]], 'cached_tags' => [
+        'Genre' => array_map(fn (string $tag) => ['tag' => $tag, 'count' => 1], ['Classics', 'Fantasy', 'General', 'Comics', 'Religion', 'RELIGION/Spirituality', 'roman', 'RELIGION/Christian Life / Spiritual Warfare']),
+        'Tag' => array_map(fn (string $tag) => ['tag' => $tag, 'count' => 3], ['Character driven', 'Weak Character Development', 'Not Diverse Characters', 'Unloveable Characters']),
+    ]]);
+
+    expect(app(HardcoverProvider::class)->normalize(new ProviderRecord('hardcover', '1', $book, null, now()->toImmutable()))->mediaTypeSlug)->toBe('novel');
+});
 
 test('the dropped genres are not stored either', function () {
     $media = app(HardcoverProvider::class)->normalize(votedBook(['Classics' => 17, 'Literary Fiction' => 5, 'Comics' => 1, 'Biography' => 1]));

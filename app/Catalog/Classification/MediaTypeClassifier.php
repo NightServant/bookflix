@@ -483,7 +483,8 @@ class MediaTypeClassifier
             $flags['webnovel'] = true;
         }
 
-        if ($has(['novel', 'novels', 'novella', 'novellas', 'short stories', 'short story'])) {
+        // "Roman" is the novel in French, German and Dutch catalogues; only the bare word, so "Roman Empire" is not one.
+        if ($has(['novel', 'novels', 'novella', 'novellas', 'short stories', 'short story', 'roman'])) {
             $add(self::PROSE, 3.0, 'novel subject');
             $form['novel'] += 3.0;
         }

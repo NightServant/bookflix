@@ -25,6 +25,9 @@ class HardcoverProvider implements MetadataProvider
 
     private const PAGE_SIZE = 50;
 
+    /** Tags that name the format of the book rather than its genre. */
+    private const FORMAT_TAG = '/\b(?:comics?|graphic novels?|manga|manhwa|manhua|webtoons?|web ?comics?|light novels?|visual novels?|picture books?)\b/i';
+
     private const FIELDS = <<<'GRAPHQL'
         id slug title subtitle description release_year release_date pages users_count users_read_count rating ratings_count updated_at
         image { url }
@@ -159,7 +162,9 @@ class HardcoverProvider implements MetadataProvider
      * `cached_tags` maps a category to its tags: {"Genre": [{"tag": "Fantasy", "count": 12}], "Mood": [...], "Content Warning": [...], "Tag": [...]}.
      * Each category keeps its ten most applied tags. Genres and tags are reader votes pooled across every edition, adaptations included, so one
      * that under a quarter of the top one's voters gave is noise ("Comics" once on The Great Gatsby, for its graphic adaptation) and is dropped.
-     * Moods and content warnings are kept whatever their count: a single warning still matters.
+     * A format tag ("Comics", "Manga") one reader gave is dropped too when another tag has more voters: on a little-tagged book (Huckleberry
+     * Finn, four votes at most) the quarter is a single vote, and one reader's "Comics" would decide the type. Moods and content warnings are
+     * kept whatever their count: a single warning still matters.
      *
      * @return array{Genre: list<string>, Mood: list<string>, 'Content Warning': list<string>, Tag: list<string>}
      */
@@ -177,7 +182,9 @@ class HardcoverProvider implements MetadataProvider
             foreach (array_slice($entries, 0, 10) as $entry) {
                 $name = $this->text($entry['tag'] ?? null);
 
-                if ($name !== '' && $votes($entry) >= $floor) {
+                $lone = $votes($entry) <= 1.0 && $votes($entries[0]) > 1.0 && preg_match(self::FORMAT_TAG, $name) === 1;
+
+                if ($name !== '' && $votes($entry) >= $floor && ! $lone) {
                     $out[$category][] = $name;
                 }
             }
