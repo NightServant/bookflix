@@ -2,8 +2,8 @@
     Five questions about Bookflix as full-width stacked buttons on the input gray, large type, a plus on the right that turns into a
     close, and the answer in the same gray just below with a hairline of canvas between (the pattern of big-streaming-service FAQs,
     drawn here in Bookflix's own tokens). Each question is a real button (`aria-expanded`, `aria-controls`) over a `region` named by it;
-    one answer is open at a time; Up, Down, Home and End move between the questions (resources/js/landing.js, `landingFaq`). Under it, the
-    sign-up box: an email the sign-up form will already have filled in (POST /start keeps it out of the URL).
+    one answer is open at a time; Up, Down, Home and End move between the questions (resources/js/landing.js, `landingFaq`). The section
+    ends with the questions: the closing section below carries the page's one Get started.
 --}}
 @php
     $faqs = [
@@ -55,32 +55,5 @@
                 </div>
             @endforeach
         </div>
-
-        <form id="start" method="POST" action="{{ route('landing.start') }}" class="mt-14 scroll-mt-24 text-center lg:mt-20" novalidate>
-            @csrf
-            <p class="mx-auto max-w-2xl text-lead text-ink text-balance">{{ __('Ready to build your library? Enter your email to create your account.') }}</p>
-
-            <div class="mx-auto mt-6 flex max-w-2xl flex-col gap-3 text-start sm:flex-row sm:items-start">
-                <div class="min-w-0 flex-1">
-                    <label for="start-email" class="sr-only">{{ __('Email address') }}</label>
-                    <input
-                        id="start-email"
-                        type="email"
-                        name="email"
-                        value="{{ old('email') }}"
-                        required
-                        autocomplete="email"
-                        placeholder="{{ __('Email address') }}"
-                        @error('email') aria-invalid="true" aria-describedby="start-error" @enderror
-                        class="focus-ring block min-h-14 w-full rounded-control border border-border-input bg-canvas/60 px-4 text-lead font-normal text-ink placeholder:text-ink-subtle aria-invalid:border-red-400"
-                    >
-                    @error('email')
-                        <p id="start-error" role="alert" class="mt-2 text-meta text-red-400">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <x-cta type="submit" icon:trailing="arrow-right" class="min-h-14! px-6! text-lead!">{{ __('Get started') }}</x-cta>
-            </div>
-        </form>
     </div></div>
 </section>
