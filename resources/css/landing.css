@@ -1,6 +1,6 @@
 /*
  * The public landing page (resources/views/welcome.blade.php and resources/views/components/landing/*). Only what Tailwind utilities
- * cannot say lives here: the hero's stage of books, the Top 10 marquee and its outlined numerals. Everything is tokens from app.css;
+ * cannot say lives here: the hero's stage of books, the Top 10 grid and its outlined numerals. Everything is tokens from app.css;
  * every animation is switched off under prefers-reduced-motion at the end of its own block.
  */
 
@@ -115,80 +115,57 @@
 }
 
 /*
- * Top 10: a marquee of posters in front of outlined numerals. The track holds the list twice; moving it by exactly one list (-50%)
- * loops without a seam, because each list ends in the same gap it is separated by. The size of everything is in rem, so the track
- * has its final height before any poster loads (no layout shift). Hover or focus inside, or `data-paused`, stops it.
+ * Top 10: a still grid of posters in front of outlined numerals, two rows of five from a tablet up and two to a row on a phone. Each
+ * cell is a size container: the poster takes the end 62% of it and the numeral, sized to the cell, stands at its start behind the poster,
+ * so every poster is the same size; "10" is drawn smaller so its zero is not lost behind the poster. The poster's aspect ratio gives the grid its final height before a single
+ * cover loads (no layout shift).
  */
-.landing-marquee {
-    --gap: 0.75rem;
-    --poster: 11rem;
-    --duration: 90s;
-    overflow: hidden;
-    mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
-
-    &:hover .landing-marquee__track,
-    &:focus-within .landing-marquee__track,
-    &[data-paused] .landing-marquee__track {
-        animation-play-state: paused;
-    }
-}
-
-/* A phone shows a poster and a bit: smaller posters (and numerals, which follow them) so two ranks share the screen. */
-@media (max-width: 39.99rem) {
-    .landing-marquee {
-        --poster: 8rem;
-    }
-}
-
-.landing-marquee__track {
-    display: flex;
-    width: max-content;
-    animation: landing-marquee var(--duration) linear infinite;
-}
-
-@keyframes landing-marquee {
-    to {
-        transform: translateX(-50%);
-    }
-}
-
 .landing-top {
-    display: flex;
-    flex-shrink: 0;
-    gap: var(--gap);
-    padding-inline-end: var(--gap);
-    padding-block: 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2rem 1rem;
+
+    @media (min-width: 48rem) {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 2.5rem 1.5rem;
+    }
 }
 
 .landing-top__item {
     position: relative;
     display: flex;
-    align-items: flex-end;
-    flex-shrink: 0;
+    justify-content: flex-end;
+    container-type: inline-size;
 }
 
-/* Dark fill, light-gray outline. `paint-order` puts the fill over the inside half of the stroke, so the outline is crisp and even. */
+/* Dark fill with a light stroke: the numeral reads as an outline on the canvas, and the poster in front hides what it overlaps. */
 .landing-top__rank {
     --stroke: color-mix(in srgb, var(--color-ink) 38%, var(--color-canvas));
-    position: relative;
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block-end: 0;
     z-index: 0;
-    margin-inline-end: -0.2em;
-    font-size: calc(var(--poster) * 1.52);
+    font-size: 72cqi;
     font-weight: 900;
     line-height: 0.74;
     letter-spacing: -0.07em;
     font-variant-numeric: tabular-nums;
     color: var(--color-canvas);
-    -webkit-text-stroke: 6px var(--stroke);
+    -webkit-text-stroke: 4px var(--stroke);
     paint-order: stroke fill;
     user-select: none;
+}
+
+.landing-top__rank--two {
+    font-size: 50cqi;
+    letter-spacing: -0.1em;
 }
 
 .landing-top__poster {
     position: relative;
     z-index: 1;
     display: block;
-    width: var(--poster);
+    width: 62%;
     aspect-ratio: 2 / 3;
     overflow: hidden;
     border-radius: var(--radius-card);
@@ -204,7 +181,7 @@
     }
 }
 
-/* The title shows over the foot of the poster on hover, on a scrim of the canvas colour. */
+/* The title, shown over the foot of the poster on hover. */
 .landing-top__title {
     position: absolute;
     inset: auto 0 0;
@@ -233,23 +210,8 @@
     }
 }
 
-/* Reduced motion: the loop stops, the copy goes, and the list is scrolled by hand (it is focusable, so the keyboard can). */
+/* Reduced motion: the poster does not grow on hover. */
 @media (prefers-reduced-motion: reduce) {
-    .landing-marquee {
-        overflow-x: auto;
-        mask-image: none;
-        scrollbar-width: thin;
-    }
-
-    .landing-marquee__track {
-        animation: none;
-        padding-inline: var(--spacing-gutter);
-    }
-
-    .landing-top[aria-hidden='true'] {
-        display: none;
-    }
-
     .landing-top__item:hover img {
         transform: none;
     }
