@@ -46,12 +46,12 @@ class Profile extends Model
     use HasFactory;
 
     /**
-     * Whatever saves the profile, a change to mature access or personalization drops the reader's cached home shelves.
+     * Whatever saves the profile, a new profile row (its first save is a change from the column defaults) or a change to mature access or personalization drops the reader's cached home shelves.
      */
     protected static function booted(): void
     {
         static::saved(function (self $profile): void {
-            if ($profile->wasChanged(['show_mature', 'adult_confirmed_at', 'personalization_enabled'])) {
+            if ($profile->wasRecentlyCreated || $profile->wasChanged(['show_mature', 'adult_confirmed_at', 'personalization_enabled'])) {
                 HomePreferencesChanged::dispatch($profile->user_id);
             }
         });

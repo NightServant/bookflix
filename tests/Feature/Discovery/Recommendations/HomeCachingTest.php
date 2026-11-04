@@ -174,3 +174,16 @@ test('a shelf title or tile label that names a title the reader can no longer se
         ->and($after->pluck('key')->all())->not->toContain('because-you-read', 'similar-to')
         ->and($text)->not->toContain($catalog[0]->title)->and($text)->not->toContain($catalog[7]->title);
 });
+
+test('creating the profile row with mature access on forgets the cached shelves', function () {
+    [$user] = richReader();
+    // A reader whose profile row does not exist yet is served by the column defaults; saving the first row is a change of preferences too.
+    DB::table('profiles')->where('user_id', $user->id)->delete();
+    $user = User::find($user->id);
+    app(ShelfBuilder::class)->forHome($user);
+    expect(Cache::has('home:shelves:'.$user->id.':gated'))->toBeTrue();
+
+    $user->profile()->create(['show_mature' => true, 'adult_confirmed_at' => now()]);
+
+    expect(Cache::has('home:shelves:'.$user->id.':gated'))->toBeFalse();
+});
