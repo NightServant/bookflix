@@ -24,7 +24,11 @@ class SeedItems
     /** Ratings from this score up make a story the reader's latest favorite for an explanation. */
     private const LOVED_FROM = 8;
 
-    /** The seeds of the build in progress, keyed by reader; null outside `during`, so nothing outlives a build. */
+    /**
+     * The seeds of the build in progress, keyed by reader; null outside `during`, so nothing outlives a build.
+     *
+     * @var array<int, Collection<int, float>>|null
+     */
     private ?array $memo = null;
 
     /**
