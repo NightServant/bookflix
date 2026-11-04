@@ -53,6 +53,15 @@ new #[Title('Models')] class extends Component {
     }
 
     /**
+     * @return array<string, bool> pipeline key => whether a run of it is in progress
+     */
+    #[Computed]
+    public function running(): array
+    {
+        return collect(self::PIPELINES)->map(fn (array $pipeline, string $key): bool => RunMlJob::isRunning($key))->all();
+    }
+
+    /**
      * Whether the ML service answers. This is an HTTP call made while the page renders, kept as simple as the client makes it.
      */
     #[Computed]
@@ -83,7 +92,11 @@ new #[Title('Models')] class extends Component {
             return;
         }
 
-        dispatch(RunMlJob::pipeline($pipeline));
+        if (! RunMlJob::dispatchPipeline($pipeline)) {
+            Flux::toast(variant: 'warning', text: __(':name is already running. Wait for it to finish before starting it again.', ['name' => __(self::PIPELINES[$pipeline][0])]));
+
+            return;
+        }
 
         Flux::toast(variant: 'success', text: __('Queued :name.', ['name' => __(self::PIPELINES[$pipeline][0])]));
     }
@@ -120,9 +133,15 @@ new #[Title('Models')] class extends Component {
 
     <div class="mt-4 flex flex-wrap gap-2">
         @foreach ($this->pipelines as $key => [$name, $icon])
-            <flux:button variant="filled" :icon="$icon" icon:variant="outline" wire:click="runNow('{{ $key }}')" data-test="run-now-{{ $key }}">
-                {{ __('Run :name', ['name' => __($name)]) }}
-            </flux:button>
+            @if ($this->running[$key])
+                <flux:button variant="filled" icon="arrow-path" icon:variant="outline" disabled data-test="run-now-{{ $key }}">
+                    {{ __(':name: running', ['name' => __($name)]) }}
+                </flux:button>
+            @else
+                <flux:button variant="filled" :icon="$icon" icon:variant="outline" wire:click="runNow('{{ $key }}')" data-test="run-now-{{ $key }}">
+                    {{ __('Run :name', ['name' => __($name)]) }}
+                </flux:button>
+            @endif
         @endforeach
     </div>
 

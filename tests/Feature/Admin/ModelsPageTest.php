@@ -52,6 +52,21 @@ test('run now queues the pipeline from its first step, for an admin only', funct
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 });
 
+test('run now is refused with a message while that pipeline is running, and its button shows it', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->call('runNow', 'lsa');
+    Bus::assertDispatchedTimes(RunMlJob::class, 1);
+
+    Livewire::test('pages::admin.models.index')
+        ->assertSeeHtml('data-test="run-now-lsa"')->assertSee('Text similarity: running')
+        ->call('runNow', 'lsa')->assertDispatched('toast-show', fn (string $event, array $params) => str_contains(json_encode($params), 'already running'));
+    Bus::assertDispatchedTimes(RunMlJob::class, 1);
+
+    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false]);
+});
+
 test('run now is refused once the reader is no longer an admin', function () {
     Bus::fake([RunMlJob::class]);
     $admin = User::factory()->admin()->create();

@@ -39,7 +39,7 @@ test('job status maps the contract and non 2xx throws', function () {
     expect($job['status'])->toBe('failed')->and($job['error'])->toBe('Not enough media to train.')->and($job['metrics'])->toBeNull();
 
     Http::fake(['ml.test/v1/jobs/ok' => Http::response(contract('job-succeeded.json'))]);
-    expect(app(MlClient::class)->job('ok'))->toMatchArray(['status' => 'succeeded', 'metrics' => ['items' => 1200, 'explained_variance' => 0.41]]);
+    expect(app(MlClient::class)->job('ok'))->toMatchArray(['status' => 'succeeded', 'metrics' => ['items' => 1200, 'explained_variance' => 0.41, 'version_id' => 42]]);
 
     Http::fake(['ml.test/v1/jobs/broken' => Http::response(null, 500)]);
     expect(fn () => app(MlClient::class)->job('broken'))->toThrow(MlServiceUnavailable::class);

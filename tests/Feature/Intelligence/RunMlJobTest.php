@@ -4,6 +4,7 @@ use App\Jobs\RunMlJob;
 use App\Ml\MlClient;
 use App\Ml\MlServiceUnavailable;
 use App\Models\MlJobRun;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 
@@ -52,14 +53,14 @@ test('starting a job records the run and polls it again in thirty seconds', func
 
 test('a successful step stores its metrics and chains the next step', function () {
     Bus::fake([RunMlJob::class]);
-    mlFake(['succeeded']);
+    mlFake(['succeeded'], metrics: ['items' => 3, 'version_id' => 7]);
     $run = MlJobRun::factory()->create(['name' => 'train-item-cf', 'run_id' => 'r1', 'status' => 'running']);
 
     runOnce(new RunMlJob('train-item-cf', [], [['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]], $run->id));
 
-    expect($run->refresh())->status->toBe('succeeded')->metrics->toBe(['items' => 3])->finished_at->not->toBeNull();
-    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['item_cf']]
-        && $job->then === [['evaluate', ['kind' => 'item_cf']]] && $job->mlJobRunId === null);
+    expect($run->refresh())->status->toBe('succeeded')->metrics->toBe(['items' => 3, 'version_id' => 7])->finished_at->not->toBeNull();
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['item_cf'], 'version_id' => 7]
+        && $job->then === [['evaluate', ['kind' => 'item_cf', 'version_id' => 7]]] && $job->mlJobRunId === null);
 });
 
 test('the last step ends the chain', function () {
@@ -138,4 +139,92 @@ test('a crash while polling fails the run that was open', function () {
 
     expect($run->refresh())->status->toBe('failed')->error->toBe('worker died')
         ->and(MlJobRun::count())->toBe(1);
+});
+
+test('a train step passes its version id to the steps after it', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['items' => 3, 'version_id' => 42]);
+    $run = MlJobRun::factory()->create(['name' => 'train-lsa', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-lsa', [], [['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]], $run->id));
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['lsa'], 'version_id' => 42]
+        && $job->then === [['evaluate', ['kind' => 'lsa', 'version_id' => 42]]]);
+});
+
+test('a train step that succeeds without a version id ends the chain with a failed row that says why', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['items' => 3]);
+    $run = MlJobRun::factory()->create(['name' => 'train-item-cf', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-item-cf', [], [['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]], $run->id, pipeline: 'item-cf'));
+
+    Bus::assertNotDispatched(RunMlJob::class);
+    expect($run->refresh()->status)->toBe('succeeded')
+        ->and(MlJobRun::where('status', 'failed')->sole())->name->toBe('build-similarities')->error->toContain('version_id');
+});
+
+test('only one run of a pipeline is accepted at a time, and the last step frees it', function () {
+    Bus::fake([RunMlJob::class]);
+
+    expect(RunMlJob::dispatchPipeline('lsa'))->toBeTrue()
+        ->and(RunMlJob::isRunning('lsa'))->toBeTrue()
+        ->and(RunMlJob::dispatchPipeline('lsa'))->toBeFalse()
+        ->and(RunMlJob::dispatchPipeline('item-cf'))->toBeTrue();
+    Bus::assertDispatchedTimes(RunMlJob::class, 2);
+
+    mlFake(['succeeded']);
+    $run = MlJobRun::factory()->create(['name' => 'evaluate', 'run_id' => 'r1', 'status' => 'running']);
+    runOnce(new RunMlJob('evaluate', ['kind' => 'lsa'], [], $run->id, pipeline: 'lsa'));
+
+    expect(RunMlJob::isRunning('lsa'))->toBeFalse()->and(RunMlJob::dispatchPipeline('lsa'))->toBeTrue();
+});
+
+test('a failed step frees its pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    RunMlJob::dispatchPipeline('lsa');
+    mlFake(['failed'], error: 'boom');
+    $run = MlJobRun::factory()->create(['name' => 'train-lsa', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-lsa', [], [['build-similarities', []]], $run->id, pipeline: 'lsa'));
+
+    expect(RunMlJob::isRunning('lsa'))->toBeFalse();
+});
+
+test('a job that gives up frees its pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    RunMlJob::dispatchPipeline('lsa');
+
+    (new RunMlJob('train-lsa', pipeline: 'lsa'))->failed(new RuntimeException('down'));
+
+    expect(RunMlJob::isRunning('lsa'))->toBeFalse();
+});
+
+test('a run the service no longer knows fails at once', function () {
+    Bus::fake([RunMlJob::class]);
+    Http::fake(['ml.test/v1/jobs/r1' => Http::response(['detail' => 'Unknown run'], 404)]);
+    $run = MlJobRun::factory()->create(['run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-lsa', [], [['build-similarities', []]], $run->id));
+
+    expect($run->refresh())->status->toBe('failed')->error->toContain('no longer knows');
+    Bus::assertNotDispatched(RunMlJob::class);
+});
+
+test('a retry after the next poll could not be queued reuses the run and starts no second service job', function () {
+    Http::fake(['ml.test/v1/jobs/*' => Http::response(['run_id' => 'r1'], 202)]);
+    $job = new RunMlJob('train-lsa');
+    $real = app(Dispatcher::class);
+    $this->mock(Dispatcher::class)->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('redis down'));
+
+    expect(fn () => $job->handle(app(MlClient::class)))->toThrow(RuntimeException::class);
+    expect(MlJobRun::count())->toBe(1);
+
+    app()->instance(Dispatcher::class, $real);
+    Bus::fake([RunMlJob::class]);
+    (unserialize(serialize($job)))->handle(app(MlClient::class));
+
+    expect(MlJobRun::count())->toBe(1);
+    Http::assertSentCount(1);
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $next) => $next->mlJobRunId === MlJobRun::sole()->id);
 });

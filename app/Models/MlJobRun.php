@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property string $name
+ * @property string|null $job_key The queued job that opened the run; a retry of it reuses the row.
  * @property string|null $run_id The ML service's id for the run, once it accepted the job.
  * @property string $status
  * @property array<string, mixed> $params
@@ -21,7 +22,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $started_at
  * @property Carbon|null $finished_at
  */
-#[Fillable(['name', 'run_id', 'status', 'params', 'metrics', 'error', 'started_at', 'finished_at'])]
+#[Fillable(['name', 'job_key', 'run_id', 'status', 'params', 'metrics', 'error', 'started_at', 'finished_at'])]
 class MlJobRun extends Model
 {
     /** @use HasFactory<MlJobRunFactory> */
