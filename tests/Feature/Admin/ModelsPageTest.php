@@ -27,7 +27,8 @@ test('the newest version comes first', function () {
     ModelVersion::factory()->create(['name' => 'newer', 'created_at' => now()]);
     $this->actingAs(User::factory()->admin()->create());
 
-    expect(Livewire::test('pages::admin.models.index')->instance()->versions->pluck('name')->all())->toBe(['newer', 'older']);
+    // The weight sets the migrations seed are in the table too.
+    expect(Livewire::test('pages::admin.models.index')->instance()->versions->pluck('name')->intersect(['newer', 'older'])->values()->all())->toBe(['newer', 'older']);
 });
 
 test('the page copes with an unreachable ml service', function () {

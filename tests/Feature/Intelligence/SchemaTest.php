@@ -210,3 +210,17 @@ test('the columns the python service reads exist', function () {
         expect(Schema::getColumnListing($table))->toContain(...$columns);
     }
 });
+
+test('the migration that seeds the weight sets creates the missing ones and never resets an existing one', function () {
+    $migration = require base_path('database/migrations/2026_11_06_000002_seed_weight_model_versions.php');
+    ModelVersion::query()->delete();
+    $custom = ModelVersion::factory()->active()->create(['name' => 'hybrid-weights', 'kind' => 'hybrid_weights', 'parameters' => ['content' => 1.0]]);
+
+    $migration->up();
+    $migration->up();
+
+    expect(ModelVersion::where('name', 'interaction-weights')->count())->toBe(1)
+        ->and(ModelVersion::activeFor('interaction-weights'))->not->toBeNull()
+        ->and(ModelVersion::where('name', 'hybrid-weights')->count())->toBe(1)
+        ->and($custom->refresh()->parameters)->toEqual(['content' => 1.0]);
+});

@@ -38,15 +38,15 @@ final readonly class Explanation
             ReasonType::SimilarThemes => self::with($this->reasonTitle, 'Similar themes to :title'),
             ReasonType::PopularWithSimilarReaders => self::with($this->reasonTitle, 'Popular with readers who enjoyed :title'),
             ReasonType::MatchesInterest => self::with($this->genre, 'Matches your interest in :genre', 'genre'),
-            ReasonType::Trending => __('Trending now'),
-            ReasonType::Editorial => __('Picked by our editors'),
-            ReasonType::NewRelease => __('New release'),
-            ReasonType::Exploration => __('Something different for you'),
+            ReasonType::Trending => (string) __('Trending now'),
+            ReasonType::Editorial => (string) __('Picked by our editors'),
+            ReasonType::NewRelease => (string) __('New release'),
+            ReasonType::Exploration => (string) __('Something different for you'),
         };
     }
 
     private static function with(?string $value, string $template, string $placeholder = 'title'): ?string
     {
-        return $value === null || trim($value) === '' ? null : __($template, [$placeholder => $value]);
+        return $value === null || trim($value) === '' ? null : (string) __($template, [$placeholder => $value]);
     }
 }
