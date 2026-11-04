@@ -69,6 +69,15 @@ def latest_candidate(conn: Conn, name: str) -> tuple[int, str] | None:
     return None if row is None else (int(row[0]), str(row[1]))
 
 
+def version_parameters(conn: Conn, version_id: int) -> dict[str, Any]:
+    """The parameters a version was created with (for item-cf: its weights and `k`)."""
+    row = conn.execute(
+        "select parameters from model_versions where id = %s", (version_id,)
+    ).fetchone()
+
+    return {} if row is None or row[0] is None else dict(row[0])
+
+
 def active_metrics(conn: Conn, name: str) -> dict[str, Any] | None:
     """The metrics of the active version of `name`, or None when none is active."""
     row = conn.execute(

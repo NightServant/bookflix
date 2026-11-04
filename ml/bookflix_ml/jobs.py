@@ -236,11 +236,28 @@ def _rank_for_user(
     return [m for m, _ in sorted(scores.items(), key=lambda p: (-p[1], p[0]))[:k]]
 
 
+def _held_out_neighbors(
+    conn: Conn, positive: dict[tuple[int, int], float], held: dict[int, int], k: int
+) -> dict[int, list[tuple[int, float]]]:
+    """Item-cf neighbors fitted in memory on `positive` minus each reader's held-out item. Only live media are kept, as in `build-similarities`."""
+    training = {key: s for key, s in positive.items() if held.get(key[0]) != key[1]}
+    live = db.fetch_live_media_ids(conn)
+
+    return {
+        m: [(n, s) for n, s in pairs if n in live]
+        for m, pairs in item_cf.item_neighbors(training, k).items()
+        if m in live
+    }
+
+
 def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Score the newest `candidate` of `kind` against each eligible reader's last positive item and promote it if the gate allows.
 
-    Candidates are ranked from their `media_similarities` rows (so `build-similarities` must have run). Interactions come from the same
-    eligible-reader export as training. The metrics, `promoted` and `reason` are stored on the candidate, and the promotion goes in
+    Interactions come from the same eligible-reader export as training. An `item_cf` candidate is scored on neighbors trained in memory
+    on the leave-last-out training split only, with the candidate's own weights and `k`, so a held-out item never helped build the
+    neighbors it is scored on; nothing is written to `media_similarities` for that (promotion still uses the stored candidate). `lsa`
+    learns from item text, not interactions, so it cannot leak a held-out interaction and is ranked from its stored `media_similarities`
+    rows (so `build-similarities` must have run). The metrics, `promoted` and `reason` are stored on the candidate, and the promotion goes in
     that same transaction. Too little data (fewer than two readers with two positive items, no rows) is recorded and promotes nothing. Any failure
     rolls back and re-raises, so no version or row changes; the job runner records the failure.
     """
@@ -256,7 +273,9 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     version_id, method = found
 
     try:
-        weights = db.fetch_interaction_weights(conn)
+        parameters = registry.version_parameters(conn, version_id)
+        # The candidate's own weights (decay half-life included), so the split and the in-memory model match what it was trained on.
+        weights = parameters.get("weights") or db.fetch_interaction_weights(conn)
         now = datetime.now(UTC)
         interactions = db.fetch_interactions(conn)
         positive = item_cf.interaction_scores(interactions, weights, now)
@@ -266,7 +285,10 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                 last_seen[(user, media)] = max(at, last_seen.get((user, media), at))
 
         train, held = evaluate.leave_last_out((u, m, at) for (u, m), at in last_seen.items())
-        neighbors = db.fetch_similarity_rows(conn, version_id, method)
+        if kind == "item_cf":
+            neighbors = _held_out_neighbors(conn, positive, held, int(parameters.get("k", 50)))
+        else:
+            neighbors = db.fetch_similarity_rows(conn, version_id, method)
 
         outcome: dict[str, Any] = {"n_eval_users": len(held)}
         if len(held) < MIN_EVAL_USERS or not neighbors:
