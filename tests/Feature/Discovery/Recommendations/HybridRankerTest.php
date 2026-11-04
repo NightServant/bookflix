@@ -125,6 +125,8 @@ test('a reader with no seeds and no preferences still ranks, by popularity and f
 });
 
 test('freshness decays with age', function () {
+    // `published_on` is a date, so "yesterday" is a day and a part old by evening: the clock is put early in the day to keep the test steady.
+    $this->travelTo(today()->setTime(1, 0));
     $user = User::factory()->create();
     [$new, $old, $future] = Media::factory()->count(3)->sequence(['published_on' => now()->subDay()], ['published_on' => now()->subYears(3)], ['published_on' => now()->addMonths(2)])->create();
 
