@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\Library\AddToLibrary;
+use App\Discovery\Recommendations\CandidatePool;
+use App\Discovery\Recommendations\ExplorationInjector;
 use App\Discovery\Recommendations\SeedItems;
 use App\Discovery\Recommendations\ShelfBuilder;
 use App\Enums\ReadingStatus;
@@ -204,4 +206,59 @@ test('the reader\'s seeds are read once per build and never kept between builds'
 
     expect($ratingReads())->toBe(1)
         ->and(app(SeedItems::class)->for($user)->count())->toBe($before + 1);
+});
+
+test('Because You Read and Similar To fill up from neighbors the shared pool cut off', function () {
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    $lsa = activeVersion('lsa');
+    $crowd = Media::factory()->count(130)->create(['published_on' => now()->subYears(3), 'popularity_score' => 0.01]);
+    $quiet = Media::factory()->count(25)->create(['published_on' => now()->subYears(3), 'popularity_score' => 0, 'ratings_count' => 0, 'average_rating' => 0]);
+
+    // Older, loved seeds with far more and stronger neighbors than the pool holds crowd the recent seed's neighbors out of it.
+    foreach ($catalog->slice(1, 5) as $i => $seed) {
+        libraryEntry($user, $seed, 'completed')->update(['completed_at' => now()->subDays(10 + $i)]);
+    }
+    foreach ($catalog->slice(6, 2) as $seed) {
+        libraryEntry($user, $seed, 'reading', favorite: true);
+        foreach ($crowd as $j => $neighbor) {
+            similar($seed, $neighbor, 'lsa', 0.9 - $j * 0.002, $lsa);
+        }
+    }
+    libraryEntry($user, $catalog[0], 'completed')->update(['completed_at' => now()]);
+    foreach ($quiet as $j => $neighbor) {
+        similar($catalog[0], $neighbor, 'lsa', 0.2 - $j * 0.001, $lsa);
+    }
+
+    $pool = app(CandidatePool::class);
+    $pooled = $pool->combine($user, $pool->bySource($user, 100))->pluck('mediaId');
+    $shelf = homeShelves($user)->firstWhere('key', 'because-you-read');
+
+    expect($pooled->intersect($quiet->pluck('id'))->count())->toBeLessThan(20)
+        ->and($shelf->items)->toHaveCount(20)
+        ->and($shelf->items->pluck('id')->diff($quiet->pluck('id')))->toBeEmpty();
+});
+
+test('the exploration share of Recommended For You is the configured epsilon', function () {
+    [$user] = richReader();
+    $every = [];
+    app()->instance(ExplorationInjector::class, new class($every) extends ExplorationInjector
+    {
+        public function __construct(private array &$every) {}
+
+        public function inject(Collection $ranked, Collection $exploration, int $every = 10, ?Randomizer $randomizer = null): Collection
+        {
+            $this->every[] = $every;
+
+            return parent::inject($ranked, $exploration, $every, $randomizer);
+        }
+    });
+
+    foreach ([null, 0.25, 0.0] as $epsilon) {
+        Cache::flush();
+        config(['bookflix.recommendations.epsilon' => $epsilon ?? 0.10]);
+        homeShelves($user);
+    }
+
+    expect($every)->toBe([10, 4, 0]);
 });

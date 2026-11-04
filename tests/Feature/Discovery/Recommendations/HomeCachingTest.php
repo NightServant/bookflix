@@ -5,6 +5,7 @@ use App\Actions\Ratings\RateMedia;
 use App\Discovery\Recommendations\RecommendationLogger;
 use App\Discovery\Recommendations\ShelfBuilder;
 use App\Enums\RecommendationEventType;
+use App\Models\Genre;
 use App\Models\Media;
 use App\Models\Recommendation;
 use App\Models\User;
@@ -137,4 +138,39 @@ test('a story that became gated or was deleted while cached drops out of the cac
     $victim->delete();
 
     expect(candidateIds($user))->not->toContain($victim->id);
+});
+
+test('a story that became gated while cached is dropped for a gated reader and kept for one with access', function () {
+    [$user, $catalog] = richReader();
+    $before = candidateIds($user);
+    $victim = Media::find($before[0]);
+    $open = User::factory()->create();
+    $open->profile->update(['show_mature' => true, 'adult_confirmed_at' => now()]);
+
+    // A genre attached to the story tells the cache nothing: only the load through the mature gate can keep it out.
+    $victim->genres()->attach(Genre::factory()->mature()->create());
+
+    expect(Cache::has('home:shelves:'.$user->id.':gated'))->toBeTrue()
+        ->and(candidateIds($user))->not->toContain($victim->id)
+        ->and(Media::query()->visibleTo($open->fresh())->whereKey($victim->id)->exists())->toBeTrue();
+});
+
+test('a shelf title or tile label that names a title the reader can no longer see is dropped from the cache', function () {
+    [$user, $catalog] = richReader();
+    app(ShelfBuilder::class)->forHome($user);
+    $before = app(ShelfBuilder::class)->forHome($user);
+    expect($before->pluck('key')->all())->toContain('because-you-read', 'similar-to')
+        ->and($before->firstWhere('key', 'similar-to')->items->first()->reason_label)->toBe('Similar themes to '.$catalog[7]->title);
+
+    // The seed of "Because You Read" (the latest completed) and of "Similar To" (the latest favorite) turn mature while the shelves are cached.
+    $mature = Genre::factory()->mature()->create();
+    $catalog[0]->genres()->attach($mature);
+    $catalog[7]->genres()->attach($mature);
+
+    $after = app(ShelfBuilder::class)->forHome($user);
+    $text = json_encode($after->map(fn ($shelf) => [$shelf->title, $shelf->items->pluck('reason_label')]));
+
+    expect(Cache::has('home:shelves:'.$user->id.':gated'))->toBeTrue()
+        ->and($after->pluck('key')->all())->not->toContain('because-you-read', 'similar-to')
+        ->and($text)->not->toContain($catalog[0]->title)->and($text)->not->toContain($catalog[7]->title);
 });

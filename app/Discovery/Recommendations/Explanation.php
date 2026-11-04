@@ -34,19 +34,19 @@ final readonly class Explanation
     public function label(): ?string
     {
         return match ($this->type) {
-            ReasonType::BecauseYouRead => self::with($this->reasonTitle, 'Because you read %s'),
-            ReasonType::SimilarThemes => self::with($this->reasonTitle, 'Similar themes to %s'),
-            ReasonType::PopularWithSimilarReaders => self::with($this->reasonTitle, 'Popular with readers who enjoyed %s'),
-            ReasonType::MatchesInterest => self::with($this->genre, 'Matches your interest in %s'),
-            ReasonType::Trending => 'Trending now',
-            ReasonType::Editorial => 'Picked by our editors',
-            ReasonType::NewRelease => 'New release',
-            ReasonType::Exploration => 'Something different for you',
+            ReasonType::BecauseYouRead => self::with($this->reasonTitle, 'Because you read :title'),
+            ReasonType::SimilarThemes => self::with($this->reasonTitle, 'Similar themes to :title'),
+            ReasonType::PopularWithSimilarReaders => self::with($this->reasonTitle, 'Popular with readers who enjoyed :title'),
+            ReasonType::MatchesInterest => self::with($this->genre, 'Matches your interest in :genre', 'genre'),
+            ReasonType::Trending => __('Trending now'),
+            ReasonType::Editorial => __('Picked by our editors'),
+            ReasonType::NewRelease => __('New release'),
+            ReasonType::Exploration => __('Something different for you'),
         };
     }
 
-    private static function with(?string $value, string $template): ?string
+    private static function with(?string $value, string $template, string $placeholder = 'title'): ?string
     {
-        return $value === null || trim($value) === '' ? null : sprintf($template, $value);
+        return $value === null || trim($value) === '' ? null : __($template, [$placeholder => $value]);
     }
 }

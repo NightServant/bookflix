@@ -29,3 +29,10 @@ test('a template that needs a title ignores a genre and the other way round', fu
     expect((new Explanation(ReasonType::BecauseYouRead, null, 'Fantasy'))->label())->toBeNull()
         ->and((new Explanation(ReasonType::MatchesInterest, 'Dune'))->label())->toBeNull();
 });
+
+test('labels go through the translator', function () {
+    app('translator')->addLines(['*.Trending now' => 'En vogue', '*.Because you read :title' => 'Parce que vous avez lu :title'], 'en');
+
+    expect((new Explanation(ReasonType::Trending))->label())->toBe('En vogue')
+        ->and((new Explanation(ReasonType::BecauseYouRead, 'Dune'))->label())->toBe('Parce que vous avez lu Dune');
+});

@@ -98,17 +98,17 @@ class ShelfBuilder
             return $this->hydrate($user, $digest);
         }
 
-        $shelves = $this->seeds->during(fn (): Collection => $this->build($user));
+        [$shelves, $reasons] = $this->seeds->during(fn (): array => $this->build($user));
 
-        Cache::put($key, $this->digest($shelves), now()->addMinutes((int) config('bookflix.recommendations.cache_minutes')));
+        Cache::put($key, $this->digest($shelves, $reasons), now()->addMinutes((int) config('bookflix.recommendations.cache_minutes')));
 
         return $shelves;
     }
 
     /**
-     * @return Collection<int, Shelf>
+     * @return array{0: Collection<int, Shelf>, 1: array<string, int>} the shelves, and the id of the title each shelf's heading names
      */
-    private function build(User $user): Collection
+    private function build(User $user): array
     {
         $enabled = $user->personalizationEnabled();
         $personal = $enabled && $this->seeds->for($user)->count() >= (int) config('bookflix.recommendations.cold_start_min_interactions');
@@ -119,27 +119,31 @@ class ShelfBuilder
         // Ranking gives every title its features and drops what the reader may not see; an opted-out reader's history is not read at all.
         $ranked = $enabled ? $this->ranker->rank($user, $pooled, RankingWeights::active())->keyBy('mediaId') : null;
 
-        /** @var array<string, array{title: string, featured: bool, items: list<ServedItem>}> $specs */
+        /** @var array<string, array{title: string, featured: bool, items: list<ServedItem>, reason?: int}> $specs */
         $specs = [];
+
+        // The shelves around one title list its neighbors, which the shared pool may have cut off: those are ranked too, in one more call.
+        $recent = $personal ? $this->seeds->mostRecent($user) : null;
+        $recent = $recent !== null && ! $recent->isGatedFor($user) ? $recent : null;
+        $favorite = $personal ? $this->favorite($user, $recent) : null;
+        $around = [
+            'because-you-read' => $recent === null ? null : $this->content->similarTo($user, $recent, ReasonType::BecauseYouRead, self::PER_SHELF),
+            'similar-to' => $favorite === null ? null : $this->content->similarTo($user, $favorite, ReasonType::SimilarThemes, self::PER_SHELF),
+        ];
+        $ranked = $this->withNeighbors($user, $ranked, $around);
 
         if ($personal) {
             $specs['recommended'] = ['title' => __('Recommended For You'), 'featured' => false, 'items' => $this->recommended($user, $pooled, $lists, $ranked)];
 
-            $recent = $this->seeds->mostRecent($user);
-
-            if ($recent !== null && ! $recent->isGatedFor($user)) {
-                $specs['because-you-read'] = ['title' => __('Because You Read :title', ['title' => $recent->title]), 'featured' => false, 'items' => $this->around('because-you-read', $user, $recent, ReasonType::BecauseYouRead, $ranked)];
+            if ($recent !== null) {
+                $specs['because-you-read'] = ['title' => __('Because You Read :title', ['title' => $recent->title]), 'featured' => false, 'items' => $this->fromCandidates('because-you-read', $around['because-you-read'], new Explanation(ReasonType::BecauseYouRead, $recent->title), $ranked), 'reason' => $recent->id];
             }
         }
 
         $specs['new-releases'] = ['title' => __('New Releases'), 'featured' => false, 'items' => $this->fromCandidates('new-releases', $lists['new_releases'] ?? new Collection, new Explanation(ReasonType::NewRelease), $ranked)];
 
-        if ($personal) {
-            $favorite = $this->favorite($user, $recent ?? null);
-
-            if ($favorite !== null) {
-                $specs['similar-to'] = ['title' => __('Similar To :title', ['title' => $favorite->title]), 'featured' => false, 'items' => $this->around('similar-to', $user, $favorite, ReasonType::SimilarThemes, $ranked)];
-            }
+        if ($favorite !== null) {
+            $specs['similar-to'] = ['title' => __('Similar To :title', ['title' => $favorite->title]), 'featured' => false, 'items' => $this->fromCandidates('similar-to', $around['similar-to'], new Explanation(ReasonType::SimilarThemes, $favorite->title), $ranked), 'reason' => $favorite->id];
         }
 
         $specs['trending'] = ['title' => __('Trending Now'), 'featured' => true, 'items' => $this->fromCandidates('trending', $lists['trending'] ?? new Collection, new Explanation(ReasonType::Trending), $ranked)];
@@ -155,19 +159,44 @@ class ShelfBuilder
 
         $ids = $this->logger->log($user, $specs->flatMap(fn (array $spec): array => $spec['items']), ModelVersion::activeFor('hybrid-weights'));
 
-        return $specs->map(function (array $spec, string $key) use ($media, $ids): Shelf {
+        $shelves = $specs->map(function (array $spec, string $key) use ($media, $ids): Shelf {
             $items = array_map(function (ServedItem $item) use ($media, $ids): Media {
                 return (clone $media[$item->mediaId])
                     ->setAttribute('recommendation_id', $ids["{$item->shelf}:{$item->mediaId}"] ?? null)
-                    ->setAttribute('reason_label', $item->label);
+                    ->setAttribute('reason_label', $item->label)
+                    ->setAttribute('reason_media_id', $item->reasonMediaId);
             }, $spec['items']);
 
             return new Shelf($key, $spec['title'], new EloquentCollection($items), $spec['featured']);
         })->values();
+
+        return [$shelves, $specs->filter(fn (array $spec): bool => isset($spec['reason']))->map(fn (array $spec): int => $spec['reason'])->all()];
     }
 
     /**
-     * Recommended For You: the whole pool ranked, diversified to twenty, with every tenth place given to a title from the exploration pool.
+     * The ranking with the neighbors of the shelves around one title added: those the pool did not hold are ranked in one more call.
+     *
+     * @param  Collection<int, RankedItem>|null  $ranked
+     * @param  array<string, Collection<int, Candidate>|null>  $around
+     * @return Collection<int, RankedItem>|null
+     */
+    private function withNeighbors(User $user, ?Collection $ranked, array $around): ?Collection
+    {
+        if ($ranked === null) {
+            return null;
+        }
+
+        $missing = collect($around)->filter()->flatten(1)->reject(fn (Candidate $candidate): bool => $ranked->has($candidate->mediaId))->values();
+
+        if ($missing->isEmpty()) {
+            return $ranked;
+        }
+
+        return $ranked->union($this->ranker->rank($user, $missing, RankingWeights::active())->keyBy('mediaId'));
+    }
+
+    /**
+     * Recommended For You: the whole pool ranked, diversified to twenty, with one place in `1 / epsilon` (every tenth by default) given to a title from the exploration pool.
      *
      * @param  Collection<int, Candidate>  $pooled
      * @param  array<string, Collection<int, Candidate>>  $lists
@@ -180,7 +209,9 @@ class ShelfBuilder
         $picked = $this->diversifier->rerank($ordered, 0.7, self::PER_SHELF);
 
         $exploration = collect($lists['exploration'] ?? [])->map(fn (Candidate $candidate): ?RankedItem => $ranked->get($candidate->mediaId))->filter()->values();
-        $picked = $this->injector->inject($picked, $exploration, 10, $this->random);
+        // One slot in `1 / epsilon` (every tenth with the default 0.10); an epsilon of 0 gives exploration no slot.
+        $epsilon = (float) config('bookflix.recommendations.epsilon');
+        $picked = $this->injector->inject($picked, $exploration, $epsilon > 0 ? (int) round(1 / $epsilon) : 0, $this->random);
 
         $byId = $pooled->keyBy('mediaId');
 
@@ -194,17 +225,6 @@ class ShelfBuilder
                 $item->features, array_filter(['genre' => $explanation->genre]), $explanation->label(),
             );
         })->all());
-    }
-
-    /**
-     * The neighbors of one title the reader read or loved, labelled with it.
-     *
-     * @param  Collection<int, RankedItem>|null  $ranked
-     * @return list<ServedItem>
-     */
-    private function around(string $shelf, User $user, Media $seed, ReasonType $reason, ?Collection $ranked): array
-    {
-        return $this->fromCandidates($shelf, $this->content->similarTo($user, $seed, $reason, self::PER_SHELF), new Explanation($reason, $seed->title), $ranked);
     }
 
     /**
@@ -283,12 +303,15 @@ class ShelfBuilder
     }
 
     /**
-     * What the cache keeps of the shelves: no models, only ids and the text each tile shows, as `[media id, recommendation id, label]`.
+     * What the cache keeps of the shelves: no models, only ids and the text each tile shows, as `[media id, recommendation id, label, reason media id]`,
+     * and with a shelf the id of the title its heading names. The ids of the titles a text names let the read drop that text when the reader may no
+     * longer see the title.
      *
      * @param  Collection<int, Shelf>  $shelves
+     * @param  array<string, int>  $reasons  shelf key => the media its title names
      * @return array<int, array<string, mixed>>
      */
-    private function digest(Collection $shelves): array
+    private function digest(Collection $shelves, array $reasons): array
     {
         $digest = [];
 
@@ -296,10 +319,10 @@ class ShelfBuilder
             $items = [];
 
             foreach ($shelf->items as $media) {
-                $items[] = [$media->getKey(), $media->getAttribute('recommendation_id'), $media->getAttribute('reason_label')];
+                $items[] = [$media->getKey(), $media->getAttribute('recommendation_id'), $media->getAttribute('reason_label'), $media->getAttribute('reason_media_id')];
             }
 
-            $digest[] = ['key' => $shelf->key, 'title' => $shelf->title, 'featured' => $shelf->featured, 'items' => $items];
+            $digest[] = ['key' => $shelf->key, 'title' => $shelf->title, 'featured' => $shelf->featured, 'reason_media_id' => $reasons[$shelf->key] ?? null, 'items' => $items];
         }
 
         return $digest;
@@ -307,6 +330,7 @@ class ShelfBuilder
 
     /**
      * The shelves of a digest, loaded fresh through the mature gate; a title that is gone or gated now is left out, and a shelf that empties with it.
+     * A shelf whose heading names a title the reader may no longer see is left out, and a tile label naming one is dropped.
      *
      * @param  array<mixed>  $digest
      * @return Collection<int, Shelf>
@@ -314,22 +338,38 @@ class ShelfBuilder
     private function hydrate(User $user, array $digest): Collection
     {
         $ids = [];
+        $reasons = [];
 
         foreach ($digest as $shelf) {
+            if (($shelf['reason_media_id'] ?? null) !== null) {
+                $reasons[] = (int) $shelf['reason_media_id'];
+            }
+
             foreach ($shelf['items'] as $item) {
                 $ids[] = (int) $item[0];
+
+                if (($item[3] ?? null) !== null) {
+                    $reasons[] = (int) $item[3];
+                }
             }
         }
 
         $media = $this->media($user, array_values(array_unique($ids)));
+        $seen = $reasons === [] ? [] : array_flip(Media::query()->visibleTo($user)->whereIn('media.id', array_unique($reasons))->pluck('media.id')->all());
         $shelves = new Collection;
 
         foreach ($digest as $shelf) {
+            if (($shelf['reason_media_id'] ?? null) !== null && ! isset($seen[$shelf['reason_media_id']])) {
+                continue;
+            }
+
             $items = [];
 
             foreach ($shelf['items'] as $item) {
                 if ($media->has($item[0])) {
-                    $items[] = (clone $media[$item[0]])->setAttribute('recommendation_id', $item[1])->setAttribute('reason_label', $item[2]);
+                    $reason = $item[3] ?? null;
+                    $label = $reason !== null && ! isset($seen[$reason]) ? null : $item[2];
+                    $items[] = (clone $media[$item[0]])->setAttribute('recommendation_id', $item[1])->setAttribute('reason_label', $label)->setAttribute('reason_media_id', $reason);
                 }
             }
 
