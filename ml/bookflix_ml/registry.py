@@ -136,9 +136,11 @@ def record_metrics(conn: Conn, version_id: int, metrics: dict[str, Any]) -> None
 def promote(conn: Conn, version_id: int) -> None:
     """Make a `candidate` the active version of its name, in the caller's transaction (it does not commit).
 
-    The current active version is retired first (only one may be active), `trained_at` stays as it was, and the similarity rows of
-    every version of that method that is neither active nor still a waiting candidate are deleted, so a retired version's rows do not
-    pile up. A version that is not a candidate raises `ValueError` before anything changes.
+    The current active version and every older candidate of the name are retired (only one may be active, and an older candidate can
+    never be promoted after a newer one), `trained_at` stays as it was, and what the retired versions left behind is deleted so it does not
+    pile up: the similarity rows of every version of that method that is neither active nor still a waiting candidate and, for `lsa`, the
+    vectors and features of its retired versions. A newer candidate is never touched. A version that is not a candidate raises
+    `ValueError` before anything changes.
     """
     row = conn.execute(
         "select name, kind, status from model_versions where id = %s for update", (version_id,)
@@ -148,8 +150,11 @@ def promote(conn: Conn, version_id: int) -> None:
     name, method = row[0], row[1]
 
     conn.execute(
-        "update model_versions set status = 'retired', updated_at = now() where name = %s and status = 'active'",
-        (name,),
+        """
+        update model_versions set status = 'retired', updated_at = now()
+        where name = %s and (status = 'active' or (status = 'candidate' and id < %s))
+        """,
+        (name, version_id),
     )
     conn.execute(
         "update model_versions set status = 'active', updated_at = now() where id = %s",
@@ -163,3 +168,8 @@ def promote(conn: Conn, version_id: int) -> None:
         """,
         (method,),
     )
+    if name == "lsa":
+        for table in ("media_lsa_vectors", "media_features"):
+            conn.execute(
+                f"delete from {table} where model_version_id in (select id from model_versions where name = 'lsa' and status = 'retired')"  # noqa: S608
+            )

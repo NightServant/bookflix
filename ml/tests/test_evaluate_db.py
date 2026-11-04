@@ -418,3 +418,57 @@ def test_the_job_is_registered_and_rejects_an_unknown_kind(db: Conn) -> None:
     assert "evaluate" in JOBS
     with pytest.raises(ValueError, match="kind"):
         run_evaluate(db, {"kind": "nope"})
+
+
+def test_promote_retires_older_candidates_and_prunes_their_rows_but_never_a_newer_one(
+    db: Conn,
+) -> None:
+    seed_media(db, 1, 2)
+    older, older_still, new, newer = version(db), version(db), version(db), version(db)
+    other = version(db, "candidate", "lsa", "lsa")
+    for v in (older, older_still, new, newer):
+        write(db, "item_cf", v, {1: [(2, 0.5)]})
+    write(db, "lsa", other, {1: [(2, 0.5)]})
+    db.commit()
+
+    registry.promote(db, new)
+    db.commit()
+
+    assert status_of(db, older) == status_of(db, older_still) == "retired"
+    assert status_of(db, new) == "active" and status_of(db, newer) == "candidate"
+    assert status_of(db, other) == "candidate"
+    assert sim_versions(db) == {new, newer} and sim_versions(db, "lsa") == {other}
+
+
+def test_promoting_lsa_deletes_vectors_and_features_of_retired_versions_only(db: Conn) -> None:
+    seed_media(db, 1, 2)
+    old_active, retired, old_candidate, new, newer, item_cf = (
+        version(db, "active", "lsa", "lsa"),
+        version(db, "retired", "lsa", "lsa"),
+        version(db, "candidate", "lsa", "lsa"),
+        version(db, "candidate", "lsa", "lsa"),
+        version(db, "candidate", "lsa", "lsa"),
+        version(db, "retired"),
+    )
+    vector = "[" + ",".join(["0.1"] * 200) + "]"
+    for v in (old_active, retired, old_candidate, new, newer, item_cf):
+        db.execute(
+            "insert into media_lsa_vectors (media_id, model_version_id, vector) values (1, %s, %s)",
+            (v, vector),
+        )
+        db.execute(
+            "insert into media_features (media_id, model_version_id, computed_at) values (1, %s, now())",
+            (v,),
+        )
+    db.commit()
+
+    registry.promote(db, new)
+    db.commit()
+
+    for table in ("media_lsa_vectors", "media_features"):
+        kept = {
+            int(r[0])
+            for r in db.execute(f"select model_version_id from {table}").fetchall()  # noqa: S608
+        }
+        # The previous active is retired by the promotion, so its data goes too; another name's data is never touched.
+        assert kept == {new, newer, item_cf}
