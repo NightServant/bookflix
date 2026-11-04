@@ -96,6 +96,9 @@ class Media extends Model
     /** @use HasFactory<MediaFactory> */
     use HasFactory, Searchable, SoftDeletes;
 
+    /** The trending blend as SQL, with one `?` for `trendingWeight()`. Needs the `media_popularity` join `scopeTrending` adds. */
+    public const TRENDING_BLEND = '(media.popularity_score + ? * coalesce(media_popularity.trending_percentile, 0))';
+
     /**
      * The model's default attribute values.
      *
@@ -325,6 +328,11 @@ class Media extends Model
         return ! MatureAccess::allows($viewer) && $this->isRestricted();
     }
 
+    public static function trendingWeight(): float
+    {
+        return (float) config('bookflix.recommendations.trending_weight');
+    }
+
     /**
      * The stories with the strongest popularity, best first: the provider signal (`media.popularity_score`, 0 to 1) plus Bookflix's own
      * activity, `trending_weight × trending_percentile` (`media_popularity`: the rank of the last 30 days' interactions among the media
@@ -340,7 +348,7 @@ class Media extends Model
     {
         $query->unmerged()
             ->leftJoin('media_popularity', 'media_popularity.media_id', '=', 'media.id')
-            ->orderByRaw('(media.popularity_score + ? * coalesce(media_popularity.trending_percentile, 0)) desc', [(float) config('bookflix.recommendations.trending_weight')])
+            ->orderByRaw(self::TRENDING_BLEND.' desc', [self::trendingWeight()])
             ->orderByDesc('media.ratings_count')
             ->orderByRaw('media.published_on desc nulls last')
             ->orderByDesc('media.id');

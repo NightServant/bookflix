@@ -11,6 +11,10 @@ use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
+use App\Enums\ModelKind;
+use App\Enums\ModelStatus;
+use App\Enums\ReadingStatus;
+use App\Enums\RecommendationEventType;
 use App\Enums\ReviewStatus;
 use App\Models\Collection as StoryCollection;
 use App\Models\CollectionItem;
@@ -19,11 +23,16 @@ use App\Models\Creator;
 use App\Models\DeweyClass;
 use App\Models\ExternalSource;
 use App\Models\Genre;
+use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
 use App\Models\MediaExternalId;
+use App\Models\MediaSimilarity;
 use App\Models\MediaType;
+use App\Models\ModelVersion;
 use App\Models\Publisher;
+use App\Models\Recommendation;
+use App\Models\RecommendationEvent;
 use App\Models\Series;
 use App\Models\Tag;
 use App\Models\Theme;
@@ -476,4 +485,51 @@ function scrolledThrough($page): void
 
     $page->script('window.scrollTo(0, 0)');
     $page->wait(0.3);
+}
+
+/**
+ * The active version of a model by name (`lsa`, `item-cf`), created when missing; its kind is the name with an underscore.
+ */
+function activeVersion(string $name): ModelVersion
+{
+    return ModelVersion::activeFor($name) ?? ModelVersion::factory()->create([
+        'name' => $name,
+        'kind' => ModelKind::from(str_replace('-', '_', $name)),
+        'status' => ModelStatus::Active,
+    ]);
+}
+
+/**
+ * One stored neighbor of a media under a method, as the version wrote it.
+ */
+function similar(Media $media, Media $neighbor, string $method, float $score, ModelVersion $version): MediaSimilarity
+{
+    return MediaSimilarity::create([
+        'media_id' => $media->id,
+        'similar_media_id' => $neighbor->id,
+        'method' => $method,
+        'score' => $score,
+        'model_version_id' => $version->id,
+    ]);
+}
+
+/**
+ * A story in a reader's library at a status (a status name or case), optionally a favorite.
+ */
+function libraryEntry(User $user, Media $media, ReadingStatus|string $status = 'want_to_read', bool $favorite = false): LibraryEntry
+{
+    $status = $status instanceof ReadingStatus ? $status : ReadingStatus::from($status);
+
+    return LibraryEntry::factory()->status($status)->for($user)->for($media)->create(['favorited_at' => $favorite ? now() : null]);
+}
+
+/**
+ * A recommendation of this story the reader dismissed.
+ */
+function dismissed(User $user, Media $media): Recommendation
+{
+    $recommendation = Recommendation::factory()->create(['user_id' => $user->id, 'media_id' => $media->id]);
+    RecommendationEvent::factory()->create(['recommendation_id' => $recommendation->id, 'event' => RecommendationEventType::Dismiss]);
+
+    return $recommendation;
 }
