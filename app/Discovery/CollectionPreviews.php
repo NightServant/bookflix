@@ -38,7 +38,7 @@ class CollectionPreviews
 
         $covers = DB::query()
             ->fromSub(
-                $visible()->whereNotNull('media.cover_url')->selectRaw('collection_items.collection_id, media.cover_url, row_number() over (partition by collection_items.collection_id order by collection_items.position, collection_items.id) as place')->toBase(),
+                $visible()->whereNotNull('media.cover_url')->selectRaw('collection_items.collection_id, media.id, media.cover_url, row_number() over (partition by collection_items.collection_id order by collection_items.position, collection_items.id) as place')->toBase(),
                 'ranked',
             )
             ->where('place', '<=', self::COVERS)
@@ -51,7 +51,7 @@ class CollectionPreviews
         foreach ($ids as $id) {
             $previews[(int) $id] = [
                 'count' => (int) ($counts[$id] ?? 0),
-                'covers' => array_values(array_map(fn (stdClass $row): string => (string) $row->cover_url, ($covers[$id] ?? collect())->all())),
+                'covers' => array_values(array_map(fn (stdClass $row): string => (string) Media::displayCover((int) $row->id, $row->cover_url), ($covers[$id] ?? collect())->all())),
             ];
         }
 

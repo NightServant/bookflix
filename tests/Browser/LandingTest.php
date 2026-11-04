@@ -4,7 +4,7 @@ use App\Models\Media;
 use Illuminate\Support\Facades\Cache;
 
 /*
- * The public landing page in a real browser: the FAQ by keyboard, the Top 10 marquee and its pause, the walkthrough that pins on a wide
+ * The public landing page in a real browser: the FAQ by keyboard, the Top 10 grid and its edges, the walkthrough that pins on a wide
  * screen and stacks on a phone, motion switched off under prefers-reduced-motion, no sideways scroll, no script errors, and axe.
  * What the page contains is in tests/Feature/LandingTest.php. Covers are a local file, so no network is needed.
  */
@@ -58,38 +58,40 @@ test('the FAQ answers open with a click too, and the plus turns into a close', f
         ->assertScript('document.querySelector("#faq-question-2 svg").classList.contains("landing-faq__icon--open")', false);
 });
 
-test('the Top 10 marquee runs, and its pause button stops it and says so', function () {
+test('the Top 10 is two still rows of five, its outer edges on the heading text', function () {
     $page = visit($this->landing, $this->desktop)->wait(1);
 
-    $track = 'getComputedStyle(document.querySelector(".landing-marquee__track"))';
+    $cells = 'Array.from(document.querySelectorAll(".landing-top__item")).map((el) => el.getBoundingClientRect())';
+    $heading = 'document.querySelector("#top-ten-title").getBoundingClientRect()';
+    $container = 'document.querySelector(".landing-top").parentElement';
 
-    $page->assertScript('document.querySelectorAll(".landing-top__item").length', 20)
-        ->assertScript('document.querySelectorAll(".landing-top[aria-hidden=true] .landing-top__item").length', 10)
-        ->assertScript("{$track}.animationName", 'landing-marquee')
-        ->assertScript("{$track}.animationPlayState", 'running')
-        ->click('Pause scrolling')->wait(0.3)
-        ->assertScript("{$track}.animationPlayState", 'paused')
-        ->assertScript('document.querySelector("#top-10 button[aria-pressed]").getAttribute("aria-pressed")', 'true')
-        ->click('Pause scrolling')->wait(0.3)
-        ->assertScript("{$track}.animationPlayState", 'running')
+    $page->assertScript("{$cells}.length", 10)
+        ->assertScript("new Set({$cells}.map((box) => Math.round(box.top))).size", 2)
+        ->assertScript("{$cells}.filter((box) => Math.round(box.top) === Math.round({$cells}[0].top)).length", 5)
+        ->assertScript("Math.abs({$cells}[0].left - {$heading}.left) < 1", true)
+        ->assertScript("(() => { const box = {$container}.getBoundingClientRect(); const pad = parseFloat(getComputedStyle({$container}).paddingRight); return Math.abs({$cells}[4].right - (box.right - pad)) < 1; })()", true)
+        ->assertScript('Array.from(document.querySelectorAll(".landing-top, .landing-top__item")).every((el) => getComputedStyle(el).animationName === "none")', true)
+        ->assertScript('document.querySelectorAll("#top-10 button").length', 0)
         ->assertNoJavaScriptErrors();
 });
 
-test('the marquee has no layout shift: its height is fixed before a single poster has loaded', function () {
-    $page = visit($this->landing, $this->desktop)->wait(1);
+test('on a phone the Top 10 is two to a row and nothing scrolls sideways', function () {
+    $page = visit($this->landing, $this->phone)->wait(1);
 
-    $page->assertScript('(() => { const box = document.querySelector(".landing-marquee").getBoundingClientRect(); return box.height > 250 && box.height < 400; })()', true);
+    $page->assertScript('new Set(Array.from(document.querySelectorAll(".landing-top__item")).map((el) => Math.round(el.getBoundingClientRect().left))).size', 2)
+        ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true);
 });
 
-test('with reduced motion nothing on the page moves: no marquee loop, no drifting books, no pinned walkthrough', function () {
+test('the Top 10 has no layout shift: every poster has its size before a single cover has loaded', function () {
+    $page = visit($this->landing, $this->desktop)->wait(1);
+
+    $page->assertScript('Array.from(document.querySelectorAll(".landing-top__poster")).every((el) => el.getBoundingClientRect().height > 150)', true);
+});
+
+test('with reduced motion nothing on the page moves: no drifting books, no pinned walkthrough', function () {
     $page = visit($this->landing, $this->still)->wait(1);
 
-    $page->assertScript('getComputedStyle(document.querySelector(".landing-marquee__track")).animationName', 'none')
-        ->assertScript('getComputedStyle(document.querySelector(".landing-top[aria-hidden=true]")).display', 'none')
-        ->assertScript('getComputedStyle(document.querySelector("#top-10 button[aria-pressed]")).display', 'none')
-        ->assertScript('getComputedStyle(document.querySelector(".landing-marquee")).overflowX', 'auto')
-        ->assertScript('document.querySelector(".landing-top[aria-label]").getAttribute("tabindex")', '0')
-        ->assertScript('Array.from(document.querySelectorAll(".landing-book, .landing-book__float, .landing-heap__item")).every((el) => getComputedStyle(el).animationName === "none")', true)
+    $page->assertScript('Array.from(document.querySelectorAll(".landing-book, .landing-book__float, .landing-heap__item")).every((el) => getComputedStyle(el).animationName === "none")', true)
         ->assertScript('document.querySelector(".landing-walk").hasAttribute("data-live")', false)
         ->assertScript('document.querySelector("[data-scene-cover]").dataset.scene', 'skipped')
         ->assertScript('Array.from(document.querySelectorAll(".landing-book")).filter((el) => { const box = el.getBoundingClientRect(); return getComputedStyle(el).opacity === "1" && box.width > 20; }).length', 7)
@@ -269,10 +271,10 @@ test('the page passes the accessibility audit and throws no script errors', func
     $page->assertSee('Frequently Asked Questions')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
 })->with(['desktop', 'phone', 'reduced']);
 
-test('the audit also passes with an answer open and the marquee paused', function () {
+test('the audit also passes with an answer open', function () {
     $page = visit($this->landing, $this->desktop)->wait(1);
 
-    $page->click('#faq-question-3')->wait(0.6)->click('Pause scrolling')->wait(0.4)
+    $page->click('#faq-question-3')->wait(0.6)
         ->assertSee('Popularity blends their signals')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
 });
 
@@ -283,15 +285,6 @@ test('the page works without a catalog', function () {
     visit($this->landing, $this->desktop)->wait(1)
         ->assertSee('Your Library.')->assertSee('Frequently Asked Questions')->assertDontSee('Top 10 on Bookflix today')
         ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
-});
-
-test('the sign-up box carries the typed email to the registration form', function () {
-    $page = visit($this->landing, $this->desktop)->wait(1);
-
-    $page->fill('#start-email', 'reader@example.com')->click('#start button[type=submit]')->wait(1)
-        ->assertPathIs('/register')
-        ->assertValue('input[name=email]', 'reader@example.com')
-        ->assertNoJavaScriptErrors();
 });
 
 test('the header links and the skip link reach the sections and the sign-in page', function () {

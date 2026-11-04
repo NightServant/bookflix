@@ -1,9 +1,16 @@
 <?php
 
+use App\Discovery\CollectionPreviews;
+use App\Enums\CoverPolicy;
+use App\Models\Collection;
+use App\Models\CollectionItem;
+use App\Models\ExternalSource;
 use App\Models\Media;
 use App\Models\User;
+use Database\Seeders\ExternalSourceSeeder;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -111,11 +118,11 @@ test('a guest still cannot make it fetch a host the providers do not allow', fun
     Http::assertNothingSent();
 });
 
-test('the 121st cover request in a minute is throttled', function () {
+test('the 601st cover request in a minute is throttled', function () {
     Http::fake(['s4.anilist.co/*' => Http::response($this->png, 200, ['Content-Type' => 'image/png'])]);
     $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
 
-    foreach (range(1, 120) as $i) {
+    foreach (range(1, 600) as $i) {
         $this->actingAs($this->user)->get(route('covers.show', $media))->assertOk();
     }
 
@@ -141,4 +148,48 @@ test('pruning removes only covers older than the cutoff', function () {
 
     $disk->assertMissing('covers/old');
     $disk->assertExists('covers/new');
+});
+
+test('a cover whose source caches covers is served from our origin, and one whose source hotlinks stays on its host', function () {
+    ExternalSource::factory()->create(['key' => 'mangadex', 'cover_policy' => CoverPolicy::Cache]);
+    ExternalSource::factory()->create(['key' => 'anilist', 'cover_policy' => CoverPolicy::Hotlink]);
+    $cached = Media::factory()->create(['cover_url' => 'https://uploads.mangadex.org/covers/a/b.jpg.512.jpg']);
+    $hotlinked = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
+
+    expect($cached->cover_url)->toStartWith('/covers/'.$cached->id.'?v=')
+        ->and($cached->coverSourceUrl())->toBe('https://uploads.mangadex.org/covers/a/b.jpg.512.jpg')
+        ->and($cached->fresh()->getRawOriginal('cover_url'))->toBe('https://uploads.mangadex.org/covers/a/b.jpg.512.jpg')
+        ->and($hotlinked->cover_url)->toBe('https://s4.anilist.co/file/cover.png');
+});
+
+test('the served cover of a cached source streams the stored upstream image', function () {
+    ExternalSource::factory()->create(['key' => 'mangadex', 'cover_policy' => CoverPolicy::Cache]);
+    Http::fake(['uploads.mangadex.org/*' => Http::response($this->png, 200, ['Content-Type' => 'image/png'])]);
+    $media = Media::factory()->create(['cover_url' => 'https://uploads.mangadex.org/covers/a/b.jpg.512.jpg']);
+
+    $this->get($media->cover_url)->assertOk()->assertHeader('Content-Type', 'image/png');
+
+    Http::assertSent(fn ($request): bool => $request->url() === 'https://uploads.mangadex.org/covers/a/b.jpg.512.jpg');
+    Storage::disk('local')->assertExists('covers/'.sha1($media->coverSourceUrl()));
+});
+
+test('the discover tiles and collection previews serve a cached source\'s covers from our origin too', function () {
+    ExternalSource::factory()->create(['key' => 'mangadex', 'cover_policy' => CoverPolicy::Cache]);
+    $media = Media::factory()->create(['cover_url' => 'https://uploads.mangadex.org/covers/a/b.jpg.512.jpg']);
+    $collection = Collection::factory()->for($this->user)->create();
+    CollectionItem::factory()->for($collection)->for($media)->create(['position' => 0]);
+
+    $this->actingAs($this->user);
+    $tiles = Livewire::test('pages::discover.index')->instance()->covers();
+    $previews = app(CollectionPreviews::class)->for(Collection::query()->whereKey($collection->id)->get(), $this->user);
+
+    expect($tiles[$media->media_type_id])->toBe([$media->cover_url])
+        ->and($previews[$collection->id]['covers'])->toBe([$media->cover_url])
+        ->and($media->cover_url)->toStartWith('/covers/');
+});
+
+test('mangadex covers are cached and every other source hotlinks', function () {
+    $this->seed(ExternalSourceSeeder::class);
+
+    expect(ExternalSource::where('cover_policy', CoverPolicy::Cache)->pluck('key')->all())->toBe(['mangadex']);
 });

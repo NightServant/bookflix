@@ -7,12 +7,14 @@ use App\Classification\DeweyCounts;
 use App\Discovery\Search\SearchTextBuilder;
 use App\Enums\AgeRating;
 use App\Enums\ClassificationType;
+use App\Enums\CoverPolicy;
 use App\Enums\PublicationStatus;
 use App\Enums\ReviewStatus;
 use App\Enums\WarningStatus;
 use Database\Factories\MediaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -125,16 +127,65 @@ class Media extends Model
     }
 
     /**
-     * A slug no media (soft-deleted included) uses yet: the title slug, then with the year, then numbered.
+     * The cover a page shows: the stored URL, or our own copy (see CoverController) when the host's source caches covers, as MangaDex
+     * refuses its images to other sites. The column keeps the upstream URL, which coverSourceUrl() reads.
+     *
+     * @return Attribute<string|null, never>
      */
+    protected function coverUrl(): Attribute
+    {
+        return Attribute::get(fn (?string $url): ?string => $this->getKey() === null ? $url : static::displayCover((int) $this->getKey(), $url));
+    }
+
+    /**
+     * The stored, upstream cover URL: what the proxy fetches.
+     */
+    public function coverSourceUrl(): ?string
+    {
+        return $this->attributes['cover_url'] ?? null;
+    }
+
     /**
      * The same-origin cover URL the 3D scene textures. `v` changes with `cover_url`, so a replaced cover busts the immutable cache.
      */
     public function coverProxyUrl(): string
     {
-        return route('covers.show', [$this, 'v' => substr(sha1((string) $this->cover_url), 0, 8)]);
+        return route('covers.show', [$this, 'v' => substr(sha1((string) $this->coverSourceUrl()), 0, 8)]);
     }
 
+    /**
+     * The cover to show for a stored URL, for raw rows that skip the model: our copy when the host's source caches covers, else the URL as is.
+     */
+    public static function displayCover(int $id, ?string $url): ?string
+    {
+        $host = strtolower((string) parse_url((string) $url, PHP_URL_HOST));
+
+        return $host !== '' && in_array($host, self::cachedCoverHosts(), true)
+            ? route('covers.show', ['media' => $id, 'v' => substr(sha1((string) $url), 0, 8)], false)
+            : $url;
+    }
+
+    /**
+     * The hosts of the sources whose cover policy is `cache`, looked up once a request.
+     *
+     * @return list<string>
+     */
+    private static function cachedCoverHosts(): array
+    {
+        return once(function (): array {
+            $hosts = [];
+
+            foreach (ExternalSource::query()->where('cover_policy', CoverPolicy::Cache)->pluck('key') as $key) {
+                array_push($hosts, ...array_values(config("bookflix.providers.{$key}.allowed_hosts", [])));
+            }
+
+            return $hosts;
+        });
+    }
+
+    /**
+     * A slug no media (soft-deleted included) uses yet: the title slug, then with the year, then numbered.
+     */
     public static function uniqueSlug(string $title, ?int $year = null): string
     {
         $slug = Str::slug($title) ?: 'untitled';
@@ -181,7 +232,7 @@ class Media extends Model
     public static function showcaseCovers(): array
     {
         // Seen by guests (the sign-in panel) and kept for an hour, so it is the gated list.
-        return Cache::remember('media:showcase-covers:v2', now()->addHour(), fn (): array => array_values(static::query()
+        return Cache::remember('media:showcase-covers:v3', now()->addHour(), fn (): array => array_values(static::query()
             ->trending()
             ->visibleTo(null)
             ->whereNotNull('media.cover_url')
