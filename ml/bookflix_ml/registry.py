@@ -113,13 +113,16 @@ def version_parameters(conn: Conn, version_id: int) -> dict[str, Any]:
     return {} if row is None or row[0] is None else dict(row[0])
 
 
-def active_metrics(conn: Conn, name: str) -> dict[str, Any] | None:
-    """The metrics of the active version of `name`, or None when none is active."""
+def active_version(conn: Conn, name: str) -> tuple[int, dict[str, Any], dict[str, Any]] | None:
+    """The active version of `name` (id, metrics, parameters), or None when none is active."""
     row = conn.execute(
-        "select metrics from model_versions where name = %s and status = 'active'", (name,)
+        "select id, metrics, parameters from model_versions where name = %s and status = 'active'",
+        (name,),
     ).fetchone()
+    if row is None:
+        return None
 
-    return None if row is None else dict(row[0])
+    return int(row[0]), dict(row[1] or {}), dict(row[2] or {})
 
 
 def record_metrics(conn: Conn, version_id: int, metrics: dict[str, Any]) -> None:

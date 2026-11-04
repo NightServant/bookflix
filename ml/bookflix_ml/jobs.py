@@ -261,16 +261,44 @@ def _held_out_neighbors(
     }
 
 
-def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
-    """Score the `candidate` of `kind` (the one `version_id` names, else the newest) against each eligible reader's last positive item and promote it if the gate allows.
+def _neighbors_of(
+    conn: Conn,
+    kind: str,
+    version_id: int,
+    method: str,
+    parameters: dict[str, Any],
+    interactions: list[tuple[int, int, str, float | None, datetime]],
+    held: dict[int, int],
+    fallback: tuple[dict[str, Any], int],
+    now: datetime,
+) -> dict[int, list[tuple[int, float]]]:
+    """The neighbors one version is scored on: `item_cf` refits in memory on the training split with the version's own weights and `k`
+    (`fallback` when it stored none), `lsa` reads the version's stored rows."""
+    if kind != "item_cf":
+        return db.fetch_similarity_rows(conn, version_id, method)
 
-    Interactions come from the same eligible-reader export as training. An `item_cf` candidate is scored on neighbors trained in memory
-    on the leave-last-out training split only, with the candidate's own weights and `k`, so a held-out item never helped build the
-    neighbors it is scored on; nothing is written to `media_similarities` for that (promotion still uses the stored candidate). `lsa`
-    learns from item text, not interactions, so it cannot leak a held-out interaction and is ranked from its stored `media_similarities`
-    rows (so `build-similarities` must have run). The metrics, `promoted` and `reason` are stored on the candidate, and the promotion goes in
-    that same transaction. Too little data (fewer than two readers with two positive items, no rows) is recorded and promotes nothing. Any failure
-    rolls back and re-raises, so no version or row changes; the job runner records the failure.
+    weights = parameters.get("weights") or fallback[0]
+    positive = item_cf.interaction_scores(interactions, weights, now)
+
+    return _held_out_neighbors(conn, positive, held, int(parameters.get("k", fallback[1])))
+
+
+def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Score the `candidate` of `kind` (the one `version_id` names, else the newest) against each eligible reader's last positive item
+    and promote it if the gate allows.
+
+    Interactions come from the same eligible-reader export as training. An `item_cf` model is scored on neighbors trained in memory
+    on the leave-last-out training split only, with its own weights and `k`, so a held-out item never helped build the neighbors it is
+    scored on; nothing is written to `media_similarities` for that (promotion still uses the stored candidate). `lsa` learns from item
+    text, not interactions, so it cannot leak a held-out interaction and is ranked from its stored `media_similarities` rows (so
+    `build-similarities` must have run).
+
+    The gate compares against the active version scored now, on the same split in the same run (item_cf refit with the active version's
+    parameters, lsa from its stored rows), never against metrics recorded at some earlier time. Both metric sets, `promoted` and `reason`
+    are stored on the candidate, and the promotion goes in that same transaction. A candidate with no `media_similarities` rows is never
+    promoted. With too little data (fewer than two readers with two positive items, or no neighbors) nothing can be compared: the
+    candidate is promoted only when there is no active version yet. Any failure rolls back and re-raises, so no version or row changes;
+    the job runner records the failure.
     """
     kind = str(params.get("kind", ""))
     if kind not in EVAL_KINDS:
@@ -291,6 +319,7 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         parameters = registry.version_parameters(conn, version_id)
         # The candidate's own weights (decay half-life included), so the split and the in-memory model match what it was trained on.
         weights = parameters.get("weights") or db.fetch_interaction_weights(conn)
+        k = int(parameters.get("k", 50))
         now = datetime.now(UTC)
         interactions = db.fetch_interactions(conn)
         positive = item_cf.interaction_scores(interactions, weights, now)
@@ -300,43 +329,61 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                 last_seen[(user, media)] = max(at, last_seen.get((user, media), at))
 
         train, held = evaluate.leave_last_out((u, m, at) for (u, m), at in last_seen.items())
-        if kind == "item_cf":
-            neighbors = _held_out_neighbors(conn, positive, held, int(parameters.get("k", 50)))
-        else:
-            neighbors = db.fetch_similarity_rows(conn, version_id, method)
-
-        outcome: dict[str, Any] = {"n_eval_users": len(held)}
-        if len(held) < MIN_EVAL_USERS or not neighbors:
-            outcome |= {"promoted": False, "reason": "not enough data"}
-            registry.record_metrics(conn, version_id, outcome)
-            conn.commit()
-            return outcome
-
-        recommended = {u: _rank_for_user(train[u], neighbors, EVAL_K) for u in held}
+        active = registry.active_version(conn, EVAL_KINDS[kind])
+        catalog_size = len(db.fetch_live_media_ids(conn))
         item_pop: dict[int, int] = {}
         for _user, media in positive:
             item_pop[media] = item_pop.get(media, 0) + 1
-        lookup = {(a, b): s for a, pairs in neighbors.items() for b, s in pairs}
+        n_users = len({u for u, _ in positive})
 
-        metrics = evaluate.metrics_at_k(
-            recommended,
-            {u: {m} for u, m in held.items()},
-            EVAL_K,
-            catalog_size=len(db.fetch_live_media_ids(conn)),
-            item_pop=item_pop,
-            item_sim=lambda a, b: max(lookup.get((a, b), 0.0), lookup.get((b, a), 0.0)),
-            n_users=len({u for u, _ in positive}),
+        def score(neighbors: dict[int, list[tuple[int, float]]]) -> dict[str, float]:
+            lookup = {(a, b): s for a, pairs in neighbors.items() for b, s in pairs}
+
+            return evaluate.metrics_at_k(
+                {u: _rank_for_user(train[u], neighbors, EVAL_K) for u in held},
+                {u: {m} for u, m in held.items()},
+                EVAL_K,
+                catalog_size=catalog_size,
+                item_pop=item_pop,
+                item_sim=lambda a, b: max(lookup.get((a, b), 0.0), lookup.get((b, a), 0.0)),
+                n_users=n_users,
+            )
+
+        neighbors = _neighbors_of(
+            conn, kind, version_id, method, parameters, interactions, held, (weights, k), now
         )
-        active = registry.active_metrics(conn, EVAL_KINDS[kind])
-        promote = evaluate.should_promote(metrics, active)
-        if promote:
-            reason = "no active version" if active is None else "passed the gate"
+        outcome: dict[str, Any] = {"n_eval_users": len(held)}
+        if active is not None:
+            outcome["active_version_id"] = active[0]
+
+        if len(held) < MIN_EVAL_USERS or not neighbors:
+            promote = active is None
+            reason = "no active version (not evaluated)" if promote else "not enough data"
         else:
-            reason = "NDCG@10 fell by more than 2% or coverage fell against the active version"
+            metrics = score(neighbors)
+            outcome |= metrics
+            if active is None:
+                promote, reason = True, "no active version"
+            else:
+                active_neighbors = _neighbors_of(
+                    conn, kind, active[0], method, active[2], interactions, held, (weights, k), now
+                )
+                # An active version with nothing to rank from (its rows are gone) cannot be a baseline.
+                active_scored = score(active_neighbors) if active_neighbors else {}
+                outcome["active_metrics"] = active_scored
+                promote = evaluate.should_promote(metrics, active_scored)
+                if promote:
+                    reason = (
+                        "passed the gate" if active_scored else "active version could not be scored"
+                    )
+                else:
+                    reason = (
+                        "NDCG@10 fell by more than 2% or coverage fell against the active version"
+                    )
         if promote and not registry.has_similarity_rows(conn, version_id, method):
             promote, reason = False, "no similarity rows (run build-similarities first)"
 
-        outcome |= metrics | {"promoted": promote, "reason": reason}
+        outcome |= {"promoted": promote, "reason": reason}
         registry.record_metrics(conn, version_id, outcome)
         if promote:
             registry.promote(conn, version_id)

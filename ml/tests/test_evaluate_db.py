@@ -140,20 +140,65 @@ def test_evaluate_job_promotes_a_good_candidate_and_keeps_the_active_when_gate_f
     assert status_of(db, candidate) == "active" and status_of(db, active) == "retired"
     assert sim_versions(db) == {candidate}
 
-    # The gate compares against the promoted version's measured quality: a candidate that scores lower is blocked.
+
+def lsa_pair(
+    db: Conn, active_rows: dict[int, list[tuple[int, float]]], stored: dict[str, Any]
+) -> tuple[int, int]:
+    """An active lsa version with `active_rows` and the given stored metrics, and a candidate that predicts nothing."""
+    seed_readers_with_hits(db)
+    active = version(db, "active", "lsa", "lsa", stored)
+    candidate = version(db, "candidate", "lsa", "lsa")
+    write(db, "lsa", active, active_rows)
+    write(db, "lsa", candidate, {1: [(4, 0.9)]})
+    db.commit()
+
+    return active, candidate
+
+
+def test_gate_scores_the_active_version_now_instead_of_trusting_its_stored_metrics(
+    db: Conn,
+) -> None:
+    # Stored metrics claim the active is useless; scored on today's split it is the better one, so the candidate is blocked.
+    active, candidate = lsa_pair(db, good_neighbors(), {"ndcg@10": 0.0, "coverage": 0.0})
+
+    result = run_evaluate(db, {"kind": "lsa"})
+
+    assert result["promoted"] is False and result["active_version_id"] == active
+    assert result["active_metrics"]["ndcg@10"] > result["ndcg@10"] == 0.0
+    assert status_of(db, candidate) == "candidate" and status_of(db, active) == "active"
+    assert sim_versions(db, "lsa") == {active, candidate}
+
+
+def test_gate_promotes_a_better_candidate_whatever_the_active_stored(db: Conn) -> None:
+    # Stored metrics claim the active is perfect; scored now it is the worse one.
+    active, candidate = lsa_pair(db, {1: [(4, 0.9)]}, {"ndcg@10": 1.0, "coverage": 1.0})
+    write(db, "lsa", candidate, good_neighbors())
+    db.commit()
+
+    result = run_evaluate(db, {"kind": "lsa"})
+
+    assert result["promoted"] is True and result["reason"] == "passed the gate"
+    assert status_of(db, candidate) == "active" and status_of(db, active) == "retired"
+    row = db.execute("select metrics from model_versions where id = %s", (candidate,)).fetchone()
+    assert row is not None and row[0]["active_metrics"]["ndcg@10"] == 0.0
+
+
+def test_item_cf_gate_refits_the_active_version_with_its_own_parameters(db: Conn) -> None:
+    seed_readers_with_hits(db)
+    # The active one only ever learned from `view` events, which nobody has: it recommends nothing.
+    active = version(db, "active", metrics={"ndcg@10": 0.0, "coverage": 0.0})
     db.execute(
-        'update model_versions set metrics = metrics || \'{"ndcg@10": 1.0, "coverage": 1.0}\'::jsonb where id = %s',
-        (candidate,),
+        "update model_versions set parameters = %s::jsonb where id = %s",
+        (json.dumps({"weights": {"view": 1, "half_life_days": 90}, "k": 50}), active),
     )
-    worse = version(db)
-    write(db, "item_cf", worse, {1: [(4, 0.9)]})
+    candidate = version(db)
+    write(db, "item_cf", candidate, good_neighbors())
     db.commit()
 
     result = run_evaluate(db, {"kind": "item_cf"})
 
-    assert result["promoted"] is False
-    assert status_of(db, worse) == "candidate" and status_of(db, candidate) == "active"
-    assert sim_versions(db) == {candidate, worse}
+    assert result["promoted"] is True and result["active_metrics"] == {}
+    assert result["reason"] == "active version could not be scored"
 
 
 def test_item_cf_evaluation_does_not_see_the_held_out_item_it_is_scored_on(db: Conn) -> None:
@@ -192,6 +237,8 @@ def test_item_cf_evaluation_uses_the_candidates_own_k_and_weights(db: Conn) -> N
         (json.dumps({"weights": {"view": 1, "half_life_days": 90}, "k": 5}), ignoring),
     )
     db.commit()
+
+    version(db, "active")
 
     # Weights that give library_add no weight leave nothing to learn from.
     assert run_evaluate(db, {"kind": "item_cf"})["reason"] == "not enough data"
@@ -260,13 +307,14 @@ def test_metrics_stay_finite_on_tiny_inputs(db: Conn) -> None:
 
 
 def test_evaluate_writes_metrics_and_reason_even_when_blocked(db: Conn) -> None:
-    seed_readers(db)
-    active = version(db, "active", metrics={"ndcg@10": 0.9, "coverage": 0.9, "n_users": 4})
-    candidate = version(db, metrics={"n_users": 4})
-    write(db, "item_cf", candidate, {1: [(4, 0.9)]})
+    active, candidate = lsa_pair(db, good_neighbors(), {"n_users": 4})
+    db.execute(
+        "update model_versions set metrics = metrics || '{\"n_users\": 4}' where id = %s",
+        (candidate,),
+    )
     db.commit()
 
-    run_evaluate(db, {"kind": "item_cf"})
+    run_evaluate(db, {"kind": "lsa"})
 
     row = db.execute(
         "select metrics, status from model_versions where id = %s", (candidate,)
@@ -305,7 +353,7 @@ def test_one_user_gives_not_enough_data_and_no_promotion(db: Conn) -> None:
     seed_users(db, active=1)
     seed_interaction(db, 1, 1)
     seed_interaction(db, 1, 2)
-    candidate = version(db)
+    active, candidate = version(db, "active"), version(db)
     write(db, "item_cf", candidate, {1: [(2, 0.9)]})
     db.commit()
 
@@ -313,6 +361,31 @@ def test_one_user_gives_not_enough_data_and_no_promotion(db: Conn) -> None:
 
     assert result["promoted"] is False and result["reason"] == "not enough data"
     assert result["n_eval_users"] == 1
+    assert status_of(db, candidate) == "candidate" and status_of(db, active) == "active"
+
+
+@pytest.mark.parametrize(("kind", "name"), [("item_cf", "item-cf"), ("lsa", "lsa")])
+def test_a_first_candidate_is_promoted_even_without_enough_data_to_evaluate(
+    db: Conn, kind: str, name: str
+) -> None:
+    seed_media(db, 1, 2)
+    candidate = version(db, "candidate", name, kind)
+    write(db, kind, candidate, {1: [(2, 0.9)]})
+    db.commit()
+
+    result = run_evaluate(db, {"kind": kind})
+
+    assert result["promoted"] is True and result["reason"] == "no active version (not evaluated)"
+    assert status_of(db, candidate) == "active"
+
+
+def test_a_first_candidate_without_rows_is_still_refused(db: Conn) -> None:
+    candidate = version(db, "candidate", "lsa", "lsa")
+    db.commit()
+
+    result = run_evaluate(db, {"kind": "lsa"})
+
+    assert result["promoted"] is False and "similarity rows" in result["reason"]
     assert status_of(db, candidate) == "candidate"
 
 
@@ -323,7 +396,7 @@ def test_no_users_and_no_candidate_are_recorded_without_error(db: Conn) -> None:
 
     result = run_evaluate(db, {"kind": "item_cf"})
 
-    assert result["promoted"] is False and result["reason"] == "not enough data"
+    assert result["promoted"] is False and "similarity rows" in result["reason"]
     assert status_of(db, candidate) == "candidate"
 
 
@@ -333,6 +406,7 @@ def test_opted_out_and_deactivated_readers_are_not_evaluated(db: Conn) -> None:
     for user in (1, 2):
         for n, media in enumerate((1, 2)):
             seed_interaction(db, user, media, "library_add", None, now() - timedelta(days=5 - n))
+    version(db, "active")
     candidate = version(db)
     write(db, "item_cf", candidate, {1: [(2, 0.9)]})
     db.commit()
