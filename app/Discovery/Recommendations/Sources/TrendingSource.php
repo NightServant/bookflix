@@ -22,7 +22,7 @@ class TrendingSource extends Source
 
     protected function gather(User $user, int $limit): Collection
     {
-        $rows = $this->eligible($user)->trending()
+        $rows = $this->eligible($user)->trending($limit)
             ->select('media.id')
             ->selectRaw(Media::TRENDING_BLEND.' as blend', [Media::trendingWeight()])
             ->limit($limit)

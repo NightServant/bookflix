@@ -95,7 +95,7 @@ class HomeShelves
      */
     private function pick(int $perShelf, ?User $viewer): array
     {
-        $trending = array_values(Media::trending()->visibleTo($viewer)->limit($perShelf)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
+        $trending = array_values(Media::trending($perShelf)->visibleTo($viewer)->limit($perShelf)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
 
         // Until ratings exist the two story shelves would rank alike, so the stories already trending go to the back of the line.
         $releases = Media::query()->unmerged()->visibleTo($viewer)
@@ -110,7 +110,7 @@ class HomeShelves
             ->take($perShelf)
             ->values();
 
-        $hero = array_values(Media::trending()->visibleTo($viewer)->whereNotNull('media.cover_url')->limit(self::HERO_SLIDES)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
+        $hero = array_values(Media::trending(self::HERO_SLIDES)->visibleTo($viewer)->whereNotNull('media.cover_url')->limit(self::HERO_SLIDES)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all());
 
         return ['trending' => $trending, 'new-releases' => array_values($releases->all()), 'hero' => $hero];
     }

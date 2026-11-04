@@ -107,3 +107,40 @@ test('interactions of opted-out and deactivated readers add nothing', function (
 
     expect(Media::trending()->pluck('media.id')->all())->toBe([$a->id, $b->id]);
 });
+
+test('with a limit the narrowed query gives the same first rows as the full blend, filters included', function () {
+    // Provider scores close together, some stories busy, a few with no cover: the narrowing must not change who is first.
+    $media = Media::factory()->count(60)->sequence(fn ($i) => [
+        'popularity_score' => round(0.9 - $i->index * 0.012, 3),
+        'ratings_count' => 100 - $i->index,
+        'cover_url' => $i->index % 7 === 0 ? null : 'https://example.test/c.jpg',
+    ])->create();
+    foreach ([3 => 4, 11 => 9, 25 => 2, 40 => 12, 55 => 30, 58 => 1] as $index => $views) {
+        viewed($media[$index], $views);
+    }
+    refreshPopularity();
+
+    foreach ([1, 5, 12, 20, 80] as $limit) {
+        $full = Media::trending()->whereNotNull('media.cover_url')->limit($limit)->pluck('media.id')->all();
+        $narrow = Media::trending($limit)->whereNotNull('media.cover_url')->limit($limit)->pluck('media.id')->all();
+        $narrowFirst = Media::query()->whereNotNull('media.cover_url')->trending($limit)->limit($limit)->pluck('media.id')->all();
+
+        expect($narrow)->toBe($full, "limit {$limit}")->and($narrowFirst)->toBe($full, "limit {$limit}");
+    }
+});
+
+test('with a limit a busy story far down the provider order is still considered', function () {
+    $media = Media::factory()->count(30)->sequence(fn ($i) => ['popularity_score' => 0.9 - $i->index * 0.02])->create();
+    viewed($media[29], 50);
+    refreshPopularity();
+
+    // 0.32 + 0.05 stays under the tenth place (0.72), so it is not among ten, but is in the narrowed set: the order is the same as the full one.
+    expect(Media::trending(10)->limit(10)->pluck('media.id')->all())->toBe(Media::trending()->limit(10)->pluck('media.id')->all());
+});
+
+test('a narrowed trending query still takes a page of rows', function () {
+    Media::factory()->count(5)->sequence(fn ($i) => ['popularity_score' => 0.5 - $i->index * 0.1])->create();
+    refreshPopularity();
+
+    expect(Media::trending(3)->limit(3)->get())->toHaveCount(3)->and(Media::trending(3)->limit(2)->offset(1)->get())->toHaveCount(2);
+});
