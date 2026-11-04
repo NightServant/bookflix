@@ -69,6 +69,41 @@ def latest_candidate(conn: Conn, name: str) -> tuple[int, str] | None:
     return None if row is None else (int(row[0]), str(row[1]))
 
 
+def require_candidate(conn: Conn, version_id: int, name: str) -> tuple[int, str, str | None]:
+    """The id, method and artifact URI of the version `version_id`, which must be a `candidate` named `name`; `ValueError` otherwise.
+
+    Pipelines can overlap on the one worker, so a step that was told which version its `train` made must use that one, not the newest.
+    """
+    row = conn.execute(
+        "select kind, artifact_uri from model_versions where id = %s and name = %s and status = 'candidate'",
+        (version_id, name),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"Model version {version_id} is not a candidate of {name}.")
+
+    return version_id, str(row[0]), row[1]
+
+
+def parse_version_id(params: dict[str, Any]) -> int | None:
+    """The optional `version_id` param as an int; `ValueError` when it is present but not an integer."""
+    value = params.get("version_id")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("version_id must be an integer.")
+
+    return value
+
+
+def has_similarity_rows(conn: Conn, version_id: int, method: str) -> bool:
+    row = conn.execute(
+        "select exists (select 1 from media_similarities where model_version_id = %s and method = %s)",
+        (version_id, method),
+    ).fetchone()
+
+    return bool(row and row[0])
+
+
 def version_parameters(conn: Conn, version_id: int) -> dict[str, Any]:
     """The parameters a version was created with (for item-cf: its weights and `k`)."""
     row = conn.execute(

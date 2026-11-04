@@ -127,7 +127,7 @@ def run_train_lsa(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         conn.commit()
         raise
 
-    return metrics
+    return {**metrics, "version_id": version_id}
 
 
 def run_train_item_cf(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
@@ -165,11 +165,14 @@ def run_train_item_cf(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         conn.commit()
         raise
 
-    return {**counts, "n_items_with_neighbors": len(neighbors)}
+    return {**counts, "n_items_with_neighbors": len(neighbors), "version_id": version_id}
 
 
 def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Write the top-50 neighbors of the newest candidate-or-active `lsa` and `item-cf` versions to `media_similarities`.
+
+    With a `version_id` (the one its `train` step reported, so overlapping pipelines do not mix versions) it builds exactly that version
+    instead, which must be a `candidate` of the one method in `methods`; anything else fails the job.
 
     Each method goes in its own transaction under its own version id, so one failing leaves the other's rows and the old rows of the
     failing one untouched. A method with no version yet is skipped. Neighbors of media that are no longer live are dropped.
@@ -179,13 +182,21 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
     if unknown:
         raise ValueError(f"Unknown similarity method: {', '.join(unknown)}")
 
+    pinned = registry.parse_version_id(params)
+    if pinned is not None and len(methods) != 1:
+        raise ValueError("version_id needs exactly one method.")
+
     metrics: dict[str, Any] = {"written": {}, "skipped": []}
     for method in methods:
-        found = registry.latest_version(conn, "lsa" if method == "lsa" else "item-cf")
-        if found is None:
-            metrics["skipped"].append(method)
-            continue
-        version_id, uri = found
+        name = "lsa" if method == "lsa" else "item-cf"
+        if pinned is None:
+            found = registry.latest_version(conn, name)
+            if found is None:
+                metrics["skipped"].append(method)
+                continue
+            version_id, uri = found
+        else:
+            version_id, _, uri = registry.require_candidate(conn, pinned, name)
 
         try:
             if method == "lsa":
@@ -251,7 +262,7 @@ def _held_out_neighbors(
 
 
 def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
-    """Score the newest `candidate` of `kind` against each eligible reader's last positive item and promote it if the gate allows.
+    """Score the `candidate` of `kind` (the one `version_id` names, else the newest) against each eligible reader's last positive item and promote it if the gate allows.
 
     Interactions come from the same eligible-reader export as training. An `item_cf` candidate is scored on neighbors trained in memory
     on the leave-last-out training split only, with the candidate's own weights and `k`, so a held-out item never helped build the
@@ -267,10 +278,14 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
             f"Unknown evaluation kind: kind must be one of {', '.join(sorted(EVAL_KINDS))}."
         )
 
-    found = registry.latest_candidate(conn, EVAL_KINDS[kind])
-    if found is None:
-        return {"promoted": False, "reason": "no candidate"}
-    version_id, method = found
+    pinned = registry.parse_version_id(params)
+    if pinned is None:
+        found = registry.latest_candidate(conn, EVAL_KINDS[kind])
+        if found is None:
+            return {"promoted": False, "reason": "no candidate"}
+        version_id, method = found
+    else:
+        version_id, method, _ = registry.require_candidate(conn, pinned, EVAL_KINDS[kind])
 
     try:
         parameters = registry.version_parameters(conn, version_id)
@@ -318,6 +333,8 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
             reason = "no active version" if active is None else "passed the gate"
         else:
             reason = "NDCG@10 fell by more than 2% or coverage fell against the active version"
+        if promote and not registry.has_similarity_rows(conn, version_id, method):
+            promote, reason = False, "no similarity rows (run build-similarities first)"
 
         outcome |= metrics | {"promoted": promote, "reason": reason}
         registry.record_metrics(conn, version_id, outcome)
