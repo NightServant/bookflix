@@ -27,7 +27,7 @@ class Diversifier
             return new Collection;
         }
 
-        $similarity ??= $this->tagSimilarity(array_map(fn (RankedItem $item): int => $item->mediaId, $remaining));
+        $similarity ??= $this->tagSimilarity(array_values(array_map(fn (RankedItem $item): int => $item->mediaId, $remaining)));
         $closest = array_fill(0, count($remaining), 0.0);
 
         while ($remaining !== [] && count($picked) < $limit) {

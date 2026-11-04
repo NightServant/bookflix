@@ -41,7 +41,9 @@ final readonly class RankingWeights
 
     public static function active(): self
     {
-        return self::fromArray(ModelVersion::activeFor('hybrid-weights')?->parameters ?? config('bookflix.hybrid_weights'));
+        $version = ModelVersion::activeFor('hybrid-weights');
+
+        return self::fromArray($version === null ? config('bookflix.hybrid_weights') : $version->parameters);
     }
 
     /**

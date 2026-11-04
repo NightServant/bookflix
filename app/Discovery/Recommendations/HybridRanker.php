@@ -244,7 +244,7 @@ class HybridRanker
             }
         }
 
-        $max = max($raw);
+        $max = max([0.0, ...$raw]);
 
         return $max > 0 ? array_map(fn (float $value): float => $value / $max, $raw) : [];
     }
