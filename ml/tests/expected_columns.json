@@ -1,0 +1,18 @@
+{
+  "users": ["id", "deactivated_at"],
+  "profiles": ["user_id", "personalization_enabled"],
+  "user_interactions": ["user_id", "media_id", "event", "value", "occurred_at"],
+  "media": ["id", "title", "alternative_titles", "description", "deleted_at", "merged_into_id", "published_on", "ratings_count"],
+  "genres": ["id", "name"],
+  "themes": ["id", "name"],
+  "tags": ["id", "name"],
+  "characters": ["id", "name"],
+  "media_genres": ["media_id", "genre_id"],
+  "media_themes": ["media_id", "theme_id"],
+  "media_tags": ["media_id", "tag_id"],
+  "media_characters": ["media_id", "character_id"],
+  "model_versions": ["id", "name", "version", "kind", "status", "trained_at", "dataset_ref", "parameters", "metrics", "artifact_uri"],
+  "media_lsa_vectors": ["media_id", "model_version_id", "vector"],
+  "media_similarities": ["media_id", "similar_media_id", "method", "score", "model_version_id"],
+  "media_features": ["media_id", "model_version_id", "top_terms", "summary", "computed_at"]
+}

@@ -111,6 +111,16 @@ function primaryNavs(string $html): array
 }
 
 /**
+ * A response the ML service and Laravel agree on (`tests/Fixtures/ml-contracts/`); the Python tests check the same files.
+ *
+ * @return array<string, mixed>
+ */
+function contract(string $name): array
+{
+    return json_decode(file_get_contents(__DIR__."/Fixtures/ml-contracts/{$name}"), true, flags: JSON_THROW_ON_ERROR);
+}
+
+/**
  * A provider fixture recorded from the real API (Pest already owns `fixture()`, which returns a path), e.g. `openlibrary/work-dune.json`.
  *
  * @return array<string, mixed>

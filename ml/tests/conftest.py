@@ -31,3 +31,13 @@ def contract() -> Callable[[str], Any]:
         return json.loads((CONTRACTS / name).read_text())
 
     return load
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip db-marked tests unless ML_TEST_DATABASE_URL points at a test database."""
+    if os.environ.get("ML_TEST_DATABASE_URL"):
+        return
+    skip = pytest.mark.skip(reason="ML_TEST_DATABASE_URL is not set")
+    for item in items:
+        if "db" in item.keywords:
+            item.add_marker(skip)
