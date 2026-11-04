@@ -1,5 +1,6 @@
 <?php
 
+use App\Access\MatureAccess;
 use App\Models\Creator;
 use App\Models\Demographic;
 use App\Models\Genre;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Models\UserPreference;
 use Database\Seeders\MediaTypeSeeder;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
@@ -209,4 +211,26 @@ test('saving does not need the reader to have onboarded, and does not onboard th
     Livewire::test('pages::settings.preferences')->set('genres', ['fantasy'])->call('save')->assertHasNoErrors();
 
     expect($user->preferences()->count())->toBe(1)->and($user->fresh()->profile->onboarded_at)->toBeNull();
+});
+
+test('saving or removing preferences forgets the reader\'s cached home shelves, and only theirs', function () {
+    preferenceTaxonomy();
+    $this->actingAs($user = User::factory()->create());
+    $other = User::factory()->create();
+    $remember = function () use ($user, $other): void {
+        foreach ([$user, $other] as $reader) {
+            foreach (MatureAccess::CACHE_KEYS as $access) {
+                Cache::put("home:shelves:{$reader->id}:{$access}", ['kept'], 600);
+            }
+        }
+    };
+    $cached = fn (User $reader): bool => collect(MatureAccess::CACHE_KEYS)->contains(fn (string $access): bool => Cache::has("home:shelves:{$reader->id}:{$access}"));
+
+    $remember();
+    Livewire::test('pages::settings.preferences')->set('genres', ['fantasy'])->call('save');
+    expect($cached($user))->toBeFalse()->and($cached($other))->toBeTrue();
+
+    $remember();
+    Livewire::test('pages::settings.preferences')->set('genres', [])->call('save');
+    expect($user->preferences()->count())->toBe(0)->and($cached($user))->toBeFalse()->and($cached($other))->toBeTrue();
 });

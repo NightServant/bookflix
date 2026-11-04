@@ -5,7 +5,7 @@ namespace App\Events;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
- * A profile setting the home shelves depend on changed: mature access (`show_mature`, its confirmation) or personalization.
+ * Something the home shelves depend on changed: mature access (`show_mature`, its confirmation), personalization, or the saved preferences.
  */
 final class HomePreferencesChanged
 {
