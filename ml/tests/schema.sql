@@ -76,7 +76,7 @@ create table media_similarities (
     method varchar(255) not null,
     score real not null,
     model_version_id bigint not null references model_versions (id) on delete cascade,
-    primary key (media_id, method, similar_media_id),
+    primary key (media_id, method, model_version_id, similar_media_id),
     check (media_id <> similar_media_id)
 );
 

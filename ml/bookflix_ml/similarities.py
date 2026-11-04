@@ -53,8 +53,9 @@ def top_k_cosine(ids: list[int], vectors: np.ndarray, k: int = 50, block: int = 
 def write(conn: Conn, method: str, model_version_id: int, neighbors: Neighbors) -> int:
     """Replace the rows of one `(method, version)` in the caller's transaction; returns how many were written.
 
-    The primary key has no version, so a pair already stored by another version of the method is taken over by this one. It never commits:
-    a failure anywhere leaves the old rows as they were once the caller rolls back.
+    The version is part of the primary key, so a candidate version stores its pairs next to the active version's and never touches them;
+    only the promotion switches which rows readers see. It never commits: a failure anywhere leaves the old rows as they were once the
+    caller rolls back.
     """
     rows = [
         (media_id, similar, method, score, model_version_id)
@@ -73,8 +74,8 @@ def write(conn: Conn, method: str, model_version_id: int, neighbors: Neighbors) 
                 """
                 insert into media_similarities (media_id, similar_media_id, method, score, model_version_id)
                 values (%s, %s, %s, %s, %s)
-                on conflict (media_id, method, similar_media_id)
-                do update set score = excluded.score, model_version_id = excluded.model_version_id
+                on conflict (media_id, method, model_version_id, similar_media_id)
+                do update set score = excluded.score
                 """,
                 rows[start : start + WRITE_CHUNK],
             )

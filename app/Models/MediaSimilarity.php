@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One neighbor of a media under one method (the top 50 per method), written by the Python service. The key is (media, method, similar media), and a
+ * One neighbor of a media under one method (the top 50 per method), written by the Python service. The key is (media, method, model version, similar media), so a candidate version never overwrites the active one's pairs, and a
  * media is never its own neighbor.
  *
  * @property int $media_id
@@ -44,7 +44,7 @@ class MediaSimilarity extends Model
     }
 
     /**
-     * A row is saved and deleted by all three parts of its key.
+     * A row is saved and deleted by all four parts of its key.
      *
      * @param  Builder<static>  $query
      * @return Builder<static>
@@ -54,6 +54,7 @@ class MediaSimilarity extends Model
         return $query
             ->where('media_id', $this->getAttribute('media_id'))
             ->where('method', $this->getAttribute('method'))
+            ->where('model_version_id', $this->getAttribute('model_version_id'))
             ->where('similar_media_id', $this->getAttribute('similar_media_id'));
     }
 

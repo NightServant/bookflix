@@ -81,15 +81,33 @@ test('seeding the weights twice keeps one row and leaves a changed one alone', f
         ->and(ModelVersion::activeFor('hybrid-weights')->parameters)->toBe(['content' => 0.5]);
 });
 
-test('similarities cannot include duplicate neighbors and cascade with media', function () {
+test('similarities cannot repeat a neighbor within a version and cascade with media', function () {
     $a = MediaSimilarity::factory()->create();
 
-    expect(refused(fn () => MediaSimilarity::factory()->create(['media_id' => $a->media_id, 'similar_media_id' => $a->similar_media_id, 'method' => $a->method])))
+    expect(refused(fn () => MediaSimilarity::factory()->create(['media_id' => $a->media_id, 'similar_media_id' => $a->similar_media_id, 'method' => $a->method, 'model_version_id' => $a->model_version_id])))
         ->toThrow(QueryException::class);
 
     Media::find($a->media_id)->forceDelete();
 
     expect(MediaSimilarity::count())->toBe(0);
+});
+
+test('two versions of a method keep the same pair side by side, and saving one leaves the other alone', function () {
+    $active = ModelVersion::factory()->active()->create();
+    $candidate = ModelVersion::factory()->create();
+    $pair = ['media_id' => Media::factory()->create()->id, 'similar_media_id' => Media::factory()->create()->id, 'method' => 'lsa'];
+    $old = MediaSimilarity::factory()->create([...$pair, 'model_version_id' => $active->id, 'score' => 0.9]);
+    $new = MediaSimilarity::factory()->create([...$pair, 'model_version_id' => $candidate->id, 'score' => 0.2]);
+
+    $new->update(['score' => 0.3]);
+
+    expect(MediaSimilarity::count())->toBe(2)
+        ->and(MediaSimilarity::where('model_version_id', $active->id)->value('score'))->toBe(0.9)
+        ->and(MediaSimilarity::where('model_version_id', $candidate->id)->value('score'))->toBe(0.3);
+
+    MediaSimilarity::where('model_version_id', $old->model_version_id)->delete();
+
+    expect(MediaSimilarity::pluck('model_version_id')->all())->toBe([$candidate->id]);
 });
 
 test('a media is never its own neighbor', function () {

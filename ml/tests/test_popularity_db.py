@@ -41,6 +41,39 @@ def test_write_replaces_rows_for_the_same_version_atomically(db: Conn) -> None:
     assert (1, 2, v1) not in rows(db) and (2, 1, v1) not in rows(db)
 
 
+def test_a_candidate_version_leaves_the_active_versions_rows_identical(db: Conn) -> None:
+    seed_media(db, 1, 2, 3)
+    active, candidate = version(db, status="active"), version(db)
+    write(db, "lsa", active, {1: [(2, 0.9), (3, 0.4)], 2: [(1, 0.9)]})
+    db.commit()
+    before = db.execute(
+        "select media_id, similar_media_id, score, model_version_id from media_similarities order by 1, 2"
+    ).fetchall()
+
+    write(db, "lsa", candidate, {1: [(2, 0.1)], 3: [(1, 0.7)]})
+    db.commit()
+
+    kept = db.execute(
+        "select media_id, similar_media_id, score, model_version_id from media_similarities where model_version_id = %s order by 1, 2",
+        (active,),
+    ).fetchall()
+    assert kept == before
+    assert (1, 2, candidate) in rows(db) and (1, 2, active) in rows(db)
+
+
+def test_rerunning_a_version_replaces_only_its_own_rows(db: Conn) -> None:
+    seed_media(db, 1, 2, 3)
+    active, candidate = version(db, status="active"), version(db)
+    write(db, "lsa", active, {1: [(2, 0.9)]})
+    write(db, "lsa", candidate, {1: [(2, 0.5), (3, 0.4)]})
+    db.commit()
+
+    write(db, "lsa", candidate, {2: [(3, 0.6)]})
+    db.commit()
+
+    assert rows(db) == {(1, 2, active), (2, 3, candidate)}
+
+
 def test_other_methods_are_left_alone(db: Conn) -> None:
     seed_media(db, 1, 2, 3)
     v1, other = version(db), version(db, "item-cf", kind="item_cf")
