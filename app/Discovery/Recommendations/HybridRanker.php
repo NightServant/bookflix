@@ -2,6 +2,7 @@
 
 namespace App\Discovery\Recommendations;
 
+use App\Access\MatureAccess;
 use App\Classification\Dewey\DeweyHierarchy;
 use App\Models\DeweyClass;
 use App\Models\Media;
@@ -61,11 +62,12 @@ class HybridRanker
         [$content, $collaborative] = $this->neighbors($seeds, $ids);
         $dewey = $this->deweySimilarity($seeds, $ids);
         $preference = $this->preference($user, $seeds, $ids);
-        $reasons = $this->reasonMedia($best);
+        $reasons = $this->reasonMedia($user, $best);
+        $genres = $this->visibleGenres($user, $best);
         $total = max(1.0, array_sum($weights->toArray()));
 
         return collect($best)
-            ->map(function (Candidate $candidate, int $id) use ($media, $content, $collaborative, $dewey, $preference, $reasons, $weights, $total): RankedItem {
+            ->map(function (Candidate $candidate, int $id) use ($media, $content, $collaborative, $dewey, $preference, $reasons, $genres, $weights, $total): RankedItem {
                 $row = $media[$id];
                 $popularity = $this->clamp((float) $row->getAttribute('blend'));
                 $features = [
@@ -88,7 +90,7 @@ class HybridRanker
                     + $weights->context * $features['context']
                     + $weights->novelty * $features['novelty'];
 
-                return new RankedItem($id, $this->clamp($score / $total), $features, Explanation::fromCandidate($candidate, $reasons[$candidate->reasonMediaId] ?? null));
+                return new RankedItem($id, $this->clamp($score / $total), $features, Explanation::fromCandidate($candidate, $reasons[$candidate->reasonMediaId] ?? null, isset($genres[$candidate->payload['genre'] ?? ''])));
             })
             ->sortBy(fn (RankedItem $item): array => [-$item->score, $item->mediaId])
             ->values();
@@ -248,16 +250,49 @@ class HybridRanker
     }
 
     /**
-     * The titles the winning candidates name in their sentence, keyed by id.
+     * The titles the winning candidates name in their sentence that this reader may see, keyed by id. One that is gated for them, soft-deleted,
+     * merged away or missing is absent, so its label is left out instead of naming it (F8). The reader's own library is not a reason to show it:
+     * a seed can be a mature title they read while the setting was on.
      *
      * @param  array<int, Candidate>  $candidates
      * @return Collection<int, Media>
      */
-    private function reasonMedia(array $candidates): Collection
+    private function reasonMedia(User $user, array $candidates): Collection
     {
         $ids = collect($candidates)->pluck('reasonMediaId')->filter()->unique()->values()->all();
 
-        return $ids === [] ? new Collection : Media::query()->whereIn('id', $ids)->get(['id', 'title'])->keyBy('id');
+        return $ids === [] ? new Collection : Media::query()->unmerged()->visibleTo($user)->whereIn('media.id', $ids)->get(['media.id', 'media.title'])->keyBy('id');
+    }
+
+    /**
+     * The genre names the winning candidates carry that exist and are not gated for this reader, as a set. A genre is gated when it is
+     * mature or sits under a mature family; a name that matches any gated genre is treated as gated.
+     *
+     * @param  array<int, Candidate>  $candidates
+     * @return array<string, true>
+     */
+    private function visibleGenres(User $user, array $candidates): array
+    {
+        $names = collect($candidates)->map(fn (Candidate $candidate) => $candidate->payload['genre'] ?? null)->filter(fn ($name) => is_string($name))->unique()->values()->all();
+
+        if ($names === []) {
+            return [];
+        }
+
+        $rows = DB::table('genres as g')->leftJoin('genres as family', 'family.id', '=', 'g.parent_id')
+            ->whereIn('g.name', $names)
+            ->get(['g.name', DB::raw('(g.is_mature or coalesce(family.is_mature, false)) as gated')]);
+
+        $allowed = MatureAccess::allows($user);
+        $visible = [];
+
+        foreach ($rows->groupBy('name') as $name => $same) {
+            if ($allowed || $same->every(fn ($row) => ! $row->gated)) {
+                $visible[$name] = true;
+            }
+        }
+
+        return $visible;
     }
 
     private function freshness(?DateTimeInterface $publishedOn): float
