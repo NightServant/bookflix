@@ -119,3 +119,25 @@ def fetch_live_media_ids(conn: Conn) -> set[int]:
             "select id from media where deleted_at is null and merged_into_id is null"
         ).fetchall()
     }
+
+
+def fetch_similarity_rows(
+    conn: Conn, version_id: int, method: str
+) -> dict[int, list[tuple[int, float]]]:
+    """One version's stored neighbors per media, for media that are still live on both sides."""
+    rows = conn.execute(
+        """
+        select s.media_id, s.similar_media_id, s.score
+        from media_similarities s
+        join media a on a.id = s.media_id and a.deleted_at is null and a.merged_into_id is null
+        join media b on b.id = s.similar_media_id and b.deleted_at is null and b.merged_into_id is null
+        where s.model_version_id = %s and s.method = %s
+        """,
+        (version_id, method),
+    ).fetchall()
+
+    neighbors: dict[int, list[tuple[int, float]]] = {}
+    for media_id, similar, score in rows:
+        neighbors.setdefault(int(media_id), []).append((int(similar), float(score)))
+
+    return neighbors

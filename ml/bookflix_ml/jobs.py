@@ -10,7 +10,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from app.settings import get_settings
-from bookflix_ml import artifacts, db, item_cf, lsa, popularity, registry, similarities
+from bookflix_ml import artifacts, db, evaluate, item_cf, lsa, popularity, registry, similarities
 from bookflix_ml.db import Conn
 
 CHUNK = 1000
@@ -217,6 +217,98 @@ def run_refresh_popularity(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
     return {"media": int(row[0]) if row else 0}
 
 
+EVAL_KINDS = {"item_cf": "item-cf", "lsa": "lsa"}
+EVAL_K = 10
+# A single held-out reader says nothing about a model, so below this the evaluation records "not enough data" and promotes nothing.
+MIN_EVAL_USERS = 2
+
+
+def _rank_for_user(
+    seen: set[int], neighbors: dict[int, list[tuple[int, float]]], k: int
+) -> list[int]:
+    """The top `k` items by summed similarity to what the user already has, never one they have."""
+    scores: dict[int, float] = {}
+    for item in seen:
+        for similar, score in neighbors.get(item, []):
+            if similar not in seen:
+                scores[similar] = scores.get(similar, 0.0) + score
+
+    return [m for m, _ in sorted(scores.items(), key=lambda p: (-p[1], p[0]))[:k]]
+
+
+def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Score the newest `candidate` of `kind` against each eligible reader's last positive item and promote it if the gate allows.
+
+    Candidates are ranked from their `media_similarities` rows (so `build-similarities` must have run). Interactions come from the same
+    eligible-reader export as training. The metrics, `promoted` and `reason` are stored on the candidate, and the promotion goes in
+    that same transaction. Too little data (fewer than two readers with two positive items, no rows) is recorded and promotes nothing. Any failure
+    rolls back and re-raises, so no version or row changes; the job runner records the failure.
+    """
+    kind = str(params.get("kind", ""))
+    if kind not in EVAL_KINDS:
+        raise ValueError(
+            f"Unknown evaluation kind: kind must be one of {', '.join(sorted(EVAL_KINDS))}."
+        )
+
+    found = registry.latest_candidate(conn, EVAL_KINDS[kind])
+    if found is None:
+        return {"promoted": False, "reason": "no candidate"}
+    version_id, method = found
+
+    try:
+        weights = db.fetch_interaction_weights(conn)
+        now = datetime.now(UTC)
+        interactions = db.fetch_interactions(conn)
+        positive = item_cf.interaction_scores(interactions, weights, now)
+        last_seen: dict[tuple[int, int], datetime] = {}
+        for user, media, _event, _value, at in interactions:
+            if (user, media) in positive:
+                last_seen[(user, media)] = max(at, last_seen.get((user, media), at))
+
+        train, held = evaluate.leave_last_out((u, m, at) for (u, m), at in last_seen.items())
+        neighbors = db.fetch_similarity_rows(conn, version_id, method)
+
+        outcome: dict[str, Any] = {"n_eval_users": len(held)}
+        if len(held) < MIN_EVAL_USERS or not neighbors:
+            outcome |= {"promoted": False, "reason": "not enough data"}
+            registry.record_metrics(conn, version_id, outcome)
+            conn.commit()
+            return outcome
+
+        recommended = {u: _rank_for_user(train[u], neighbors, EVAL_K) for u in held}
+        item_pop: dict[int, int] = {}
+        for _user, media in positive:
+            item_pop[media] = item_pop.get(media, 0) + 1
+        lookup = {(a, b): s for a, pairs in neighbors.items() for b, s in pairs}
+
+        metrics = evaluate.metrics_at_k(
+            recommended,
+            {u: {m} for u, m in held.items()},
+            EVAL_K,
+            catalog_size=len(db.fetch_live_media_ids(conn)),
+            item_pop=item_pop,
+            item_sim=lambda a, b: max(lookup.get((a, b), 0.0), lookup.get((b, a), 0.0)),
+            n_users=len({u for u, _ in positive}),
+        )
+        active = registry.active_metrics(conn, EVAL_KINDS[kind])
+        promote = evaluate.should_promote(metrics, active)
+        if promote:
+            reason = "no active version" if active is None else "passed the gate"
+        else:
+            reason = "NDCG@10 fell by more than 2% or coverage fell against the active version"
+
+        outcome |= metrics | {"promoted": promote, "reason": reason}
+        registry.record_metrics(conn, version_id, outcome)
+        if promote:
+            registry.promote(conn, version_id)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+    return outcome
+
+
 def _with_connection(
     job: Callable[[Conn, dict[str, Any]], dict[str, Any]],
 ) -> Callable[[dict[str, Any]], dict[str, Any]]:
@@ -232,4 +324,5 @@ JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "train-item-cf": _with_connection(run_train_item_cf),
     "build-similarities": _with_connection(run_build_similarities),
     "refresh-popularity": _with_connection(run_refresh_popularity),
+    "evaluate": _with_connection(run_evaluate),
 }

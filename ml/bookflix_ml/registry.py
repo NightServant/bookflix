@@ -57,3 +57,62 @@ def latest_version(conn: Conn, name: str) -> tuple[int, str | None] | None:
     ).fetchone()
 
     return None if row is None else (int(row[0]), row[1])
+
+
+def latest_candidate(conn: Conn, name: str) -> tuple[int, str] | None:
+    """The newest `candidate` version of `name` (id and the similarity method its rows use), or None."""
+    row = conn.execute(
+        "select id, kind from model_versions where name = %s and status = 'candidate' order by id desc limit 1",
+        (name,),
+    ).fetchone()
+
+    return None if row is None else (int(row[0]), str(row[1]))
+
+
+def active_metrics(conn: Conn, name: str) -> dict[str, Any] | None:
+    """The metrics of the active version of `name`, or None when none is active."""
+    row = conn.execute(
+        "select metrics from model_versions where name = %s and status = 'active'", (name,)
+    ).fetchone()
+
+    return None if row is None else dict(row[0])
+
+
+def record_metrics(conn: Conn, version_id: int, metrics: dict[str, Any]) -> None:
+    """Merge `metrics` into the version's stored ones, keeping what training wrote."""
+    conn.execute(
+        "update model_versions set metrics = metrics || %s, updated_at = now() where id = %s",
+        (Jsonb(metrics), version_id),
+    )
+
+
+def promote(conn: Conn, version_id: int) -> None:
+    """Make a `candidate` the active version of its name, in the caller's transaction (it does not commit).
+
+    The current active version is retired first (only one may be active), `trained_at` stays as it was, and the similarity rows of
+    every version of that method that is neither active nor still a waiting candidate are deleted, so a retired version's rows do not
+    pile up. A version that is not a candidate raises `ValueError` before anything changes.
+    """
+    row = conn.execute(
+        "select name, kind, status from model_versions where id = %s for update", (version_id,)
+    ).fetchone()
+    if row is None or row[2] != "candidate":
+        raise ValueError(f"Model version {version_id} is not a candidate.")
+    name, method = row[0], row[1]
+
+    conn.execute(
+        "update model_versions set status = 'retired', updated_at = now() where name = %s and status = 'active'",
+        (name,),
+    )
+    conn.execute(
+        "update model_versions set status = 'active', updated_at = now() where id = %s",
+        (version_id,),
+    )
+    conn.execute(
+        """
+        delete from media_similarities
+        where method = %s
+            and model_version_id not in (select id from model_versions where status in ('active', 'candidate'))
+        """,
+        (method,),
+    )
