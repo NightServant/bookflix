@@ -98,7 +98,7 @@ class ShelfBuilder
             return $this->hydrate($user, $digest);
         }
 
-        $shelves = $this->build($user);
+        $shelves = $this->seeds->during(fn (): Collection => $this->build($user));
 
         Cache::put($key, $this->digest($shelves), now()->addMinutes((int) config('bookflix.recommendations.cache_minutes')));
 

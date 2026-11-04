@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Discovery\Recommendations\CandidatePool;
+use App\Discovery\Recommendations\SeedItems;
 use App\Discovery\Recommendations\Sources\CollaborativeSource;
 use App\Discovery\Recommendations\Sources\ContentSimilarSource;
 use App\Discovery\Recommendations\Sources\DeweySimilarSource;
@@ -23,6 +24,9 @@ class RecommendationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // One instance, so a build's memo is shared by the sources, the ranker and the shelf builder; it holds nothing outside a build.
+        $this->app->singleton(SeedItems::class);
+
         $this->app->tag([
             ContentSimilarSource::class,
             CollaborativeSource::class,

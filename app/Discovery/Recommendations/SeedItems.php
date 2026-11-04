@@ -7,6 +7,7 @@ use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\Rating;
 use App\Models\User;
+use Closure;
 use Illuminate\Support\Collection;
 
 /**
@@ -23,10 +24,42 @@ class SeedItems
     /** Ratings from this score up make a story the reader's latest favorite for an explanation. */
     private const LOVED_FROM = 8;
 
+    /** The seeds of the build in progress, keyed by reader; null outside `during`, so nothing outlives a build. */
+    private ?array $memo = null;
+
+    /**
+     * Runs one build with the seeds read once per reader: the sources, the ranker and the shelf builder all ask for them. The memo is dropped
+     * when the build ends, even by an exception, so a later change to the library is always seen.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $build
+     * @return T
+     */
+    public function during(Closure $build): mixed
+    {
+        $outer = $this->memo;
+        $this->memo ??= [];
+
+        try {
+            return $build();
+        } finally {
+            $this->memo = $outer;
+        }
+    }
+
     /**
      * @return Collection<int, float> media id => strength, strongest first
      */
     public function for(User $user): Collection
+    {
+        return $this->memo === null ? $this->read($user) : $this->memo[$user->id] ??= $this->read($user);
+    }
+
+    /**
+     * @return Collection<int, float>
+     */
+    private function read(User $user): Collection
     {
         $strengths = [];
         $excluded = [];

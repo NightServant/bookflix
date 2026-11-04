@@ -1,11 +1,13 @@
 <?php
 
 use App\Actions\Library\AddToLibrary;
+use App\Discovery\Recommendations\SeedItems;
 use App\Discovery\Recommendations\ShelfBuilder;
 use App\Enums\ReadingStatus;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\ModelVersion;
+use App\Models\Rating;
 use App\Models\Recommendation;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -175,6 +177,31 @@ test('building the shelves of a rich reader takes a bounded number of queries', 
     homeShelves($user);
 
     $queries = count(DB::getQueryLog());
-    expect($queries)->toBeLessThanOrEqual(100);
+    expect($queries)->toBeLessThanOrEqual(69);
     fwrite(STDERR, "\nforHome cold cache: {$queries} queries\n");
+
+    DB::flushQueryLog();
+    homeShelves($user);
+    fwrite(STDERR, 'forHome warm cache: '.count(DB::getQueryLog())." queries\n");
+});
+
+test('the reader\'s seeds are read once per build and never kept between builds', function () {
+    homeCatalog();
+    [$user] = richReader();
+    $ratingReads = fn (): int => collect(DB::getQueryLog())->filter(fn (array $q): bool => str_contains($q['query'], 'select "media_id", "score" from "ratings"'))->count();
+    DB::enableQueryLog();
+
+    homeShelves($user);
+    expect($ratingReads())->toBe(1);
+
+    // A change to the library after the build is seen by the next one, so nothing is remembered across builds.
+    $before = app(SeedItems::class)->for($user)->count();
+    $extra = Media::factory()->create();
+    Rating::factory()->create(['user_id' => $user->id, 'media_id' => $extra->id, 'score' => 9]);
+    Cache::flush();
+    DB::flushQueryLog();
+    homeShelves($user);
+
+    expect($ratingReads())->toBe(1)
+        ->and(app(SeedItems::class)->for($user)->count())->toBe($before + 1);
 });
