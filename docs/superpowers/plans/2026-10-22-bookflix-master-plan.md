@@ -14,7 +14,7 @@
 
 ---
 
-## Progress (updated 2026-10-29)
+## Progress (updated 2026-11-04)
 
 | Work | PR | State |
 |---|---|---|
@@ -31,6 +31,10 @@
 | Landing showcase behind the mature gate | #16 | done |
 | Media-type classification: a `nonfiction` type, manhwa vs manga, translated comics take the original's form, books of more than one type (`media_additional_types`, `Media::ofTypes()`) (`handoff-media-type-classification.md`) | #17 | done |
 | Phase 5: Personal library (`2026-10-23-phase-5-personal-library.md`, revised 2026-10-29; ledger `phase-5-ledger.md`) | #18 | done |
+| Hardcover: one reader's format tag no longer decides a type | #19 | done |
+| Landing: Top 10 as a still grid of two rows of five, and one sign-up on the page | #20 | done |
+| MangaDex covers served from Bookflix (cover cache) | #21 | done |
+| **Next: Phase 6, Recommendation MVP** (`2026-10-23-phase-6-recommendation-mvp.md`) | — | not started |
 
 After pulling these merges, run locally: `php artisan migrate`, `php artisan db:seed --class=TaxonomySeeder`, then for each of `openlibrary`, `comicvine`, `metron` and `hardcover`: `php artisan bookflix:reclassify --resync --source=X` and `php artisan bookflix:sync X --full`.
 
