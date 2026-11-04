@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ReadingLength;
 use App\Enums\Visibility;
+use App\Events\HomePreferencesChanged;
 use Database\Factories\ProfileFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -43,6 +44,18 @@ class Profile extends Model
 {
     /** @use HasFactory<ProfileFactory> */
     use HasFactory;
+
+    /**
+     * Whatever saves the profile, a change to mature access or personalization drops the reader's cached home shelves.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (self $profile): void {
+            if ($profile->wasChanged(['show_mature', 'adult_confirmed_at', 'personalization_enabled'])) {
+                HomePreferencesChanged::dispatch($profile->user_id);
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.

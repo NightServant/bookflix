@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Discovery\Recommendations\CandidatePool;
 use App\Discovery\Recommendations\Sources\CollaborativeSource;
 use App\Discovery\Recommendations\Sources\ContentSimilarSource;
 use App\Discovery\Recommendations\Sources\DeweySimilarSource;
@@ -32,5 +33,7 @@ class RecommendationServiceProvider extends ServiceProvider
             EditorialSource::class,
             ExplorationSource::class,
         ], self::SOURCES);
+
+        $this->app->when(CandidatePool::class)->needs('$sources')->giveTagged(self::SOURCES);
     }
 }

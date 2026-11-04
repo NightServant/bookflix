@@ -544,3 +544,57 @@ function ranked(int $mediaId, float $score): RankedItem
 {
     return new RankedItem($mediaId, $score, [], new Explanation(ReasonType::Trending));
 }
+
+/**
+ * Forty stories for the home shelves: fifteen released in the last two months, all well rated, in three genres (the last ten Horror, so exploration has something outside the seeds' taste), ten classified, with popularity
+ * refreshed and one staff-pick collection. Returns the stories in id order.
+ *
+ * @return Collection<int, Media>
+ */
+function homeCatalog(): Collection
+{
+    test()->seed(DeweySeeder::class);
+    [$fantasy, $mystery, $horror] = Genre::factory()->count(3)->sequence(['name' => 'Fantasy'], ['name' => 'Mystery'], ['name' => 'Horror'])->create();
+    $media = Media::factory()->count(40)->sequence(fn ($sequence) => [
+        'published_on' => $sequence->index < 15 ? now()->subDays(3 + $sequence->index * 3) : now()->subYears(2),
+        'ratings_count' => 10 + $sequence->index,
+        'average_rating' => 4.2,
+        'popularity_score' => 1 - $sequence->index / 50,
+    ])->create();
+    $media->each(fn (Media $story, int $i) => $story->genres()->attach($i >= 30 ? $horror : ($i % 2 === 0 ? $fantasy : $mystery)));
+    classified($media->take(10), '813');
+    collectionOf(User::factory()->create(), $media->slice(20, 6)->values()->all(), ['is_editorial' => true, 'visibility' => 'public', 'name' => 'Staff Shelf']);
+    DB::statement('refresh materialized view media_popularity');
+    activeVersion('hybrid-weights');
+
+    return $media;
+}
+
+/**
+ * A reader with eight seeds from the catalog (six completed, the first of them the latest; two read and favorited) and text neighbors of each
+ * seed among the other stories, so every personalized shelf has something.
+ *
+ * @return array{User, Collection<int, Media>}
+ */
+function richReader(): array
+{
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    $lsa = activeVersion('lsa');
+
+    foreach ($catalog->take(6) as $i => $seed) {
+        libraryEntry($user, $seed, 'completed')->update(['completed_at' => now()->subDays($i)]);
+    }
+
+    foreach ($catalog->slice(6, 2) as $seed) {
+        libraryEntry($user, $seed, 'reading', favorite: true);
+    }
+
+    foreach ($catalog->take(8) as $seed) {
+        foreach ($catalog->slice(8 + $seed->id % 3, 24) as $j => $neighbor) {
+            similar($seed, $neighbor, 'lsa', max(0.05, 0.95 - $j * 0.03), $lsa);
+        }
+    }
+
+    return [$user, $catalog];
+}

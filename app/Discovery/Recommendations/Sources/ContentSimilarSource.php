@@ -4,8 +4,10 @@ namespace App\Discovery\Recommendations\Sources;
 
 use App\Discovery\Recommendations\Candidate;
 use App\Enums\ReasonType;
+use App\Models\Media;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use stdClass;
 
 /**
  * Titles close in text to what the reader liked: the neighbors of the seeds from the active `lsa` version (Phase 7 adds `embedding`). A
@@ -35,6 +37,19 @@ class ContentSimilarSource extends Source
         return collect($best)
             ->map(fn (array $hit, int $id): Candidate => new Candidate($id, $this->key(), min(1.0, $hit[0]), ReasonType::BecauseYouRead, $hit[1]))
             ->sortBy(fn (Candidate $candidate): array => [-$candidate->score, $candidate->mediaId])
+            ->values();
+    }
+
+    /**
+     * The neighbors of one title the reader chose (their latest favorite for a shelf), strongest first, labelled with it.
+     *
+     * @return Collection<int, Candidate>
+     */
+    public function similarTo(User $user, Media $seed, ReasonType $reason, int $limit): Collection
+    {
+        return $this->neighborsOf($user, collect([$seed->id => 1.0]), 'lsa')
+            ->take($limit)
+            ->map(fn (stdClass $row): Candidate => new Candidate((int) $row->similar_media_id, $this->key(), min(1.0, (float) $row->score), $reason, $seed->id))
             ->values();
     }
 }
