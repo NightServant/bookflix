@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -25,19 +26,19 @@ def test_export_excludes_deactivated_and_opted_out_users(db: Conn) -> None:
     for user_id in users:
         seed_interaction(db, user_id, 1)
 
-    assert {row[0] for row in fetch_interactions(db)} == {1, 4}
+    assert {row[0] for row in list(fetch_interactions(db))} == {1, 4}
 
 
 def test_interactions_recorded_before_opting_out_are_excluded(db: Conn) -> None:
     seed_users(db, no_profile=1)
     seed_media(db, 1)
     seed_interaction(db, 1, 1)
-    assert len(fetch_interactions(db)) == 1
+    assert len(list(fetch_interactions(db))) == 1
 
     db.execute("insert into profiles (user_id, personalization_enabled) values (1, false)")
     db.commit()
 
-    assert fetch_interactions(db) == []
+    assert list(fetch_interactions(db)) == []
 
 
 def test_interactions_recorded_before_deactivation_are_excluded(db: Conn) -> None:
@@ -47,7 +48,7 @@ def test_interactions_recorded_before_deactivation_are_excluded(db: Conn) -> Non
     db.execute("update users set deactivated_at = now() where id = 1")
     db.commit()
 
-    assert fetch_interactions(db) == []
+    assert list(fetch_interactions(db)) == []
 
 
 def test_soft_deleted_merged_and_null_media_rows_are_excluded(db: Conn) -> None:
@@ -59,7 +60,7 @@ def test_soft_deleted_merged_and_null_media_rows_are_excluded(db: Conn) -> None:
     for media_id in (1, 2, 3, 4, None):
         seed_interaction(db, 1, media_id)
 
-    assert sorted(row[1] for row in fetch_interactions(db)) == [1, 4]
+    assert sorted(row[1] for row in list(fetch_interactions(db))) == [1, 4]
 
 
 def test_rows_carry_event_value_and_time(db: Conn) -> None:
@@ -67,7 +68,7 @@ def test_rows_carry_event_value_and_time(db: Conn) -> None:
     seed_media(db, 1)
     seed_interaction(db, 1, 1, "reading_progress", 40.0)
 
-    user_id, media_id, event, value, occurred_at = fetch_interactions(db)[0]
+    user_id, media_id, event, value, occurred_at = list(fetch_interactions(db))[0]
     assert (user_id, media_id, event, value) == (1, 1, "reading_progress", 40.0)
     assert occurred_at is not None
 
@@ -131,3 +132,19 @@ def test_a_failing_train_item_cf_retires_its_version(
     with pytest.raises(RuntimeError):
         run_train_item_cf(db, {})
     assert version_status(db, "item-cf") == "retired"
+
+
+def test_interactions_stream_in_batches_from_a_server_side_cursor(
+    db: Conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_users(db, active=1)
+    seed_media(db, 1)
+    for _ in range(7):
+        seed_interaction(db, 1, 1)
+    monkeypatch.setattr("bookflix_ml.db.INTERACTION_BATCH", 2)
+
+    rows = fetch_interactions(db)
+
+    assert isinstance(rows, Iterator)  # nothing is read until the caller folds it
+    assert len(list(rows)) == 7
+    assert db.execute("select count(*) from pg_cursors").fetchone() == (0,)

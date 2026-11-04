@@ -2,7 +2,7 @@
 
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
@@ -267,18 +267,17 @@ def _neighbors_of(
     version_id: int,
     method: str,
     parameters: dict[str, Any],
-    interactions: list[tuple[int, int, str, float | None, datetime]],
+    positive_for: Callable[[dict[str, Any]], dict[tuple[int, int], float]],
     held: dict[int, int],
+    needed: set[int],
     fallback: tuple[dict[str, Any], int],
-    now: datetime,
 ) -> dict[int, list[tuple[int, float]]]:
     """The neighbors one version is scored on: `item_cf` refits in memory on the training split with the version's own weights and `k`
-    (`fallback` when it stored none), `lsa` reads the version's stored rows."""
+    (`fallback` when it stored none), `lsa` reads the version's stored rows, only those of the `needed` source items."""
     if kind != "item_cf":
-        return db.fetch_similarity_rows(conn, version_id, method)
+        return db.fetch_similarity_rows(conn, version_id, method, media_ids=needed)
 
-    weights = parameters.get("weights") or fallback[0]
-    positive = item_cf.interaction_scores(interactions, weights, now)
+    positive = positive_for(parameters.get("weights") or fallback[0])
 
     return _held_out_neighbors(conn, positive, held, int(parameters.get("k", fallback[1])))
 
@@ -321,12 +320,26 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         weights = parameters.get("weights") or db.fetch_interaction_weights(conn)
         k = int(parameters.get("k", 50))
         now = datetime.now(UTC)
-        interactions = db.fetch_interactions(conn)
-        positive = item_cf.interaction_scores(interactions, weights, now)
-        last_seen: dict[tuple[int, int], datetime] = {}
-        for user, media, _event, _value, at in interactions:
-            if (user, media) in positive:
-                last_seen[(user, media)] = max(at, last_seen.get((user, media), at))
+
+        # One streamed pass folds both the scores and each pair's latest time, so the interaction rows are never held at once.
+        latest: dict[tuple[int, int], datetime] = {}
+
+        def tracked() -> Iterator[tuple[int, int, str, float | None, datetime]]:
+            for row in db.fetch_interactions(conn):
+                key = (row[0], row[1])
+                latest[key] = max(row[4], latest.get(key, row[4]))
+                yield row
+
+        positive = item_cf.interaction_scores(tracked(), weights, now)
+        last_seen = {key: at for key, at in latest.items() if key in positive}
+        latest = {}
+
+        def positive_for(w: dict[str, Any]) -> dict[tuple[int, int], float]:
+            # A version with other weights needs its own scores: stream the rows again rather than keep them.
+            if w == weights:
+                return positive
+
+            return item_cf.interaction_scores(db.fetch_interactions(conn), w, now)
 
         train, held = evaluate.leave_last_out((u, m, at) for (u, m), at in last_seen.items())
         active = registry.active_version(conn, EVAL_KINDS[kind])
@@ -336,11 +349,23 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
             item_pop[media] = item_pop.get(media, 0) + 1
         n_users = len({u for u, _ in positive})
 
-        def score(neighbors: dict[int, list[tuple[int, float]]]) -> dict[str, float]:
-            lookup = {(a, b): s for a, pairs in neighbors.items() for b, s in pairs}
+        # An lsa version's rows are loaded for these source items only, not its whole table.
+        needed = {item for u in held for item in train[u]}
+
+        def score(
+            neighbors: dict[int, list[tuple[int, float]]], stored: int | None = None
+        ) -> dict[str, float]:
+            recommended = {u: _rank_for_user(train[u], neighbors, EVAL_K) for u in held}
+            if stored is None:
+                lookup = {(a, b): s for a, pairs in neighbors.items() for b, s in pairs}
+            else:
+                # Diversity only asks about pairs inside one list, so that is all of the stored rows it needs.
+                shown = {item for items in recommended.values() for item in items}
+                pairs = db.fetch_similarity_rows(conn, stored, method, shown, shown)
+                lookup = {(a, b): s for a, rows in pairs.items() for b, s in rows}
 
             return evaluate.metrics_at_k(
-                {u: _rank_for_user(train[u], neighbors, EVAL_K) for u in held},
+                recommended,
                 {u: {m} for u, m in held.items()},
                 EVAL_K,
                 catalog_size=catalog_size,
@@ -349,8 +374,9 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                 n_users=n_users,
             )
 
+        stored_rows = kind != "item_cf"
         neighbors = _neighbors_of(
-            conn, kind, version_id, method, parameters, interactions, held, (weights, k), now
+            conn, kind, version_id, method, parameters, positive_for, held, needed, (weights, k)
         )
         outcome: dict[str, Any] = {"n_eval_users": len(held)}
         if active is not None:
@@ -360,16 +386,28 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
             promote = active is None
             reason = "no active version (not evaluated)" if promote else "not enough data"
         else:
-            metrics = score(neighbors)
+            metrics = score(neighbors, version_id if stored_rows else None)
             outcome |= metrics
             if active is None:
                 promote, reason = True, "no active version"
             else:
                 active_neighbors = _neighbors_of(
-                    conn, kind, active[0], method, active[2], interactions, held, (weights, k), now
+                    conn,
+                    kind,
+                    active[0],
+                    method,
+                    active[2],
+                    positive_for,
+                    held,
+                    needed,
+                    (weights, k),
                 )
                 # An active version with nothing to rank from (its rows are gone) cannot be a baseline.
-                active_scored = score(active_neighbors) if active_neighbors else {}
+                active_scored = (
+                    score(active_neighbors, active[0] if stored_rows else None)
+                    if active_neighbors
+                    else {}
+                )
                 outcome["active_metrics"] = active_scored
                 promote = evaluate.should_promote(metrics, active_scored)
                 if promote:

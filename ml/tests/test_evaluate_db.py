@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from bookflix_ml import db as db_module
 from bookflix_ml import registry
 from bookflix_ml.item_cf import DEFAULT_WEIGHTS, interaction_scores, item_neighbors
 from bookflix_ml.jobs import JOBS, run_evaluate
@@ -472,3 +473,27 @@ def test_promoting_lsa_deletes_vectors_and_features_of_retired_versions_only(db:
         }
         # The previous active is retired by the promotion, so its data goes too; another name's data is never touched.
         assert kept == {new, newer, item_cf}
+
+
+def test_lsa_evaluation_loads_only_the_rows_of_the_training_items_and_the_listed_pairs(
+    db: Conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    active, candidate = lsa_pair(db, good_neighbors(), {})
+    write(db, "lsa", candidate, {**good_neighbors(), 4: [(1, 0.5)]})
+    db.commit()
+    real = db_module.fetch_similarity_rows
+    asked: list[tuple[int, Any, Any]] = []
+
+    def spy(
+        conn: Conn, version_id: int, method: str, media_ids: Any = None, similar_ids: Any = None
+    ) -> Any:
+        asked.append((version_id, media_ids, similar_ids))
+        return real(conn, version_id, method, media_ids, similar_ids)
+
+    monkeypatch.setattr("bookflix_ml.jobs.db.fetch_similarity_rows", spy)
+
+    run_evaluate(db, {"kind": "lsa"})
+
+    assert asked and all(ids is not None for _, ids, _ in asked)
+    # Item 4 is nobody's training item, so the source rows asked for never include it.
+    assert all(4 not in ids for _, ids, similar in asked if similar is None)
