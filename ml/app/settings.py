@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     ml_enable_docs: bool = False
     embedding_model: str = "intfloat/multilingual-e5-small"
     embedding_dims: int = 384
+    # Training jobs: the direct (non-pooled) Postgres URL, and where artifacts go (S3 when a bucket is set, else a local folder).
+    database_url: str = ""
+    artifact_bucket: str = ""
+    artifact_dir: str = "artifacts"
+    lsa_components: int = 200
 
 
 @lru_cache

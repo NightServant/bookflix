@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, FastAPI
 
 from app.auth import require_token
+from app.routers import jobs
 from app.settings import get_settings
 
 _docs = get_settings().ml_enable_docs
@@ -26,5 +27,7 @@ def models() -> dict[str, dict[str, str | int]]:
 
     return {"embedding": {"name": settings.embedding_model, "dims": settings.embedding_dims}}
 
+
+v1.include_router(jobs.router)
 
 app.include_router(v1)

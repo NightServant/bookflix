@@ -8,6 +8,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY app ./app
+COPY bookflix_ml ./bookflix_ml
 
 ENV PATH="/app/.venv/bin:$PATH"
 
