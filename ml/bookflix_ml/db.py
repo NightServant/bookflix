@@ -1,11 +1,13 @@
 """Postgres access for the training jobs: the direct DATABASE_URL, plain SQL, chunked writes."""
 
+from datetime import datetime
 from typing import Any
 
 import psycopg
 from pgvector.psycopg import register_vector
 
 from app.settings import get_settings
+from bookflix_ml.item_cf import DEFAULT_WEIGHTS
 
 Conn = psycopg.Connection[Any]
 
@@ -50,3 +52,41 @@ def fetch_corpus(conn: Conn) -> list[dict[str, Any]]:
         }
         for r in rows
     ]
+
+
+def fetch_interactions(conn: Conn) -> list[tuple[int, int, str, float | None, datetime]]:
+    """(user, media, event, value, occurred_at) of readers who may be learned from, as the `media_popularity` view counts them.
+
+    Deactivated readers and readers who turned personalization off are out, and so is everything they did before they opted out; a
+    missing profile row counts as on. Interactions without media, with soft deleted media and with media merged away are out too.
+    """
+    rows = conn.execute(
+        """
+        select i.user_id, i.media_id, i.event, i.value, i.occurred_at
+        from user_interactions i
+        join users u on u.id = i.user_id
+        left join profiles p on p.user_id = u.id
+        join media m on m.id = i.media_id
+        where u.deactivated_at is null
+            and coalesce(p.personalization_enabled, true)
+            and i.media_id is not null
+            and m.deleted_at is null
+            and m.merged_into_id is null
+        order by i.id
+        """
+    ).fetchall()
+
+    return [
+        (int(r[0]), int(r[1]), str(r[2]), None if r[3] is None else float(r[3]), r[4]) for r in rows
+    ]
+
+
+def fetch_interaction_weights(conn: Conn) -> dict[str, Any]:
+    """The active `interaction-weights` version's parameters over the built-in defaults (a key it lacks keeps its default)."""
+    row = conn.execute(
+        "select parameters from model_versions where name = 'interaction-weights' and status = 'active'"
+    ).fetchone()
+
+    stored = row[0] if row and isinstance(row[0], dict) else {}
+
+    return {**DEFAULT_WEIGHTS, **stored}

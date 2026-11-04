@@ -32,13 +32,14 @@ def finish_version(
     status: str,
     metrics: dict[str, Any],
     artifact_uri: str | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> None:
     conn.execute(
         """
         update model_versions
-        set status = %s, metrics = %s, artifact_uri = coalesce(%s, artifact_uri),
+        set status = %s, metrics = %s, artifact_uri = coalesce(%s, artifact_uri), parameters = parameters || %s,
             trained_at = case when %s = 'candidate' then now() else trained_at end, updated_at = now()
         where id = %s
         """,
-        (status, Jsonb(metrics), artifact_uri, status, version_id),
+        (status, Jsonb(metrics), artifact_uri, Jsonb(parameters or {}), status, version_id),
     )

@@ -10,7 +10,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from app.settings import get_settings
-from bookflix_ml import artifacts, db, lsa, registry
+from bookflix_ml import artifacts, db, item_cf, lsa, registry
 from bookflix_ml.db import Conn
 
 CHUNK = 1000
@@ -130,6 +130,44 @@ def run_train_lsa(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     return metrics
 
 
+def run_train_item_cf(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Fit item-item neighbors on the eligible readers' decayed interactions and store them as a `candidate` `item-cf` version.
+
+    Only the artifact is written here; the neighbors reach `media_similarities` in `build-similarities`. A failure retires the version.
+    """
+    k = int(params.get("k", 50))
+    weights = db.fetch_interaction_weights(conn)
+    version_id, version = registry.create_version(
+        conn, "item-cf", "item_cf", {"weights": weights, "k": k}, "user_interactions:eligible"
+    )
+    conn.commit()
+
+    try:
+        scores = item_cf.interaction_scores(db.fetch_interactions(conn), weights, datetime.now(UTC))
+        neighbors = item_cf.item_neighbors(scores, k)
+        uri = artifacts.save({"neighbors": neighbors, "k": k}, "item-cf", version)
+        counts = {
+            "n_users": len({u for u, _ in scores}),
+            "n_items": len({i for _, i in scores}),
+        }
+        registry.finish_version(
+            conn,
+            version_id,
+            "candidate",
+            {**counts, "n_neighbors": sum(map(len, neighbors.values()))},
+            uri,
+            counts,
+        )
+        conn.commit()
+    except BaseException as e:
+        conn.rollback()
+        registry.finish_version(conn, version_id, "retired", {"error": str(e) or type(e).__name__})
+        conn.commit()
+        raise
+
+    return {**counts, "n_items_with_neighbors": len(neighbors)}
+
+
 def _with_connection(
     job: Callable[[Conn, dict[str, Any]], dict[str, Any]],
 ) -> Callable[[dict[str, Any]], dict[str, Any]]:
@@ -142,4 +180,5 @@ def _with_connection(
 
 JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "train-lsa": _with_connection(run_train_lsa),
+    "train-item-cf": _with_connection(run_train_item_cf),
 }

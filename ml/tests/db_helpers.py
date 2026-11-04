@@ -51,3 +51,56 @@ def version_status(conn: Conn, name: str) -> str | None:
 
 def now() -> datetime:
     return datetime.now(UTC)
+
+
+def seed_users(
+    conn: Conn,
+    active: int | None = None,
+    deactivated: int | None = None,
+    opted_out: int | None = None,
+    no_profile: int | None = None,
+) -> dict[int, int]:
+    """Users by id: active, deactivated, opted out (profile with personalization off) and one without a profile row."""
+    for user_id, deactivated_at in (
+        (active, None),
+        (deactivated, now()),
+        (opted_out, None),
+        (no_profile, None),
+    ):
+        if user_id is not None:
+            conn.execute(
+                "insert into users (id, deactivated_at) values (%s, %s)", (user_id, deactivated_at)
+            )
+    for user_id, enabled in ((active, True), (deactivated, True), (opted_out, False)):
+        if user_id is not None:
+            conn.execute(
+                "insert into profiles (user_id, personalization_enabled) values (%s, %s)",
+                (user_id, enabled),
+            )
+    conn.commit()
+
+    return {u: u for u in (active, deactivated, opted_out, no_profile) if u is not None}
+
+
+def seed_media(conn: Conn, *ids: int) -> None:
+    for media_id in ids:
+        conn.execute(
+            "insert into media (id, title, description) values (%s, %s, 'x') on conflict do nothing",
+            (media_id, f"Media {media_id}"),
+        )
+    conn.commit()
+
+
+def seed_interaction(
+    conn: Conn,
+    user_id: int,
+    media_id: int | None,
+    event: str = "library_add",
+    value: float | None = None,
+    occurred_at: datetime | None = None,
+) -> None:
+    conn.execute(
+        "insert into user_interactions (user_id, media_id, event, value, occurred_at) values (%s, %s, %s, %s, %s)",
+        (user_id, media_id, event, value, occurred_at or now()),
+    )
+    conn.commit()
