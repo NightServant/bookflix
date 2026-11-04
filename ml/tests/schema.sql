@@ -79,3 +79,53 @@ create table media_similarities (
     primary key (media_id, method, similar_media_id),
     check (media_id <> similar_media_id)
 );
+
+-- The view Laravel's migrations build, for the refresh job (same definition as database/migrations/2026_11_05_000004_*).
+create materialized view media_popularity as
+with counts as (
+    select
+        ui.media_id,
+        count(*) filter (where ui.occurred_at >= now() - interval '7 days') as interactions_7d,
+        count(*) as interactions_30d
+    from user_interactions ui
+    join users u on u.id = ui.user_id and u.deactivated_at is null
+    left join profiles p on p.user_id = u.id
+    where ui.media_id is not null
+        and ui.occurred_at >= now() - interval '30 days'
+        and coalesce(p.personalization_enabled, true)
+    group by ui.media_id
+),
+totals as (
+    select
+        m.id as media_id,
+        coalesce(c.interactions_7d, 0)::integer as interactions_7d,
+        coalesce(c.interactions_30d, 0)::integer as interactions_30d,
+        coalesce(c.interactions_30d, 0) + m.ratings_count as engagement
+    from media m
+    left join counts c on c.media_id = m.id
+    where m.deleted_at is null and m.merged_into_id is null
+),
+scored as (
+    select
+        media_id,
+        interactions_7d,
+        interactions_30d,
+        engagement,
+        (interactions_7d + 0.25 * (interactions_30d - interactions_7d))::double precision as trending_score
+    from totals
+),
+active as (
+    select media_id, (cume_dist() over (order by trending_score))::double precision as trending_percentile
+    from scored
+    where interactions_30d > 0
+)
+select
+    s.media_id,
+    s.interactions_7d,
+    s.interactions_30d,
+    s.trending_score,
+    (percent_rank() over (order by s.engagement))::double precision as popularity_percentile,
+    coalesce(a.trending_percentile, 0)::double precision as trending_percentile
+from scored s
+left join active a on a.media_id = s.media_id;
+create unique index media_popularity_media_id on media_popularity (media_id);

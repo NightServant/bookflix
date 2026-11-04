@@ -43,3 +43,17 @@ def finish_version(
         """,
         (status, Jsonb(metrics), artifact_uri, Jsonb(parameters or {}), status, version_id),
     )
+
+
+def latest_version(conn: Conn, name: str) -> tuple[int, str | None] | None:
+    """The newest `candidate` or `active` version of `name` (id and artifact URI), or None when there is none."""
+    row = conn.execute(
+        """
+        select id, artifact_uri from model_versions
+        where name = %s and status in ('candidate', 'active')
+        order by id desc limit 1
+        """,
+        (name,),
+    ).fetchone()
+
+    return None if row is None else (int(row[0]), row[1])

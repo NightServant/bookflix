@@ -326,14 +326,21 @@ class Media extends Model
     }
 
     /**
-     * The stories with the strongest popularity signals (`bookflix:score-popularity`), then the most rated, the newest breaking ties.
+     * The stories with the strongest popularity, best first: the provider signal (`media.popularity_score`, 0 to 1) plus Bookflix's own
+     * activity, `trending_weight × trending_percentile` (`media_popularity`: the rank of the last 30 days' interactions among the media
+     * that had any, 0 for the rest). Ties go to the most rated, then the newest.
+     *
+     * Bookflix's signal only adds, and at most `trending_weight` (0.05), so it reorders stories whose provider scores are close but never lifts
+     * a barely known story over the catalog's favourites. With no interactions, or before the view is first refreshed, the order is the
+     * provider's alone. The join is a left one: media without a view row still appear.
      *
      * @param  Builder<Media>  $query
      */
     public function scopeTrending(Builder $query): void
     {
         $query->unmerged()
-            ->orderByDesc('media.popularity_score')
+            ->leftJoin('media_popularity', 'media_popularity.media_id', '=', 'media.id')
+            ->orderByRaw('(media.popularity_score + ? * coalesce(media_popularity.trending_percentile, 0)) desc', [(float) config('bookflix.recommendations.trending_weight')])
             ->orderByDesc('media.ratings_count')
             ->orderByRaw('media.published_on desc nulls last')
             ->orderByDesc('media.id');

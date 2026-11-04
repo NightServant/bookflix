@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any
 
+import numpy as np
 import psycopg
 from pgvector.psycopg import register_vector
 
@@ -90,3 +91,31 @@ def fetch_interaction_weights(conn: Conn) -> dict[str, Any]:
     stored = row[0] if row and isinstance(row[0], dict) else {}
 
     return {**DEFAULT_WEIGHTS, **stored}
+
+
+def fetch_lsa_vectors(conn: Conn, version_id: int) -> tuple[list[int], np.ndarray]:
+    """The stored vectors of one `lsa` version for media that are still live, in id order."""
+    rows = conn.execute(
+        """
+        select v.media_id, v.vector
+        from media_lsa_vectors v
+        join media m on m.id = v.media_id
+        where v.model_version_id = %s and m.deleted_at is null and m.merged_into_id is null
+        order by v.media_id
+        """,
+        (version_id,),
+    ).fetchall()
+
+    ids = [int(r[0]) for r in rows]
+    vectors = np.asarray([r[1].to_numpy() for r in rows], dtype=np.float32).reshape(len(rows), -1)
+
+    return ids, vectors
+
+
+def fetch_live_media_ids(conn: Conn) -> set[int]:
+    return {
+        int(r[0])
+        for r in conn.execute(
+            "select id from media where deleted_at is null and merged_into_id is null"
+        ).fetchall()
+    }

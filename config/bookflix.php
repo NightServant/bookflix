@@ -386,7 +386,9 @@ return [
     | `cache_minutes` is how long a reader's ranked shelves are kept,
     | `cold_start_min_interactions` how many signals a reader needs before the
     | personalized shelves replace the cold-start ones, and `epsilon` the share
-    | of a shelf given to exploration.
+    | of a shelf given to exploration. `trending_weight` is how much of
+    | Bookflix's own activity (0 to 1) `Media::trending()` adds to the
+    | provider popularity score (0 to 1).
     |
     */
 
@@ -394,6 +396,7 @@ return [
         'cache_minutes' => 10,
         'cold_start_min_interactions' => 5,
         'epsilon' => 0.10,
+        'trending_weight' => 0.05,
     ],
 
 ];
