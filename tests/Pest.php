@@ -5,6 +5,8 @@ use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
 use App\Classification\ClassificationCandidate;
+use App\Discovery\Recommendations\Explanation;
+use App\Discovery\Recommendations\RankedItem;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
 use App\Enums\ClassificationMethod;
@@ -14,6 +16,7 @@ use App\Enums\ImportOutcome;
 use App\Enums\ModelKind;
 use App\Enums\ModelStatus;
 use App\Enums\ReadingStatus;
+use App\Enums\ReasonType;
 use App\Enums\RecommendationEventType;
 use App\Enums\ReviewStatus;
 use App\Models\Collection as StoryCollection;
@@ -532,4 +535,12 @@ function dismissed(User $user, Media $media): Recommendation
     RecommendationEvent::factory()->create(['recommendation_id' => $recommendation->id, 'event' => RecommendationEventType::Dismiss]);
 
     return $recommendation;
+}
+
+/**
+ * A ranked item with the given score, for the diversifier and injector tests.
+ */
+function ranked(int $mediaId, float $score): RankedItem
+{
+    return new RankedItem($mediaId, $score, [], new Explanation(ReasonType::Trending));
 }
