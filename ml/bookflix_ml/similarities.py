@@ -6,10 +6,22 @@ from bookflix_ml.db import Conn
 
 Neighbors = dict[int, list[tuple[int, float]]]
 WRITE_CHUNK = 5000
+# What one block of similarities may take: its float32 scores plus the int64 index array `argpartition` returns, per candidate column.
+BLOCK_BYTES = 64 * 1024 * 1024
+_BYTES_PER_CELL = 4 + 8
 
 
-def top_k_cosine(ids: list[int], vectors: np.ndarray, k: int = 50, block: int = 1024) -> Neighbors:
+def block_rows(n: int, max_bytes: int = BLOCK_BYTES) -> int:
+    """How many rows of the n x n similarity matrix fit in `max_bytes` (at least one)."""
+    return max(1, max_bytes // (_BYTES_PER_CELL * max(n, 1)))
+
+
+def top_k_cosine(
+    ids: list[int], vectors: np.ndarray, k: int = 50, block: int | None = None
+) -> Neighbors:
     """Up to `k` neighbors per id by cosine, best first, in blocks so the full matrix never exists.
+
+    A block is `block` rows, by default as many as keep one block near `BLOCK_BYTES` however many items there are.
 
     The item itself is never a neighbor; a zero vector has no neighbors and is nobody's neighbor (its cosine is undefined).
     """
@@ -24,6 +36,7 @@ def top_k_cosine(ids: list[int], vectors: np.ndarray, k: int = 50, block: int = 
         return result
 
     id_array = np.asarray(ids)
+    block = block or block_rows(len(ids))
     for start in range(0, len(ids), block):
         rows = range(start, min(start + block, len(ids)))
         sims = unit[start : start + block] @ unit.T
@@ -34,7 +47,7 @@ def top_k_cosine(ids: list[int], vectors: np.ndarray, k: int = 50, block: int = 
             continue
 
         take = min(k, len(ids) - 1)
-        top = np.argpartition(-sims, take - 1, axis=1)[:, :take]
+        top = np.argpartition(sims, len(ids) - take, axis=1)[:, len(ids) - take :]
         for offset, row in enumerate(rows):
             if not usable[row]:
                 continue
