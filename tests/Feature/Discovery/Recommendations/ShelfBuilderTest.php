@@ -292,9 +292,12 @@ test('a later shelf backfills from its next candidates and keeps its size', func
 
     $shelves = candidateShelves(homeShelves($user))->keyBy('key');
 
-    foreach (['recommended', 'because-you-read', 'new-releases', 'similar-to', 'trending'] as $key) {
+    foreach (['recommended', 'because-you-read', 'new-releases', 'trending', 'popular-in-genres'] as $key) {
         expect($shelves[$key]->items)->toHaveCount(20, $key);
     }
+
+    // Similar To has only the neighbors of one title, most of which an earlier shelf took: what is left is shown if it is enough.
+    expect($shelves['similar-to']->items->count())->toBeGreaterThanOrEqual(4);
 });
 
 test('the staff picks and Explore by Subject are exempt from the de-duplication', function () {

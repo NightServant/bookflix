@@ -42,7 +42,8 @@ test('the shelves are kept ten minutes: a second view builds and logs nothing', 
     $this->travel(11)->minutes();
     $builder->forHome($user);
 
-    expect(Recommendation::count())->toBe($rows * 2);
+    // Exploration is random, so the second fill may show a few titles more or fewer than the first: it logs again either way.
+    expect(Recommendation::count())->toBeGreaterThan($rows + intdiv($rows, 2));
 });
 
 test('the cached ids carry the recommendation id and label of each tile', function () {

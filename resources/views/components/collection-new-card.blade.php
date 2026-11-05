@@ -9,7 +9,7 @@
     data-new-collection
     {{ $attributes->class('group focus-ring flex w-60 shrink-0 flex-col items-center justify-center gap-2 rounded-card border border-dashed border-hairline p-3 text-ink-subtle hover:bg-surface-card hover:text-ink sm:w-68') }}
 >
-    <span aria-hidden="true" class="flex size-11 items-center justify-center rounded-full bg-surface-card group-hover:bg-surface-input">
+    <span aria-hidden="true" class="flex size-11 items-center justify-center rounded-control bg-surface-card group-hover:bg-surface-input">
         <flux:icon name="plus" class="size-5" />
     </span>
     <span class="text-body font-medium">{{ __('New collection') }}</span>
