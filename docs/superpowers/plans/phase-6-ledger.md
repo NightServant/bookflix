@@ -101,3 +101,23 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-6-recommendation-mvp.md` on the p
 - N5: the exploration slot is `round(1 / epsilon)`; an epsilon of 0 gives none.
 - N6: the seeded rows persist across the test suite (RefreshDatabase migrates once), so `ModelsPageTest` filters its version names.
 - N8: labels use `:title` / `:genre` placeholders. The Unit `ExplanationTest` moved to `tests/Feature/Discovery/Recommendations/ExplanationLabelTest.php` because `__()` needs the application.
+
+## Design gate (6.8 UI): signed off 2026-11-05
+Figma `TzkLMmNwpWscUEOpaEafoO`, page "Phase 6 Screens" `3112:1473`:
+- Personalized Home: `3119:1567` (1440) and `3120:2248` (390).
+- Cold-start Home: `3121:2985` and `3122:3440`.
+- Tile interactions: `3123:3897` and `3125:4072`.
+- Notes frame: `3127:4237`.
+- New components: Rec tile `3112:1587`, Tile menu `3116:1574`, Tile sheet `3116:1575`, Undo toast `3116:1604`, Collection card `3116:1605`.
+
+Screenshots are in the session scratchpad under `shots/p6-design/`. The user approved all ten decisions as recommended:
+1. Recommended For You has no "See all".
+2. Only "Not interested" for now, no "Fewer like this".
+3. No reason line on Because You Read and Similar To tiles (the shelf title says why).
+4. Staff picks sit after Your Collections for returning readers, and near the top for new readers (in the Recommended slot) with a second row before Explore by Subject.
+5. "Choose stories" on the getting-started card opens onboarding step 3. The card shows only during cold start (fewer than `cold_start_min_interactions` strong seeds).
+6. Readers who turned personalization off do not see the getting-started card.
+7. The undo window is 10 seconds.
+8. The hero stays editorial and unchanged. The Figma frames show the Phase 4 hero; the live 3D hero stays as built.
+9. "Not interested" appears on Recommended, Because You Read, Similar To, Popular in Your Genres and Discover. It is not on Trending, New Releases, Continue Reading or staff picks.
+10. Clicks: tiles stay clean links (Phase 4 R11 holds). Opening a recommended tile records the click with a small same-origin background request (a beacon), not a `?rec=` parameter.
