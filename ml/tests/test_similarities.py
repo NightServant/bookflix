@@ -24,7 +24,13 @@ def test_k_limits_neighbors_and_blocks_give_the_same_result() -> None:
     v = unit(np.random.default_rng(0).normal(size=(200, 8)))
     small = top_k_cosine(ids, v, k=50, block=64)
     assert all(len(x) == 50 for x in small.values())
-    assert small == top_k_cosine(ids, v, 50, block=1000)
+    large = top_k_cosine(ids, v, 50, block=1000)
+    # The neighbors match exactly; a score can differ in its last float32 bit with the block shape and the BLAS build.
+    assert {i: [n for n, _ in pairs] for i, pairs in small.items()} == {
+        i: [n for n, _ in pairs] for i, pairs in large.items()
+    }
+    for media_id, pairs in small.items():
+        assert [s for _, s in pairs] == pytest.approx([s for _, s in large[media_id]], abs=1e-6)
 
 
 def test_zero_vectors_have_no_neighbors_and_are_nobodys_neighbor() -> None:
