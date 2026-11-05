@@ -63,7 +63,8 @@ beforeEach(function () {
     $this->paletteOpen = 'document.querySelector("[data-palette-panel]").offsetParent !== null';
     $this->paletteInput = '[data-palette-panel] [role=combobox]';
     $this->paletteTrigger = 'header [aria-haspopup=dialog]';
-    $this->trending = 'main section[aria-labelledby=shelf-trending] ul';
+    // New Releases, not Trending Now: a title is on one shelf only, so with this small catalog Trending has too few titles of its own to scroll.
+    $this->trending = 'main section[aria-labelledby=shelf-new-releases] ul';
 
     // Elements that stick out past the viewport's sides and aren't inside something that scrolls or clips: what makes a page scroll sideways.
     $this->sticksOut = '(() => {
@@ -178,11 +179,11 @@ test('a reader can wire:navigate across every page and back with the palette, ta
         ->assertScript('document.querySelector("main section p[aria-hidden]").textContent.replace(/\s+/g, " ").trim()', '02 / 05');
 
     scrolledThrough($page);
-    $page->script('document.querySelector("main section[aria-labelledby=shelf-trending]").scrollIntoView()');
+    $page->script('document.querySelector("main section[aria-labelledby=shelf-new-releases]").scrollIntoView()');
     $page->wait(0.6)
         ->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
         ->assertScript("document.querySelector('{$this->trending}').scrollLeft", 0)
-        ->keys('[aria-label="Next in Trending Now"]', 'Enter')->wait(1.2)
+        ->keys('[aria-label="Next in New Releases"]', 'Enter')->wait(1.2)
         ->assertScript("document.querySelector('{$this->trending}').scrollLeft > 100", true)
         ->keys($this->paletteTrigger, 'Meta+k')->wait(0.6)
         ->assertScript($this->paletteOpen, true)
