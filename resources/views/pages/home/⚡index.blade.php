@@ -172,10 +172,12 @@ new #[Title('Home')] class extends Component {
         'dismissUrl' => route('recommendations.dismiss', '__id__'),
         'undoUrl' => route('recommendations.undo', '__id__'),
         'undoSeconds' => 10,
-        'messages' => ['removed' => __('Removed. We won\'t suggest this again.'), 'failed' => __('That did not work. The story is back; try again in a moment.')],
+        'messages' => ['removed' => __('Removed. We won\'t suggest this again.'), 'undoHint' => __('Press Z to undo.'), 'failed' => __('That did not work. The story is back; try again in a moment.')],
     ]))"
     @click="track($event)"
     @auxclick="track($event)"
+    @keydown.enter="track($event)"
+    @keydown.window="undoKey($event)"
     @click.window="outside($event)"
     @keydown.escape.capture="menuId !== null && ($event.stopPropagation(), $event.preventDefault(), closeMenu(true))"
 >
@@ -290,16 +292,17 @@ new #[Title('Home')] class extends Component {
         </div>
     </dialog>
 
-    {{-- The undo toast: a status, not a dialog, so it never takes focus. It stays for the undo window and waits while it is hovered or has focus. --}}
+    {{-- The undo toast: a status, not a dialog, so it never takes focus. It stays for the undo window and waits while it is hovered or has focus. Undo is also on the Z key. --}}
     <div
+        x-ref="toast"
         role="status"
         class="pointer-events-none fixed inset-x-4 bottom-24 z-50 flex justify-center lg:bottom-6"
         @mouseenter="pauseToast()" @mouseleave="resumeToast()" @focusin="pauseToast()" @focusout="resumeToast()"
     >
-        <div x-show="message" style="display: none" class="pointer-events-auto flex w-full max-w-lg items-center gap-3 rounded-control border border-hairline bg-surface-card py-2 ps-4 pe-2 text-meta text-ink shadow-overlay">
+        <div x-ref="toastCard" x-show="message" style="display: none" class="pointer-events-auto flex w-full max-w-lg items-center gap-3 rounded-control border border-hairline bg-surface-card py-2 ps-4 pe-2 text-meta text-ink shadow-overlay">
             <flux:icon name="check" class="size-5 shrink-0 text-ink" />
-            <span class="min-w-0 flex-1" x-text="message"></span>
-            <button type="button" x-show="canUndo" @click="undo()" class="focus-ring inline-flex min-h-11 items-center rounded-control px-3 font-medium text-link hover:underline">{{ __('Undo') }}</button>
+            <span class="min-w-0 flex-1" x-text="announced"></span>
+            <button type="button" x-show="canUndo" aria-keyshortcuts="Z Control+Z Meta+Z" @click="undo()" class="focus-ring inline-flex min-h-11 items-center rounded-control px-3 font-medium text-link hover:underline">{{ __('Undo') }}</button>
             <button type="button" @click="hideToast()" aria-label="{{ __('Close') }}" class="focus-ring inline-flex size-11 items-center justify-center rounded-control text-ink hover:bg-surface-input">
                 <flux:icon name="x-mark" class="size-5" />
             </button>

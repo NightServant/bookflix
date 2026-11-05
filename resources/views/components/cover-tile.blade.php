@@ -108,6 +108,7 @@
             data-tile-menu="{{ $recommendation }}"
             data-title="{{ $media->title }}"
             aria-haspopup="menu"
+            :aria-haspopup="popup"
             aria-expanded="false"
             :aria-expanded="menuId === {{ $recommendation }} ? 'true' : 'false'"
             @click="openMenu($el)"

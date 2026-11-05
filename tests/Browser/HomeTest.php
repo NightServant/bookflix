@@ -25,12 +25,15 @@ beforeEach(function () {
 
     classified($stories, '813');
 
+    // Rendered once before the browser asks for it, so the first visit does not pay for compiling Home's views within its timeouts.
+    $this->get(route('home'))->assertOk();
+
     $this->desktop = ['viewport' => ['width' => 1440, 'height' => 900]];
     $this->phone = ['viewport' => ['width' => 375, 'height' => 812]];
     $this->scrollDown = 'window.scrollTo(0, document.body.scrollHeight)';
 });
 
-test('home passes the shared checks on desktop and on a phone with its shelves loaded', function () {
+test('home passes the shared checks on desktop and on a phone with every shelf in place', function () {
     foreach ([$this->desktop, $this->phone] as $viewport) {
         $page = visit(route('home'), $viewport + ['reducedMotion' => 'reduce'])->wait(1);
 
@@ -42,7 +45,6 @@ test('home passes the shared checks on desktop and on a phone with its shelves l
         $page->script($this->scrollDown);
         $page->wait(1.5)
             ->assertSee('Trending Now')->assertSee('New Releases')->assertSee('Explore by Subject')
-            ->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
             ->assertNoJavaScriptErrors()
             ->assertNoAccessibilityIssues();
     }
@@ -153,7 +155,7 @@ test('home keeps its DOM light: one preview and one quick view per shelf, filled
         ->assertScript('document.querySelector("[data-story-card]:not([style*=\"display: none\"]) h2").textContent.trim()', 'Panel Tale 2');
 });
 
-test('a shelf that loads lazily fades its end edge without being scrolled', function () {
+test('a shelf that overflows fades its end edge without being scrolled', function () {
     $page = visit(route('home'), $this->desktop)->wait(0.3);
 
     foreach ([400, 900, 1500] as $offset) {
@@ -161,12 +163,11 @@ test('a shelf that loads lazily fades its end edge without being scrolled', func
         $page->wait(1);
     }
 
-    $page->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
-        ->assertScript('Array.from(document.querySelectorAll("main section[aria-labelledby^=shelf-] ul[x-edge-fade]")).filter((track) => track.scrollWidth > track.clientWidth + 1 && ! track.hasAttribute("data-fade-end")).length', 0)
+    $page->assertScript('Array.from(document.querySelectorAll("main section[aria-labelledby^=shelf-] ul[x-edge-fade]")).filter((track) => track.scrollWidth > track.clientWidth + 1 && ! track.hasAttribute("data-fade-end")).length', 0)
         ->assertScript('document.querySelector("main section[aria-labelledby=shelf-new-releases] ul").hasAttribute("data-fade-end")', true);
 });
 
-test('lazy shelves swap in without shifting the page', function () {
+test('scrolling down Home does not shift the page', function () {
     $page = visit(route('home'), $this->desktop)->wait(0.3);
 
     $page->script('window.__shift = 0; new PerformanceObserver((list) => list.getEntries().forEach((entry) => entry.hadRecentInput || (window.__shift += entry.value))).observe({ type: "layout-shift", buffered: true });');
@@ -176,8 +177,7 @@ test('lazy shelves swap in without shifting the page', function () {
         $page->wait(1);
     }
 
-    $page->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
-        ->assertScript('window.__shift < 0.05', true);
+    $page->assertScript('window.__shift < 0.05', true);
 });
 
 test('with reduced motion every shelf tile is visible at once', function () {
@@ -201,7 +201,7 @@ test('going to Discover and back keeps the hero and the shelves working', functi
     $page->script('window.scrollTo(0, 800)');
     $page->wait(1);
     $page->script($this->scrollDown);
-    $page->wait(1.5)->assertSee('Trending Now')->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)->assertNoJavaScriptErrors();
+    $page->wait(1.5)->assertSee('Trending Now')->assertNoJavaScriptErrors();
 });
 
 test('Enter in the search panel opens the search with the typed text', function () {

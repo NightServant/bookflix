@@ -173,7 +173,7 @@ test('a reader can wire:navigate across every page and back with the palette, ta
         ->assertScript('Array.from(document.querySelectorAll("[role=tab]")).filter((tab) => tab.getAttribute("aria-selected") === "true").map((tab) => tab.textContent.trim()).join("|")', 'Series')
         ->assertNoJavaScriptErrors();
 
-    // Home again by its logo: the hero, the lazy shelves, the palette and a shelf's arrows all work on a page that arrived by navigation.
+    // Home again by its logo: the hero, the shelves, the palette and a shelf's arrows all work on a page that arrived by navigation.
     $page->click('header a[href$="/home"] >> nth=0')->wait(1.5)->assertPathIs('/home')
         ->click('[data-hero-next]')->wait(1)
         ->assertScript('document.querySelector("main section p[aria-hidden]").textContent.replace(/\s+/g, " ").trim()', '02 / 05');
@@ -181,7 +181,6 @@ test('a reader can wire:navigate across every page and back with the palette, ta
     scrolledThrough($page);
     $page->script('document.querySelector("main section[aria-labelledby=shelf-new-releases]").scrollIntoView()');
     $page->wait(0.6)
-        ->assertScript('document.querySelectorAll("[data-shelf-skeleton]").length', 0)
         ->assertScript("document.querySelector('{$this->trending}').scrollLeft", 0)
         ->keys('[aria-label="Next in New Releases"]', 'Enter')->wait(1.2)
         ->assertScript("document.querySelector('{$this->trending}').scrollLeft > 100", true)
