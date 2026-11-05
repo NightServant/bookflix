@@ -88,8 +88,9 @@ class RecommendationLogger
     }
 
     /**
-     * A click on a tile: the event, and the id kept in the session against its story, so a later "Add to Library" of that story from its page
-     * can be tied back to the tile. Returns the recommendation, or null when it is not the reader's (or they opted out), so the caller records nothing more.
+     * A click on a tile. Returns the recommendation, or null when it is not the reader's (or they opted out), so the caller records nothing more.
+     * Nothing is kept in the session for a later "Add to Library": the story's page request starts before the click is sent, and the session
+     * saved at the end of each request would overwrite the other's. The click event is what `libraryAdd` finds again.
      */
     public function click(User $user, int $recommendationId): ?Recommendation
     {
@@ -100,20 +101,33 @@ class RecommendationLogger
         }
 
         $this->event($user, $recommendation->id, RecommendationEventType::Click);
-        session()->put("recommendation_clicks.{$recommendation->media_id}", $recommendation->id);
 
         return $recommendation;
     }
 
     /**
-     * The story was added to the library from its page: if the reader opened it from a tile in this session, that tile led to a library add (once).
+     * The story was added to the library from its page: the reader's latest click on a tile of it within `library_add_window_minutes`, that has no
+     * library add yet, led to this one. The caller says so only when the entry was newly created, so two adds record once.
      */
     public function libraryAdd(User $user, Media $media): void
     {
-        $recommendationId = session()->pull("recommendation_clicks.{$media->id}");
+        if (! $user->personalizationEnabled()) {
+            return;
+        }
 
-        if (is_int($recommendationId)) {
-            $this->event($user, $recommendationId, RecommendationEventType::LibraryAdd);
+        $window = now()->subMinutes((int) config('bookflix.recommendations.library_add_window_minutes'));
+
+        $click = RecommendationEvent::query()
+            ->join('recommendations', 'recommendations.id', '=', 'recommendation_events.recommendation_id')
+            ->where('recommendations.user_id', $user->id)->where('recommendations.media_id', $media->id)
+            ->where('recommendation_events.event', RecommendationEventType::Click)->where('recommendation_events.occurred_at', '>=', $window)
+            ->whereNotExists(fn ($added) => $added->selectRaw('1')->from('recommendation_events as added')
+                ->whereColumn('added.recommendation_id', 'recommendation_events.recommendation_id')->where('added.event', RecommendationEventType::LibraryAdd))
+            ->orderByDesc('recommendation_events.occurred_at')->orderByDesc('recommendation_events.id')
+            ->first(['recommendation_events.recommendation_id']);
+
+        if ($click !== null) {
+            $this->event($user, $click->recommendation_id, RecommendationEventType::LibraryAdd);
         }
     }
 
@@ -143,7 +157,7 @@ class RecommendationLogger
      */
     public function undoDismiss(User $user, int $recommendationId): void
     {
-        $recommendation = Recommendation::query()->whereKey($recommendationId)->where('user_id', $user->id)->first();
+        $recommendation = $this->owned($user, $recommendationId);
 
         if ($recommendation === null) {
             return;

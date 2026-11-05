@@ -100,9 +100,13 @@ new class extends Component {
         $user = $this->reader();
         $media = $this->story($user);
 
-        app(AddToLibrary::class)->handle($user, $media);
-        // Opened from a Home tile in this session: that tile led to a library add (the Phase 4 R11 way: nothing in the link).
-        app(RecommendationLogger::class)->libraryAdd($user, $media);
+        $entry = app(AddToLibrary::class)->handle($user, $media);
+
+        // Only a new entry can be the result of a Home tile's click (found from the click itself, so nothing rides in the link: Phase 4 R11).
+        if ($entry->wasRecentlyCreated) {
+            app(RecommendationLogger::class)->libraryAdd($user, $media);
+        }
+
         unset($this->entry);
 
         Flux::toast(variant: 'success', text: __(':title was added to your library.', ['title' => $media->title]));

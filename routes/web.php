@@ -36,8 +36,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('recommendations')->middleware('throttle:120,1,recommendations')->controller(RecommendationFeedbackController::class)->group(function () {
         Route::post('click', 'click')->name('recommendations.click');
         Route::post('impressions', 'impressions')->name('recommendations.impressions');
-        Route::post('{recommendation}/dismiss', 'dismiss')->whereNumber('recommendation')->name('recommendations.dismiss');
-        Route::delete('{recommendation}/dismiss', 'undo')->whereNumber('recommendation')->name('recommendations.undo');
+        Route::post('{recommendation}/dismiss', 'dismiss')->where('recommendation', '[0-9]{1,18}')->name('recommendations.dismiss');
+        Route::delete('{recommendation}/dismiss', 'undo')->where('recommendation', '[0-9]{1,18}')->name('recommendations.undo');
     });
 });
 

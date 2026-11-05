@@ -26,11 +26,14 @@ beforeEach(function () {
     $this->other = User::factory()->create();
 });
 
-test('every route needs a signed in, verified reader', function () {
+test('every route needs a signed in reader, and a verified one', function () {
     $this->post(route('recommendations.click'), ['recommendation_id' => $this->rec->id])->assertRedirect(route('login'));
     $this->post(route('recommendations.impressions'), ['ids' => [$this->rec->id]])->assertRedirect(route('login'));
     $this->post(route('recommendations.dismiss', $this->rec->id))->assertRedirect(route('login'));
     $this->delete(route('recommendations.undo', $this->rec->id))->assertRedirect(route('login'));
+
+    $unverified = User::factory()->unverified()->create();
+    $this->actingAs($unverified)->post(route('recommendations.click'), ['recommendation_id' => $this->rec->id])->assertRedirect(route('verification.notice'));
 
     expect(RecommendationEvent::count())->toBe(0);
 });
@@ -53,13 +56,13 @@ test('the click route is throttled', function () {
     $this->actingAs($this->user)->post(route('recommendations.click'), ['recommendation_id' => 999999])->assertStatus(429);
 });
 
-test('a click records the event and a recommendation_click interaction, and remembers the id for the story', function () {
+test('a click records the event and a recommendation_click interaction', function () {
     Queue::fake();
 
     $this->actingAs($this->user)->post(route('recommendations.click'), ['recommendation_id' => $this->rec->id])->assertNoContent();
 
     expect(RecommendationEvent::where('recommendation_id', $this->rec->id)->where('event', 'click')->count())->toBe(1)
-        ->and(session("recommendation_clicks.{$this->rec->media_id}"))->toBe($this->rec->id);
+        ->and(session('recommendation_clicks'))->toBeNull();
     Queue::assertPushed(RecordInteraction::class, fn (RecordInteraction $job) => $job->event === InteractionEvent::RecommendationClick
         && $job->mediaId === $this->rec->media_id && $job->context['recommendation_id'] === $this->rec->id && $job->context['shelf'] === 'recommended');
 });
@@ -96,11 +99,64 @@ test('adding the story afterwards from its page records the library add once', f
     expect(RecommendationEvent::where('recommendation_id', $this->rec->id)->where('event', 'library_add')->count())->toBe(1);
 });
 
+test('the library add is found from the click itself, not from the session, which a racing request can overwrite', function () {
+    $this->actingAs($this->user)->post(route('recommendations.click'), ['recommendation_id' => $this->rec->id])->assertNoContent();
+    session()->flush();
+
+    Livewire\Livewire::test('library-controls', ['media' => $this->rec->media])->call('add');
+
+    expect(RecommendationEvent::where('recommendation_id', $this->rec->id)->where('event', 'library_add')->count())->toBe(1);
+});
+
 test('adding a story that was never clicked from a tile records no library add', function () {
     $media = $this->catalog->last();
 
     $this->actingAs($this->user);
     Livewire\Livewire::test('library-controls', ['media' => $media])->call('add');
+
+    expect(RecommendationEvent::where('event', 'library_add')->count())->toBe(0);
+});
+
+test('another reader\'s click on the story never counts as this reader\'s library add', function () {
+    RecommendationEvent::factory()->create(['recommendation_id' => $this->rec->id, 'event' => RecommendationEventType::Click, 'occurred_at' => now()]);
+
+    $this->actingAs($this->other);
+    Livewire\Livewire::test('library-controls', ['media' => $this->rec->media])->call('add');
+
+    expect(RecommendationEvent::where('event', 'library_add')->count())->toBe(0);
+});
+
+test('a click older than the window does not count, one inside it does', function () {
+    $window = (int) config('bookflix.recommendations.library_add_window_minutes');
+    $click = RecommendationEvent::factory()->create(['recommendation_id' => $this->rec->id, 'event' => RecommendationEventType::Click, 'occurred_at' => now()->subMinutes($window + 1)]);
+
+    $this->actingAs($this->user);
+    Livewire\Livewire::test('library-controls', ['media' => $this->rec->media])->call('add');
+    expect(RecommendationEvent::where('event', 'library_add')->count())->toBe(0);
+
+    $this->user->library()->delete();
+    $click->update(['occurred_at' => now()->subMinutes($window - 1)]);
+    Livewire\Livewire::test('library-controls', ['media' => $this->rec->media])->call('add');
+    expect(RecommendationEvent::where('event', 'library_add')->count())->toBe(1);
+});
+
+test('a library add is credited to the latest click of the story', function () {
+    $newer = Recommendation::factory()->create(['user_id' => $this->user->id, 'media_id' => $this->rec->media_id, 'shelf' => 'trending']);
+    RecommendationEvent::factory()->create(['recommendation_id' => $this->rec->id, 'event' => RecommendationEventType::Click, 'occurred_at' => now()->subMinutes(5)]);
+    RecommendationEvent::factory()->create(['recommendation_id' => $newer->id, 'event' => RecommendationEventType::Click, 'occurred_at' => now()->subMinute()]);
+
+    $this->actingAs($this->user);
+    Livewire\Livewire::test('library-controls', ['media' => $this->rec->media])->call('add');
+
+    expect(RecommendationEvent::where('event', 'library_add')->pluck('recommendation_id')->all())->toBe([$newer->id]);
+});
+
+test('a story already in the library records no library add for a click', function () {
+    $this->actingAs($this->user);
+    Livewire\Livewire::test('library-controls', ['media' => $this->rec->media])->call('add');
+    RecommendationEvent::factory()->create(['recommendation_id' => $this->rec->id, 'event' => RecommendationEventType::Click, 'occurred_at' => now()]);
+
+    Livewire\Livewire::test('library-controls', ['media' => $this->rec->media])->call('add');
 
     expect(RecommendationEvent::where('event', 'library_add')->count())->toBe(0);
 });
@@ -158,4 +214,18 @@ test('undo cannot remove someone else\'s dismissal, nor other kinds of event', f
 
     $this->actingAs($this->user)->delete(route('recommendations.undo', $this->rec->id))->assertNoContent();
     expect(RecommendationEvent::where('event', 'dismiss')->count())->toBe(0)->and(RecommendationEvent::where('event', 'click')->count())->toBe(1);
+});
+
+test('an id too large for the database is a 404, not a server error', function () {
+    $this->actingAs($this->user)->post('/recommendations/99999999999999999999/dismiss')->assertNotFound();
+    $this->actingAs($this->user)->delete('/recommendations/99999999999999999999/dismiss')->assertNotFound();
+});
+
+test('undo of an opted out reader changes nothing', function () {
+    $this->actingAs($this->user)->post(route('recommendations.dismiss', $this->rec->id));
+    $this->user->profile->update(['personalization_enabled' => false]);
+
+    $this->actingAs($this->user->fresh())->delete(route('recommendations.undo', $this->rec->id))->assertNoContent();
+
+    expect(RecommendationEvent::where('event', 'dismiss')->count())->toBe(1);
 });
