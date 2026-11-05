@@ -76,16 +76,14 @@ new #[Title('Home')] class extends Component {
     }
 
     /**
-     * The reader's own collections for the "Your Collections" row, the most recently changed first. Exactly three would be a row of three cards, so two show then.
+     * The reader's own collections for the "Your Collections" row, the most recently changed first, at most eight (See all has the rest). Exactly three get a fourth card, "New collection", in the view.
      *
      * @return EloquentCollection<int, Collection>
      */
     #[Computed]
     public function collections(): EloquentCollection
     {
-        $mine = auth()->user()->collections()->orderByDesc('updated_at')->orderByDesc('id')->limit(8)->get();
-
-        return $mine->count() === 3 ? $mine->take(2)->values() : $mine;
+        return auth()->user()->collections()->orderByDesc('updated_at')->orderByDesc('id')->limit(8)->get();
     }
 
     /**
@@ -216,6 +214,9 @@ new #[Title('Home')] class extends Component {
                                     <x-collection-card :collection="$collection" :preview="$this->previews[$collection->id]" />
                                 </li>
                             @endforeach
+                            @if ($this->collections->count() === 3)
+                                <li wire:key="your-collections-new"><x-collection-new-card /></li>
+                            @endif
                         </x-shelf>
                     </div>
                     @break

@@ -175,3 +175,27 @@ test('the getting-started card opens the last onboarding step', function () {
 test('onboarding starts at the first step without a step, or with one that is not the last', function () {
     Livewire\Livewire::actingAs(User::factory()->create())->withQueryParams(['step' => 2])->test('pages::onboarding.index')->assertSet('step', 1);
 });
+
+test('Your Collections shows every collection, and a fourth card invites a new one when there would be three', function () {
+    [$user, $catalog] = richReader();
+    $cards = fn () => htmlQuery(homeHtml($user), '//section[@aria-labelledby="shelf-your-collections"]//li');
+    $new = fn () => htmlQuery(homeHtml($user), '//section[@aria-labelledby="shelf-your-collections"]//a[@data-new-collection]');
+
+    foreach (range(1, 2) as $n) {
+        collectionOf($user, [$catalog[$n]], ['name' => "Mine {$n}"]);
+    }
+    expect($cards()->length)->toBe(2)->and($new()->length)->toBe(0);
+
+    collectionOf($user, [$catalog[3]], ['name' => 'Mine 3']);
+    $html = homeHtml($user);
+    $link = htmlQuery($html, '//section[@aria-labelledby="shelf-your-collections"]//a[@data-new-collection]');
+
+    expect(htmlQuery($html, '//section[@aria-labelledby="shelf-your-collections"]//li')->length)->toBe(4)
+        ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-your-collections"]//li[not(.//a[@data-new-collection])]')->length)->toBe(3)
+        ->and($link->length)->toBe(1)
+        ->and($link->item(0)->getAttribute('href'))->toBe(route('collections.index'))
+        ->and($link->item(0)->textContent)->toContain('New collection');
+
+    collectionOf($user, [$catalog[4]], ['name' => 'Mine 4']);
+    expect($cards()->length)->toBe(4)->and($new()->length)->toBe(0);
+});
