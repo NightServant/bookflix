@@ -338,7 +338,7 @@ test('home opens with continue reading when the reader has something in progress
     expect($this->actingAs($open)->get(route('home'))->getContent())->toContain('Opted In Tale');
 });
 
-test('home with continue reading runs a bounded number of queries', function () {
+test('home with continue reading runs a bounded number of queries once its shelves are cached', function () {
     $user = User::factory()->create();
     Media::factory()->count(30)->create();
 
@@ -347,6 +347,7 @@ test('home with continue reading runs a bounded number of queries', function () 
     }
 
     $this->actingAs($user);
+    $this->get(route('home'))->assertOk();
     DB::enableQueryLog();
     $this->get(route('home'))->assertOk()->assertSee('Continue Reading');
 

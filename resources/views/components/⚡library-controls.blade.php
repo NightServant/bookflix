@@ -9,6 +9,7 @@ use App\Actions\Library\RemoveFromLibrary;
 use App\Actions\Library\SetLibraryStatus;
 use App\Actions\Library\ToggleFavorite;
 use App\Actions\Ratings\RateMedia;
+use App\Discovery\Recommendations\RecommendationLogger;
 use App\Enums\ReadingStatus;
 use App\Library\WriteLimit;
 use App\Models\Collection;
@@ -100,6 +101,8 @@ new class extends Component {
         $media = $this->story($user);
 
         app(AddToLibrary::class)->handle($user, $media);
+        // Opened from a Home tile in this session: that tile led to a library add (the Phase 4 R11 way: nothing in the link).
+        app(RecommendationLogger::class)->libraryAdd($user, $media);
         unset($this->entry);
 
         Flux::toast(variant: 'success', text: __(':title was added to your library.', ['title' => $media->title]));

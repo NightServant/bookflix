@@ -85,6 +85,16 @@ class ShelfBuilder
     }
 
     /**
+     * Whether Home treats this reader as new: they opted out, or have fewer strong interactions than `cold_start_min_interactions`. The page shows the
+     * getting-started card for a cold reader who has personalization on, and moves the staff picks up for any cold one.
+     */
+    public function isCold(User $user): bool
+    {
+        return ! $user->personalizationEnabled()
+            || $this->seeds->for($user)->count() < (int) config('bookflix.recommendations.cold_start_min_interactions');
+    }
+
+    /**
      * The candidate shelves from the cache or, on a miss, freshly built and logged.
      *
      * @return Collection<int, Shelf>
@@ -111,7 +121,7 @@ class ShelfBuilder
     private function build(User $user): array
     {
         $enabled = $user->personalizationEnabled();
-        $personal = $enabled && $this->seeds->for($user)->count() >= (int) config('bookflix.recommendations.cold_start_min_interactions');
+        $personal = ! $this->isCold($user);
 
         $lists = $this->pool->bySource($user, self::SOURCE_LIMIT);
         $pooled = $this->pool->combine($user, $lists);
@@ -119,7 +129,7 @@ class ShelfBuilder
         // Ranking gives every title its features and drops what the reader may not see; an opted-out reader's history is not read at all.
         $ranked = $enabled ? $this->ranker->rank($user, $pooled, RankingWeights::active())->keyBy('mediaId') : null;
 
-        /** @var array<string, array{title: string, featured: bool, items: list<ServedItem>, reason?: int}> $specs */
+        /** @var array<string, array{title: string, featured: bool, items: list<ServedItem>, reason?: int, href?: string|null}> $specs */
         $specs = [];
 
         // The shelves around one title list its neighbors, which the shared pool may have cut off: those are ranked too, in one more call.
@@ -136,7 +146,7 @@ class ShelfBuilder
             $specs['recommended'] = ['title' => __('Recommended For You'), 'featured' => false, 'items' => $this->recommended($user, $pooled, $lists, $ranked)];
 
             if ($recent !== null) {
-                $specs['because-you-read'] = ['title' => __('Because You Read :title', ['title' => $recent->title]), 'featured' => false, 'items' => $this->fromCandidates('because-you-read', $around['because-you-read'], new Explanation(ReasonType::BecauseYouRead, $recent->title), $ranked), 'reason' => $recent->id];
+                $specs['because-you-read'] = ['title' => __('Because You Read :title', ['title' => $recent->title]), 'featured' => false, 'items' => $this->fromCandidates('because-you-read', $around['because-you-read'], new Explanation(ReasonType::BecauseYouRead, $recent->title), $ranked), 'reason' => $recent->id, 'href' => $this->searchLike($user, $recent)];
             }
         }
 
@@ -167,7 +177,7 @@ class ShelfBuilder
                     ->setAttribute('reason_media_id', $item->reasonMediaId);
             }, $spec['items']);
 
-            return new Shelf($key, $spec['title'], new EloquentCollection($items), $spec['featured']);
+            return new Shelf($key, $spec['title'], new EloquentCollection($items), $spec['featured'], href: $spec['href'] ?? null);
         })->values();
 
         return [$shelves, $specs->filter(fn (array $spec): bool => isset($spec['reason']))->map(fn (array $spec): int => $spec['reason'])->all()];
@@ -263,6 +273,17 @@ class ShelfBuilder
     }
 
     /**
+     * The search that "See all" of Because You Read opens: the title's own genres as filters, without a mature genre for a reader who may not see those.
+     * Null when it has none, so the shelf shows no link rather than one to the whole catalog.
+     */
+    private function searchLike(User $user, Media $seed): ?string
+    {
+        $slugs = $seed->genres()->when(! MatureAccess::allows($user), fn ($genres) => $genres->where('genres.is_mature', false))->orderBy('genres.slug')->limit(5)->pluck('genres.slug')->all();
+
+        return $slugs === [] ? null : route('search', ['filters' => ['genres' => $slugs]]);
+    }
+
+    /**
      * The reader's latest favorite that is not the title of the Because You Read shelf and that they may see.
      */
     private function favorite(User $user, ?Media $except): ?Media
@@ -322,7 +343,7 @@ class ShelfBuilder
                 $items[] = [$media->getKey(), $media->getAttribute('recommendation_id'), $media->getAttribute('reason_label'), $media->getAttribute('reason_media_id')];
             }
 
-            $digest[] = ['key' => $shelf->key, 'title' => $shelf->title, 'featured' => $shelf->featured, 'reason_media_id' => $reasons[$shelf->key] ?? null, 'items' => $items];
+            $digest[] = ['key' => $shelf->key, 'title' => $shelf->title, 'featured' => $shelf->featured, 'reason_media_id' => $reasons[$shelf->key] ?? null, 'href' => $shelf->href, 'items' => $items];
         }
 
         return $digest;
@@ -374,7 +395,7 @@ class ShelfBuilder
             }
 
             if ($items !== []) {
-                $shelves->push(new Shelf($shelf['key'], $shelf['title'], new EloquentCollection($items), $shelf['featured']));
+                $shelves->push(new Shelf($shelf['key'], $shelf['title'], new EloquentCollection($items), $shelf['featured'], href: $shelf['href'] ?? null));
             }
         }
 

@@ -110,7 +110,7 @@ test('landing to login to home to search to a story works on desktop and on a ph
         ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
 })->with([[1440, 900], [390, 844]]);
 
-test('Tab walks Home in reading order: header, hero (text, controls, the book fan), search panel, then the first shelf', function () {
+test('Tab walks Home in reading order: header, hero (text, controls, the book fan), search panel, the getting-started card, then the first shelf', function () {
     $this->actingAs($this->user);
 
     $page = visit($this->paths['home'], $this->desktop)->wait(1.5);
@@ -127,7 +127,7 @@ test('Tab walks Home in reading order: header, hero (text, controls, the book fa
         'a:Bookflix', 'a:Home', 'a:Discover', 'a:Library', 'a:Profile', 'button:Search', 'button:Account menu for Gabe Reader',
         'a:View story', 'button:Add to Library', 'button:Previous slide', 'button:Next slide', 'button:Show Panel Tale 2', 'button:Show Panel Tale 3',
         'input:combobox', 'a:Browse Discover',
-        'a:See all in Trending Now', 'button:Next in Trending Now', 'a:Dune',
+        'a:Choose stories', 'a:See all in New Releases', 'button:Next in New Releases',
     ]);
 });
 

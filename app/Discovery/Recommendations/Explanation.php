@@ -4,6 +4,7 @@ namespace App\Discovery\Recommendations;
 
 use App\Enums\ReasonType;
 use App\Models\Media;
+use Illuminate\Support\Str;
 
 /**
  * Why a title was recommended, as the reader will read it: the reason type with the title or genre its sentence names. A sentence that
@@ -43,6 +44,25 @@ final readonly class Explanation
             ReasonType::NewRelease => (string) __('New release'),
             ReasonType::Exploration => (string) __('Something different for you'),
         };
+    }
+
+    /**
+     * A label split for the tile: the lead-in ("Because you read") and the title or genre it names ("Dracula"), which the tile sets in white and Medium.
+     * The cache keeps only the finished text, so this reads it back by the sentence's own words; a label that names nothing comes back whole as the lead-in.
+     *
+     * @return array{lead: string, subject: string|null}
+     */
+    public static function parts(string $label): array
+    {
+        foreach (['Because you read :title', 'Similar themes to :title', 'Popular with readers who enjoyed :title', 'Matches your interest in :genre'] as $template) {
+            $lead = (string) Str::of((string) __($template))->before(Str::contains($template, ':genre') ? ':genre' : ':title');
+
+            if ($lead !== '' && str_starts_with($label, $lead) && strlen($label) > strlen($lead)) {
+                return ['lead' => rtrim($lead), 'subject' => substr($label, strlen($lead))];
+            }
+        }
+
+        return ['lead' => $label, 'subject' => null];
     }
 
     private static function with(?string $value, string $template, string $placeholder = 'title'): ?string

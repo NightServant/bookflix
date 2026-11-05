@@ -179,7 +179,7 @@ test('building the shelves of a rich reader takes a bounded number of queries', 
     homeShelves($user);
 
     $queries = count(DB::getQueryLog());
-    expect($queries)->toBeLessThanOrEqual(69);
+    expect($queries)->toBeLessThanOrEqual(70);
     fwrite(STDERR, "\nforHome cold cache: {$queries} queries\n");
 
     DB::flushQueryLog();

@@ -3,6 +3,9 @@
     'size' => 'M',
     'progress' => null,
     'reason' => null,
+    'reasonSubject' => null,
+    'recommendation' => null,
+    'dismissible' => false,
     'badge' => false,
     'fluid' => false,
     'selectable' => false,
@@ -14,6 +17,11 @@
     `selectable` turns the tile into something to pick instead of open: a label around a native checkbox (bind it with `wire:model` and a
     `value`, which go to the checkbox like `name` and `x-model`), with a ring and a check on the cover once ticked and the focus ring
     drawn on the cover. It links nowhere. Used where a reader chooses stories (onboarding).
+    `reason` is the line under the title: 13px, up to three lines, muted. `reasonSubject` is the title or genre the reason names, white and Medium after it
+    ("Because you read" **Dracula**); nothing else marks it, so it reads as a caption and never competes with the cover.
+    `recommendation` (the id of the `recommendations` row) makes the tile report a click and a view (see `recommendationTiles`, which the page puts around the shelves).
+    `dismissible` adds the 44px overflow button (needs `recommendation`): hidden until the tile is hovered or has focus, always shown on a phone or a touch screen, where it
+    opens a bottom sheet instead of the one-item menu (Escape is handled by the page's `recommendationTiles` in the capture phase, ahead of the preview card's own Escape). It sits beside the link, not in it (a button cannot be inside a link), and so does the menu.
 --}}
 @php
     [$width, $widthClasses] = match (strtoupper($size)) {
@@ -24,14 +32,22 @@
     $height = $width * 3 / 2;
     $progress = $progress === null ? null : max(0, min(100, (int) $progress));
     $inputKeys = ['wire:model', 'x-model', 'value', 'name', 'checked'];
+    $menu = $dismissible && ! $selectable && $recommendation !== null;
 @endphp
+
+@if ($menu)
+    <div class="group/tile relative {{ $fluid ? 'w-full' : $widthClasses }}">
+@endif
 
 <{{ $selectable ? 'label' : 'a' }}
     @unless ($selectable)
         href="{{ route('stories.show', $media->slug) }}"
         wire:navigate
     @endunless
-    {{ $attributes->whereDoesntStartWith($selectable ? $inputKeys : [])->class(['group block shrink-0 rounded-card', 'focus-ring' => ! $selectable, 'cursor-pointer' => $selectable, $fluid ? 'w-full' : $widthClasses]) }}
+    @if ($recommendation !== null && ! $selectable)
+        data-recommendation="{{ $recommendation }}"
+    @endif
+    {{ $attributes->whereDoesntStartWith($selectable ? $inputKeys : [])->class(['group block shrink-0 rounded-card', 'focus-ring' => ! $selectable, 'cursor-pointer' => $selectable, $menu ? 'w-full' : ($fluid ? 'w-full' : $widthClasses)]) }}
 >
     @if ($selectable)
         <input type="checkbox" class="peer sr-only" {{ $attributes->whereStartsWith($inputKeys) }}>
@@ -82,6 +98,44 @@
     <span class="mt-2 line-clamp-2 min-h-[2lh] text-meta text-ink">{{ $media->title }}</span>
 
     @if ($reason)
-        <span class="mt-1 line-clamp-2 text-legal text-ink-subtle">{{ $reason }}</span>
+        <span class="mt-1 line-clamp-3 text-legal text-ink-subtle">{{ $reason }}@if ($reasonSubject) <span class="font-medium text-ink">{{ $reasonSubject }}</span>@endif</span>
     @endif
 </{{ $selectable ? 'label' : 'a' }}>
+
+@if ($menu)
+        <button
+            type="button"
+            data-tile-menu="{{ $recommendation }}"
+            data-title="{{ $media->title }}"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            :aria-expanded="menuId === {{ $recommendation }} ? 'true' : 'false'"
+            @click="openMenu($el)"
+            aria-label="{{ __('Not interested in :title', ['title' => $media->title]) }}"
+            class="focus-ring absolute end-2 top-2 z-10 inline-flex size-11 items-center justify-center rounded-control bg-canvas/90 text-ink opacity-0 group-focus-within/tile:opacity-100 group-hover/tile:opacity-100 max-sm:opacity-100 pointer-coarse:opacity-100 motion-safe:transition-opacity motion-safe:duration-(--motion-fast)"
+        >
+            <flux:icon name="ellipsis-horizontal" class="size-5" />
+        </button>
+
+        <div
+            role="menu"
+            aria-label="{{ __('Options for :title', ['title' => $media->title]) }}"
+            x-show="menuId === {{ $recommendation }}"
+            style="display: none"
+            @keydown.tab="closeMenu()"
+            @keydown.arrow-down.prevent
+            @keydown.arrow-up.prevent
+            class="absolute inset-x-1 top-14 z-20 rounded-control border border-hairline bg-surface-card p-1 shadow-overlay"
+        >
+            <button
+                type="button"
+                role="menuitem"
+                @click="notInterested()"
+                class="focus-ring flex min-h-11 w-full items-center gap-2 rounded-control px-2 text-start text-meta text-ink hover:bg-surface-input"
+            >
+                <flux:icon name="eye-slash" class="size-4 shrink-0" />
+                <span>{{ __('Not interested') }}</span>
+            </button>
+        </div>
+    </div>
+@endif

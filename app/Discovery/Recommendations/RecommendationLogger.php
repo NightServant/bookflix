@@ -4,6 +4,7 @@ namespace App\Discovery\Recommendations;
 
 use App\Enums\RecommendationEventType;
 use App\Events\RecommendationDismissed;
+use App\Models\Media;
 use App\Models\ModelVersion;
 use App\Models\Recommendation;
 use App\Models\RecommendationEvent;
@@ -84,5 +85,82 @@ class RecommendationLogger
         if ($event === RecommendationEventType::Dismiss) {
             RecommendationDismissed::dispatch($user->id);
         }
+    }
+
+    /**
+     * A click on a tile: the event, and the id kept in the session against its story, so a later "Add to Library" of that story from its page
+     * can be tied back to the tile. Returns the recommendation, or null when it is not the reader's (or they opted out), so the caller records nothing more.
+     */
+    public function click(User $user, int $recommendationId): ?Recommendation
+    {
+        $recommendation = $this->owned($user, $recommendationId);
+
+        if ($recommendation === null) {
+            return null;
+        }
+
+        $this->event($user, $recommendation->id, RecommendationEventType::Click);
+        session()->put("recommendation_clicks.{$recommendation->media_id}", $recommendation->id);
+
+        return $recommendation;
+    }
+
+    /**
+     * The story was added to the library from its page: if the reader opened it from a tile in this session, that tile led to a library add (once).
+     */
+    public function libraryAdd(User $user, Media $media): void
+    {
+        $recommendationId = session()->pull("recommendation_clicks.{$media->id}");
+
+        if (is_int($recommendationId)) {
+            $this->event($user, $recommendationId, RecommendationEventType::LibraryAdd);
+        }
+    }
+
+    /**
+     * Tiles that came into view, in one query and one insert. Only the reader's own are kept.
+     *
+     * @param  list<int>  $recommendationIds
+     */
+    public function impressions(User $user, array $recommendationIds): void
+    {
+        if (! $user->personalizationEnabled() || $recommendationIds === []) {
+            return;
+        }
+
+        $now = now();
+        $rows = Recommendation::query()->where('user_id', $user->id)->whereIn('id', array_unique($recommendationIds))->pluck('id')
+            ->map(fn (int $id): array => ['recommendation_id' => $id, 'event' => RecommendationEventType::Impression->value, 'occurred_at' => $now])->all();
+
+        if ($rows !== []) {
+            RecommendationEvent::query()->insert($rows);
+        }
+    }
+
+    /**
+     * Takes a dismissal back (the undo of the toast): the reader's own dismiss events of that recommendation are deleted and the cached shelves
+     * forgotten, so the title can be offered again. Another reader's id, or any other kind of event, is left alone.
+     */
+    public function undoDismiss(User $user, int $recommendationId): void
+    {
+        $recommendation = Recommendation::query()->whereKey($recommendationId)->where('user_id', $user->id)->first();
+
+        if ($recommendation === null) {
+            return;
+        }
+
+        RecommendationEvent::query()->where('recommendation_id', $recommendation->id)->where('event', RecommendationEventType::Dismiss)->delete();
+
+        RecommendationDismissed::dispatch($user->id);
+    }
+
+    /**
+     * The reader's own recommendation of that id, or null (also for a reader who opted out): an id that is not theirs says nothing.
+     */
+    public function owned(User $user, int $recommendationId): ?Recommendation
+    {
+        return $user->personalizationEnabled()
+            ? Recommendation::query()->whereKey($recommendationId)->where('user_id', $user->id)->first()
+            : null;
     }
 }

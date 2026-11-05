@@ -121,3 +121,22 @@ Screenshots are in the session scratchpad under `shots/p6-design/`. The user app
 8. The hero stays editorial and unchanged. The Figma frames show the Phase 4 hero; the live 3D hero stays as built.
 9. "Not interested" appears on Recommended, Because You Read, Similar To, Popular in Your Genres and Discover. It is not on Trending, New Releases, Continue Reading or staff picks.
 10. Clicks: tiles stay clean links (Phase 4 R11 holds). Opening a recommended tile records the click with a small same-origin background request (a beacon), not a `?rec=` parameter.
+
+### Accepted deviations (6.8 UI)
+- Home renders `ShelfBuilder::forHome` in the request, not through lazy `home-shelf` components: the shelves come from the ten-minute cache, a cold build is one request, and "Not interested" needs the whole page's tiles in the DOM. `⚡home-shelf` and `shelf-skeleton` (and their tests) are gone. Home as a page: warm 11 queries for a new reader and 21 for a rich one (test limit 25); cold 37 and 79. `ShelfBuilder::build` costs one more query than before (69 to 70) for the Because You Read "See all" genres, which the cache keeps in the digest.
+- The reader's own "Your Collections" row (decision 4 and the frames) is a Home-only block of `<x-collection-card>`s (new component, with `CollectionPreviews`), not a `ShelfBuilder` shelf; the editorial `collection-*` shelves stay the staff picks, with the eyebrow "Picked by our editors" on Home (Discover keeps "Staff pick"). Exactly three collections show two cards (the Phase 5 "never a row of three" rule); more than eight are cut at eight. "Your Collections" has See all (collections page).
+- Shelf descriptions that the lazy shelves carried ("The most popular stories...") are dropped to match the signed frames; Continue Reading keeps its own.
+- "Not interested" removes the tile from the DOM and does not pull in "a new pick at the end" (the frames): the shelf already holds up to twenty and the page has no spare titles in memory. The server forgets the cache, so the next load is rebuilt. Undo puts the tile back where it was.
+- Dismiss, undo, click and impressions are plain `POST`/`DELETE` routes under `recommendations/` (`RecommendationFeedbackController`, group throttle 120 a minute, `auth` and the web group's CSRF check). They answer 204 whatever the id (an id that is not the reader's, or an opted-out reader's, is ignored without saying so); the page sends the token as `_token` in a beacon or as `X-CSRF-TOKEN`. The click also remembers the id in the session (`recommendation_clicks.{media id}`), and `library-controls::add` pulls it into one `library_add` event (`RecommendationLogger::libraryAdd`). The hero and `POST /library` do not.
+- The "Not interested" button is labelled "Not interested in {title}" as the notes say (it opens a menu whose one item is "Not interested").
+- Impressions: an `IntersectionObserver` (half of the tile) once per tile per page view, flushed after one second or when the page is hidden. A tile is one `recommendation` row, so a second page view in the same cache window reports the same rows again, as a new view.
+- Onboarding takes `?step=3` (set in `mount` only when it is exactly 3); the earlier answers are optional and prefilled from the saved ones.
+
+### Fixes found on the way (6.8 UI)
+- `storyPreviews.card()` used `$root`, which inside a tile's handlers is the shelf's own section, so tabbing between tiles threw "Cannot read properties of null" on `main` too; it now holds its own element. (Present since Phase 4; nothing asserted JS errors while tabbing across tiles.)
+- Alpine merges the scopes of nested `x-data`: `recommendationTiles` first used `dismiss()` and silently called the preview card's `dismiss()`; it is `notInterested()`.
+- `@alpinejs/ui`'s popover stops Escape in the capture phase while it is closed, so the menu's Escape is handled on the page root, ahead of it.
+
+### Findings (6.8 UI)
+- F15: a cached shelf keeps its recommendation ids for ten minutes, so impressions of two page views in that window point at the same `recommendations` row; evaluation that needs one row per view must count events, not rows.
+- F16: dismissing a title on one shelf leaves the same title on the other shelves of the page until the next load (the dismissal is per recommendation row; the next build excludes the title everywhere).
