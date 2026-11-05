@@ -154,7 +154,7 @@ test('a 5xx surfaces as ProviderUnavailable', function () {
 });
 
 test('seeding gives a new source its starting state from config and never overwrites enabled afterwards', function () {
-    config(['bookflix.providers.anilist.enabled' => true]);
+    config(['bookflix.providers.anilist.enabled' => true, 'bookflix.providers.openlibrary.enabled' => false]);
     $this->seed(ExternalSourceSeeder::class);
 
     expect(ExternalSource::firstWhere('key', 'openlibrary')->enabled)->toBeFalse()
