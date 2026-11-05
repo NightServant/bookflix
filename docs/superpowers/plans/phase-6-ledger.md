@@ -158,3 +158,26 @@ Two `fix:` commits on `phase-6-recommendations`, from the review of the personal
 - Follow-up `fix:` commits: the New collection icon square is `rounded-control` (only chips, markers and thumbs may be fully rounded); the smoke test's shelf-arrow check uses New Releases, because with one shelf per title Trending Now has too few titles of its own in that small catalog to scroll. A larger smoke catalog made the `search` data sets of two smoke tests time out on page load (also on the code before these fixes), so the catalog was left alone.
 - Gate: `composer test` 2144 passed. Browser: HomeTest, HomeRecommendationsTest, SmokeTest, AccessibilityTest, CollectionsTest 63 passed. HomeTest's guest cases timed out once on a cold first run and passed on the rerun.
 - Screenshots refreshed in the scratchpad `shots/p6-ui-after/` (personalized 1440 and 390, cold-start 1440); the demo rows are removed.
+
+## Final review of the Home UI (`64ffd66..fca7eb2`): fixes
+
+Four `fix:` commits on `phase-6-recommendations` after `9d355c5` (library add link, cold flag and Trending, toast and undo, Dewey counts).
+
+### Should-fix
+- **Click to library add without the session** (`RecommendationLogger`, `library-controls`): the session key is gone (wire:navigate's story GET and the teardown impressions POST saved an older session over it). `libraryAdd` finds the reader's latest `click` on that story within `bookflix.recommendations.library_add_window_minutes` (30), joined to `recommendations.user_id`, with no `library_add` yet; `add()` calls it only when the entry was newly created. Tests: foreign click, stale click, two adds, an already-owned story, session flushed.
+- **Enter records a click**: `track` also handles `keydown` Enter without modifiers (a click right after the same tile's Enter is not counted twice; a tile being dismissed is not counted). Browser test: Enter on a tile records one click.
+- **Undo by keyboard**: Z or Ctrl/Cmd+Z while the toast offers Undo and not typing or with the sheet open; the toast says "Press Z to undo." (not on touch), the button has `aria-keyshortcuts`; `hideToast` with focus in the toast moves it to the tile that took focus after the dismissal (or `#main`). Browser tests for both.
+- **Undo races**: each dismissal is an `entry` with its own `sent` promise; `removed` is set when its toast shows; `undo()` undoes the toast's tile after its POST. Browser test with two quick dismissals.
+- **Trending fallback**: `deduplicated()` test through `withoutRepeats` (deleting the branch fails two tests).
+
+### Nits
+- Route `{recommendation}` is `[0-9]{1,18}` (404 for a longer id); `undoDismiss` uses `owned()` (opt-out honored).
+- Trending falls back to its own titles when fewer than `min_shelf_size` are left (not only at zero). Deviation kept: Trending is still shown when it has fewer than the minimum titles of its own (a catalog that small), as before.
+- The cold flag is kept in the cached digest (`['cold' =>, 'shelves' =>]`; an old-format entry is a miss); `isCold()` reads it from the cache. Home queries (rich reader / new reader): warm 21 -> 18 / 16 -> 13 (limit now 12 for the new reader's 8 in HomeV1); cold 80 -> 77 / 37 -> 34.
+- Toast: a repeated message is cleared and set again; `say()` does not start the timer under the pointer or with focus inside; `aria-haspopup` is `dialog` on phones and `menu` on desktop.
+- Tests: toast tests really focus/hover; stale lazy-shelf tests renamed and their skeleton assertions removed; seeded `Randomizer` in `HomeCachingTest`; the "verified" test has an unverified case; cold count asserted in HomeV1; `searchLike` mature filter tested.
+- Flakiness: Home is rendered once in `HomeRecommendationsTest` and Browser `HomeTest` setup. The cold render itself: see below.
+
+### Cold Home render (CI evidence: first visit over 10 s in 6 of 8 `HomeRecommendationsTest` tests)
+- Measured locally (rich reader, 190 stories): first Home render 1035-1080 ms, cache-cold 1233-1397 ms, SQL 387-514 ms. The candidate build is 34 queries each under 8 ms (no N+1, no single slow query). The outlier was Explore by Subject: ten serial subtree counts of 27-41 ms each (about 270 ms), which the test database plans badly (nested loop over dewey_classes). `DeweyCounts::rootsWithCounts` now does one grouped query (same numbers and cache keys).
+- After: first render 644-733 ms, cache-cold 788-1016 ms, SQL 111-125 ms first. The remaining time is PHP and Blade rendering. Nothing found locally that takes ten seconds; the CI timeout is likely first-visit cost on a slow runner (browser start, assets) rather than the query path. Open: if it recurs on CI, raise the visit timeout for this file only or split the fixture.
