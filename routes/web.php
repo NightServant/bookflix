@@ -8,7 +8,6 @@ use App\Library\ExportStorage;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'show'])->name('landing');
-Route::post('start', [LandingController::class, 'start'])->middleware('throttle:20,1')->name('landing.start');
 
 // Public on purpose: the landing page's three.js book textures a cover for guests too, and every MangaDex cover on a page comes through
 // here (see Media::coverUrl), hence the roomy limit. Still not an open proxy (see the controller).
