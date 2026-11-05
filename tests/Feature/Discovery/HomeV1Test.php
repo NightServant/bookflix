@@ -90,7 +90,7 @@ test('home runs a bounded number of queries without lazy loading, warm and cold'
     $warm = count(DB::getQueryLog());
 
     fwrite(STDERR, "\nhome, new reader: {$cold} cold, {$warm} warm\n");
-    expect($warm)->toBeLessThanOrEqual(25);
+    expect($cold)->toBeLessThanOrEqual(40)->and($warm)->toBeLessThanOrEqual(12);
 });
 
 test('new releases are ordered by published date and exclude unpublished future dates beyond a month', function () {

@@ -4,8 +4,10 @@ use App\Actions\Library\AddToLibrary;
 use App\Discovery\Recommendations\CandidatePool;
 use App\Discovery\Recommendations\ExplorationInjector;
 use App\Discovery\Recommendations\SeedItems;
+use App\Discovery\Recommendations\ServedItem;
 use App\Discovery\Recommendations\ShelfBuilder;
 use App\Enums\ReadingStatus;
+use App\Enums\ReasonType;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\ModelVersion;
@@ -335,6 +337,61 @@ test('trending is never empty, for a cold reader or when earlier shelves took it
     $shelf = homeShelves($cold)->firstWhere('key', 'trending');
 
     expect($shelf)->not->toBeNull()->and($shelf->items)->not->toBeEmpty();
+});
+
+/**
+ * The de-duplication on its own, so that what it does to Trending is exact: earlier shelves are given titles of their own and Trending's candidates
+ * are chosen to be (all or most of) the same ones.
+ *
+ * @param  array<string, list<int>>  $shelves
+ * @return array<string, list<int>>
+ */
+function deduplicated(array $shelves): array
+{
+    $served = array_map(fn (array $ids, string $key): array => array_map(fn (int $id): ServedItem => new ServedItem($key, $id, 1.0, ReasonType::Trending), $ids), $shelves, array_keys($shelves));
+    $method = new ReflectionMethod(ShelfBuilder::class, 'withoutRepeats');
+
+    return array_map(fn (array $items): array => array_map(fn (ServedItem $item): int => $item->mediaId, $items), $method->invoke(app(ShelfBuilder::class), array_combine(array_keys($shelves), $served)));
+}
+
+test('trending keeps its own titles when earlier shelves took every one of them', function () {
+    $ids = range(1, 6);
+
+    $kept = deduplicated(['recommended' => $ids, 'trending' => $ids]);
+
+    expect($kept['recommended'])->toBe($ids)->and($kept['trending'])->toBe($ids);
+});
+
+test('trending never shows a few titles: with fewer than the minimum left it keeps all its own', function () {
+    $trending = range(1, 10);
+
+    // Earlier shelves took eight of the ten; two would be left.
+    $kept = deduplicated(['recommended' => range(1, 8), 'trending' => $trending]);
+
+    expect($kept['trending'])->toBe($trending);
+
+    // With enough left (four, the minimum) it shows only those.
+    $kept = deduplicated(['recommended' => range(1, 6), 'trending' => $trending]);
+
+    expect($kept['trending'])->toBe([7, 8, 9, 10]);
+});
+
+test('the See all link of Because You Read leaves a mature genre out for a reader without access, and keeps it for one with', function () {
+    $seed = Media::factory()->create();
+    $seed->genres()->attach([Genre::factory()->create(['slug' => 'quiet'])->id, Genre::factory()->mature()->create(['slug' => 'steamy'])->id]);
+    $gated = User::factory()->create();
+    $open = User::factory()->create();
+    $open->profile->update(['show_mature' => true, 'adult_confirmed_at' => now()]);
+    $searchLike = new ReflectionMethod(ShelfBuilder::class, 'searchLike');
+    $link = fn (User $user): string => urldecode($searchLike->invoke(app(ShelfBuilder::class), $user->fresh(), $seed));
+
+    expect($link($gated))->toContain('quiet')->not->toContain('steamy')
+        ->and($link($open))->toContain('quiet')->toContain('steamy');
+
+    $onlyMature = Media::factory()->create();
+    $onlyMature->genres()->attach(Genre::factory()->mature()->create(['slug' => 'only-steamy']));
+
+    expect($searchLike->invoke(app(ShelfBuilder::class), $gated->fresh(), $onlyMature))->toBeNull();
 });
 
 test('what is logged is what is shown after de-duplication', function () {

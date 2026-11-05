@@ -4,6 +4,7 @@ use App\Actions\Library\AddToLibrary;
 use App\Actions\Ratings\RateMedia;
 use App\Discovery\Recommendations\RecommendationLogger;
 use App\Discovery\Recommendations\ShelfBuilder;
+use App\Enums\ReadingStatus;
 use App\Enums\RecommendationEventType;
 use App\Models\Genre;
 use App\Models\Media;
@@ -11,6 +12,8 @@ use App\Models\Recommendation;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Random\Engine\Mt19937;
+use Random\Randomizer;
 
 function queriesFor(Closure $work): int
 {
@@ -28,6 +31,8 @@ function candidateIds(User $user): array
 }
 
 test('the shelves are kept ten minutes: a second view builds and logs nothing', function () {
+    // The same seed for every build, so a second fill logs exactly as many rows as the first.
+    app()->bind(Randomizer::class, fn () => new Randomizer(new Mt19937(7)));
     [$user] = richReader();
     $builder = app(ShelfBuilder::class);
 
@@ -40,10 +45,37 @@ test('the shelves are kept ten minutes: a second view builds and logs nothing', 
     fwrite(STDERR, "\nforHome cold: {$cold} queries, warm: {$warm}\n");
 
     $this->travel(11)->minutes();
+    app(ShelfBuilder::class)->forHome($user);
+
+    expect(Recommendation::count())->toBe($rows * 2);
+});
+
+test('a warm view reads neither the interactions nor the cold flag from the database: the cache keeps the flag', function () {
+    [$user] = richReader();
+    $builder = app(ShelfBuilder::class);
     $builder->forHome($user);
 
-    // Exploration is random, so the second fill may show a few titles more or fewer than the first: it logs again either way.
-    expect(Recommendation::count())->toBeGreaterThan($rows + intdiv($rows, 2));
+    $count = queriesFor(fn () => $builder->isCold($user));
+
+    expect($count)->toBe(0)->and($builder->isCold($user))->toBeFalse();
+    Cache::flush();
+    expect($builder->isCold($user))->toBeFalse()->and($builder->isCold(User::factory()->create()))->toBeTrue();
+});
+
+test('a reader who becomes warm is not served the cold flag of the cached shelves', function () {
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    $builder = app(ShelfBuilder::class);
+    $builder->forHome($user);
+    expect($builder->isCold($user))->toBeTrue();
+
+    foreach ($catalog->take(6) as $story) {
+        app(AddToLibrary::class)->handle($user, $story, ReadingStatus::Completed);
+    }
+
+    expect(app(ShelfBuilder::class)->isCold($user))->toBeFalse();
+    app(ShelfBuilder::class)->forHome($user);
+    expect(app(ShelfBuilder::class)->isCold($user))->toBeFalse();
 });
 
 test('the cached ids carry the recommendation id and label of each tile', function () {

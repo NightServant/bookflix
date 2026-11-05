@@ -25,7 +25,7 @@ use Random\Randomizer;
  * Because You Read or Similar To shelf; the rest fill from trending, new releases, editorial and the preference-filtered popularity.
  *
  * The shelves built from candidates are cached ten minutes per reader and access level as lists of ids (with the recommendation id and label
- * of each), then loaded fresh through the mature gate, so a title that became gated, merged or deleted drops out of a cached shelf. They are
+ * of each, and whether the reader was cold), then loaded fresh through the mature gate, so a title that became gated, merged or deleted drops out of a cached shelf. They are
  * logged once per fill. Continue Reading, the collections and the subjects are read live, as Home reads them today.
  *
  * A title is shown on one candidate shelf only, the first in the order above that has it; the later shelf backfills from its next candidates, and
@@ -91,10 +91,17 @@ class ShelfBuilder
     }
 
     /**
-     * Whether Home treats this reader as new: they opted out, or have fewer strong interactions than `cold_start_min_interactions`. The page shows the
+     * Whether Home treats this reader as new: they opted out, or have fewer strong interactions than `cold_start_min_interactions`. Read from the cached shelves, which keep the answer (the events that forget them are the ones that can change it), and worked out from the interactions only without them. The page shows the
      * getting-started card for a cold reader who has personalization on, and moves the staff picks up for any cold one.
      */
     public function isCold(User $user): bool
+    {
+        $digest = Cache::get($this->cacheKey($user));
+
+        return is_array($digest) && isset($digest['cold'], $digest['shelves']) ? (bool) $digest['cold'] : $this->computeCold($user);
+    }
+
+    private function computeCold(User $user): bool
     {
         return ! $user->personalizationEnabled()
             || $this->seeds->for($user)->count() < (int) config('bookflix.recommendations.cold_start_min_interactions');
@@ -107,27 +114,32 @@ class ShelfBuilder
      */
     private function recommendationShelves(User $user): Collection
     {
-        $key = 'home:shelves:'.$user->id.':'.MatureAccess::cacheKey($user);
+        $key = $this->cacheKey($user);
         $digest = Cache::get($key);
 
-        if (is_array($digest)) {
-            return $this->hydrate($user, $digest);
+        if (is_array($digest) && isset($digest['cold'], $digest['shelves'])) {
+            return $this->hydrate($user, $digest['shelves']);
         }
 
-        [$shelves, $reasons] = $this->seeds->during(fn (): array => $this->build($user));
-
-        Cache::put($key, $this->digest($shelves, $reasons), now()->addMinutes((int) config('bookflix.recommendations.cache_minutes')));
+        [$shelves, $reasons, $cold] = $this->seeds->during(fn (): array => $this->build($user));
+        Cache::put($key, ['cold' => $cold, 'shelves' => $this->digest($shelves, $reasons)], now()->addMinutes((int) config('bookflix.recommendations.cache_minutes')));
 
         return $shelves;
     }
 
+    private function cacheKey(User $user): string
+    {
+        return 'home:shelves:'.$user->id.':'.MatureAccess::cacheKey($user);
+    }
+
     /**
-     * @return array{0: Collection<int, Shelf>, 1: array<string, int>} the shelves, and the id of the title each shelf's heading names
+     * @return array{0: Collection<int, Shelf>, 1: array<string, int>, 2: bool} the shelves, the id of the title each shelf's heading names, and whether the reader is cold
      */
     private function build(User $user): array
     {
         $enabled = $user->personalizationEnabled();
-        $personal = ! $this->isCold($user);
+        $cold = $this->computeCold($user);
+        $personal = ! $cold;
 
         $lists = $this->pool->bySource($user, self::SOURCE_LIMIT);
         $pooled = $this->pool->combine($user, $lists);
@@ -188,12 +200,12 @@ class ShelfBuilder
             return new Shelf($key, $spec['title'], new EloquentCollection($items), $spec['featured'], href: $spec['href'] ?? null);
         })->values();
 
-        return [$shelves, $specs->filter(fn (array $spec): bool => isset($spec['reason']))->map(fn (array $spec): int => $spec['reason'])->all()];
+        return [$shelves, $specs->filter(fn (array $spec): bool => isset($spec['reason']))->map(fn (array $spec): int => $spec['reason'])->all(), $cold];
     }
 
     /**
      * The shelves' items in order, each title on the first shelf that has it: a later shelf skips it and takes its next candidates, up to the size of a
-     * shelf. A shelf left with fewer than `min_shelf_size` is dropped; Trending is never dropped, and when the others took all of its titles it keeps its own.
+     * shelf. A shelf left with fewer than `min_shelf_size` is dropped; Trending is never dropped, and when the others left it fewer than the minimum it keeps its own titles instead of showing a few.
      *
      * @param  array<string, list<ServedItem>>  $shelves  shelf key => its candidates, best first
      * @return array<string, list<ServedItem>>
@@ -207,7 +219,7 @@ class ShelfBuilder
         foreach ($shelves as $key => $candidates) {
             $items = array_slice(array_values(array_filter($candidates, fn (ServedItem $item): bool => ! isset($shown[$item->mediaId]))), 0, self::PER_SHELF);
 
-            if ($key === 'trending' && $items === []) {
+            if ($key === 'trending' && count($items) < $minimum) {
                 $items = array_slice($candidates, 0, self::PER_SHELF);
             }
 
