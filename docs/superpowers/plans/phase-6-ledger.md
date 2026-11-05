@@ -141,3 +141,20 @@ Screenshots are in the session scratchpad under `shots/p6-design/`. The user app
 ### Findings (6.8 UI)
 - F15: a cached shelf keeps its recommendation ids for ten minutes, so impressions of two page views in that window point at the same `recommendations` row; evaluation that needs one row per view must count events, not rows.
 - F16: dismissing a title on one shelf leaves the same title on the other shelves of the page until the next load (the dismissal is per recommendation row; the next build excludes the title everywhere).
+
+## Home fixes after sign-off (6.8 UI): repeats and the third collection
+Two `fix:` commits on `phase-6-recommendations`, from the review of the personalized Home screenshot (four shelves of mostly the same books).
+
+### Titles repeat across shelves
+- `ShelfBuilder::forHome` keeps each title on the first candidate shelf that has it, in A12 order (`recommended`, `because-you-read`, `new-releases`, `similar-to`, `trending`, `popular-in-genres`, `discover-new`). A later shelf skips it and backfills from its next candidates up to 20. Continue Reading, Your Collections, the staff picks and Explore by Subject are outside it (a title there may also be on a candidate shelf).
+- A candidate shelf left with fewer than `bookflix.recommendations.min_shelf_size` (4) titles is omitted. Trending is never omitted: it considers up to 100 candidates (the others 60), and when the earlier shelves took all of them it keeps its own top titles.
+- The work is done in `build()` after the mature-gate load and before logging, so the log (and the ten-minute cache) hold what is shown. Gating, dismissals and the cache are unchanged. `ContentSimilarSource::similarTo` is asked for 60 neighbors instead of 20 so Because You Read and Similar To can backfill.
+- Query counts: forHome cold 70 and warm 15 (rich reader, unchanged); the Home page 79 cold and 21 warm for a reader with history (limit 25 warm), 37 cold and 11 warm for a new reader.
+- `richReader()` in `tests/Pest.php` now has a crowd of 150 stories (a third of them old, quiet Horror stories that only Discover offers, the rest recent and genre-tagged) and neighbors among them: with only 40 stories the candidate shelves could not fill once de-duplicated. The cold-build query ceiling in `ShelfBuilderTest` went from 70 to 75 (this fixture builds with 70 to 71). `HomeCachingTest` no longer expects the second fill to log exactly as many rows as the first (exploration is random, so the shelf sizes vary by a title or two).
+- Consequence on a small catalog: Similar To, whose pool is the neighbors of one title, is often left short and omitted, as the personalized screenshot shows. That follows from the minimum, not a bug.
+
+### Exactly three collections
+- Deviation 4 of 6.8 UI is withdrawn: Your Collections shows all of the reader's collections (at most eight, with See all), and when the row would be exactly three cards a fourth, quiet "New collection" card (`<x-collection-new-card>`: same width as `<x-collection-card>`, dashed outline, plus icon in a 44 px square, whole card a link to the collections page) is added. The row is never three cards and no collection is hidden.
+- Follow-up `fix:` commits: the New collection icon square is `rounded-control` (only chips, markers and thumbs may be fully rounded); the smoke test's shelf-arrow check uses New Releases, because with one shelf per title Trending Now has too few titles of its own in that small catalog to scroll. A larger smoke catalog made the `search` data sets of two smoke tests time out on page load (also on the code before these fixes), so the catalog was left alone.
+- Gate: `composer test` 2144 passed. Browser: HomeTest, HomeRecommendationsTest, SmokeTest, AccessibilityTest, CollectionsTest 63 passed. HomeTest's guest cases timed out once on a cold first run and passed on the rerun.
+- Screenshots refreshed in the scratchpad `shots/p6-ui-after/` (personalized 1440 and 390, cold-start 1440); the demo rows are removed.
