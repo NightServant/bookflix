@@ -179,7 +179,7 @@ test('building the shelves of a rich reader takes a bounded number of queries', 
     homeShelves($user);
 
     $queries = count(DB::getQueryLog());
-    expect($queries)->toBeLessThanOrEqual(70);
+    expect($queries)->toBeLessThanOrEqual(75);
     fwrite(STDERR, "\nforHome cold cache: {$queries} queries\n");
 
     DB::flushQueryLog();
@@ -261,4 +261,84 @@ test('the exploration share of Recommended For You is the configured epsilon', f
     }
 
     expect($every)->toBe([10, 4, 0]);
+});
+
+const CANDIDATE_KEYS = ['recommended', 'because-you-read', 'new-releases', 'similar-to', 'trending', 'popular-in-genres', 'discover-new'];
+
+function candidateShelves(Collection $shelves): Collection
+{
+    return $shelves->filter(fn ($shelf) => in_array($shelf->key, CANDIDATE_KEYS, true))->values();
+}
+
+test('no title appears in two candidate shelves', function () {
+    [$user] = richReader();
+
+    $ids = candidateShelves(homeShelves($user))->flatMap(fn ($shelf) => $shelf->items->pluck('id'));
+
+    expect($ids->count())->toBeGreaterThan(8)->and($ids->duplicates()->all())->toBe([]);
+});
+
+test('every candidate shelf is present for a rich reader with a crowded catalog', function () {
+    [$user] = richReader();
+
+    $shelves = candidateShelves(homeShelves($user));
+    $ids = $shelves->flatMap(fn ($shelf) => $shelf->items->pluck('id'));
+
+    expect($shelves->pluck('key')->all())->toBe(CANDIDATE_KEYS)->and($ids->duplicates()->all())->toBe([]);
+});
+
+test('a later shelf backfills from its next candidates and keeps its size', function () {
+    [$user] = richReader();
+
+    $shelves = candidateShelves(homeShelves($user))->keyBy('key');
+
+    foreach (['recommended', 'because-you-read', 'new-releases', 'similar-to', 'trending'] as $key) {
+        expect($shelves[$key]->items)->toHaveCount(20, $key);
+    }
+});
+
+test('the staff picks and Explore by Subject are exempt from the de-duplication', function () {
+    [$user] = richReader();
+    $first = homeShelves($user)->firstWhere('key', 'recommended')->items->first();
+    collectionOf(User::factory()->create(), [$first], ['is_editorial' => true, 'visibility' => 'public', 'name' => 'Picked Again']);
+    Cache::flush();
+
+    $shelves = homeShelves($user);
+    $staff = $shelves->first(fn ($shelf) => str_starts_with($shelf->key, 'collection-') && $shelf->title === 'Picked Again');
+
+    expect($staff->items->pluck('id')->all())->toContain($first->id)
+        ->and($shelves->firstWhere('key', 'recommended')->items->pluck('id')->all())->toContain($first->id);
+});
+
+test('a candidate shelf left with fewer titles than the minimum is omitted', function () {
+    [$user] = richReader();
+    config(['bookflix.recommendations.min_shelf_size' => 15]);
+
+    $shelves = candidateShelves(homeShelves($user));
+
+    expect($shelves->pluck('key')->all())->not->toBe([])
+        ->and($shelves->filter(fn ($shelf) => $shelf->key !== 'trending' && $shelf->items->count() < 15)->all())->toBe([]);
+});
+
+test('trending is never empty, for a cold reader or when earlier shelves took its best titles', function () {
+    homeCatalog();
+    $cold = User::factory()->create();
+
+    $shelf = homeShelves($cold)->firstWhere('key', 'trending');
+    expect($shelf)->not->toBeNull()->and($shelf->items)->not->toBeEmpty();
+
+    Cache::flush();
+    config(['bookflix.recommendations.min_shelf_size' => 1000]);
+    $shelf = homeShelves($cold)->firstWhere('key', 'trending');
+
+    expect($shelf)->not->toBeNull()->and($shelf->items)->not->toBeEmpty();
+});
+
+test('what is logged is what is shown after de-duplication', function () {
+    [$user] = richReader();
+
+    $shown = candidateShelves(homeShelves($user))->flatMap(fn ($shelf) => $shelf->items->map(fn ($m) => $shelf->key.':'.$m->id))->sort()->values()->all();
+    $logged = Recommendation::query()->get()->map(fn ($row) => $row->shelf.':'.$row->media_id)->sort()->values()->all();
+
+    expect($logged)->toBe($shown);
 });

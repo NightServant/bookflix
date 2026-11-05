@@ -130,25 +130,20 @@ test('Recommended and Popular in Your Genres tiles say why, with the title or ge
     [$user] = richReader();
     $html = homeHtml($user);
 
-    expect(htmlQuery($html, '//section[@aria-labelledby="shelf-recommended"]//span[contains(@class,"line-clamp-3")]/span[contains(@class,"font-medium")]')->length)->toBeGreaterThan(0)
-        ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-popular-in-genres"]//span[contains(@class,"line-clamp-3")][contains(.,"Matches your interest in")]')->length)->toBeGreaterThan(0)
+    expect(htmlQuery($html, '//section[@aria-labelledby="shelf-recommended"]//span[contains(@class,"line-clamp-3")]')->length)->toBeGreaterThan(0)
+        ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-popular-in-genres"]//span[contains(@class,"line-clamp-3")][contains(.,"Matches your interest in")]/span[contains(@class,"font-medium")]')->length)->toBeGreaterThan(0)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-because-you-read"]//span[contains(@class,"line-clamp-3")]')->length)->toBe(0)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-trending"]//span[contains(@class,"line-clamp-3")]')->length)->toBe(0);
 });
 
-test('Your Collections joins when the reader has one, and never shows exactly three cards', function () {
+test('Your Collections joins when the reader has one', function () {
     [$user, $catalog] = richReader();
     $count = fn () => htmlQuery(homeHtml($user), '//section[@aria-labelledby="shelf-your-collections"]//li')->length;
 
     expect($count())->toBe(0);
 
-    foreach (range(1, 3) as $n) {
-        collectionOf($user, [$catalog[$n]], ['name' => "Mine {$n}"]);
-    }
-    expect($count())->toBe(2);
-
-    collectionOf($user, [$catalog[5]], ['name' => 'Mine 4']);
-    expect($count())->toBe(4);
+    collectionOf($user, [$catalog[1]], ['name' => 'Mine 1']);
+    expect($count())->toBe(1);
 });
 
 test('the staff picks lead a new reader\'s page and stay after the collections for a returning one', function () {

@@ -28,12 +28,18 @@ use Random\Randomizer;
  * of each), then loaded fresh through the mature gate, so a title that became gated, merged or deleted drops out of a cached shelf. They are
  * logged once per fill. Continue Reading, the collections and the subjects are read live, as Home reads them today.
  *
+ * A title is shown on one candidate shelf only, the first in the order above that has it; the later shelf backfills from its next candidates, and
+ * one left with fewer than `min_shelf_size` titles is left out (Trending, which is never empty, excepted). The log is of what is shown.
+ *
  * Each title on a built shelf carries two extra attributes for the tile: `recommendation_id` (null when nothing was logged) and `reason_label`.
  */
 class ShelfBuilder
 {
     /** The most titles on a shelf. */
     private const PER_SHELF = 20;
+
+    /** The most candidates a shelf considers, so that it can backfill the titles an earlier shelf took; Trending, which must never end up empty, considers all it was given. */
+    private const BACKFILL = 60;
 
     /** The most titles asked of each source; Recommended For You ranks from the whole pool. */
     private const SOURCE_LIMIT = 100;
@@ -137,8 +143,8 @@ class ShelfBuilder
         $recent = $recent !== null && ! $recent->isGatedFor($user) ? $recent : null;
         $favorite = $personal ? $this->favorite($user, $recent) : null;
         $around = [
-            'because-you-read' => $recent === null ? null : $this->content->similarTo($user, $recent, ReasonType::BecauseYouRead, self::PER_SHELF),
-            'similar-to' => $favorite === null ? null : $this->content->similarTo($user, $favorite, ReasonType::SimilarThemes, self::PER_SHELF),
+            'because-you-read' => $recent === null ? null : $this->content->similarTo($user, $recent, ReasonType::BecauseYouRead, self::BACKFILL),
+            'similar-to' => $favorite === null ? null : $this->content->similarTo($user, $favorite, ReasonType::SimilarThemes, self::BACKFILL),
         ];
         $ranked = $this->withNeighbors($user, $ranked, $around);
 
@@ -166,6 +172,8 @@ class ShelfBuilder
         $media = $this->media($user, collect($specs)->flatMap(fn (array $spec): array => array_map(fn (ServedItem $item): int => $item->mediaId, $spec['items']))->unique()->values()->all());
 
         $specs = collect($specs)->map(fn (array $spec): array => ['items' => array_values(array_filter($spec['items'], fn (ServedItem $item): bool => $media->has($item->mediaId)))] + $spec)->filter(fn (array $spec): bool => $spec['items'] !== []);
+        $kept = $this->withoutRepeats($specs->map(fn (array $spec): array => $spec['items'])->all());
+        $specs = $specs->filter(fn (array $spec, string $key): bool => isset($kept[$key]))->map(fn (array $spec, string $key): array => ['items' => $kept[$key]] + $spec);
 
         $ids = $this->logger->log($user, $specs->flatMap(fn (array $spec): array => $spec['items']), ModelVersion::activeFor('hybrid-weights'));
 
@@ -181,6 +189,40 @@ class ShelfBuilder
         })->values();
 
         return [$shelves, $specs->filter(fn (array $spec): bool => isset($spec['reason']))->map(fn (array $spec): int => $spec['reason'])->all()];
+    }
+
+    /**
+     * The shelves' items in order, each title on the first shelf that has it: a later shelf skips it and takes its next candidates, up to the size of a
+     * shelf. A shelf left with fewer than `min_shelf_size` is dropped; Trending is never dropped, and when the others took all of its titles it keeps its own.
+     *
+     * @param  array<string, list<ServedItem>>  $shelves  shelf key => its candidates, best first
+     * @return array<string, list<ServedItem>>
+     */
+    private function withoutRepeats(array $shelves): array
+    {
+        $shown = [];
+        $kept = [];
+        $minimum = (int) config('bookflix.recommendations.min_shelf_size');
+
+        foreach ($shelves as $key => $candidates) {
+            $items = array_slice(array_values(array_filter($candidates, fn (ServedItem $item): bool => ! isset($shown[$item->mediaId]))), 0, self::PER_SHELF);
+
+            if ($key === 'trending' && $items === []) {
+                $items = array_slice($candidates, 0, self::PER_SHELF);
+            }
+
+            if (count($items) < $minimum && ! ($key === 'trending' && $items !== [])) {
+                continue;
+            }
+
+            foreach ($items as $item) {
+                $shown[$item->mediaId] = true;
+            }
+
+            $kept[$key] = $items;
+        }
+
+        return $kept;
     }
 
     /**
@@ -250,7 +292,7 @@ class ShelfBuilder
         $items = [];
 
         foreach ($candidates as $candidate) {
-            if (count($items) >= self::PER_SHELF) {
+            if (count($items) >= ($shelf === 'trending' ? self::SOURCE_LIMIT : self::BACKFILL)) {
                 break;
             }
 

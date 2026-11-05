@@ -396,6 +396,8 @@ return [
         'cache_minutes' => 10,
         'cold_start_min_interactions' => 5,
         'epsilon' => 0.10,
+        // A shelf of candidates that the shelves before it left with fewer titles than this is not shown.
+        'min_shelf_size' => 4,
         'trending_weight' => 0.05,
     ],
 

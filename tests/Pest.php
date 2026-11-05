@@ -581,6 +581,16 @@ function richReader(): array
     $catalog = homeCatalog();
     $user = User::factory()->create();
     $lsa = activeVersion('lsa');
+    // Enough recent, popular stories that each candidate shelf can fill after the titles of the shelves before it are taken out.
+    $crowd = Media::factory()->count(150)->sequence(fn ($sequence) => [
+        // Every third is an older, quiet Horror story: nothing but Discover Something New offers it, so that shelf has enough of its own.
+        'published_on' => $sequence->index % 3 === 2 ? now()->subYears(3) : now()->subDays(1 + $sequence->index),
+        'ratings_count' => 50 + $sequence->index,
+        'average_rating' => 4.0,
+        'popularity_score' => $sequence->index % 3 === 2 ? 0.001 : 0.3 - $sequence->index / 600,
+    ])->create();
+    $crowd->each(fn (Media $story, int $i) => $story->genres()->attach(Genre::where('name', ['Fantasy', 'Mystery', 'Horror'][$i % 3])->first()));
+    DB::statement('refresh materialized view media_popularity');
 
     foreach ($catalog->take(6) as $i => $seed) {
         libraryEntry($user, $seed, 'completed')->update(['completed_at' => now()->subDays($i)]);
@@ -593,6 +603,9 @@ function richReader(): array
     foreach ($catalog->take(8) as $seed) {
         foreach ($catalog->slice(8 + $seed->id % 3, 24) as $j => $neighbor) {
             similar($seed, $neighbor, 'lsa', max(0.05, 0.95 - $j * 0.03), $lsa);
+        }
+        foreach ($crowd->slice(($seed->id % 4) * 30, 40) as $j => $neighbor) {
+            similar($seed, $neighbor, 'lsa', max(0.05, 0.9 - $j * 0.02), $lsa);
         }
     }
 
