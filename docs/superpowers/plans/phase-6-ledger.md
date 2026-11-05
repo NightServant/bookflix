@@ -38,6 +38,7 @@ Plan: `docs/superpowers/plans/2026-10-23-phase-6-recommendation-mvp.md` on the p
 | S6 | `19cae4a` | DONE: `HybridRankerTest` freshness freezes the clock at 01:00. |  |
 | S4, N1, N5, N8 | `231e434` | DONE: see deviations. |  |
 | S5 | `206a079` | DONE: see deviations. |  |
+| 6.8 (UI) | `a9edbbe` | DONE: personalized Home (A12 order, staff picks per decision 4, Your Collections cards, getting-started card to onboarding `?step=3`), reason line and 44 px overflow button on `<x-cover-tile>`, Not interested menu / phone sheet / 10 s undo toast (`recommendationTiles`), `RecommendationFeedbackController` (click, impressions, dismiss, undo; throttled, 204), `RecommendationLogger::{click,libraryAdd,impressions,undoDismiss,owned}`, `ShelfBuilder::isCold` and the Because You Read See all link. 28 new Feature tests and 8 Browser tests; HomeV1, HomeTest, SmokeTest, CollectionsTest, ReadingProgressTest adapted. Gates: composer test 2136 passed, full `tests/Browser` 365 passed | See "Accepted deviations (6.8 UI)", F15, F16 |
 | N2 | `9798567` | DONE: `Profile::saved` also fires on `wasRecentlyCreated`. |  |
 | N6, N7 | `bba8d06`; N7 tests in `876c7c0` and `231e434` | DONE: migration `2026_11_06_000002` runs `ModelVersionSeeder` (creates a weight set only when its name has no version). `HomeCachingTest` has "became gated" and the first-profile case; `ScheduleTest` checks the token gate of every pipeline. |  |
 
