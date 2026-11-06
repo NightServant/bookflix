@@ -21,6 +21,11 @@ beforeEach(function () {
 
     $this->status = 'document.querySelector("[role=status]").textContent.replace(/\s+/g, " ").trim()';
     $this->button = 'document.querySelector("[data-test=export-data-button]")';
+
+    // The export answers in its own time: wait for the ready state (up to 8 s) instead of a fixed pause, which raced on a busy runner,
+    // and let its fade-in finish before an audit reads colours.
+    $this->settled = 'Promise.all(document.getAnimations().filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime)).map((animation) => animation.finished.catch(() => null))).then(() => true)';
+    $this->ready = 'new Promise((resolve) => { const end = Date.now() + 8000; (function check() { if (document.querySelector("[data-test=export-download-link]")) { resolve(true); } else if (Date.now() > end) { resolve(false); } else { setTimeout(check, 100); } })(); })';
 });
 
 test('the privacy page with the export card passes the shared checks on desktop and on a phone, at rest and after asking', function () {
@@ -65,7 +70,9 @@ test('an export that has been made shows its download link, and the link sends a
     $page = visit(route('privacy.edit'), $this->desktop)->wait(1);
 
     // The queue runs jobs at once here, so the export is written while the button's request is answered.
-    $page->click('[data-test=export-data-button]')->wait(1.5)
+    $page->click('[data-test=export-data-button]')
+        ->assertScript($this->ready, true)
+        ->assertScript($this->settled, true)
         ->assertSee('Your export is ready')
         ->assertScript('document.querySelectorAll("[data-test=export-download-link]").length', 1)
         ->assertScript('fetch(document.querySelector("[data-test=export-download-link]").href).then((response) => response.status + " " + response.headers.get("content-type"))', '200 application/zip')
@@ -81,13 +88,15 @@ test('the export button is a 44px target that the keyboard reaches and works', f
 
     $page->assertScript('document.activeElement === '.$this->button, true)
         ->assertScript('getComputedStyle(document.activeElement).outlineStyle !== "none" || getComputedStyle(document.activeElement).boxShadow !== "none"', true)
-        ->keys('[data-test=export-data-button]', 'Enter')->wait(1.5)
+        ->keys('[data-test=export-data-button]', 'Enter')
+        ->assertScript($this->ready, true)
         ->assertSee('Your export is ready');
 });
 
 test('the privacy page does not overflow at 390px with the export card in any state', function () {
     $page = visit(route('privacy.edit'), $this->phone)->wait(1);
     $page->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true)
-        ->click('[data-test=export-data-button]')->wait(1.5)
+        ->click('[data-test=export-data-button]')
+        ->assertScript($this->ready, true)
         ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true);
 });
