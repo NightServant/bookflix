@@ -48,6 +48,11 @@ new #[Title('Set up your library')] class extends Component {
     public function mount(): void
     {
         ['mediaTypes' => $this->mediaTypes, 'genres' => $this->genres] = app(PreferenceChoices::class)->chosen(Auth::user());
+
+        // Home's getting-started card opens the last step (`?step=3`): the earlier answers are optional and already the reader's saved ones, so nothing is skipped that needed answering.
+        if (request()->integer('step') === self::STEPS) {
+            $this->step = self::STEPS;
+        }
     }
 
     /**

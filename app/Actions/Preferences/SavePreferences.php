@@ -3,6 +3,7 @@
 namespace App\Actions\Preferences;
 
 use App\Access\MatureAccess;
+use App\Events\HomePreferencesChanged;
 use App\Models\Genre;
 use App\Models\MediaType;
 use App\Models\Theme;
@@ -40,6 +41,9 @@ class SavePreferences
 
             $this->sync($user, 'theme', $themes === null ? null : array_values(Theme::query()->whereIn('slug', $themes)->pluck('id')->all()));
         });
+
+        // The writes above are bulk queries that fire no model events, and the home shelves are built from these rows.
+        HomePreferencesChanged::dispatch($user->id);
     }
 
     /**

@@ -59,39 +59,13 @@ jobs:
       - name: Run CI Checks
         run: composer ci:check
 
-  # Whether a pull request touches the dependency files (package*.json, composer.lock). A bump of @alpinejs/ui or of Livewire's bundled Alpine can break
-  # the private internals that only the browser suite exercises, so `browser` must block those pull requests.
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      dependencies: ${{ steps.diff.outputs.dependencies }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Look for dependency changes
-        id: diff
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ -n "$BASE_REF" ] && git diff --name-only "origin/${BASE_REF}...HEAD" | grep -Eq '(^|/)(package(-lock)?\.json|composer\.lock)$'; then
-            echo "dependencies=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "dependencies=false" >> "$GITHUB_OUTPUT"
-          fi
-
   # Pest browser tests (Playwright, headless Chromium) against the built assets; `composer test` does not run tests/Browser (phpunit.xml lists only
   # Unit and Feature). This job reports honestly: it goes red whenever a browser test fails. Do NOT mark `browser` as a required status check (it would
   # block every pull request on a flaky browser run); mark `browser-gate` instead (Settings > Branches > main > Require status checks > add `browser-gate`),
-  # which fails only when the pull request touches package*.json or composer.lock and `browser` did not succeed.
+  # which requires a successful `browser` run on every pull request. Flakiness is fixed at the root (Phase 6 policy), never by letting the gate pass.
   browser:
-    needs: changes
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       DB_CONNECTION: pgsql
@@ -153,21 +127,42 @@ jobs:
       - name: Run browser tests
         run: vendor/bin/pest tests/Browser
 
-  # The required check: always runs (even when `browser` fails or is skipped) and blocks only dependency pull requests.
+  # The required check: always runs (even when `browser` fails, is cancelled by its timeout or is skipped) and passes only when `browser` succeeded.
   browser-gate:
-    needs: [changes, browser]
+    needs: browser
     if: always()
     runs-on: ubuntu-latest
 
     steps:
-      - name: Require the browser suite when dependencies changed
+      - name: Require a successful browser suite
         env:
-          DEPENDENCIES: ${{ needs.changes.outputs.dependencies }}
           BROWSER_RESULT: ${{ needs.browser.result }}
-        run: test "$DEPENDENCIES" != "true" || test "$BROWSER_RESULT" = "success"
+        run: |
+          if [ "$BROWSER_RESULT" != "success" ]; then
+            echo "The browser suite did not succeed: ${BROWSER_RESULT}"
+            exit 1
+          fi
 
   ml:
     runs-on: ubuntu-latest
+
+    # The db-marked tests build their own schema in this database; without it they are skipped.
+    env:
+      ML_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/bookflix_ml_test
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bookflix_ml_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     defaults:
       run:

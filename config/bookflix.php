@@ -328,4 +328,81 @@ return [
         'max_secondary' => 3,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Interaction Weights
+    |--------------------------------------------------------------------------
+    |
+    | How much each signal says about taste, seeded into the `interaction-weights`
+    | model version (D-15). `reading_progress` is per percentage point of the
+    | event's value; a rating counts (score - `rating_midpoint`) * `rating_scale`;
+    | a signal loses half its weight every `half_life_days`.
+    |
+    */
+
+    'interaction_weights' => [
+        'view' => 1,
+        'click' => 1,
+        'recommendation_click' => 1.5,
+        'library_add' => 3,
+        'reading_start' => 4,
+        'reading_progress' => 0.05,
+        'reading_complete' => 8,
+        'favorite' => 6,
+        'rating_midpoint' => 5.5,
+        'rating_scale' => 1.2,
+        'review' => 4,
+        'abandon' => -4,
+        'search' => 0,
+        'half_life_days' => 90,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hybrid Weights
+    |--------------------------------------------------------------------------
+    |
+    | How the ranker blends its normalized features, seeded into the
+    | `hybrid-weights` model version. The weights besides `context` add up to 1.
+    |
+    */
+
+    'hybrid_weights' => [
+        'content' => 0.30,
+        'collaborative' => 0.25,
+        'dewey' => 0.10,
+        'popularity' => 0.10,
+        'freshness' => 0.05,
+        'preference' => 0.15,
+        'novelty' => 0.05,
+        'context' => 0.0,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Recommendations
+    |--------------------------------------------------------------------------
+    |
+    | `cache_minutes` is how long a reader's ranked shelves are kept,
+    | `cold_start_min_interactions` how many signals a reader needs before the
+    | personalized shelves replace the cold-start ones, and `epsilon` the share
+    | of a shelf given to exploration. `trending_weight` is how much of
+    | Bookflix's own activity (0 to 1) `Media::trending()` adds to the
+    | provider popularity score (0 to 1).
+    |
+    */
+
+    'recommendations' => [
+        'cache_minutes' => 10,
+        'cold_start_min_interactions' => 5,
+        'epsilon' => 0.10,
+        // A shelf of candidates that the shelves before it left with fewer titles than this is not shown.
+        'min_shelf_size' => 4,
+        'trending_weight' => 0.05,
+        // A library add counts as led to by a tile when its click was this recent.
+        'library_add_window_minutes' => 30,
+        // How long Home's undo toast stays; browser tests shorten it so they do not wait real seconds.
+        'undo_seconds' => 10,
+    ],
+
 ];

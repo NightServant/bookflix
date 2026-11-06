@@ -1,0 +1,194 @@
+[
+  {
+    "id": 1,
+    "title": "Starfall Armada",
+    "alternative_titles": [],
+    "description": "A starship captain leads the galactic fleet against the empire across distant stars.",
+    "genres": [
+      "scifi"
+    ],
+    "themes": [
+      "war"
+    ],
+    "tags": [
+      "space opera"
+    ],
+    "characters": [
+      "Captain Vale"
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Galactic Crown",
+    "alternative_titles": [],
+    "description": "The empire fractures as a starship crew races across the galaxy to save the throne.",
+    "genres": [
+      "scifi"
+    ],
+    "themes": [
+      "politics"
+    ],
+    "tags": [
+      "space opera"
+    ],
+    "characters": [
+      "Captain Ren"
+    ]
+  },
+  {
+    "id": 3,
+    "title": "The Slow Oven",
+    "alternative_titles": [],
+    "description": "Simple recipes for bread: flour, yeast, butter and a hot oven for every kitchen.",
+    "genres": [
+      "cooking"
+    ],
+    "themes": [
+      "food"
+    ],
+    "tags": [
+      "cookbook"
+    ],
+    "characters": []
+  },
+  {
+    "id": 4,
+    "title": "Sunday Suppers",
+    "alternative_titles": [],
+    "description": "Family recipes with roast vegetables, soup, flour pastry and oven baked desserts.",
+    "genres": [
+      "cooking"
+    ],
+    "themes": [
+      "food"
+    ],
+    "tags": [
+      "cookbook"
+    ],
+    "characters": []
+  },
+  {
+    "id": 5,
+    "title": "Letters to Marlow",
+    "alternative_titles": [],
+    "description": "Two rivals write letters and fall in love by the sea.",
+    "genres": [
+      "romance"
+    ],
+    "themes": [
+      "love"
+    ],
+    "tags": [
+      "slow burn"
+    ],
+    "characters": [
+      "Ana"
+    ]
+  },
+  {
+    "id": 6,
+    "title": "Midnight Garden",
+    "alternative_titles": [],
+    "description": "A heart breaks and heals over a summer wedding.",
+    "genres": [
+      "romance"
+    ],
+    "themes": [
+      "love"
+    ],
+    "tags": [],
+    "characters": [
+      "Ben"
+    ]
+  },
+  {
+    "id": 7,
+    "title": "The Lantern Case",
+    "alternative_titles": [],
+    "description": "A detective follows a missing clue through the foggy city.",
+    "genres": [
+      "mystery"
+    ],
+    "themes": [
+      "crime"
+    ],
+    "tags": [
+      "whodunit"
+    ],
+    "characters": [
+      "Inspector Holt"
+    ]
+  },
+  {
+    "id": 8,
+    "title": "Dead Ink",
+    "alternative_titles": [],
+    "description": "A murder in the library leaves one clue and many suspects.",
+    "genres": [
+      "mystery"
+    ],
+    "themes": [
+      "crime"
+    ],
+    "tags": [],
+    "characters": [
+      "Mara"
+    ]
+  },
+  {
+    "id": 9,
+    "title": "Iron Orchard",
+    "alternative_titles": [],
+    "description": "A farmer defends the orchard from raiders in a quiet valley.",
+    "genres": [
+      "fantasy"
+    ],
+    "themes": [
+      "survival"
+    ],
+    "tags": [],
+    "characters": []
+  },
+  {
+    "id": 10,
+    "title": "Moonlit Debt",
+    "alternative_titles": [],
+    "description": "A thief owes a witch a favour beneath the silver moon.",
+    "genres": [
+      "fantasy"
+    ],
+    "themes": [
+      "magic"
+    ],
+    "tags": [],
+    "characters": []
+  },
+  {
+    "id": 11,
+    "title": "Paper Stars",
+    "alternative_titles": [],
+    "description": "",
+    "genres": [
+      "romance"
+    ],
+    "themes": [
+      "love"
+    ],
+    "tags": [],
+    "characters": []
+  },
+  {
+    "id": 12,
+    "title": "Cold Harbor",
+    "alternative_titles": [],
+    "description": "Smugglers hide a crime in the harbor while the detective watches.",
+    "genres": [
+      "mystery"
+    ],
+    "themes": [
+      "crime"
+    ],
+    "tags": [],
+    "characters": []
+  }
+]

@@ -30,7 +30,7 @@ class LandingShowcase
     public function pool(): array
     {
         return Cache::remember('landing:pool:v4', now()->addMinutes(self::CACHE_MINUTES), fn (): array => array_values(Media::query()
-            ->trending()
+            ->trending(self::POOL)
             ->visibleTo(null)
             ->whereNotNull('media.cover_url')
             ->limit(self::POOL)

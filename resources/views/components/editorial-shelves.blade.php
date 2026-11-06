@@ -1,9 +1,9 @@
-@props(['shelves', 'bleed' => false])
+@props(['shelves', 'bleed' => false, 'eyebrow' => null])
 
 {{--
     The editorial collections (staff picks) as themed shelves, one row each: the collection's name as the title, "Staff pick" as the eyebrow,
     its description under the title, its stories as tiles with the shared preview card, and "See all" opening the collection. `shelves` are the
-    Shelf objects EditorialCollections builds (a list of media each, eager-loaded for the tile and its preview). `bleed` is the Home band; without
+    Shelf objects EditorialCollections builds (a list of media each, eager-loaded for the tile and its preview). `eyebrow` replaces "Staff pick" (Home says "Picked by our editors"). `bleed` is the Home band; without
     it the rows are the rounded shelves of Discover, with a gap between them. They are rows, never a grid of cards.
 --}}
 @if ($shelves->isNotEmpty())
@@ -11,7 +11,7 @@
         @foreach ($shelves as $shelf)
             <x-shelf
                 :title="$shelf->title"
-                :eyebrow="$shelf->reasonLabel"
+                :eyebrow="$eyebrow ?? $shelf->reasonLabel"
                 :description="$shelf->description"
                 :href="$shelf->href"
                 :id="'shelf-'.$shelf->key"

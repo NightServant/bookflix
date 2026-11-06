@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\RunMlJob;
 use App\Jobs\SyncProvider;
 use App\Models\ExternalSource;
 use Illuminate\Foundation\Inspiring;
@@ -25,3 +26,10 @@ Schedule::job(new SyncProvider('mangaupdates'))->name('sync:mangaupdates')->ever
 Schedule::job(new SyncProvider('comicvine'))->name('sync:comicvine')->daily()->when($sourceIsEnabled('comicvine'));
 Schedule::job(new SyncProvider('metron'))->name('sync:metron')->everySixHours()->when($sourceIsEnabled('metron'));
 Schedule::job(new SyncProvider('hardcover'))->name('sync:hardcover')->everySixHours()->when($sourceIsEnabled('hardcover'));
+
+// The ML pipelines (train, build similarities, evaluate), each a chain that stops at its first failed step. They wait for a configured service, and a pipeline still running from the last time is not started again.
+$mlIsConfigured = fn (): bool => (string) config('services.ml.token') !== '';
+
+Schedule::call(fn () => RunMlJob::dispatchPipeline('popularity'))->name('ml:popularity')->hourly()->when($mlIsConfigured);
+Schedule::call(fn () => RunMlJob::dispatchPipeline('item-cf'))->name('ml:item-cf')->dailyAt('03:00')->when($mlIsConfigured);
+Schedule::call(fn () => RunMlJob::dispatchPipeline('lsa'))->name('ml:lsa')->weeklyOn(0, '02:00')->when($mlIsConfigured);
