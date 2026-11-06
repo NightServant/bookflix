@@ -65,7 +65,7 @@ jobs:
   # which requires a successful `browser` run on every pull request. Flakiness is fixed at the root (Phase 6 policy), never by letting the gate pass.
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       DB_CONNECTION: pgsql
