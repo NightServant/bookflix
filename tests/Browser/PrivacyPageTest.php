@@ -22,10 +22,11 @@ beforeEach(function () {
     $this->status = 'document.querySelector("[role=status]").textContent.replace(/\s+/g, " ").trim()';
     $this->button = 'document.querySelector("[data-test=export-data-button]")';
 
-    // The export answers in its own time: wait for the ready state (up to 8 s) instead of a fixed pause, which raced on a busy runner,
-    // and let its fade-in finish before an audit reads colours.
+    // The export answers in its own time: wait (up to 12 s) for the ready line and its link instead of a fixed pause, which raced on a busy
+    // runner. The link alone is not enough: while the new export still counts as preparing, the card shows the previous-export line with
+    // the same link until its next poll. Then let the fade-in finish before an audit reads colours.
     $this->settled = 'Promise.all(document.getAnimations().filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime)).map((animation) => animation.finished.catch(() => null))).then(() => true)';
-    $this->ready = 'new Promise((resolve) => { const end = Date.now() + 8000; (function check() { if (document.querySelector("[data-test=export-download-link]")) { resolve(true); } else if (Date.now() > end) { resolve(false); } else { setTimeout(check, 100); } })(); })';
+    $this->ready = 'new Promise((resolve) => { const end = Date.now() + 12000; (function check() { if (document.querySelector("[data-test=export-download-link]") && document.querySelector("[role=status]")?.textContent.includes("Your export is ready")) { resolve(true); } else if (Date.now() > end) { resolve(false); } else { setTimeout(check, 100); } })(); })';
 });
 
 test('the privacy page with the export card passes the shared checks on desktop and on a phone, at rest and after asking', function () {
