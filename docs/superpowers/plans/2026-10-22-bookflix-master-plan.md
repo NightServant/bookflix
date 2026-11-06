@@ -14,7 +14,7 @@
 
 ---
 
-## Progress (updated 2026-11-04)
+## Progress (updated 2026-11-06)
 
 | Work | PR | State |
 |---|---|---|
@@ -34,7 +34,10 @@
 | Hardcover: one reader's format tag no longer decides a type | #19 | done |
 | Landing: Top 10 as a still grid of two rows of five, and one sign-up on the page | #20 | done |
 | MangaDex covers served from Bookflix (cover cache) | #21 | done |
-| **Next: Phase 6, Recommendation MVP** (`2026-10-23-phase-6-recommendation-mvp.md`) | — | not started |
+| Bluest Eye filed as a novel; works a fresh import would refuse are soft-deleted | #22 | done |
+| Unused `POST /start` removed | #23 | done |
+| Phase 6: Recommendation MVP (`2026-10-23-phase-6-recommendation-mvp.md`, revised 2026-11-04; ledger `phase-6-ledger.md`); `browser-gate` now requires a green browser run on every PR | #25 | done |
+| **Next: Phase 7, NLP and semantic intelligence** (`2026-10-23-phase-7-nlp-semantic.md`) | — | not started |
 
 After pulling these merges, run locally: `php artisan migrate`, `php artisan db:seed --class=TaxonomySeeder`, then for each of `openlibrary`, `comicvine`, `metron` and `hardcover`: `php artisan bookflix:reclassify --resync --source=X` and `php artisan bookflix:sync X --full`.
 
