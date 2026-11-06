@@ -23,11 +23,11 @@ beforeEach(function () {
     $this->settle = function ($page) {
         foreach ([0, 500, 1000, 1800, 2600] as $offset) {
             $page->script("window.scrollTo(0, {$offset})");
-            $page->wait(0.4);
+            $page->wait(0.25);
         }
 
         $page->script('document.querySelector("section[aria-labelledby=shelf-recommended]").scrollIntoView({ block: "center" })');
-        $page->wait(0.5);
+        $page->wait(0.3);
 
         return $page;
     };
@@ -131,43 +131,47 @@ test('on a phone the button is always there, opens a bottom sheet naming the sto
     expect(RecommendationEvent::where('event', 'dismiss')->count())->toBe(1);
 });
 
-test('the toast stays ten seconds', function () {
+// The toast keeps its 10 s in the product; these tests shorten the window (config) so they prove the same behaviour without waiting it out.
+test('the toast stays for its whole window and then goes', function () {
+    config(['bookflix.recommendations.undo_seconds' => 3]);
     $page = ($this->settle)(visit(route('home'), $this->desktop)->wait(1));
 
     $page->hover(($this->tile)(2).' a')->click(($this->tile)(2).' [data-tile-menu]')->wait(0.2)
-        ->click(($this->tile)(2).' [role=menuitem]')->wait(0.5)
+        ->click(($this->tile)(2).' [role=menuitem]')->wait(0.3)
         ->assertScript(($this->toastShown)(), true)
-        ->wait(4)
+        ->wait(1.5)
         ->assertScript(($this->toastShown)(), true)
-        ->wait(6.5)
+        ->wait(2.2)
         ->assertScript('getComputedStyle(document.querySelector("'.$this->toast.' > div")).display', 'none');
 });
 
 test('the toast waits while one of its buttons has focus, and goes a little after focus leaves', function () {
+    config(['bookflix.recommendations.undo_seconds' => 3]);
     $page = ($this->settle)(visit(route('home'), $this->desktop)->wait(1));
 
     $page->hover(($this->tile)(2).' a')->click(($this->tile)(2).' [data-tile-menu]')->wait(0.2)
-        ->click(($this->tile)(2).' [role=menuitem]')->wait(6);
+        ->click(($this->tile)(2).' [role=menuitem]')->wait(1.5);
     $page->script('document.querySelector("'.$this->toast.' button[aria-keyshortcuts]").focus()');
     $page->assertScript('document.querySelector("'.$this->toast.'").contains(document.activeElement)', true)
-        ->wait(6)
+        ->wait(4)
         ->assertScript(($this->toastShown)(), true);
     $page->script('document.querySelector("section[aria-labelledby=shelf-recommended] ul > li:nth-child(2) a").focus()');
-    $page->wait(5.5)
+    $page->wait(3.5)
         ->assertScript('getComputedStyle(document.querySelector("'.$this->toast.' > div")).display', 'none');
 });
 
 test('the toast waits while the pointer is over it, also when a new message arrives meanwhile', function () {
+    config(['bookflix.recommendations.undo_seconds' => 3]);
     $page = ($this->settle)(visit(route('home'), $this->desktop)->wait(1));
 
     $page->hover(($this->tile)(2).' a')->click(($this->tile)(2).' [data-tile-menu]')->wait(0.2)
-        ->click(($this->tile)(2).' [role=menuitem]')->wait(6)
+        ->click(($this->tile)(2).' [role=menuitem]')->wait(1.5)
         ->hover($this->toast.' button[aria-keyshortcuts]')->wait(0.3);
     // A second dismissal says its message while the pointer stays where it is: that does not start the clock again.
     ($this->dismissByScript)($page, 3);
-    $page->wait(12)
+    $page->wait(4.5)
         ->assertScript(($this->toastShown)(), true)
-        ->hover(($this->tile)(1).' a')->wait(11.5)
+        ->hover(($this->tile)(1).' a')->wait(3.5)
         ->assertScript('getComputedStyle(document.querySelector("'.$this->toast.' > div")).display', 'none');
 });
 

@@ -401,6 +401,8 @@ return [
         'trending_weight' => 0.05,
         // A library add counts as led to by a tile when its click was this recent.
         'library_add_window_minutes' => 30,
+        // How long Home's undo toast stays; browser tests shorten it so they do not wait real seconds.
+        'undo_seconds' => 10,
     ],
 
 ];

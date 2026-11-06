@@ -171,7 +171,7 @@ new #[Title('Home')] class extends Component {
         'impressionsUrl' => route('recommendations.impressions'),
         'dismissUrl' => route('recommendations.dismiss', '__id__'),
         'undoUrl' => route('recommendations.undo', '__id__'),
-        'undoSeconds' => 10,
+        'undoSeconds' => config('bookflix.recommendations.undo_seconds'),
         'messages' => ['removed' => __('Removed. We won\'t suggest this again.'), 'undoHint' => __('Press Z to undo.'), 'failed' => __('That did not work. The story is back; try again in a moment.')],
     ]))"
     @click="track($event)"
