@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
         $this->call(MediaTypeSeeder::class);
         $this->call(TaxonomySeeder::class);
         $this->call(ExternalSourceSeeder::class);
+        $this->call(ModelVersionSeeder::class);
 
         User::factory()->create([
             'name' => 'Test User',

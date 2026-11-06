@@ -29,7 +29,7 @@ class OnboardingPicks
     {
         /** @var Closure(): Builder<Media> $offer */
         $offer = fn (): Builder => Media::query()
-            ->trending()
+            ->trending(self::LIMIT)
             ->visibleTo($user)
             ->whereNotNull('media.cover_url')
             ->whereNotExists(fn ($library) => $library->select(DB::raw(1))->from('user_library')->whereColumn('user_library.media_id', 'media.id')->where('user_library.user_id', $user->id));

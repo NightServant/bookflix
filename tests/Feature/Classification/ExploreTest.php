@@ -8,6 +8,8 @@ use App\Models\DeweyClass;
 use App\Models\Media;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 
@@ -122,4 +124,25 @@ test('a class that disappears after the page loaded is a 404', function () {
     DeweyClass::where('code', '813')->delete();
 
     $page->call('$refresh')->assertNotFound();
+});
+
+test('the counts of all the main classes come in one query and are those of forClass, for a gated and an open reader', function () {
+    classified(Media::factory()->count(2)->create(), '813');
+    classified(Media::factory()->count(3)->create(), '530');
+    classified(matureStory('Dark Tale'), '813');
+    $open = User::factory()->showsMature()->create();
+    $gated = User::factory()->create();
+
+    foreach ([$gated, $open] as $viewer) {
+        Cache::flush();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $roots = app(DeweyCounts::class)->rootsWithCounts($viewer);
+        $queries = collect(DB::getQueryLog())->filter(fn ($query) => str_contains($query['query'], 'media_dewey_classes'))->count();
+        DB::disableQueryLog();
+
+        expect($queries)->toBe(1)
+            ->and($roots->pluck('stories_count', 'id')->all())->toBe($roots->mapWithKeys(fn ($class) => [$class->id => app(DeweyCounts::class)->forClass($class, $viewer)])->all())
+            ->and($roots->sum('stories_count'))->toBe($viewer === $open ? 6 : 5);
+    }
 });

@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -95,6 +96,9 @@ class Media extends Model
 {
     /** @use HasFactory<MediaFactory> */
     use HasFactory, Searchable, SoftDeletes;
+
+    /** The trending blend as SQL, with one `?` for `trendingWeight()`. Needs the `media_popularity` join `scopeTrending` adds. */
+    public const TRENDING_BLEND = '(media.popularity_score + ? * coalesce(media_popularity.trending_percentile, 0))';
 
     /**
      * The model's default attribute values.
@@ -233,7 +237,7 @@ class Media extends Model
     {
         // Seen by guests (the sign-in panel) and kept for an hour, so it is the gated list.
         return Cache::remember('media:showcase-covers:v3', now()->addHour(), fn (): array => array_values(static::query()
-            ->trending()
+            ->trending(3)
             ->visibleTo(null)
             ->whereNotNull('media.cover_url')
             ->limit(3)
@@ -325,15 +329,66 @@ class Media extends Model
         return ! MatureAccess::allows($viewer) && $this->isRestricted();
     }
 
+    public static function trendingWeight(): float
+    {
+        return (float) config('bookflix.recommendations.trending_weight');
+    }
+
     /**
-     * The stories with the strongest popularity signals (`bookflix:score-popularity`), then the most rated, the newest breaking ties.
+     * The stories with the strongest popularity, best first: the provider signal (`media.popularity_score`, 0 to 1) plus Bookflix's own
+     * activity, `trending_weight × trending_percentile` (`media_popularity`: the rank of the last 30 days' interactions among the media
+     * that had any, 0 for the rest). Ties go to the most rated, then the newest.
+     *
+     * Bookflix's signal only adds, and at most `trending_weight` (0.05), so it reorders stories whose provider scores are close but never lifts
+     * a barely known story over the catalog's favourites. With no interactions, or before the view is first refreshed, the order is the
+     * provider's alone. The join is a left one: media without a view row still appear.
+     *
+     * Ordering the whole catalog by the blend cannot use the `media_trending_score_idx` index. With `$limit` (the number of rows the caller takes)
+     * the query is narrowed first to the stories that can be among them: the first `$limit` of the filtered query in the index's order
+     * (provider score), plus those with activity (`trending_percentile > 0`). That is exact: the blend only adds to the stories with activity, so a
+     * story without any that makes the top `$limit` by blend is already in the top `$limit` by score. The narrowing is applied just before the
+     * query runs, so it sees every filter the caller chained, before or after this scope. Without a limit the whole filtered set is ordered by the
+     * blend, as before: right, but a full sort.
      *
      * @param  Builder<Media>  $query
      */
-    public function scopeTrending(Builder $query): void
+    public function scopeTrending(Builder $query, ?int $limit = null): void
     {
-        $query->unmerged()
-            ->orderByDesc('media.popularity_score')
+        $query->unmerged();
+
+        if ($limit !== null) {
+            $query->getQuery()->beforeQuery(function (QueryBuilder $base) use ($limit): void {
+                // The first `$limit` of what the caller filtered, in the order of the index; a new builder with the same tables and conditions (a
+                // copy of `$base` would carry this callback along and narrow itself).
+                $top = $base->newQuery()->from($base->from)->select('media.id');
+                $top->joins = $base->joins;
+                $top->wheres = $base->wheres;
+                $top->bindings['join'] = $base->bindings['join'];
+                $top->bindings['where'] = $base->bindings['where'];
+                $top->orderByDesc('media.popularity_score')->orderByDesc('media.ratings_count')->orderByRaw('media.published_on desc nulls last')->orderByDesc('media.id')
+                    ->limit($limit);
+
+                // One `in (… union …)`, so the planner can read the few ids and look them up, instead of testing every row against two lists.
+                $base->whereIn('media.id', $top->union(
+                    $base->newQuery()->select('media_id')->from('media_popularity')->where('trending_percentile', '>', 0),
+                ));
+
+                self::joinBlend($base);
+            });
+
+            return;
+        }
+
+        self::joinBlend($query->getQuery());
+    }
+
+    /**
+     * The `media_popularity` join and the order of the blend.
+     */
+    private static function joinBlend(QueryBuilder $query): void
+    {
+        $query->leftJoin('media_popularity', 'media_popularity.media_id', '=', 'media.id')
+            ->orderByRaw(self::TRENDING_BLEND.' desc', [self::trendingWeight()])
             ->orderByDesc('media.ratings_count')
             ->orderByRaw('media.published_on desc nulls last')
             ->orderByDesc('media.id');

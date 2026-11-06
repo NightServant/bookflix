@@ -21,7 +21,9 @@ use App\Models\UserPreference;
 use App\Notifications\DataExportReady;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -454,6 +456,17 @@ test('the privacy page button queues the export for the signed in reader, once e
     $this->travel(2)->minutes();
     Livewire::test('pages::settings.privacy')->call('exportData');
     Queue::assertPushed(ExportUserData::class, 2);
+});
+
+test('an export that is written at once and ends in the next second still shows as ready, not as the previous export', function () {
+    $this->actingAs(User::factory()->create());
+    // The job runs on the sync queue here; when it is done, the clock moves a second on, as a slow export crossing a second boundary does.
+    Event::listen(JobProcessed::class, fn () => $this->travel(1)->seconds());
+
+    Livewire::test('pages::settings.privacy')->call('exportData')
+        ->assertSee('Your export is ready')
+        ->assertDontSee('Your previous export')
+        ->assertDontSee('Preparing your export. We will email');
 });
 
 test('one readers request does not use up anothers', function () {

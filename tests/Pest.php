@@ -5,12 +5,19 @@ use App\Catalog\Data\NormalizedMedia;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Ingestion\IngestionPipeline;
 use App\Classification\ClassificationCandidate;
+use App\Discovery\Recommendations\Explanation;
+use App\Discovery\Recommendations\RankedItem;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
 use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
+use App\Enums\ModelKind;
+use App\Enums\ModelStatus;
+use App\Enums\ReadingStatus;
+use App\Enums\ReasonType;
+use App\Enums\RecommendationEventType;
 use App\Enums\ReviewStatus;
 use App\Models\Collection as StoryCollection;
 use App\Models\CollectionItem;
@@ -19,11 +26,16 @@ use App\Models\Creator;
 use App\Models\DeweyClass;
 use App\Models\ExternalSource;
 use App\Models\Genre;
+use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
 use App\Models\MediaExternalId;
+use App\Models\MediaSimilarity;
 use App\Models\MediaType;
+use App\Models\ModelVersion;
 use App\Models\Publisher;
+use App\Models\Recommendation;
+use App\Models\RecommendationEvent;
 use App\Models\Series;
 use App\Models\Tag;
 use App\Models\Theme;
@@ -108,6 +120,16 @@ function primaryNavs(string $html): array
     preg_match('#<nav aria-label="Primary".*?</nav>#s', $html, $bottom);
 
     return ['header' => $header[0] ?? '', 'bottom' => $bottom[0] ?? ''];
+}
+
+/**
+ * A response the ML service and Laravel agree on (`tests/Fixtures/ml-contracts/`); the Python tests check the same files.
+ *
+ * @return array<string, mixed>
+ */
+function contract(string $name): array
+{
+    return json_decode(file_get_contents(__DIR__."/Fixtures/ml-contracts/{$name}"), true, flags: JSON_THROW_ON_ERROR);
 }
 
 /**
@@ -466,4 +488,126 @@ function scrolledThrough($page): void
 
     $page->script('window.scrollTo(0, 0)');
     $page->wait(0.3);
+}
+
+/**
+ * The active version of a model by name (`lsa`, `item-cf`), created when missing; its kind is the name with an underscore.
+ */
+function activeVersion(string $name): ModelVersion
+{
+    return ModelVersion::activeFor($name) ?? ModelVersion::factory()->create([
+        'name' => $name,
+        'kind' => ModelKind::from(str_replace('-', '_', $name)),
+        'status' => ModelStatus::Active,
+    ]);
+}
+
+/**
+ * One stored neighbor of a media under a method, as the version wrote it.
+ */
+function similar(Media $media, Media $neighbor, string $method, float $score, ModelVersion $version): MediaSimilarity
+{
+    return MediaSimilarity::create([
+        'media_id' => $media->id,
+        'similar_media_id' => $neighbor->id,
+        'method' => $method,
+        'score' => $score,
+        'model_version_id' => $version->id,
+    ]);
+}
+
+/**
+ * A story in a reader's library at a status (a status name or case), optionally a favorite.
+ */
+function libraryEntry(User $user, Media $media, ReadingStatus|string $status = 'want_to_read', bool $favorite = false): LibraryEntry
+{
+    $status = $status instanceof ReadingStatus ? $status : ReadingStatus::from($status);
+
+    return LibraryEntry::factory()->status($status)->for($user)->for($media)->create(['favorited_at' => $favorite ? now() : null]);
+}
+
+/**
+ * A recommendation of this story the reader dismissed.
+ */
+function dismissed(User $user, Media $media): Recommendation
+{
+    $recommendation = Recommendation::factory()->create(['user_id' => $user->id, 'media_id' => $media->id]);
+    RecommendationEvent::factory()->create(['recommendation_id' => $recommendation->id, 'event' => RecommendationEventType::Dismiss]);
+
+    return $recommendation;
+}
+
+/**
+ * A ranked item with the given score, for the diversifier and injector tests.
+ */
+function ranked(int $mediaId, float $score): RankedItem
+{
+    return new RankedItem($mediaId, $score, [], new Explanation(ReasonType::Trending));
+}
+
+/**
+ * Forty stories for the home shelves: fifteen released in the last two months, all well rated, in three genres (the last ten Horror, so exploration has something outside the seeds' taste), ten classified, with popularity
+ * refreshed and one staff-pick collection. Returns the stories in id order.
+ *
+ * @return Collection<int, Media>
+ */
+function homeCatalog(): Collection
+{
+    test()->seed(DeweySeeder::class);
+    [$fantasy, $mystery, $horror] = Genre::factory()->count(3)->sequence(['name' => 'Fantasy'], ['name' => 'Mystery'], ['name' => 'Horror'])->create();
+    $media = Media::factory()->count(40)->sequence(fn ($sequence) => [
+        'published_on' => $sequence->index < 15 ? now()->subDays(3 + $sequence->index * 3) : now()->subYears(2),
+        'ratings_count' => 10 + $sequence->index,
+        'average_rating' => 4.2,
+        'popularity_score' => 1 - $sequence->index / 50,
+    ])->create();
+    $media->each(fn (Media $story, int $i) => $story->genres()->attach($i >= 30 ? $horror : ($i % 2 === 0 ? $fantasy : $mystery)));
+    classified($media->take(10), '813');
+    collectionOf(User::factory()->create(), $media->slice(20, 6)->values()->all(), ['is_editorial' => true, 'visibility' => 'public', 'name' => 'Staff Shelf']);
+    DB::statement('refresh materialized view media_popularity');
+    activeVersion('hybrid-weights');
+
+    return $media;
+}
+
+/**
+ * A reader with eight seeds from the catalog (six completed, the first of them the latest; two read and favorited) and text neighbors of each
+ * seed among the other stories, so every personalized shelf has something.
+ *
+ * @return array{User, Collection<int, Media>}
+ */
+function richReader(): array
+{
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    $lsa = activeVersion('lsa');
+    // Enough recent, popular stories that each candidate shelf can fill after the titles of the shelves before it are taken out.
+    $crowd = Media::factory()->count(150)->sequence(fn ($sequence) => [
+        // Every third is an older, quiet Horror story: nothing but Discover Something New offers it, so that shelf has enough of its own.
+        'published_on' => $sequence->index % 3 === 2 ? now()->subYears(3) : now()->subDays(1 + $sequence->index),
+        'ratings_count' => 50 + $sequence->index,
+        'average_rating' => 4.0,
+        'popularity_score' => $sequence->index % 3 === 2 ? 0.001 : 0.3 - $sequence->index / 600,
+    ])->create();
+    $crowd->each(fn (Media $story, int $i) => $story->genres()->attach(Genre::where('name', ['Fantasy', 'Mystery', 'Horror'][$i % 3])->first()));
+    DB::statement('refresh materialized view media_popularity');
+
+    foreach ($catalog->take(6) as $i => $seed) {
+        libraryEntry($user, $seed, 'completed')->update(['completed_at' => now()->subDays($i)]);
+    }
+
+    foreach ($catalog->slice(6, 2) as $seed) {
+        libraryEntry($user, $seed, 'reading', favorite: true);
+    }
+
+    foreach ($catalog->take(8) as $seed) {
+        foreach ($catalog->slice(8 + $seed->id % 3, 24) as $j => $neighbor) {
+            similar($seed, $neighbor, 'lsa', max(0.05, 0.95 - $j * 0.03), $lsa);
+        }
+        foreach ($crowd->slice(($seed->id % 4) * 30, 40) as $j => $neighbor) {
+            similar($seed, $neighbor, 'lsa', max(0.05, 0.9 - $j * 0.02), $lsa);
+        }
+    }
+
+    return [$user, $catalog];
 }

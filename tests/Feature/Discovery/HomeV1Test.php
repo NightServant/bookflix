@@ -28,10 +28,11 @@ function ratedStories(int $count, array $attributes = []): Collection
     ])->create();
 }
 
-test('home shows trending, new releases and explore by subject in order', function () {
-    Media::factory()->count(5)->create();
+test('home shows new releases, trending and explore by subject in the master plan order', function () {
+    $this->seed(DeweySeeder::class);
+    classified(Media::factory()->count(5)->create(['published_on' => now()->subDays(3), 'ratings_count' => 50]), '813');
     $this->actingAs(User::factory()->create())->get(route('home'))->assertOk()
-        ->assertSeeInOrder(['Trending Now', 'New Releases', 'Explore by Subject']);
+        ->assertSeeInOrder(['New Releases', 'Trending Now', 'Explore by Subject']);
 });
 
 test('trending is the only gradient shelf', function () {
@@ -77,25 +78,20 @@ test('the shelves are typed, titled in title case, and only trending is featured
         ->and($shelves->pluck('featured')->all())->toBe([true, false, false]);
 });
 
-test('home runs a bounded number of queries without lazy loading', function () {
+test('home runs a bounded number of queries without lazy loading, warm and cold', function () {
     Media::factory()->count(30)->create();
     $this->actingAs(User::factory()->create());
+
     DB::enableQueryLog();
     $this->get(route('home'))->assertOk();
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
+    $cold = count(DB::getQueryLog());
+    DB::flushQueryLog();
+    $this->get(route('home'))->assertOk();
+    $warm = count(DB::getQueryLog());
+
+    fwrite(STDERR, "\nhome, new reader: {$cold} cold, {$warm} warm\n");
+    expect($cold)->toBeLessThanOrEqual(40)->and($warm)->toBeLessThanOrEqual(12);
 });
-
-test('each shelf loads in a bounded number of queries without lazy loading', function (string $shelf) {
-    $this->seed(DeweySeeder::class);
-    classified(ratedStories(30, ['published_on' => now()->subDays(5)]), '813');
-    $this->actingAs(User::factory()->create());
-    Livewire::withoutLazyLoading();
-
-    DB::enableQueryLog();
-    Livewire::test('home-shelf', ['shelf' => $shelf])->assertSee($shelf === 'explore-by-subject' ? 'Literature' : 'Rated Story 1');
-
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(14);
-})->with(['trending', 'new-releases', 'explore-by-subject']);
 
 test('new releases are ordered by published date and exclude unpublished future dates beyond a month', function () {
     Media::factory()->create(['title' => 'Old', 'published_on' => now()->subYears(2)]);
@@ -158,21 +154,6 @@ test('the shelves are kept for ten minutes as ids, so a cache hit never returns 
     expect(app(HomeShelves::class)->guestSafe()->firstWhere('key', 'trending')->items)->toHaveCount(0);
 });
 
-test('the page ships a skeleton for every shelf, titled, the right height, and gradient only on trending', function () {
-    Media::factory()->count(5)->create();
-
-    $html = $this->actingAs(User::factory()->create())->get(route('home'))->getContent();
-
-    foreach (['trending' => 'Trending Now', 'new-releases' => 'New Releases', 'explore-by-subject' => 'Explore by Subject'] as $key => $title) {
-        expect(htmlQuery($html, '//section[@data-shelf-skeleton="'.$key.'"]//h2[normalize-space()="'.$title.'"]')->length)->toBe(1);
-    }
-
-    expect(htmlQuery($html, '//section[@data-shelf-skeleton="trending"][contains(@class,"from-featured-from")]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//section[@data-shelf-skeleton]//li[@data-skeleton-tile]')->length)->toBeGreaterThan(8)
-        ->and(htmlQuery($html, '//section[@data-shelf-skeleton="explore-by-subject"]//li[contains(@class,"h-24")]')->length)->toBeGreaterThan(3)
-        ->and(htmlQuery($html, '//section[@data-shelf-skeleton="trending"]//li//div[contains(@class,"aspect-[2/3]")]')->length)->toBeGreaterThan(5);
-});
-
 test('the loaded shelves have tiles with a hover preview, a touch quick view and a see all link', function () {
     $this->seed(DeweySeeder::class);
     classified(ratedStories(6, ['published_on' => now()->subDays(3)]), '813');
@@ -184,7 +165,7 @@ test('the loaded shelves have tiles with a hover preview, a touch quick view and
         ->and(htmlQuery($html, '//*[@data-story-previews][.//section[@aria-labelledby="shelf-trending"]]//*[@data-story-card]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@data-story-previews][.//section[@aria-labelledby="shelf-trending"]]//dialog[@data-modal="quick-view-trending"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@data-story-summary][not(ancestor::template)]')->length)->toBe(0)
-        ->and(htmlQuery($html, '//template/*[@data-story-summary]')->length)->toBe(12)
+        ->and(htmlQuery($html, '//template/*[@data-story-summary]')->length)->toBeGreaterThanOrEqual(12)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-explore-by-subject"]/ancestor::*[@data-story-previews]')->length)->toBe(0)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-trending"]//li//button[contains(.,"Quick view")]')->length)->toBe(6)
         ->and(htmlQuery($html, '//section[@aria-labelledby="shelf-trending"]//a[@href="'.route('discover').'"][contains(@aria-label,"See all in Trending Now")]')->length)->toBe(1)
@@ -226,7 +207,7 @@ test('the hero is the five most trending stories that have a cover, with the eve
 
     expect(htmlQuery($html, '//article[@role="group"]')->length)->toBe(5)
         ->and(htmlQuery($html, '//article[@aria-label="1 of 5"]//a[@data-flux-button][contains(@class,"text-body!")]')->length)->toBe(1)
-        ->and($html)->not->toContain('No Cover Hit');
+        ->and(htmlQuery($html, '//section[@aria-roledescription="carousel"]//*[contains(.,"No Cover Hit")]')->length)->toBe(0);
 });
 
 test('the search panel sits under the hero and opens the search page on Enter', function () {

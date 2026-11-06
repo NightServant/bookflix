@@ -11,6 +11,9 @@ use App\Models\User;
  */
 final class MatureAccess
 {
+    /** Every value `cacheKey` can return. */
+    public const CACHE_KEYS = ['mature', 'gated'];
+
     public static function allows(?User $viewer): bool
     {
         if ($viewer === null) {

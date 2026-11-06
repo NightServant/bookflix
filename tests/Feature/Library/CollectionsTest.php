@@ -658,7 +658,7 @@ test('editorial collections surface on discover with their theme', function () {
 test('editorial collections are a shelf row on home too, between the story shelves and the subjects', function () {
     collectionOf(User::factory()->admin()->create(), [Media::factory()->create(['title' => 'Haunted Tale'])], ['name' => 'Spooky Season', 'is_editorial' => true]);
 
-    $this->actingAs(User::factory()->create())->get(route('home'))->assertOk()->assertSee('Spooky Season')->assertSee('Staff pick');
+    $this->actingAs(User::factory()->create())->get(route('home'))->assertOk()->assertSee('Spooky Season')->assertSee('Picked by our editors');
 });
 
 test('the editorial row is left out when there is none, and an editorial collection with nothing the reader may see is left out too', function () {

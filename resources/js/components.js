@@ -244,12 +244,18 @@ export default function components(Alpine) {
     Alpine.data('storyPreviews', (quickViewName) => {
         // The tile whose link is marked expanded; kept out of the reactive data so the effect that sets it does not re-run itself.
         let lit = null;
+        // The element that holds the card. `$root` cannot stand for it: in a tile's handlers it is the nearest x-data, the shelf's own section, which does not hold the card.
+        let host = null;
 
         return {
             open: false,
             active: null,
             quick: null,
             timer: null,
+
+            init() {
+                host = this.$el;
+            },
 
             // The tile's own link (or button); the popover plugin focuses it again when the card closes.
             link(tile) {
@@ -286,7 +292,7 @@ export default function components(Alpine) {
             },
 
             card() {
-                return this.$root.querySelector('[data-story-card]');
+                return host.querySelector('[data-story-card]');
             },
 
             schedule(open, delay, tile) {
@@ -369,6 +375,326 @@ export default function components(Alpine) {
                 }
 
                 this.active?.matches(':hover') || card.matches(':hover') || this.schedule(false, 0);
+            },
+        };
+    });
+
+    // The tiles of Home that come from the recommender (<x-cover-tile recommendation dismissible>), around the page's shelves.
+    // It reports back in the background, with no parameter in any link (Phase 4 R11): a click as a beacon, the tiles that came into view
+    // (half of the tile, once each per page view) in one batched request. "Not interested" is a one-item menu next to the tile on a wide
+    // screen and a bottom sheet on a phone or touch screen; confirming takes the tile out of the row (instantly under reduced motion),
+    // moves focus to the next tile and offers Undo in a `role="status"` toast for `undoSeconds`, paused while it is hovered or has focus. Undo is
+    // also on the Z key (or Ctrl/Cmd+Z) while the toast offers it, the toast says so, and closing it with focus inside it hands focus to the page.
+    // The removal is client-side, from what the page already holds: the server forgets the cached shelves, and the next load rebuilds them.
+    Alpine.data('recommendationTiles', ({ token, clickUrl, impressionsUrl, dismissUrl, undoUrl, undoSeconds = 10, messages }) => {
+        const url = (template, id) => template.replace('__id__', id);
+        const compact = () => window.matchMedia('(max-width: 639px), (pointer: coarse)').matches;
+        const post = (target, fields) => {
+            const body = new FormData();
+
+            body.append('_token', token);
+            Object.entries(fields).forEach(([name, value]) => [].concat(value).forEach((item) => body.append(Array.isArray(value) ? `${name}[]` : name, item)));
+
+            navigator.sendBeacon?.(target, body) || fetch(target, { method: 'POST', body, keepalive: true, credentials: 'same-origin' }).catch(() => {});
+        };
+        const call = (method, target) => fetch(target, { method, headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' }, credentials: 'same-origin', keepalive: true });
+
+        let trigger = null;
+        // The dismissal whose toast is showing (set when its toast shows, not when the tile starts to leave), and the element focus went to after it.
+        let removed = null;
+        let afterFocus = null;
+        let lastEnter = { tile: null, at: 0 };
+        let announceTimer = 0;
+        let observer = null;
+        let flushTimer = 0;
+        let toastTimer = 0;
+        let toastLeft = 0;
+        let toastSince = 0;
+        const seen = new Set();
+        const queue = new Set();
+
+        const flush = () => {
+            clearTimeout(flushTimer);
+            const ids = [...queue];
+
+            queue.clear();
+
+            for (let i = 0; i < ids.length; i += 100) {
+                post(impressionsUrl, { ids: ids.slice(i, i + 100) });
+            }
+        };
+        const leave = () => document.visibilityState === 'hidden' && flush();
+
+        return {
+            menuId: null,
+            sheetTitle: '',
+            message: '',
+            announced: '',
+            canUndo: false,
+            popup: 'menu',
+
+            init() {
+                // The overflow button opens a menu beside the tile on a wide screen and a dialog (the sheet) on a phone or touch screen.
+                const query = window.matchMedia('(max-width: 639px), (pointer: coarse)');
+                const sync = () => { this.popup = query.matches ? 'dialog' : 'menu'; };
+
+                sync();
+                query.addEventListener?.('change', sync);
+
+                if (! ('IntersectionObserver' in window)) {
+                    return;
+                }
+
+                observer = new IntersectionObserver((entries) => {
+                    entries.filter((entry) => entry.isIntersecting).forEach((entry) => {
+                        const id = Number(entry.target.dataset.recommendation);
+
+                        observer.unobserve(entry.target);
+                        seen.has(id) || (seen.add(id), queue.add(id));
+                    });
+
+                    queue.size && (clearTimeout(flushTimer), flushTimer = setTimeout(flush, 1000));
+                }, { threshold: 0.5 });
+
+                this.$root.querySelectorAll('a[data-recommendation]').forEach((tile) => observer.observe(tile));
+                document.addEventListener('visibilitychange', leave);
+                window.addEventListener('pagehide', flush);
+            },
+
+            destroy() {
+                flush();
+                observer?.disconnect();
+                clearTimeout(toastTimer);
+                clearTimeout(announceTimer);
+                document.removeEventListener('visibilitychange', leave);
+                window.removeEventListener('pagehide', flush);
+            },
+
+            // Opening a recommended tile: the link stays a plain link, and the page tells the server in the background. Enter is handled on its own:
+            // Livewire's link handler cancels it, so no click event follows (and one that does, right after, is not counted twice). A tile that is
+            // being dismissed is not opened.
+            track(event) {
+                const tile = event.target.closest?.('a[data-recommendation]');
+
+                if (! tile || tile.closest('li')?.hasAttribute('data-dismissing')) {
+                    return;
+                }
+
+                if (event.type === 'keydown') {
+                    if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.repeat) {
+                        return;
+                    }
+
+                    lastEnter = { tile, at: Date.now() };
+                } else if (event.type === 'click' && lastEnter.tile === tile && Date.now() - lastEnter.at < 1000) {
+                    return;
+                } else if (event.type !== 'click' && event.button !== 1) {
+                    return;
+                }
+
+                post(clickUrl, { recommendation_id: tile.dataset.recommendation });
+            },
+
+            openMenu(button) {
+                const id = Number(button.dataset.tileMenu);
+
+                trigger = button;
+                this.sheetTitle = button.dataset.title;
+
+                if (compact()) {
+                    this.menuId = null;
+                    this.$refs.sheet.showModal();
+
+                    return;
+                }
+
+                this.menuId = this.menuId === id ? null : id;
+                this.menuId !== null && this.$nextTick(() => button.nextElementSibling.querySelector('[role=menuitem]').focus());
+            },
+
+            closeMenu(refocus = false) {
+                this.menuId = null;
+                refocus && trigger?.focus();
+            },
+
+            // A press outside the open menu closes it, leaving focus where the press put it.
+            outside(event) {
+                this.menuId !== null && ! event.target.closest('[role=menu], [data-tile-menu]') && this.closeMenu();
+            },
+
+            closeSheet() {
+                this.$refs.sheet.open && this.$refs.sheet.close();
+            },
+
+            async notInterested() {
+                const li = trigger?.closest('li');
+
+                if (! li || li.hasAttribute('data-dismissing')) {
+                    return;
+                }
+
+                const id = Number(trigger.dataset.tileMenu);
+                const neighbour = li.nextElementSibling ?? li.previousElementSibling;
+
+                this.menuId = null;
+                this.closeSheet();
+                li.setAttribute('data-dismissing', '');
+
+                // Focus goes to the neighbouring tile first, so it never falls back to the page while the tile is leaving.
+                const next = neighbour?.querySelector('a[data-recommendation], a[href]') ?? document.getElementById('main');
+
+                next.focus();
+                afterFocus = next;
+
+                // Everything of this dismissal is kept in `entry`, so a second one made while this tile is still leaving cannot mix them up.
+                const entry = { id, li, parent: li.parentElement, before: li.nextElementSibling, restored: false, sent: null };
+                const collapsing = this.collapse(li);
+
+                entry.sent = collapsing.then(() => {
+                    entry.parent.querySelector('li') || entry.parent.closest('section')?.setAttribute('hidden', '');
+
+                    return call('POST', url(dismissUrl, id)).then((response) => {
+                        if (! response.ok) {
+                            throw new Error('dismiss');
+                        }
+
+                        return true;
+                    }).catch(() => {
+                        this.restore(entry, false);
+                        this.say(messages.failed, false);
+
+                        return false;
+                    });
+                });
+
+                await collapsing;
+
+                if (! entry.restored) {
+                    removed = entry;
+                    this.say(messages.removed + (this.popup === 'menu' && messages.undoHint ? ` ${messages.undoHint}` : ''), true);
+                }
+            },
+
+            // The tile closes up and the rest slide left; nothing moves under reduced motion.
+            async collapse(li) {
+                if (prefersReducedMotion()) {
+                    li.remove();
+
+                    return;
+                }
+
+                const width = li.getBoundingClientRect().width;
+
+                li.style.overflow = 'hidden';
+                await animate(li, { width: [`${width}px`, '0px'], marginRight: ['0px', '-1rem'], opacity: [1, 0] }, { duration: MOTION.base / 1000 }).finished.catch(() => {});
+                li.remove();
+            },
+
+            // Takes back the dismissal the toast is about, once the server has it (the DELETE must not overtake the POST).
+            async undo() {
+                const entry = removed;
+
+                if (! entry) {
+                    return;
+                }
+
+                removed = null;
+                this.hideToast();
+
+                if (await entry.sent) {
+                    this.restore(entry, true);
+                    call('DELETE', url(undoUrl, entry.id)).catch(() => {});
+                }
+            },
+
+            // Z or Ctrl/Cmd+Z, only while the toast offers Undo and never while typing or with a dialog open.
+            undoKey(event) {
+                const typing = event.target.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+
+                if (event.key.toLowerCase() !== 'z' || event.shiftKey || event.altKey || event.repeat || (event.ctrlKey && event.metaKey)
+                    || typing || ! this.canUndo || ! removed || this.$refs.sheet.open) {
+                    return;
+                }
+
+                event.preventDefault();
+                this.undo();
+            },
+
+            // The tile goes back where it was and takes focus.
+            restore(entry, focus) {
+                if (entry.restored) {
+                    return;
+                }
+
+                const { li, parent, before } = entry;
+
+                entry.restored = true;
+                removed === entry && (removed = null);
+                li.removeAttribute('style');
+                li.removeAttribute('data-dismissing');
+                parent.closest('section')?.removeAttribute('hidden');
+                parent.insertBefore(li, before?.parentElement === parent ? before : null);
+                focus && li.querySelector('a[href]')?.focus();
+            },
+
+            // A message that is the same as the one showing is cleared and set again, so that a screen reader says it again. A toast under the
+            // pointer or holding focus keeps waiting: a new message gives it a full time, but it does not start running until it is let go.
+            say(message, canUndo) {
+                const again = this.message === message;
+
+                clearTimeout(toastTimer);
+                clearTimeout(announceTimer);
+                toastTimer = 0;
+                this.message = message;
+                this.canUndo = canUndo;
+                toastLeft = undoSeconds * 1000;
+
+                if (again) {
+                    this.announced = '';
+                    announceTimer = setTimeout(() => { this.announced = message; }, 60);
+                } else {
+                    this.announced = message;
+                }
+
+                this.$nextTick(() => {
+                    const card = this.$refs.toastCard;
+
+                    this.message === message && ! (card?.matches(':hover') || card?.contains(document.activeElement)) && this.startToast(toastLeft);
+                });
+            },
+
+            startToast(left) {
+                clearTimeout(toastTimer);
+                toastLeft = left;
+                toastSince = Date.now();
+                toastTimer = setTimeout(() => this.hideToast(), left);
+            },
+
+            pauseToast() {
+                if (this.message && toastTimer) {
+                    clearTimeout(toastTimer);
+                    toastTimer = 0;
+                    toastLeft = Math.max(1000, toastLeft - (Date.now() - toastSince));
+                }
+            },
+
+            resumeToast() {
+                this.message && ! toastTimer && this.startToast(toastLeft);
+            },
+
+            // Closing the toast while focus is inside it would drop focus to the page: it goes to the tile that took it after the dismissal.
+            hideToast() {
+                clearTimeout(toastTimer);
+                clearTimeout(announceTimer);
+                toastTimer = 0;
+
+                if (this.$refs.toast?.contains(document.activeElement)) {
+                    (afterFocus?.isConnected && afterFocus.getClientRects().length ? afterFocus : document.getElementById('main'))?.focus();
+                }
+
+                this.message = '';
+                this.announced = '';
+                this.canUndo = false;
             },
         };
     });

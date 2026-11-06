@@ -9,6 +9,7 @@ use App\Actions\Library\RemoveFromLibrary;
 use App\Actions\Library\SetLibraryStatus;
 use App\Actions\Library\ToggleFavorite;
 use App\Actions\Ratings\RateMedia;
+use App\Discovery\Recommendations\RecommendationLogger;
 use App\Enums\ReadingStatus;
 use App\Library\WriteLimit;
 use App\Models\Collection;
@@ -99,7 +100,13 @@ new class extends Component {
         $user = $this->reader();
         $media = $this->story($user);
 
-        app(AddToLibrary::class)->handle($user, $media);
+        $entry = app(AddToLibrary::class)->handle($user, $media);
+
+        // Only a new entry can be the result of a Home tile's click (found from the click itself, so nothing rides in the link: Phase 4 R11).
+        if ($entry->wasRecentlyCreated) {
+            app(RecommendationLogger::class)->libraryAdd($user, $media);
+        }
+
         unset($this->entry);
 
         Flux::toast(variant: 'success', text: __(':title was added to your library.', ['title' => $media->title]));

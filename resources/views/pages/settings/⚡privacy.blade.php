@@ -86,11 +86,14 @@ new #[Title('Privacy settings')] class extends Component {
     {
         $user = Auth::user();
 
-        $queued = RateLimiter::attempt($this->exportKey($user->id), 1, function () use ($user): bool {
-            ExportUserData::dispatch($user->id);
+        // The request is stamped before the job is dispatched: `export()` takes the stamp as the request time, and a job that runs at once
+        // (a sync queue) and ends in the next second must still count as newer than its request, not as the previous export.
+        $queued = ! RateLimiter::tooManyAttempts($this->exportKey($user->id), 1);
 
-            return true;
-        }, $this->exportCooldown());
+        if ($queued) {
+            RateLimiter::hit($this->exportKey($user->id), $this->exportCooldown());
+            ExportUserData::dispatch($user->id);
+        }
 
         unset($this->export);
 

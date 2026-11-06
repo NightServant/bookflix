@@ -85,6 +85,14 @@ new #[Title('Admin')] class extends Component {
         />
 
         <x-admin-task
+            :href="route('admin.models')"
+            icon="cpu-chip"
+            :title="__('Models')"
+            :description="__('Recommendation model versions, the jobs that train them and the ML service.')"
+            :stat="__('Versions and runs')"
+        />
+
+        <x-admin-task
             :href="route('admin.users')"
             icon="users"
             :title="__('Users')"
