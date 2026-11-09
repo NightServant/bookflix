@@ -540,3 +540,20 @@ def test_a_thin_data_candidate_without_rows_is_still_refused_and_stays_a_candida
 
     assert result["promoted"] is False and "similarity rows" in result["reason"]
     assert status_of(db, candidate) == "candidate" and status_of(db, active) == "active"
+
+
+def test_enough_readers_but_no_neighbors_retires_the_candidate_and_keeps_the_active(
+    db: Conn,
+) -> None:
+    active, candidate = lsa_pair(db, good_neighbors(), {})
+    # Rows that cover none of the items the evaluation needs.
+    db.execute("delete from media_similarities where model_version_id = %s", (candidate,))
+    write(db, "lsa", candidate, {4: [(1, 0.9)]})
+    db.commit()
+
+    result = run_evaluate(db, {"kind": "lsa"})
+
+    assert result["n_eval_users"] >= 2 and result["promoted"] is False
+    assert "no neighbors" in result["reason"]
+    assert status_of(db, candidate) == "retired" and status_of(db, active) == "active"
+    assert sim_versions(db, "lsa") == {active}

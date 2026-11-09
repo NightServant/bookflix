@@ -384,7 +384,11 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         if active is not None:
             outcome["active_version_id"] = active[0]
 
-        if len(held) < MIN_EVAL_USERS or not neighbors:
+        if len(held) >= MIN_EVAL_USERS and not neighbors and active is not None:
+            # Enough readers to compare, yet the candidate ranks nothing for them: that is evidence against it.
+            promote, metrics_refused = False, True
+            reason = "the candidate had no neighbors for the evaluated readers"
+        elif len(held) < MIN_EVAL_USERS or not neighbors:
             # Nothing can be compared, and a frozen model would never get neighbors for new media: the newer version covers more.
             promote = True
             reason = (
