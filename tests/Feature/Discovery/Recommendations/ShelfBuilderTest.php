@@ -457,6 +457,8 @@ test('a Recommended tile from a neighbor the pool cut off keeps the id of the ti
     $lsa = activeVersion('lsa');
     $crowd = Media::factory()->count(130)->create(['published_on' => now()->subYears(3), 'popularity_score' => 0.01]);
     $fresh = Media::factory()->count(12)->create(['published_on' => now()->subDays(100), 'popularity_score' => 0, 'ratings_count' => 0, 'average_rating' => 0]);
+    // The exploration draw is random and may pick these too, with a label of its own: fix it.
+    app()->bind(Randomizer::class, fn () => new Randomizer(new Mt19937(1)));
 
     foreach ($catalog->slice(6, 2) as $seed) {
         libraryEntry($user, $seed, 'reading', favorite: true);
@@ -480,4 +482,28 @@ test('a Recommended tile from a neighbor the pool cut off keeps the id of the ti
     expect($cut)->not->toBeEmpty()
         ->and($tiles)->not->toBeEmpty()
         ->and($tiles->every(fn ($tile) => $tile->reason_label === 'Because you read '.$catalog[0]->title && $tile->reason_media_id === $catalog[0]->id))->toBeTrue();
+});
+
+test('strong interactions on deleted or merged titles do not count', function () {
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    warm($user, $catalog->take(5));
+    libraryEntry($user, $catalog[4], 'completed');
+    expect(app(ShelfBuilder::class)->isCold($user))->toBeFalse();
+
+    $catalog[0]->delete();
+    $catalog[1]->update(['merged_into_id' => $catalog[2]->id]);
+
+    expect(app(ShelfBuilder::class)->isCold($user))->toBeTrue();
+});
+
+test('a reader with enough interactions but no seed title is cold', function () {
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    warm($user, $catalog->take(5));
+
+    expect(app(ShelfBuilder::class)->isCold($user))->toBeTrue();
+
+    libraryEntry($user, $catalog[0], 'completed');
+    expect(app(ShelfBuilder::class)->isCold($user))->toBeFalse();
 });

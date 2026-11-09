@@ -9,11 +9,13 @@ final readonly class RankedItem
 {
     /**
      * @param  array<string, float>  $features
+     * @param  int|null  $reasonMediaId  the title the explanation names, of the same candidate the score came from; null when the label names none
      */
     public function __construct(
         public int $mediaId,
         public float $score,
         public array $features,
         public Explanation $explanation,
+        public ?int $reasonMediaId = null,
     ) {}
 }
