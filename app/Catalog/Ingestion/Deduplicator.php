@@ -11,6 +11,7 @@ use App\Enums\ReviewStatus;
 use App\Enums\WarningStatus;
 use App\Jobs\RecalculateMediaRating;
 use App\Models\CollectionItem;
+use App\Models\Creator;
 use App\Models\DuplicateCandidate;
 use App\Models\ExternalSource;
 use App\Models\Media;
@@ -34,10 +35,9 @@ class Deduplicator
     private const PIVOTS = ['media_creators', 'media_publishers', 'media_series', 'media_genres', 'media_themes', 'media_tropes', 'media_demographics', 'media_tags', 'media_characters'];
 
     /**
-     * Trigram similarity between a stored title and the bound incoming one, both lowercased, unaccented,
-     * stripped of punctuation and single-spaced. Binds the incoming title once.
+     * A title lowercased, unaccented, stripped of punctuation and single-spaced, for trigram similarity.
      */
-    private const SIMILARITY = "similarity(trim(regexp_replace(regexp_replace(unaccent(lower(media.title)), '[[:punct:]]', ' ', 'g'), '\\s+', ' ', 'g')), trim(regexp_replace(regexp_replace(unaccent(lower(cast(? as text))), '[[:punct:]]', ' ', 'g'), '\\s+', ' ', 'g')))";
+    private const NORMALIZE = "trim(regexp_replace(regexp_replace(unaccent(lower(%s)), '[[:punct:]]', ' ', 'g'), '\\s+', ' ', 'g'))";
 
     /**
      * The existing media this record is the same work as, or null.
@@ -67,7 +67,7 @@ class Deduplicator
             && in_array($hit['media']->mediaType->slug, ['manga', 'manhwa', 'manhua'], true)
             && in_array($hit['media']->primary_external_source_id, $formats, true)
             && ($incoming->publicationYear === null || $hit['media']->publication_year === null || $incoming->publicationYear >= $hit['media']->publication_year)
-            && $this->sharesCreator($incoming, $hit['media']));
+            && $hit['shared']);
 
         return $original['media']->mediaType->slug ?? null;
     }
@@ -101,6 +101,23 @@ class Deduplicator
             ['media_id', 'duplicate_media_id'],
             ['score'],
         );
+    }
+
+    /**
+     * Score a media already in the catalogue against the rest as if it were coming in now, and record every pair from the review floor up,
+     * those an import would have merged as well: nothing is merged here, an admin confirms each pair. Re-recording refreshes a pair's score.
+     */
+    public function rescan(Media $media): void
+    {
+        $media->loadMissing(['creators', 'mediaType']);
+
+        $this->recordCandidates($media, $this->similar(new NormalizedMedia(
+            title: $media->title,
+            mediaTypeSlug: $media->mediaType->slug,
+            alternativeTitles: $media->alternative_titles,
+            credits: array_values($media->creators->map(fn (Creator $creator): string => $creator->name)->all()),
+            publicationYear: $media->publication_year,
+        ))->reject(fn (array $hit): bool => $hit['media']->is($media))->map(fn (array $hit): array => ['media' => $hit['media'], 'score' => $hit['score']]));
     }
 
     /**
@@ -378,76 +395,103 @@ class Deduplicator
     }
 
     /**
-     * Same-family media with a title similarity from the review floor up, best first.
+     * Same-family media whose title is similar to one of the record's titles, or whose alternative title is similar to the record's title,
+     * from the review floor up, best first. The score is that best similarity, less the creator penalty when both sides credit someone and
+     * no one is on both; `title` is the similarity of the two main titles alone, which is all an auto merge goes by. Alternative titles are
+     * never compared with each other: a short alias two works share ("FMA") says nothing.
      *
-     * ponytail: sequential scan over the family's media; add an immutable-unaccent trigram expression index once the catalogue passes ~50k rows.
+     * The trigram indexes on the title and on the alternative titles narrow the family down first (pg_trgm's default thresholds sit well
+     * below the review floor, so they drop nothing that could reach it); only those rows are scored.
      *
-     * @return Collection<int, array{media: Media, score: float, auto: bool}>
+     * @return Collection<int, array{media: Media, score: float, title: float, shared: bool, auto: bool}>
      */
     private function similar(NormalizedMedia $incoming): Collection
     {
         $families = MediaType::query()->where('slug', $incoming->mediaTypeSlug)->select('family');
         $types = MediaType::query()->whereIn('family', $families)->select('id');
+        $names = json_encode(array_values(array_unique([$incoming->title, ...$incoming->alternativeTitles])), JSON_THROW_ON_ERROR);
+        $title = sprintf(self::NORMALIZE, 'media.title');
+        $bound = sprintf(self::NORMALIZE, 'cast(? as text)');
+        $bestName = 'greatest('
+            .'(select max(similarity('.$title.', '.sprintf(self::NORMALIZE, 'value').')) from jsonb_array_elements_text(cast(? as jsonb))), '
+            .'(select max(similarity('.sprintf(self::NORMALIZE, 'value').', '.$bound.')) from jsonb_array_elements_text(media.alternative_titles)))';
+        $floor = (float) config('bookflix.dedup.review_min_similarity');
+        $penalty = (float) config('bookflix.dedup.creator_mismatch_penalty');
+        $credited = $this->creatorKeys([...array_map(fn ($creator): string => $creator->name, $incoming->creators), ...$incoming->credits]);
 
         return Media::query()
             ->select('media.*')
-            ->selectRaw(self::SIMILARITY.' as title_score', [$incoming->title])
+            ->selectRaw("similarity({$title}, {$bound}) as title_score", [$incoming->title])
+            ->selectRaw($bestName.' as name_score', [$names, $incoming->title])
             ->whereIn('media_type_id', $types)
-            ->whereRaw(self::SIMILARITY.' >= cast(? as real)', [$incoming->title, (float) config('bookflix.dedup.review_min_similarity')])
-            ->orderByDesc('title_score')
+            ->where(fn ($query) => $query
+                ->whereRaw('immutable_unaccent(lower(media.title)) % any(array(select immutable_unaccent(lower(value)) from jsonb_array_elements_text(cast(? as jsonb))))', [$names])
+                ->orWhereRaw('immutable_unaccent(lower(media.alternative_titles::text)) %> immutable_unaccent(lower(cast(? as text)))', [$incoming->title]))
+            ->whereRaw($bestName.' >= cast(? as real)', [$names, $incoming->title, $floor])
+            ->orderByDesc('name_score')
             ->limit(25)
             ->with(['creators', 'mediaType'])
             ->get()
-            ->map(function (Media $media) use ($incoming): array {
-                $score = round((float) $media->getAttribute('title_score'), 4);
+            ->map(function (Media $media) use ($incoming, $credited, $penalty): array {
+                $creators = $this->creatorKeys($media->creators->pluck('name'));
+                $shared = array_intersect($credited, $creators) !== [];
+                $conflict = ! $shared && $credited !== [] && $creators !== [];
+                $title = round((float) $media->getAttribute('title_score'), 4);
 
                 return [
                     'media' => $media,
-                    'score' => $score,
-                    'auto' => $this->qualifiesForAutoMerge($incoming, $media, $score),
+                    'score' => round((float) $media->getAttribute('name_score') - ($conflict ? $penalty : 0.0), 4),
+                    'title' => $title,
+                    'shared' => $shared,
+                    'auto' => $this->qualifiesForAutoMerge($incoming, $media, $title, $shared, $conflict),
                 ];
-            });
+            })
+            ->filter(fn (array $hit): bool => $hit['score'] >= $floor)
+            ->sortByDesc('score')
+            ->values();
     }
 
     /**
-     * A near-identical title with a shared creator and a year within the window, or an identical normalized title in the
-     * same family published in exactly the same year (providers disagree on creator spelling, or send none).
+     * A near-identical main title with a shared creator and a year within the window, or an identical normalized main title in the
+     * same family published in exactly the same year whose creators do not differ (providers disagree on creator spelling, or send none).
      */
-    private function qualifiesForAutoMerge(NormalizedMedia $incoming, Media $media, float $score): bool
+    private function qualifiesForAutoMerge(NormalizedMedia $incoming, Media $media, float $title, bool $shared, bool $conflict): bool
     {
-        if ($score >= (float) config('bookflix.dedup.auto_title_similarity')
-            && $this->sharesCreator($incoming, $media)
-            && $this->withinYearWindow($incoming, $media)) {
+        if ($title >= (float) config('bookflix.dedup.auto_title_similarity') && $shared && $this->withinYearWindow($incoming, $media)) {
             return true;
         }
 
-        return $score >= 1.0
+        return $title >= 1.0
+            && ! $conflict
             && $incoming->publicationYear !== null
             && $incoming->publicationYear === $media->publication_year;
     }
 
     /**
-     * Whether a credited name appears on both. Providers write the same person differently: MangaUpdates adds the name in its own script and puts
-     * the family name first ("Oda Eiichirou (尾田栄一郎)"), AniList writes long vowels out ("Katsuhiro Ootomo"), Comic Vine closes up pen names
-     * ("singNsong"). So the script part is dropped, long vowels folded, and a name matches in its own word order or with its words sorted.
+     * Comparable forms of credited names; two lists share a creator when they share a form. Providers write the same person differently:
+     * MangaUpdates adds the name in its own script and puts the family name first ("Oda Eiichirou (尾田栄一郎)"), AniList writes long vowels out
+     * ("Katsuhiro Ootomo"), Comic Vine closes up pen names ("singNsong"). So the script part is dropped, long vowels folded, and a name matches
+     * in its own word order or with its words sorted.
+     *
+     * @param  iterable<string>  $names
+     * @return list<string>
      */
-    private function sharesCreator(NormalizedMedia $incoming, Media $media): bool
+    private function creatorKeys(iterable $names): array
     {
-        $names = fn (iterable $names): array => collect($names)
-            ->flatMap(function (string $name): array {
-                $folded = str_replace(['ou', 'oo', 'uu'], ['o', 'o', 'u'], Str::lower(Str::ascii(preg_replace('/\s*\([^)]*\)\s*$/u', '', $name) ?? $name)));
-                $words = preg_split('/[^a-z0-9]+/', $folded, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $keys = [];
+
+        foreach ($names as $name) {
+            $folded = str_replace(['ou', 'oo', 'uu'], ['o', 'o', 'u'], Str::lower(Str::ascii(preg_replace('/\s*\([^)]*\)\s*$/u', '', $name) ?? $name)));
+            $words = preg_split('/[^a-z0-9]+/', $folded, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+            if ($words !== []) {
                 $sorted = $words;
                 sort($sorted);
+                array_push($keys, implode('', $words), implode('', $sorted));
+            }
+        }
 
-                return $words === [] ? [] : [implode('', $words), implode('', $sorted)];
-            })
-            ->all();
-
-        return array_intersect(
-            $names([...array_map(fn ($creator): string => $creator->name, $incoming->creators), ...$incoming->credits]),
-            $names($media->creators->pluck('name')),
-        ) !== [];
+        return $keys;
     }
 
     private function withinYearWindow(NormalizedMedia $incoming, Media $media): bool

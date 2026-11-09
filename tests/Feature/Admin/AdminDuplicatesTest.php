@@ -19,6 +19,16 @@ test('pending candidates show side by side with their score', function () {
         ->assertSee('82% similar')->assertSee('Naoki Urasawa')->assertDontSee('Hidden Pair');
 });
 
+test('a pair matched by an alternative title shows the alternative titles', function () {
+    DuplicateCandidate::factory()->create([
+        'media_id' => Media::factory()->create(['title' => 'The Apothecary Diaries', 'alternative_titles' => ['Kusuriya no Hitorigoto', 'Les carnets de l\'apothicaire']]),
+        'duplicate_media_id' => Media::factory()->create(['title' => 'Kusuriya no Hitorigoto']),
+    ]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.duplicates.index')->assertSee('Also known as Kusuriya no Hitorigoto · Les carnets de l&#039;apothicaire', false);
+});
+
 test('merging a duplicate candidate moves ids and the loser slug resolves to the winner', function () {
     [$winner, $loser] = Media::factory()->count(2)->create();
     $loser->externalIds()->save(MediaExternalId::factory()->make());

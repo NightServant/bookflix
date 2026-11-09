@@ -286,7 +286,8 @@ return [
     |
     | Title similarity (pg_trgm) at or above `auto_title_similarity` merges
     | automatically when a creator is shared and the years are within
-    | `year_window`. From `review_min_similarity` up, an admin reviews the pair.
+    | `year_window`. From `review_min_similarity` up, an admin reviews the pair;
+    | for review a title also matches the other side's alternative titles.
     |
     */
 
@@ -294,6 +295,9 @@ return [
         'auto_title_similarity' => 0.90,
         'review_min_similarity' => 0.75,
         'year_window' => 1,
+        // Taken off a pair's score when both sides credit someone and no one is on both: the same title by different creators sinks
+        // to the bottom of the review queue, and a merely similar one drops out of it.
+        'creator_mismatch_penalty' => 0.2,
     ],
 
     /*

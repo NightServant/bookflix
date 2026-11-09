@@ -237,7 +237,7 @@ test('same family, a near-identical title and a year within a year but different
     $candidates = app(Deduplicator::class)->candidates($incoming);
 
     expect(app(Deduplicator::class)->match($incoming))->toBeNull()
-        ->and($candidates)->toHaveCount(1)->and($candidates->first()['media']->is($existing))->toBeTrue()->and($candidates->first()['score'])->toBeGreaterThanOrEqual(0.9);
+        ->and($candidates)->toHaveCount(1)->and($candidates->first()['media']->is($existing))->toBeTrue()->and($candidates->first()['score'])->toBe(0.8);
 });
 
 test('slugs merged into a media that is merged again follow to the final winner', function () {
@@ -319,4 +319,101 @@ test('an identical title without the same year or without a year is only a revie
         expect(app(Deduplicator::class)->match(normalized(title: 'One Piece', type: 'manga', year: $year)))->toBeNull()
             ->and(app(Deduplicator::class)->candidates(normalized(title: 'One Piece', type: 'manga', year: $year)))->toHaveCount(1);
     }
+});
+
+/**
+ * A stored manga with its creators and alternative titles.
+ *
+ * @param  list<string>  $creators
+ * @param  list<string>  $alternativeTitles
+ */
+function storedManga(string $title, ?int $year, array $creators = [], array $alternativeTitles = []): Media
+{
+    $media = Media::factory()->manga()->create(['title' => $title, 'publication_year' => $year, 'alternative_titles' => $alternativeTitles]);
+
+    foreach ($creators as $position => $name) {
+        $media->creators()->attach(Creator::factory()->create(['name' => $name]), ['role' => 'author', 'position' => $position]);
+    }
+
+    return $media;
+}
+
+test('a romanised title finds the stored work that lists it as an alternative title, for review only', function () {
+    $diaries = storedManga('The Apothecary Diaries', 2017, ['Hyuuga Natsu', 'Nekokurage'], ['Kusuriya no Hitorigoto', 'Les carnets de l\'apothicaire']);
+    $incoming = normalized(title: 'Kusuriya no Hitorigoto', type: 'manga', year: 2017);
+
+    $candidates = app(Deduplicator::class)->candidates($incoming);
+
+    expect($candidates)->toHaveCount(1)
+        ->and($candidates->first()['media']->is($diaries))->toBeTrue()
+        ->and($candidates->first()['score'])->toBe(1.0)
+        ->and(app(Deduplicator::class)->match($incoming))->toBeNull();
+});
+
+test('an incoming alternative title finds the stored work filed under it', function () {
+    $hagane = storedManga('Hagane no Renkinjutsushi', 2001);
+    $incoming = new NormalizedMedia(title: 'Fullmetal Alchemist', mediaTypeSlug: 'manga', alternativeTitles: ['Hagane no Renkinjutsushi', '鋼の錬金術師'], credits: ['Hiromu Arakawa'], publicationYear: 2001);
+
+    $candidates = app(Deduplicator::class)->candidates($incoming);
+
+    expect($candidates)->toHaveCount(1)
+        ->and($candidates->first()['media']->is($hagane))->toBeTrue()
+        ->and(app(Deduplicator::class)->match($incoming))->toBeNull();
+});
+
+test('two works that only share an alternative title are not paired', function () {
+    storedManga('Fullmetal Alchemist', 2001, alternativeTitles: ['FMA', 'Hagane no Renkinjutsushi']);
+    $incoming = new NormalizedMedia(title: 'Full Moon Academy', mediaTypeSlug: 'manga', alternativeTitles: ['FMA']);
+
+    expect(app(Deduplicator::class)->candidates($incoming))->toBeEmpty();
+});
+
+test('the same title by different creators scores below the same title with no creator to compare', function () {
+    storedManga('Othello', 2001, ['Satomi Ikezawa']);
+    storedManga('Clover', 1997, ['CLAMP']);
+    $deduplicator = app(Deduplicator::class);
+
+    $othello = $deduplicator->candidates(normalized(title: 'Othello', type: 'manga', year: 2002, creators: ['Toui Hasumi']));
+    $unknown = $deduplicator->candidates(normalized(title: 'Othello', type: 'manga', year: 2002));
+
+    expect($othello)->toHaveCount(1)->and($othello->first()['score'])->toBe(0.8)
+        ->and($unknown->first()['score'])->toBe(1.0)
+        ->and($deduplicator->candidates(normalized(title: 'Clover', type: 'manga', year: 1997, creators: ['Toriko Chiya']))->first()['score'])->toBe(0.8);
+});
+
+test('an identical title in the same year does not merge when the creators differ', function () {
+    storedManga('Clover', 1997, ['CLAMP']);
+    $incoming = normalized(title: 'Clover', type: 'manga', year: 1997, creators: ['Toriko Chiya']);
+
+    expect(app(Deduplicator::class)->match($incoming))->toBeNull()
+        ->and(app(Deduplicator::class)->candidates($incoming))->toHaveCount(1);
+});
+
+test('a near identical title by different creators drops below the review floor', function () {
+    storedManga('Monster Hunter Stories', 2016, ['Capcom Staff']);
+
+    expect(app(Deduplicator::class)->candidates(normalized(title: 'Monster Hunter Stories 2', type: 'manga', creators: ['Somebody Else'])))->toBeEmpty()
+        ->and(app(Deduplicator::class)->candidates(normalized(title: 'Monster Hunter Stories 2', type: 'manga')))->toHaveCount(1);
+});
+
+test('a rescan pairs existing works by their alternative titles, re-scores pairs by creators and merges nothing', function () {
+    $diaries = storedManga('The Apothecary Diaries', 2017, ['Hyuuga Natsu'], ['Kusuriya no Hitorigoto']);
+    $kusuriya = storedManga('Kusuriya no Hitorigoto', 2017);
+    [$hasumi, $ikezawa] = [storedManga('Othello', 2002, ['Toui Hasumi']), storedManga('Othello', 2001, ['Satomi Ikezawa'])];
+    [$clamp, $chiya] = [storedManga('Clover', 1997, ['CLAMP']), storedManga('Clover', 1997, ['Toriko Chiya'])];
+    [$berserk, $monster] = [storedManga('Berserk', 1989), storedManga('Monster', 1994)];
+    $othello = DuplicateCandidate::factory()->create(['media_id' => $hasumi->id, 'duplicate_media_id' => $ikezawa->id, 'score' => 1.0]);
+    $clover = DuplicateCandidate::factory()->create(['media_id' => $clamp->id, 'duplicate_media_id' => $chiya->id, 'score' => 1.0, 'status' => DuplicateStatus::Dismissed]);
+    $stale = DuplicateCandidate::factory()->create(['media_id' => $berserk->id, 'duplicate_media_id' => $monster->id, 'score' => 0.8]);
+    $this->travel(2)->seconds();
+
+    $this->artisan('bookflix:rescan-duplicates')->assertSuccessful();
+
+    $pair = DuplicateCandidate::query()->where(['media_id' => $diaries->id, 'duplicate_media_id' => $kusuriya->id])->first();
+
+    expect($pair?->status)->toBe(DuplicateStatus::Pending)->and($pair?->score)->toBe(1.0)
+        ->and($othello->fresh()->score)->toBe(0.8)->and($othello->fresh()->status)->toBe(DuplicateStatus::Pending)
+        ->and($clover->fresh()->status)->toBe(DuplicateStatus::Dismissed)->and($clover->fresh()->score)->toBe(0.8)
+        ->and($stale->fresh())->toBeNull()
+        ->and(Media::onlyTrashed()->count())->toBe(0);
 });
