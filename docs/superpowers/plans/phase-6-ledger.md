@@ -192,3 +192,28 @@ Four `fix:` commits on `phase-6-recommendations` after `9d355c5` (library add li
 
 | Privacy export flake (Phase 5 test, made strict-gate safe) | see git log (`fix: wait for the export to be ready…`) | DONE: `PrivacyPageTest` waited a fixed 1.5 s after asking for an export and then ran `assertSee` (which does not wait), so a busy runner failed it. It now polls (up to 8 s) for the download link, and before the axe audit it waits for finite animations to finish, because the ready line fades in and axe read its mid-fade colour. 5/5 file runs green, five times | Fixed waits followed by one-shot assertions elsewhere in the browser suite are the same risk; fix them as they show up, never by loosening the gate |
 | Export card bug (Phase 5, found by the strict gate) | see git log (`fix: the export card shows a new export as ready…`) | DONE: `RateLimiter::attempt` runs its callback before it stamps the request, so an export written at once (sync queue) that ended in the next second looked older than its own request. The card then said "Your previous export…" with the new file's link until the 10-minute cooldown ran out. `exportData` now stamps the request (`hit`) before it dispatches. The new feature test moves the clock a second on when the job finishes; it fails on the old code and passes now. `PrivacyPageTest` passed 10 of 10 runs; PHP gate 2158 passed | None |
+
+## Phase 6 exit fixes (branch `phase-6-exit-fixes`, 2026-11-09)
+
+Found on the Mac after #25 merged: the A17 exit test by hand, Lighthouse on Home at 390 px, `/code-review`, `security-review` (no findings) and `design:accessibility-review`.
+
+### Tasks
+| Task | Items | Files (main) |
+|---|---|---|
+| A recommendation logic | cold start, `mostRecent`, Recommended reason ids, pruning, `event()` reuse, ranker duplicate loop | `config/bookflix.php`, `SeedItems`, `ShelfBuilder`, `RecommendationLogger`, `HybridRanker`, `Diversifier`, `Recommendation`, `routes/console.php` |
+| B ML pipeline | frozen model on thin data, stuck pipeline after a failed dispatch, run left `queued` | `ml/bookflix_ml/{jobs,registry}.py`, `app/Jobs/RunMlJob.php` |
+| C Home UI | Lighthouse performance 64 (LCP 6.7 s hero backdrop, CLS 0.172 hero overlay), tile menu keyboard focus, phone tap targets, hero `h1`s, preview card over the undo toast, hero "Add to Library" on a title already in the library | Home page, hero, `cover-tile`, `resources/js/components.js`, header |
+
+Dropped: `browser-gate` and the browser time limit were already fixed on main (gate passes only on `success`, `timeout-minutes: 45`, `browser-gate` is a required check).
+Not in this branch (separate work): unmerged duplicates (Kusuriya no Hitorigoto / The Apothecary Diaries, Hagane no Renkinjutsushi / Fullmetal Alchemist), duplicate queue false positives (Othello, Clover), Arabic-titled works in 813, local test accounts and Open Library sync run #24.
+
+### Conflict scan
+- A vs B: no shared files. A vs C: C may read `ShelfBuilder` output but must not edit it; A owns `ShelfBuilder`. B vs C: none.
+- A vs itself: `ShelfBuilder` and `SeedItems` both change; cold start and `mostRecent` are one task so they land together.
+- Tests share `bookflix_test`, so the tasks run one at a time.
+
+### Rulings
+- R1 cold start: the plan (A12) says "fewer than 5 strong interactions"; the code counted seed titles, so the A17 reader (3 onboarding picks + Berserk = 4 titles) stayed cold. Count strong interactions instead, threshold still 5. If wrong: readers get personal shelves a little sooner.
+- R2 thin evaluation data: when the evaluation cannot compare (fewer than 2 evaluable readers) and a version is active, promote the newer candidate (no evidence to block it; it covers the current catalog). A candidate the gate refuses with evidence is retired and its rows deleted at once. If wrong: a weaker model can go live while data is thin, when nothing measures quality anyway.
+- R3 recommendation logs are kept 90 days (`recommendations.retention_days`), pruned daily; events go with them (FK cascade). If wrong: Phase 8 learning-to-rank has 90 days of logs, not all of them.
+- R4 Lighthouse is measured on the local Herd site at 390 px; production will differ.
