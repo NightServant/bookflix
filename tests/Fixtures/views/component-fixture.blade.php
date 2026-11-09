@@ -16,6 +16,7 @@
         </nav>
 
         @livewireScriptConfig
-        @fluxScripts
+        {{-- Flux's script is bundled into app.js, as in the app's layouts. --}}
+        @php(app('livewire')->forceAssetInjection())
     </body>
 </html>
