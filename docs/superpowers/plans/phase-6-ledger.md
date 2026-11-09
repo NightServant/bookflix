@@ -231,3 +231,10 @@ Not in this branch (separate work): unmerged duplicates (Kusuriya no Hitorigoto 
 - `RunMlJob`: the next step is dispatched once per run (cache marker, released if the dispatch throws); a retry continues a succeeded run; `failed()` closes the row a dead start job left.
 - `lsa` explained variance clamped at 1.0 (macOS BLAS rounding made a test fail locally).
 - Deferred minor: retiring a newer candidate leaves an older waiting candidate, which an unpinned manual `evaluate` would pick (pipelines always pin the version).
+
+### Task C (`ffc70c0..200ac32`) — DONE_WITH_CONCERNS
+- Commits: `74b2ff1` (menu focus, quiet focus after a dismissal), `d3f1836` (44 px logo and account button), `98c2f88` (hero shows the reader's status), `200ac32` (LCP and CLS).
+- Lighthouse, Home, 390 px, local Herd: before 64 (LCP 6.7 s, CLS 0.172); after 85-88 on about two runs in three and 99-100 on the rest; accessibility 100, best-practices 100, CLS 0. Open: the >= 90 target is met only intermittently locally. Remaining cost is script and CSS weight before LCP (`flux.js` 135 KB gzipped, 87 % unused; `app.js` 146 KB) and a one-frame race between the hero image and the first text paint. Not done here: trimming `flux.js`/`app.js` (a larger refactor).
+- Rulings: R5 the target above; R6 preview blurbs in `story-summary` capped at 180 characters (the document was 98 KB gzipped, now about 72 KB); R7 `x-motion-crossfade` with an expression skips its first play (the LCP backdrop no longer fades in from 0); R8 a story already in the library shows the reader's status on the hero, linking to that part of the library, instead of "Add to Library" (one extra query, Home budgets unchanged).
+- Hero `h1`s: only the active slide's is exposed (inactive slides are `display:none`); a browser test now asserts it.
+- Tests: browser `HomeRecommendationsTest` 15, `HomeTest` + `Components/HeroTest` + `LayoutTest` 30; feature Components, `HomeV1Test`, `HomePersonalizedTest` 264.
