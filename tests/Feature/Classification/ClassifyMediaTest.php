@@ -34,20 +34,36 @@ test('the martian gets 813 primary with 500 and 600 secondaries from subjects', 
 
 test('subject keywords also match single words of the description', function () {
     $media = Media::factory()->novel()->create(['country_of_origin' => 'US', 'description' => 'A short history of cooking, told by a chef.']);
+    $media->genres()->attach(Genre::factory()->create(['slug' => 'fantasy']));
 
     expect(app(ClassificationService::class)->classify($media)->pluck('code')->all())->toBe(['813', '900', '640']);
 });
 
 test('prose falls back from country to language to class 800', function (?string $country, ?string $language, string $code, float $confidence) {
     $media = Media::factory()->novel()->create(['country_of_origin' => $country, 'language' => $language, 'description' => null]);
+    $media->genres()->attach(Genre::factory()->create(['slug' => 'fantasy']));
     $first = app(ClassificationService::class)->classify($media)->first();
 
     expect($first->code)->toBe($code)->and($first->confidence)->toBe($confidence);
 })->with([
-    ['GB', 'en', '823', .75], ['BR', 'fr', '843', .75], [null, 'ja', '895.6', .75], [null, null, '800', .70], ['BR', 'pt', '800', .70],
+    ['GB', 'en', '823', .85], ['BR', 'fr', '843', .85], [null, 'ja', '895.6', .85], [null, null, '800', .70], ['BR', 'pt', '800', .70],
 ]);
 
-test('a fiction genre raises the prose confidence', function () {
+// Open Library work OL46122642W as imported: a romanised Arabic title, an English edition, no subjects, description, country or Dewey code.
+// The type classifier calls a record with no evidence a novel, and the English edition used to make it American fiction (813).
+test('a novel with no genres gets no literature class, whatever its language', function () {
+    $media = Media::factory()->novel()->create(['title' => 'al-Nūr al-Lāmiʿ', 'language' => 'en', 'country_of_origin' => null, 'description' => null]);
+    MediaExternalId::factory()->for($media)->create(['dewey_code' => null]);
+    $svc = app(ClassificationService::class);
+
+    expect($svc->classify($media)->all())->toBe([]);
+
+    $svc->apply($media);
+
+    expect($media->deweyClasses()->count())->toBe(0);
+});
+
+test('a novel with a fiction genre gets its literature class at 0.85', function () {
     $media = Media::factory()->novel()->create(['country_of_origin' => 'FR']);
     $media->genres()->attach(Genre::factory()->create(['slug' => 'fantasy']));
 
@@ -82,6 +98,7 @@ test('a visual novel gets the literature class at 0.70', function () {
 
 test('garbage external codes never throw and never add a class', function (string $code) {
     $media = Media::factory()->novel()->create(['country_of_origin' => 'US']);
+    $media->genres()->attach(Genre::factory()->create(['slug' => 'fantasy']));
     $codes = fn () => app(ClassificationService::class)->classify($media, $code)->map(fn ($c) => $c->method)->all();
 
     expect($codes)->not->toThrow(Throwable::class)
@@ -92,7 +109,7 @@ test('a sparse record classifies without error', function () {
     $media = Media::factory()->create(['country_of_origin' => null, 'language' => null, 'description' => null]);
     expect(fn () => app(ClassificationService::class)->classify($media))->not->toThrow(Throwable::class);
     expect(fn () => app(ClassificationService::class)->apply($media))->not->toThrow(Throwable::class);
-    expect(app(ClassificationService::class)->classify($media)->pluck('code')->all())->toBe(['800']);
+    expect(app(ClassificationService::class)->classify($media)->pluck('code')->all())->toBe([]);
 });
 
 test('classify only suggests and stores nothing', function () {
