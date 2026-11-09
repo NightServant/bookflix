@@ -1,6 +1,7 @@
 <?php
 
 use App\Discovery\CollectionPreviews;
+use App\Enums\AgeRating;
 use App\Enums\CoverPolicy;
 use App\Models\Collection;
 use App\Models\CollectionItem;
@@ -225,4 +226,42 @@ test('mangadex covers are cached and every other source hotlinks', function () {
     $this->seed(ExternalSourceSeeder::class);
 
     expect(ExternalSource::where('cover_policy', CoverPolicy::Cache)->pluck('key')->all())->toBe(['mangadex']);
+});
+
+test('a backdrop of a cover declaring oversized dimensions falls back to the original without decoding it', function () {
+    // A valid PNG header declaring 20000x20000 px: tiny in bytes, enormous once decoded.
+    $png = substr($this->png, 0, 16).pack('NN', 20000, 20000).substr($this->png, 24);
+    Http::fake(['s4.anilist.co/*' => Http::response($png, 200, ['Content-Type' => 'image/png'])]);
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/huge.png']);
+    $path = 'covers/'.sha1($media->cover_url);
+
+    $this->actingAs($this->user)->get(route('covers.show', [$media, 'size' => 'backdrop']))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Storage::disk('local')->assertExists($path);
+    Storage::disk('local')->assertMissing($path.'-backdrop');
+});
+
+test('a backdrop of a cover GD cannot decode falls back to the original', function () {
+    // Valid header and dimensions, truncated data: getimagesize accepts it, GD refuses to decode it.
+    $png = substr($this->png, 0, 33);
+    Http::fake(['s4.anilist.co/*' => Http::response($png, 200, ['Content-Type' => 'image/png'])]);
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/broken.png']);
+    $path = 'covers/'.sha1($media->cover_url);
+
+    $this->actingAs($this->user)->get(route('covers.show', [$media, 'size' => 'backdrop']))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Storage::disk('local')->assertMissing($path.'-backdrop');
+});
+
+test('a mature cover is refused for a reader without access at the backdrop size too', function () {
+    Http::fake(['s4.anilist.co/*' => Http::response($this->png, 200, ['Content-Type' => 'image/png'])]);
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/adult.png', 'age_rating' => AgeRating::Adult]);
+
+    $this->actingAs($this->user)->get(route('covers.show', $media))->assertNotFound();
+    $this->actingAs($this->user)->get(route('covers.show', [$media, 'size' => 'backdrop']))->assertNotFound();
+    Storage::disk('local')->assertMissing('covers/'.sha1($media->cover_url).'-backdrop');
 });

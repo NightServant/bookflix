@@ -30,6 +30,11 @@ class CoverController extends Controller
 
     private const BACKDROP_QUALITY = 50;
 
+    /**
+     * GD decodes to raw pixels, so a tiny file declaring a huge canvas would exhaust memory_limit; such covers are served as they are.
+     */
+    private const BACKDROP_MAX_SIDE = 4096;
+
     public function show(Request $request, Media $media): Response
     {
         $url = $media->coverSourceUrl();
@@ -87,7 +92,14 @@ class CoverController extends Controller
             return $backdrop;
         }
 
-        $image = function_exists('imagewebp') ? @imagecreatefromstring((string) $disk->get($path)) : false;
+        $bytes = (string) $disk->get($path);
+        $info = getimagesizefromstring($bytes);
+
+        if (! function_exists('imagewebp') || $info === false || max($info[0], $info[1]) > self::BACKDROP_MAX_SIDE) {
+            return $path;
+        }
+
+        $image = @imagecreatefromstring($bytes);
 
         if ($image === false || ! imagepalettetotruecolor($image)) {
             return $path;
