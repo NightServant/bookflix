@@ -238,3 +238,10 @@ Not in this branch (separate work): unmerged duplicates (Kusuriya no Hitorigoto 
 - Rulings: R5 the target above; R6 preview blurbs in `story-summary` capped at 180 characters (the document was 98 KB gzipped, now about 72 KB); R7 `x-motion-crossfade` with an expression skips its first play (the LCP backdrop no longer fades in from 0); R8 a story already in the library shows the reader's status on the hero, linking to that part of the library, instead of "Add to Library" (one extra query, Home budgets unchanged).
 - Hero `h1`s: only the active slide's is exposed (inactive slides are `display:none`); a browser test now asserts it.
 - Tests: browser `HomeRecommendationsTest` 15, `HomeTest` + `Components/HeroTest` + `LayoutTest` 30; feature Components, `HomeV1Test`, `HomePersonalizedTest` 264.
+
+### Whole-branch review (Opus, `ca58d6b..1e42c57`): no Critical or Important; safe to merge
+- Fixed in a last wave: the keyboard menu browser test never pressed its key; a cold-start test passed on the old rule; `mostRecent` loaded every candidate; a stale `motion.js` comment.
+- Accepted, not fixed (narrow, clear within the 10-minute cache): a Home build that reads the count just before a queued interaction lands can cache a cold digest; one build can straddle a model promotion and mix two versions' rows. No gate or opt-out leak in either.
+- Accepted: the cold start now depends on the queue worker (`RecordInteraction` runs on redis after commit); without Horizon a reader stays cold. The A17 check by hand needs Horizon running.
+- Needs the user's sign-off: R2 (promote on thin data) departs from master plan A12 ("promoted only if NDCG@10 drops <= 2 % and coverage does not fall"); A12 assumed evidence exists.
+- Accepted: `story-summary`'s 180-character cut uses `Str::limit` (multibyte-safe); CJK counts double, still more than the three visible lines.
