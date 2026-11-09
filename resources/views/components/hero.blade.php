@@ -4,6 +4,7 @@
     'size' => 'L',
     'label' => null,
     'bleed' => false,
+    'statuses' => [],
 ])
 
 {{--
@@ -14,6 +15,7 @@
     `size` is L|M|S (S has no cards). `bleed` makes it a band that spans the whole page (in a `flush` layout) with its content
     on the header's gutter; otherwise it is a rounded card inside the page's container. There is no autoplay. The `cta` slot replaces the two per-slide buttons.
     "Add to Library" is <x-library-add>: it raises a `library-add` event with the media id, and only a signed-in reader sees it.
+    `statuses` maps a media id to the signed-in reader's ReadingStatus for it, so a story already in their library shows that instead of "Add to Library".
     Eager-load `mediaType` and `genres` on fetched media (the eyebrow reads them).
 --}}
 @php
@@ -100,7 +102,7 @@
                                 {{ $cta }}
                             @else
                                 <x-cta icon="book-open" :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('View story') }}</x-cta>
-                                <x-library-add :media="$slide" />
+                                <x-library-add :media="$slide" :status="$statuses[$slide->id] ?? null" />
                             @endif
                         </div>
                     </article>
@@ -109,7 +111,7 @@
 
             @if ($count > 1)
                 @unless ($compact)
-                    <ul aria-label="{{ __('Up next') }}" x-edge-fade class="max-lg:edge-fade max-lg:[--fade-width:1.5rem] -mx-1 flex snap-x gap-3 overflow-x-auto p-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
+                    <ul aria-label="{{ __('Up next') }}" x-edge-fade class="max-lg:edge-fade max-lg:[--fade-width:1.5rem] -mx-1 min-h-[12.4rem] flex snap-x gap-3 overflow-x-auto p-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
                         <template x-for="card in upcoming" :key="card.id">
                             <li :data-card="card.id" class="w-24 shrink-0 snap-start">
                                 <button
@@ -170,7 +172,7 @@
                                 :aria-label="@js(__('Show :title')).replace(':title', upcoming[{{ $slot }}]?.title ?? '')"
                                 class="group focus-ring absolute {{ $fan['class'] }} rounded-card brightness-[.62] saturate-[.8] motion-safe:transition-[filter,translate] motion-safe:duration-(--motion-base) motion-safe:ease-out-bookflix hover:-translate-y-2 hover:brightness-90 focus-visible:brightness-90"
                             >
-                                <x-book-3d :src="$items->get($slot + 1)?->cover_url ?? $first->cover_url" :title="$items->get($slot + 1)?->title" :size="$fan['size']" tilt="28deg" :bind="'upcoming['.$slot.']?.cover ?? \'\''" />
+                                <x-book-3d :src="$items->get($slot + 1)?->cover_url ?? $first->cover_url" :title="$items->get($slot + 1)?->title" :size="$fan['size']" tilt="28deg" lazy :bind="'upcoming['.$slot.']?.cover ?? \'\''" />
                             </button>
                         @endforeach
                     @endif

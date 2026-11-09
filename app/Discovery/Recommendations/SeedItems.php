@@ -104,21 +104,34 @@ class SeedItems
     }
 
     /**
-     * The reader's latest favorite: the story they completed last, or rated 8 or more last, whichever is newer. Null when there is none.
+     * The reader's latest favorite: the story they completed last, or rated 8 or more last, whichever is newer, among those that are seeds and that
+     * the reader may see; a newer one that is not (rated down since, abandoned, deleted, merged or gated) is passed over for the next. Null when there is none.
      */
     public function mostRecent(User $user): ?Media
     {
-        $completed = LibraryEntry::query()->where('user_id', $user->id)
-            ->where('status', ReadingStatus::Completed)->whereNotNull('completed_at')
-            ->orderByDesc('completed_at')->first(['media_id', 'completed_at']);
+        $seeds = $this->for($user);
 
-        $rated = Rating::query()->where('user_id', $user->id)->where('score', '>=', self::LOVED_FROM)
-            ->orderByDesc('updated_at')->first(['media_id', 'updated_at']);
+        for ($limit = 20; ; $limit *= 4) {
+            $completed = LibraryEntry::query()->where('user_id', $user->id)->where('status', ReadingStatus::Completed)->whereNotNull('completed_at')
+                ->orderByDesc('completed_at')->limit($limit)->get(['media_id', 'completed_at'])->map(fn (LibraryEntry $entry): array => [$entry->media_id, $entry->completed_at->getTimestamp()]);
 
-        $latest = $completed !== null && $rated !== null
-            ? ($completed->completed_at >= $rated->updated_at ? $completed->media_id : $rated->media_id)
-            : ($completed ?? $rated)?->media_id;
+            $rated = Rating::query()->where('user_id', $user->id)->where('score', '>=', self::LOVED_FROM)
+                ->orderByDesc('updated_at')->limit($limit)->get(['media_id', 'updated_at'])->map(fn (Rating $rating): array => [$rating->media_id, $rating->updated_at->getTimestamp()]);
 
-        return $latest === null ? null : Media::query()->unmerged()->find($latest);
+            // Anything past a full window is older than its last row: only candidates at or after that cutoff are certain to be the newest.
+            $cutoff = collect([$completed, $rated])->filter(fn (Collection $window): bool => $window->count() === $limit)->map(fn (Collection $window): int => $window->last()[1])->max();
+            $complete = $cutoff === null;
+
+            $pairs = $completed->concat($rated)->filter(fn (array $pair): bool => $seeds->has($pair[0]) && ($complete || $pair[1] >= $cutoff))
+                ->sortByDesc(fn (array $pair): int => $pair[1]);
+
+            $ids = $pairs->pluck(0)->unique()->values();
+            $visible = $ids->isEmpty() ? collect() : Media::query()->unmerged()->visibleTo($user)->whereIn('media.id', $ids->all())->get()->keyBy('id');
+            $found = $ids->first(fn (int $id): bool => $visible->has($id));
+
+            if ($found !== null || $complete) {
+                return $found === null ? null : $visible->get($found);
+            }
+        }
     }
 }

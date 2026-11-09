@@ -5,7 +5,7 @@
         :avatar="auth()->user()->avatarUrl()"
         icon:trailing="chevrons-up-down"
         data-test="sidebar-menu-button"
-        class="max-w-56 max-sm:[&>span]:hidden"
+        class="min-h-11 max-w-56 max-sm:[&>span]:hidden"
         :aria-label="__('Account menu for :name', ['name' => auth()->user()->name])"
     />
 

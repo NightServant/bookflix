@@ -14,6 +14,8 @@ from tests.db_helpers import Conn, count, now, seed_interaction, seed_media, see
 
 pytestmark = pytest.mark.db
 
+THIN_REASON = "not enough data to compare; the newer version was promoted"
+
 
 def version(
     db: Conn,
@@ -166,8 +168,8 @@ def test_gate_scores_the_active_version_now_instead_of_trusting_its_stored_metri
 
     assert result["promoted"] is False and result["active_version_id"] == active
     assert result["active_metrics"]["ndcg@10"] > result["ndcg@10"] == 0.0
-    assert status_of(db, candidate) == "candidate" and status_of(db, active) == "active"
-    assert sim_versions(db, "lsa") == {active, candidate}
+    assert status_of(db, candidate) == "retired" and status_of(db, active) == "active"
+    assert sim_versions(db, "lsa") == {active}
 
 
 def test_gate_promotes_a_better_candidate_whatever_the_active_stored(db: Conn) -> None:
@@ -237,12 +239,13 @@ def test_item_cf_evaluation_uses_the_candidates_own_k_and_weights(db: Conn) -> N
         "update model_versions set parameters = %s::jsonb where id = %s",
         (json.dumps({"weights": {"view": 1, "half_life_days": 90}, "k": 5}), ignoring),
     )
+    write(db, "item_cf", ignoring, {1: [(2, 0.9)]})
     db.commit()
 
     version(db, "active")
 
     # Weights that give library_add no weight leave nothing to learn from.
-    assert run_evaluate(db, {"kind": "item_cf"})["reason"] == "not enough data"
+    assert run_evaluate(db, {"kind": "item_cf"})["reason"] == THIN_REASON
 
 
 def test_item_cf_evaluation_writes_nothing_to_media_similarities(db: Conn) -> None:
@@ -320,7 +323,7 @@ def test_evaluate_writes_metrics_and_reason_even_when_blocked(db: Conn) -> None:
     row = db.execute(
         "select metrics, status from model_versions where id = %s", (candidate,)
     ).fetchone()
-    assert row is not None and row[1] == "candidate"
+    assert row is not None and row[1] == "retired"
     assert row[0]["promoted"] is False and row[0]["reason"] and "ndcg@10" in row[0]
     assert row[0]["n_users"] == 4
     assert status_of(db, active) == "active"
@@ -349,7 +352,7 @@ def test_a_failing_evaluation_leaves_versions_untouched(
     assert sim_versions(db) == {active, candidate}
 
 
-def test_one_user_gives_not_enough_data_and_no_promotion(db: Conn) -> None:
+def test_one_user_gives_not_enough_data_so_the_newer_version_is_promoted(db: Conn) -> None:
     seed_media(db, 1, 2)
     seed_users(db, active=1)
     seed_interaction(db, 1, 1)
@@ -360,9 +363,10 @@ def test_one_user_gives_not_enough_data_and_no_promotion(db: Conn) -> None:
 
     result = run_evaluate(db, {"kind": "item_cf"})
 
-    assert result["promoted"] is False and result["reason"] == "not enough data"
+    assert result["promoted"] is True and result["reason"] == THIN_REASON
     assert result["n_eval_users"] == 1
-    assert status_of(db, candidate) == "candidate" and status_of(db, active) == "active"
+    assert status_of(db, candidate) == "active" and status_of(db, active) == "retired"
+    assert sim_versions(db) == {candidate}
 
 
 @pytest.mark.parametrize(("kind", "name"), [("item_cf", "item-cf"), ("lsa", "lsa")])
@@ -412,7 +416,7 @@ def test_opted_out_and_deactivated_readers_are_not_evaluated(db: Conn) -> None:
     write(db, "item_cf", candidate, {1: [(2, 0.9)]})
     db.commit()
 
-    assert run_evaluate(db, {"kind": "item_cf"})["reason"] == "not enough data"
+    assert run_evaluate(db, {"kind": "item_cf"})["reason"] == THIN_REASON
 
 
 def test_the_job_is_registered_and_rejects_an_unknown_kind(db: Conn) -> None:
@@ -497,3 +501,59 @@ def test_lsa_evaluation_loads_only_the_rows_of_the_training_items_and_the_listed
     assert asked and all(ids is not None for _, ids, _ in asked)
     # Item 4 is nobody's training item, so the source rows asked for never include it.
     assert all(4 not in ids for _, ids, similar in asked if similar is None)
+
+
+def test_a_refused_candidate_is_retired_and_deletes_its_rows_but_not_the_active_or_a_newer_candidate(
+    db: Conn,
+) -> None:
+    active, candidate = lsa_pair(db, good_neighbors(), {})
+    newer = version(db, "candidate", "lsa", "lsa")
+    write(db, "lsa", newer, {1: [(4, 0.9)]})
+    db.commit()
+
+    registry.retire(db, candidate)
+    db.commit()
+
+    assert status_of(db, candidate) == "retired" and status_of(db, active) == "active"
+    assert status_of(db, newer) == "candidate"
+    assert sim_versions(db, "lsa") == {active, newer}
+
+
+def test_retire_refuses_a_version_that_is_not_a_candidate(db: Conn) -> None:
+    active = version(db, "active")
+
+    with pytest.raises(ValueError):
+        registry.retire(db, active)
+    db.rollback()
+
+    assert status_of(db, active) == "active"
+
+
+def test_a_thin_data_candidate_without_rows_is_still_refused_and_stays_a_candidate(
+    db: Conn,
+) -> None:
+    seed_media(db, 1, 2)
+    active, candidate = version(db, "active"), version(db)
+    db.commit()
+
+    result = run_evaluate(db, {"kind": "item_cf"})
+
+    assert result["promoted"] is False and "similarity rows" in result["reason"]
+    assert status_of(db, candidate) == "candidate" and status_of(db, active) == "active"
+
+
+def test_enough_readers_but_no_neighbors_retires_the_candidate_and_keeps_the_active(
+    db: Conn,
+) -> None:
+    active, candidate = lsa_pair(db, good_neighbors(), {})
+    # Rows that cover none of the items the evaluation needs.
+    db.execute("delete from media_similarities where model_version_id = %s", (candidate,))
+    write(db, "lsa", candidate, {4: [(1, 0.9)]})
+    db.commit()
+
+    result = run_evaluate(db, {"kind": "lsa"})
+
+    assert result["n_eval_users"] >= 2 and result["promoted"] is False
+    assert "no neighbors" in result["reason"]
+    assert status_of(db, candidate) == "retired" and status_of(db, active) == "active"
+    assert sim_versions(db, "lsa") == {active}

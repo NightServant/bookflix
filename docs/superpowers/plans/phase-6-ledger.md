@@ -192,3 +192,56 @@ Four `fix:` commits on `phase-6-recommendations` after `9d355c5` (library add li
 
 | Privacy export flake (Phase 5 test, made strict-gate safe) | see git log (`fix: wait for the export to be ready…`) | DONE: `PrivacyPageTest` waited a fixed 1.5 s after asking for an export and then ran `assertSee` (which does not wait), so a busy runner failed it. It now polls (up to 8 s) for the download link, and before the axe audit it waits for finite animations to finish, because the ready line fades in and axe read its mid-fade colour. 5/5 file runs green, five times | Fixed waits followed by one-shot assertions elsewhere in the browser suite are the same risk; fix them as they show up, never by loosening the gate |
 | Export card bug (Phase 5, found by the strict gate) | see git log (`fix: the export card shows a new export as ready…`) | DONE: `RateLimiter::attempt` runs its callback before it stamps the request, so an export written at once (sync queue) that ended in the next second looked older than its own request. The card then said "Your previous export…" with the new file's link until the 10-minute cooldown ran out. `exportData` now stamps the request (`hit`) before it dispatches. The new feature test moves the clock a second on when the job finishes; it fails on the old code and passes now. `PrivacyPageTest` passed 10 of 10 runs; PHP gate 2158 passed | None |
+
+## Phase 6 exit fixes (branch `phase-6-exit-fixes`, 2026-11-09)
+
+Found on the Mac after #25 merged: the A17 exit test by hand, Lighthouse on Home at 390 px, `/code-review`, `security-review` (no findings) and `design:accessibility-review`.
+
+### Tasks
+| Task | Items | Files (main) |
+|---|---|---|
+| A recommendation logic | cold start, `mostRecent`, Recommended reason ids, pruning, `event()` reuse, ranker duplicate loop | `config/bookflix.php`, `SeedItems`, `ShelfBuilder`, `RecommendationLogger`, `HybridRanker`, `Diversifier`, `Recommendation`, `routes/console.php` |
+| B ML pipeline | frozen model on thin data, stuck pipeline after a failed dispatch, run left `queued` | `ml/bookflix_ml/{jobs,registry}.py`, `app/Jobs/RunMlJob.php` |
+| C Home UI | Lighthouse performance 64 (LCP 6.7 s hero backdrop, CLS 0.172 hero overlay), tile menu keyboard focus, phone tap targets, hero `h1`s, preview card over the undo toast, hero "Add to Library" on a title already in the library | Home page, hero, `cover-tile`, `resources/js/components.js`, header |
+
+Dropped: `browser-gate` and the browser time limit were already fixed on main (gate passes only on `success`, `timeout-minutes: 45`, `browser-gate` is a required check).
+Not in this branch (separate work): unmerged duplicates (Kusuriya no Hitorigoto / The Apothecary Diaries, Hagane no Renkinjutsushi / Fullmetal Alchemist), duplicate queue false positives (Othello, Clover), Arabic-titled works in 813, local test accounts and Open Library sync run #24.
+
+### Conflict scan
+- A vs B: no shared files. A vs C: C may read `ShelfBuilder` output but must not edit it; A owns `ShelfBuilder`. B vs C: none.
+- A vs itself: `ShelfBuilder` and `SeedItems` both change; cold start and `mostRecent` are one task so they land together.
+- Tests share `bookflix_test`, so the tasks run one at a time.
+
+### Rulings
+- R1 cold start: the plan (A12) says "fewer than 5 strong interactions"; the code counted seed titles, so the A17 reader (3 onboarding picks + Berserk = 4 titles) stayed cold. Count strong interactions instead, threshold still 5. If wrong: readers get personal shelves a little sooner.
+- R2 thin evaluation data: when the evaluation cannot compare (fewer than 2 evaluable readers) and a version is active, promote the newer candidate (no evidence to block it; it covers the current catalog). A candidate the gate refuses with evidence is retired and its rows deleted at once. If wrong: a weaker model can go live while data is thin, when nothing measures quality anyway.
+- R3 recommendation logs are kept 90 days (`recommendations.retention_days`), pruned daily; events go with them (FK cascade). If wrong: Phase 8 learning-to-rank has 90 days of logs, not all of them.
+- R4 Lighthouse is measured on the local Herd site at 390 px; production will differ.
+
+### Task A (`ec37a29..824ef83`) — DONE after one fix wave
+- Commits: `5fea71a`, `1263259`, then fixes `8a614f0`, `824ef83`. 990 tests in Discovery, Library and Intelligence pass; Pint and PHPStan clean.
+- Ruling R1 as built: the cold start counts strong `user_interactions` rows (library_add, reading_start, reading_complete, favorite, review, rating ≥ 6) on live, unmerged media; a reader with no seed titles is cold too. A retracted or lowered rating still counts (accepted). `RecordInteraction` forgets the reader's cached shelves when it stores a strong interaction.
+- Review found and fixed: pruning would have deleted "Not interested" dismissals (rows with a dismiss event are never pruned now); cold count ignored dead media; queued interactions could leave a cold digest cached 10 minutes; the reason id came from a second lookup instead of the ranked candidate (now on `RankedItem`); `generated_at` index added.
+- Kept: `HybridRanker`'s best-per-title loop (`withNeighbors` merges two lists that can share titles); the pre-sort in `recommended()` removed instead.
+- `model:prune` is scheduled daily; only `Recommendation` is prunable.
+
+### Task B (`1263259..4680c7b`) — DONE after one fix wave
+- Commits: `031f3b8`, `09940d4`, then `39a7c09`, `4680c7b`. pytest 124 passed against a dedicated `bookflix_ml_test` database; ruff, mypy clean; RunMlJob Pest tests pass.
+- Ruling R2 as built: with an active version, too few evaluable readers promotes the newer candidate (still needs similarity rows); enough readers but no neighbors is a refusal; a refusal retires the candidate and deletes its rows (`registry.retire`, sharing `promote`'s cleanup).
+- `RunMlJob`: the next step is dispatched once per run (cache marker, released if the dispatch throws); a retry continues a succeeded run; `failed()` closes the row a dead start job left.
+- `lsa` explained variance clamped at 1.0 (macOS BLAS rounding made a test fail locally).
+- Deferred minor: retiring a newer candidate leaves an older waiting candidate, which an unpinned manual `evaluate` would pick (pipelines always pin the version).
+
+### Task C (`ffc70c0..200ac32`) — DONE_WITH_CONCERNS
+- Commits: `74b2ff1` (menu focus, quiet focus after a dismissal), `d3f1836` (44 px logo and account button), `98c2f88` (hero shows the reader's status), `200ac32` (LCP and CLS).
+- Lighthouse, Home, 390 px, local Herd: before 64 (LCP 6.7 s, CLS 0.172); after 85-88 on about two runs in three and 99-100 on the rest; accessibility 100, best-practices 100, CLS 0. Open: the >= 90 target is met only intermittently locally. Remaining cost is script and CSS weight before LCP (`flux.js` 135 KB gzipped, 87 % unused; `app.js` 146 KB) and a one-frame race between the hero image and the first text paint. Not done here: trimming `flux.js`/`app.js` (a larger refactor).
+- Rulings: R5 the target above; R6 preview blurbs in `story-summary` capped at 180 characters (the document was 98 KB gzipped, now about 72 KB); R7 `x-motion-crossfade` with an expression skips its first play (the LCP backdrop no longer fades in from 0); R8 a story already in the library shows the reader's status on the hero, linking to that part of the library, instead of "Add to Library" (one extra query, Home budgets unchanged).
+- Hero `h1`s: only the active slide's is exposed (inactive slides are `display:none`); a browser test now asserts it.
+- Tests: browser `HomeRecommendationsTest` 15, `HomeTest` + `Components/HeroTest` + `LayoutTest` 30; feature Components, `HomeV1Test`, `HomePersonalizedTest` 264.
+
+### Whole-branch review (Opus, `ca58d6b..1e42c57`): no Critical or Important; safe to merge
+- Fixed in a last wave: the keyboard menu browser test never pressed its key; a cold-start test passed on the old rule; `mostRecent` loaded every candidate; a stale `motion.js` comment.
+- Accepted, not fixed (narrow, clear within the 10-minute cache): a Home build that reads the count just before a queued interaction lands can cache a cold digest; one build can straddle a model promotion and mix two versions' rows. No gate or opt-out leak in either.
+- Accepted: the cold start now depends on the queue worker (`RecordInteraction` runs on redis after commit); without Horizon a reader stays cold. The A17 check by hand needs Horizon running.
+- Needs the user's sign-off: R2 (promote on thin data) departs from master plan A12 ("promoted only if NDCG@10 drops <= 2 % and coverage does not fall"); A12 assumed evidence exists.
+- Accepted: `story-summary`'s 180-character cut uses `Str::limit` (multibyte-safe); CJK counts double, still more than the three visible lines.

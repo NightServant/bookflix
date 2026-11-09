@@ -6,7 +6,9 @@ use App\Ml\MlServiceUnavailable;
 use App\Models\MlJobRun;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 beforeEach(fn () => config(['services.ml.url' => 'http://ml.test', 'services.ml.token' => str_repeat('s', 32)]));
 
@@ -227,4 +229,44 @@ test('a retry after the next poll could not be queued reuses the run and starts 
     expect(MlJobRun::count())->toBe(1);
     Http::assertSentCount(1);
     Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $next) => $next->mlJobRunId === MlJobRun::sole()->id);
+});
+
+test('a retry after the next step could not be queued queues it once, even when the run is already closed', function () {
+    Cache::flush();
+    mlFake(['succeeded'], metrics: ['items' => 3, 'version_id' => 7]);
+    $run = MlJobRun::factory()->create(['name' => 'train-lsa', 'run_id' => 'r1', 'status' => 'running']);
+    $job = new RunMlJob('train-lsa', [], [['build-similarities', ['methods' => ['lsa']]]], $run->id, 'lsa');
+    $real = app(Dispatcher::class);
+    $this->mock(Dispatcher::class)->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('redis down'));
+
+    expect(fn () => runOnce($job))->toThrow(RuntimeException::class);
+    expect($run->refresh()->status)->toBe('succeeded');
+
+    app()->instance(Dispatcher::class, $real);
+    Bus::fake([RunMlJob::class]);
+    runOnce(unserialize(serialize($job)));
+    runOnce(unserialize(serialize($job)));
+
+    Bus::assertDispatchedTimes(RunMlJob::class, 1);
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $next) => $next->name === 'build-similarities' && $next->params === ['methods' => ['lsa'], 'version_id' => 7]);
+});
+
+test('a retry that finds a failed run frees the pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    RunMlJob::dispatchPipeline('lsa');
+    $run = MlJobRun::factory()->create(['name' => 'train-lsa', 'run_id' => 'r1', 'status' => 'failed']);
+
+    runOnce(new RunMlJob('train-lsa', [], [['build-similarities', []]], $run->id, 'lsa'));
+
+    expect(RunMlJob::isRunning('lsa'))->toBeFalse();
+    Bus::assertNotDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities');
+});
+
+test('a start job that dies after its row was created closes that row instead of adding a second', function () {
+    $run = MlJobRun::factory()->create(['name' => 'train-lsa', 'job_key' => $key = (string) Str::uuid(), 'run_id' => 'r1', 'status' => 'queued']);
+
+    (new RunMlJob('train-lsa', jobKey: $key))->failed(new RuntimeException('redis down'));
+
+    expect(MlJobRun::count())->toBe(1)
+        ->and($run->refresh())->status->toBe('failed')->error->toBe('redis down')->finished_at->not->toBeNull();
 });

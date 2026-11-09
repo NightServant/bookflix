@@ -242,3 +242,13 @@ test('the hero shows the active story as a 3D book with the next two fanned behi
         ->assertScript('Array.from(document.querySelectorAll("[data-hero-books] [data-book-3d]")).map((book) => book.dataset.size).join()', 'lg,md,xl')
         ->assertScript('(() => { const shot = (selector) => document.querySelector(selector).getBoundingClientRect(); const main = shot("[data-hero-books] [data-size=xl]"); const next = shot("[data-fan=\"0\"]"); return next.left > main.left && next.right > main.right; })()', true);
 });
+
+test('the hero exposes one h1 to assistive tech, and its largest image is on screen from the start instead of fading in', function () {
+    $page = visit(route('home'), $this->phone)->wait(0.3);
+
+    // Inactive slides are display:none, so only the current slide's heading is in the accessibility tree.
+    $page->assertScript('[...document.querySelectorAll("h1")].filter((heading) => heading.getClientRects().length > 0).length', 1)
+        ->assertScript('document.querySelectorAll("article[data-slide]").length > 1', true)
+        ->assertScript('document.querySelector("[data-backdrop=\"0\"]").getAnimations().length', 0)
+        ->assertScript('getComputedStyle(document.querySelector("[data-backdrop=\"0\"]")).opacity', '1');
+});

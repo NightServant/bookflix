@@ -300,3 +300,16 @@ test('ranking 100 candidates runs a constant number of queries', function () {
 
     expect($few)->toBeLessThanOrEqual(12);
 });
+
+test('the reason id is that of the candidate the ranker kept, even when a neighbor is listed twice', function () {
+    $user = User::factory()->create();
+    [$neighbor, $first, $second] = Media::factory()->count(3)->create();
+
+    $ranked = app(HybridRanker::class)->rank($user, collect([
+        new Candidate($neighbor->id, 'content_similar', 0.4, ReasonType::SimilarThemes, $second->id),
+        new Candidate($neighbor->id, 'content_similar', 0.6, ReasonType::BecauseYouRead, $first->id),
+    ]), RankingWeights::active())->first();
+
+    expect($ranked->reasonMediaId)->toBe($first->id)
+        ->and($ranked->explanation->label())->toBe('Because you read '.$first->title);
+});
