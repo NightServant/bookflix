@@ -6,6 +6,7 @@ use App\Access\MatureAccess;
 use App\Models\Media;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -22,7 +23,14 @@ class CoverController extends Controller
 
     private const MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
 
-    public function show(Media $media): Response
+    /**
+     * The hero's phone backdrop (`?size=backdrop`) is drawn blurred, so a 320px WebP looks the same as the full cover at a fraction of the bytes.
+     */
+    private const BACKDROP_WIDTH = 320;
+
+    private const BACKDROP_QUALITY = 50;
+
+    public function show(Request $request, Media $media): Response
     {
         $url = $media->coverSourceUrl();
 
@@ -38,6 +46,10 @@ class CoverController extends Controller
 
         if (! $disk->exists($path)) {
             $this->store($disk, $path, $this->fetch($url));
+        }
+
+        if ($request->query('size') === 'backdrop') {
+            $path = $this->backdrop($disk, $path);
         }
 
         // The type comes from the stored bytes (verified as a raster image on the way in), never from the upstream header.
@@ -62,6 +74,38 @@ class CoverController extends Controller
 
         $disk->put($temp, $body);
         $disk->move($temp, $path);
+    }
+
+    /**
+     * The stored cover scaled down to a WebP, kept beside it (pruned with it). The cover itself when GD cannot read or write it.
+     */
+    private function backdrop(Filesystem $disk, string $path): string
+    {
+        $backdrop = $path.'-backdrop';
+
+        if ($disk->exists($backdrop)) {
+            return $backdrop;
+        }
+
+        $image = function_exists('imagewebp') ? @imagecreatefromstring((string) $disk->get($path)) : false;
+
+        if ($image === false || ! imagepalettetotruecolor($image)) {
+            return $path;
+        }
+
+        $scaled = imagescale($image, min(self::BACKDROP_WIDTH, imagesx($image)));
+
+        ob_start();
+        $encoded = $scaled !== false && imagewebp($scaled, null, self::BACKDROP_QUALITY);
+        $body = (string) ob_get_clean();
+
+        if (! $encoded || $body === '') {
+            return $path;
+        }
+
+        $this->store($disk, $backdrop, $body);
+
+        return $backdrop;
     }
 
     private function isAllowed(string $url): bool

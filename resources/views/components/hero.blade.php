@@ -53,20 +53,25 @@
         <div class="absolute inset-0" aria-hidden="true">
             @foreach ($items as $index => $slide)
                 @if ($slide->cover_url)
-                    <img
-                        src="{{ $slide->cover_url }}"
-                        alt=""
-                        width="1280"
-                        height="720"
-                        decoding="async"
-                        data-backdrop="{{ $index }}"
-                        wire:key="hero-backdrop-{{ $slide->id }}"
-                        x-show="current === {{ $index }}"
-                        x-motion-crossfade="fade"
-                        @if ($index > 0) style="display: none" @endif
-                        @if ($index === 0) fetchpriority="high" @else loading="lazy" @endif
-                        class="absolute inset-0 size-full scale-110 object-cover blur-md lg:inset-y-0 lg:left-auto lg:right-0 lg:w-3/5 lg:scale-100 lg:object-[50%_30%] lg:blur-sm"
-                    >
+                    {{-- Below lg the backdrop is drawn blurred, so a cover we serve ourselves comes as a small copy there (the LCP image on a phone). --}}
+                    <picture wire:key="hero-backdrop-{{ $slide->id }}">
+                        @if ($backdrop = $slide->coverBackdropUrl())
+                            <source media="(width < 64rem)" srcset="{{ $backdrop }}">
+                        @endif
+                        <img
+                            src="{{ $slide->cover_url }}"
+                            alt=""
+                            width="1280"
+                            height="720"
+                            decoding="async"
+                            data-backdrop="{{ $index }}"
+                            x-show="current === {{ $index }}"
+                            x-motion-crossfade="fade"
+                            @if ($index > 0) style="display: none" @endif
+                            @if ($index === 0) fetchpriority="high" @else loading="lazy" @endif
+                            class="absolute inset-0 size-full scale-110 object-cover blur-md lg:inset-y-0 lg:left-auto lg:right-0 lg:w-3/5 lg:scale-100 lg:object-[50%_30%] lg:blur-sm"
+                        >
+                    </picture>
                 @endif
             @endforeach
             <div class="absolute inset-x-0 bottom-0 h-3/5 bg-linear-to-t from-canvas/90 via-canvas/50 to-transparent lg:h-1/4 lg:from-canvas lg:via-canvas/40"></div>
@@ -178,7 +183,7 @@
                     @endif
 
                     <div class="absolute left-2 top-0 z-10">
-                        <x-book-3d :media="$first" size="xl" tilt="28deg" scene bind="active.cover ?? ''" :title="$first->title" />
+                        <x-book-3d :media="$first" size="xl" tilt="28deg" scene lazy bind="active.cover ?? ''" :title="$first->title" />
                     </div>
                 </div>
             @endunless

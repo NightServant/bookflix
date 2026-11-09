@@ -102,6 +102,39 @@ test('an image-typed response whose bytes are not a raster image is a 404 and is
     'svg' => '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
 ]);
 
+test('the backdrop size is the stored cover scaled to a 320px webp, kept beside it and made once', function () {
+    $image = imagecreatetruecolor(640, 960);
+    ob_start();
+    imagepng($image);
+    $png = (string) ob_get_clean();
+    Http::fake(['s4.anilist.co/*' => Http::response($png, 200, ['Content-Type' => 'image/png'])]);
+    $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
+    $path = 'covers/'.sha1($media->cover_url);
+
+    $response = $this->actingAs($this->user)->get(route('covers.show', [$media, 'size' => 'backdrop']))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/webp')
+        ->assertHeader('Cache-Control', 'immutable, max-age=86400, public');
+
+    expect(getimagesizefromstring($response->streamedContent()))->toMatchArray([0 => 320, 1 => 480]);
+    Storage::disk('local')->assertExists([$path, $path.'-backdrop']);
+
+    $this->actingAs($this->user)->get(route('covers.show', [$media, 'size' => 'backdrop']))->assertOk();
+    $this->actingAs($this->user)->get(route('covers.show', $media))->assertOk()->assertHeader('Content-Type', 'image/png');
+    Http::assertSentCount(1);
+});
+
+test('only a cover we already serve has a backdrop copy: a hotlinked cover keeps its own url', function () {
+    ExternalSource::factory()->create(['key' => 'mangadex', 'cover_policy' => CoverPolicy::Cache]);
+    ExternalSource::factory()->create(['key' => 'anilist', 'cover_policy' => CoverPolicy::Hotlink]);
+    $cached = Media::factory()->create(['cover_url' => 'https://uploads.mangadex.org/covers/a/b.jpg.512.jpg']);
+    $hotlinked = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
+
+    expect($cached->coverBackdropUrl())->toBe($cached->cover_url.'&size=backdrop')
+        ->and($hotlinked->coverBackdropUrl())->toBeNull()
+        ->and(Media::factory()->create(['cover_url' => null])->coverBackdropUrl())->toBeNull();
+});
+
 test('guests can load a cover too, for the landing page book', function () {
     Http::fake(['s4.anilist.co/*' => Http::response($this->png, 200, ['Content-Type' => 'image/png'])]);
     $media = Media::factory()->create(['cover_url' => 'https://s4.anilist.co/file/cover.png']);
