@@ -97,6 +97,9 @@ new #[Title('Duplicates')] class extends Component {
                                 {{ $side->mediaType->name }}@if ($side->publication_year) · {{ $side->publication_year }}@endif
                                 @if ($side->creators->isNotEmpty()) · {{ $side->creators->pluck('name')->join(', ') }}@endif
                             </p>
+                            @if ($side->alternative_titles)
+                                <p class="mt-1 line-clamp-2 text-meta text-ink-subtle">{{ __('Also known as :titles', ['titles' => collect($side->alternative_titles)->take(4)->join(' · ')]) }}</p>
+                            @endif
                             <p class="mt-2 line-clamp-4 text-body text-ink-subtle">{{ $side->description }}</p>
                             <flux:button class="mt-4 self-start" size="sm" variant="filled" icon="arrows-pointing-in" icon:variant="outline" wire:click="merge({{ $candidate->id }}, {{ $side->id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}">
                                 {{ __('Keep this one') }}
