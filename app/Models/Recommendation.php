@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use App\Enums\ReasonType;
+use App\Enums\RecommendationEventType;
 use Database\Factories\RecommendationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,7 +35,21 @@ class Recommendation extends Model
     /** @use HasFactory<RecommendationFactory> */
     use HasFactory;
 
+    use MassPrunable;
+
     public $timestamps = false;
+
+    /**
+     * Rows older than `retention_days` go, with their events (foreign key cascade), except those the reader dismissed: the dismissal is what keeps the title out.
+     *
+     * @return Builder<static>
+     */
+    public function prunable(): Builder
+    {
+        return static::query()->where('generated_at', '<', now()->subDays((int) config('bookflix.recommendations.retention_days')))
+            ->whereNotExists(fn ($dismissed) => $dismissed->selectRaw('1')->from('recommendation_events')
+                ->whereColumn('recommendation_events.recommendation_id', 'recommendations.id')->where('recommendation_events.event', RecommendationEventType::Dismiss));
+    }
 
     /**
      * Get the attributes that should be cast.

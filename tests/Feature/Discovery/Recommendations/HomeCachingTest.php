@@ -4,8 +4,10 @@ use App\Actions\Library\AddToLibrary;
 use App\Actions\Ratings\RateMedia;
 use App\Discovery\Recommendations\RecommendationLogger;
 use App\Discovery\Recommendations\ShelfBuilder;
+use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
 use App\Enums\RecommendationEventType;
+use App\Jobs\RecordInteraction;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\Recommendation;
@@ -219,4 +221,18 @@ test('creating the profile row with mature access on forgets the cached shelves'
     $user->profile()->create(['show_mature' => true, 'adult_confirmed_at' => now()]);
 
     expect(Cache::has('home:shelves:'.$user->id.':gated'))->toBeFalse();
+});
+
+test('a strong interaction written by the queue forgets the cached shelves, a weak one does not', function () {
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    $key = 'home:shelves:'.$user->id.':gated';
+    $record = fn (InteractionEvent $event) => (new RecordInteraction($user->id, $event, $catalog[0]->id, [], null, now()))->handle();
+
+    Cache::put($key, ['cold' => true, 'shelves' => []], 600);
+    $record(InteractionEvent::View);
+    expect(Cache::has($key))->toBeTrue();
+
+    $record(InteractionEvent::LibraryAdd);
+    expect(Cache::has($key))->toBeFalse();
 });

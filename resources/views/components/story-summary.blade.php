@@ -4,7 +4,7 @@
 
 {{--
     The short version of a story that <x-story-preview> keeps for the shared card (hover) and quick view (touch) to clone: a small cover, the title,
-    <x-story-info>, a three-line blurb and the ctas: a primary "View story" with an icon-only add button beside it (for a signed-in reader).
+    <x-story-info>, a three-line blurb (cut at 180 characters, as the card shows three lines and a page can carry a hundred of these) and the ctas: a primary "View story" with an icon-only add button beside it (for a signed-in reader).
     Eager-load `mediaType` and `publicPrimaryDewey.deweyClass` on fetched media (story-info reads them).
     "Add to Library" is <x-library-add>, as in <x-hero>: it raises a `library-add` event with the media id.
 --}}
@@ -23,7 +23,7 @@
             <x-story-info :media="$media" class="mt-1" />
 
             @if ($media->description)
-                <p class="mt-3 line-clamp-3 text-meta text-ink-subtle">{{ $media->description }}</p>
+                <p class="mt-3 line-clamp-3 text-meta text-ink-subtle">{{ Str::limit($media->description, 180) }}</p>
             @endif
         </div>
     </div>

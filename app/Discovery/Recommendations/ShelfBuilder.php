@@ -8,11 +8,13 @@ use App\Discovery\EditorialCollections;
 use App\Discovery\HomeShelves;
 use App\Discovery\Recommendations\Sources\ContentSimilarSource;
 use App\Discovery\Shelf;
+use App\Enums\InteractionEvent;
 use App\Enums\ReasonType;
 use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\ModelVersion;
 use App\Models\User;
+use App\Models\UserInteraction;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -21,7 +23,7 @@ use Random\Randomizer;
 /**
  * The shelves of Home for one reader, in the order of the master plan (A12): Continue Reading, Recommended For You, Because You Read X, New
  * Releases, Similar To Y, Trending Now, Popular in Your Genres, Discover Something New, the editorial collections, Explore by Subject.
- * A shelf with nothing in it is left out. A reader with too few strong interactions (cold start), or who opted out, gets no Recommended,
+ * A shelf with nothing in it is left out. A reader with fewer than `cold_start_min_interactions` strong interactions (cold start), or who opted out, gets no Recommended,
  * Because You Read or Similar To shelf; the rest fill from trending, new releases, editorial and the preference-filtered popularity.
  *
  * The shelves built from candidates are cached ten minutes per reader and access level as lists of ids (with the recommendation id and label
@@ -43,6 +45,12 @@ class ShelfBuilder
 
     /** The most titles asked of each source; Recommended For You ranks from the whole pool. */
     private const SOURCE_LIMIT = 100;
+
+    /** The events that are strong interactions whatever their value. */
+    private const STRONG_EVENTS = [InteractionEvent::LibraryAdd, InteractionEvent::ReadingStart, InteractionEvent::ReadingComplete, InteractionEvent::Favorite, InteractionEvent::Review];
+
+    /** A rating from this score up is a strong interaction. */
+    private const STRONG_RATING = 6;
 
     /** The shelves made from candidates, in order. */
     private const CANDIDATE_SHELVES = ['recommended', 'because-you-read', 'new-releases', 'similar-to', 'trending', 'popular-in-genres', 'discover-new'];
@@ -104,7 +112,30 @@ class ShelfBuilder
     private function computeCold(User $user): bool
     {
         return ! $user->personalizationEnabled()
-            || $this->seeds->for($user)->count() < (int) config('bookflix.recommendations.cold_start_min_interactions');
+            || $this->strongInteractions($user) < (int) config('bookflix.recommendations.cold_start_min_interactions')
+            || $this->seeds->for($user)->isEmpty();
+    }
+
+    /**
+     * Whether an event counts toward leaving the cold start: its implicit-feedback weight is 3 or more (a library add, starting, finishing, a
+     * favorite, a review) or it is a rating of 6 or more. Browsing, searching and a low rating do not.
+     */
+    public static function isStrong(InteractionEvent $event, ?float $value): bool
+    {
+        return in_array($event, self::STRONG_EVENTS, true) || ($event === InteractionEvent::Rating && $value >= self::STRONG_RATING);
+    }
+
+    /**
+     * How many strong interactions the reader has, on titles that are still live (as the ML export reads them).
+     */
+    private function strongInteractions(User $user): int
+    {
+        return UserInteraction::query()->where('user_id', $user->id)
+            ->whereIn('media_id', Media::query()->unmerged()->select('media.id'))
+            ->where(fn ($query) => $query
+                ->whereIn('event', self::STRONG_EVENTS)
+                ->orWhere(fn ($rating) => $rating->where('event', InteractionEvent::Rating)->where('value', '>=', self::STRONG_RATING)))
+            ->count();
     }
 
     /**
@@ -152,7 +183,6 @@ class ShelfBuilder
 
         // The shelves around one title list its neighbors, which the shared pool may have cut off: those are ranked too, in one more call.
         $recent = $personal ? $this->seeds->mostRecent($user) : null;
-        $recent = $recent !== null && ! $recent->isGatedFor($user) ? $recent : null;
         $favorite = $personal ? $this->favorite($user, $recent) : null;
         $around = [
             'because-you-read' => $recent === null ? null : $this->content->similarTo($user, $recent, ReasonType::BecauseYouRead, self::BACKFILL),
@@ -161,7 +191,7 @@ class ShelfBuilder
         $ranked = $this->withNeighbors($user, $ranked, $around);
 
         if ($personal) {
-            $specs['recommended'] = ['title' => __('Recommended For You'), 'featured' => false, 'items' => $this->recommended($user, $pooled, $lists, $ranked)];
+            $specs['recommended'] = ['title' => __('Recommended For You'), 'featured' => false, 'items' => $this->recommended($lists, $ranked)];
 
             if ($recent !== null) {
                 $specs['because-you-read'] = ['title' => __('Because You Read :title', ['title' => $recent->title]), 'featured' => false, 'items' => $this->fromCandidates('because-you-read', $around['because-you-read'], new Explanation(ReasonType::BecauseYouRead, $recent->title), $ranked), 'reason' => $recent->id, 'href' => $this->searchLike($user, $recent)];
@@ -262,30 +292,26 @@ class ShelfBuilder
     /**
      * Recommended For You: the whole pool ranked, diversified to twenty, with one place in `1 / epsilon` (every tenth by default) given to a title from the exploration pool.
      *
-     * @param  Collection<int, Candidate>  $pooled
      * @param  array<string, Collection<int, Candidate>>  $lists
-     * @param  Collection<int, RankedItem>|null  $ranked
+     * @param  Collection<int, RankedItem>  $ranked
      * @return list<ServedItem>
      */
-    private function recommended(User $user, Collection $pooled, array $lists, ?Collection $ranked): array
+    private function recommended(array $lists, Collection $ranked): array
     {
-        $ordered = $ranked->sortBy(fn (RankedItem $item): array => [-$item->score, $item->mediaId])->values();
-        $picked = $this->diversifier->rerank($ordered, 0.7, self::PER_SHELF);
+        $picked = $this->diversifier->rerank($ranked->values(), 0.7, self::PER_SHELF);
 
         $exploration = collect($lists['exploration'] ?? [])->map(fn (Candidate $candidate): ?RankedItem => $ranked->get($candidate->mediaId))->filter()->values();
         // One slot in `1 / epsilon` (every tenth with the default 0.10); an epsilon of 0 gives exploration no slot.
         $epsilon = (float) config('bookflix.recommendations.epsilon');
         $picked = $this->injector->inject($picked, $exploration, $epsilon > 0 ? (int) round(1 / $epsilon) : 0, $this->random);
 
-        $byId = $pooled->keyBy('mediaId');
-
-        return array_values($picked->map(function (RankedItem $item) use ($byId): ServedItem {
+        return array_values($picked->map(function (RankedItem $item): ServedItem {
             $explanation = $item->explanation;
 
             return new ServedItem(
                 'recommended', $item->mediaId, $item->score, $explanation->type,
-                // The ranker leaves the title out of a label whose reason title is gone or gated: the id goes with it.
-                $explanation->reasonTitle === null ? null : $byId->get($item->mediaId)?->reasonMediaId,
+                // The id of the candidate the ranker chose, and null where it left the title out of the label (gone or gated).
+                $item->reasonMediaId,
                 $item->features, array_filter(['genre' => $explanation->genre]), $explanation->label(),
             );
         })->all());

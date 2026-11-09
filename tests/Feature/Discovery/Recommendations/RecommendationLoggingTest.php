@@ -7,10 +7,12 @@ use App\Discovery\Recommendations\ShelfBuilder;
 use App\Enums\ReasonType;
 use App\Enums\RecommendationEventType;
 use App\Events\RecommendationDismissed;
+use App\Models\Media;
 use App\Models\ModelVersion;
 use App\Models\Recommendation;
 use App\Models\RecommendationEvent;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 const FEATURES = ['content_similarity', 'collaborative_score', 'dewey_similarity', 'popularity', 'freshness', 'personal_preference', 'context', 'novelty'];
@@ -99,4 +101,38 @@ test('an opted out reader\'s events are ignored', function () {
     app(RecommendationLogger::class)->event($user->fresh(), $recommendation->id, RecommendationEventType::Click);
 
     expect(RecommendationEvent::count())->toBe(0);
+});
+
+test('recommendations older than the retention are pruned with their events, newer ones stay', function () {
+    $user = User::factory()->create();
+    $old = Recommendation::factory()->create(['user_id' => $user->id, 'generated_at' => now()->subDays(91)]);
+    $recent = Recommendation::factory()->create(['user_id' => $user->id, 'generated_at' => now()->subDays(89)]);
+    RecommendationEvent::factory()->create(['recommendation_id' => $old->id]);
+
+    $this->artisan('model:prune', ['--model' => [Recommendation::class]])->assertSuccessful();
+
+    expect(Recommendation::pluck('id')->all())->toBe([$recent->id])
+        ->and(RecommendationEvent::count())->toBe(0);
+});
+
+test('an event on a recommendation reads it once', function () {
+    $user = User::factory()->create();
+    $recommendation = Recommendation::factory()->create(['user_id' => $user->id]);
+    DB::enableQueryLog();
+
+    app(RecommendationLogger::class)->event($user, $recommendation->id, RecommendationEventType::Click);
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $q): bool => str_starts_with($q['query'], 'select') && str_contains($q['query'], 'from "recommendations"'))->count())->toBe(1);
+});
+
+test('a dismissed recommendation is not pruned however old, so its title stays out', function () {
+    $user = User::factory()->create();
+    $dismissed = dismissed($user, Media::factory()->create());
+    $dismissed->update(['generated_at' => now()->subDays(200)]);
+    Recommendation::factory()->create(['user_id' => $user->id, 'generated_at' => now()->subDays(200)]);
+
+    $this->artisan('model:prune', ['--model' => [Recommendation::class]])->assertSuccessful();
+
+    expect(Recommendation::pluck('id')->all())->toBe([$dismissed->id])
+        ->and(RecommendationEvent::where('recommendation_id', $dismissed->id)->count())->toBe(1);
 });

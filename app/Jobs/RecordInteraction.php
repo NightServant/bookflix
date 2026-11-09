@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Discovery\Recommendations\ShelfBuilder;
 use App\Enums\InteractionEvent;
+use App\Events\HomePreferencesChanged;
 use App\Models\User;
 use App\Models\UserInteraction;
 use Carbon\CarbonInterface;
@@ -43,5 +45,10 @@ class RecordInteraction implements ShouldQueue
             'context' => $this->context,
             'occurred_at' => $this->occurredAt,
         ]);
+
+        // A strong interaction can end the reader's cold start: a Home cached before this write must not keep saying cold.
+        if (ShelfBuilder::isStrong($this->event, $this->value)) {
+            HomePreferencesChanged::dispatch($this->userId);
+        }
     }
 }

@@ -163,7 +163,16 @@ class RunMlJob implements ShouldQueue
 
     private function poll(MlClient $client, MlJobRun $run): void
     {
-        if (in_array($run->status, ['succeeded', 'failed'], true)) {
+        if ($run->status === 'failed') {
+            $this->free();
+
+            return;
+        }
+
+        if ($run->status === 'succeeded') {
+            // A retry after the row was closed but the next step was not queued picks the chain up again.
+            $this->continueChain($run);
+
             return;
         }
 
@@ -212,12 +221,47 @@ class RunMlJob implements ShouldQueue
     {
         $run->update(['status' => $status, 'metrics' => $metrics, 'error' => $error, 'finished_at' => now()]);
 
-        if ($status !== 'succeeded' || $this->then === []) {
+        if ($status !== 'succeeded') {
             $this->free();
 
             return;
         }
 
+        $this->continueChain($run);
+    }
+
+    /**
+     * Queue the step after a succeeded one, once. The marker keeps a retry from queueing it twice and is released when the queueing throws,
+     * so that retry (which finds the run already closed) can still do it; the last step has nothing to queue and ends the pipeline.
+     */
+    private function continueChain(MlJobRun $run): void
+    {
+        if ($this->then === []) {
+            $this->free();
+
+            return;
+        }
+
+        $marker = 'ml:continued:'.$run->id;
+
+        if (! Cache::add($marker, true, now()->addDay())) {
+            return;
+        }
+
+        try {
+            $this->dispatchNext($run->metrics);
+        } catch (Throwable $exception) {
+            Cache::forget($marker);
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $metrics
+     */
+    private function dispatchNext(?array $metrics): void
+    {
         $next = $this->then;
 
         if (in_array($this->name, self::TRAIN_STEPS, true)) {
@@ -245,14 +289,18 @@ class RunMlJob implements ShouldQueue
 
     /**
      * The job gave up. A step that never started has no row yet and gets one, failed, so the page shows why the night's training did not happen;
-     * one that was being watched has its row closed.
+     * one whose row exists (found by the job's key, or by the id it was watching) has that row closed instead of a second one added.
      */
     public function failed(Throwable $exception): void
     {
         $this->free();
 
-        if ($this->mlJobRunId !== null) {
-            MlJobRun::whereKey($this->mlJobRunId)->whereNotIn('status', ['succeeded', 'failed'])
+        $open = $this->mlJobRunId !== null
+            ? MlJobRun::whereKey($this->mlJobRunId)
+            : MlJobRun::where('job_key', $this->jobKey);
+
+        if ($this->mlJobRunId !== null || $open->exists()) {
+            $open->whereNotIn('status', ['succeeded', 'failed'])
                 ->update(['status' => 'failed', 'error' => $exception->getMessage(), 'finished_at' => now()]);
 
             return;

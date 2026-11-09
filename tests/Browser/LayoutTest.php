@@ -66,3 +66,11 @@ test('a long account name never pushes the header past a phone screen', function
         ->assertScript('document.querySelector("header [data-flux-sidebar-profile]").getBoundingClientRect().right <= window.innerWidth', true)
         ->assertAriaAttribute('header [data-flux-sidebar-profile]', 'label', 'Account menu for Maximiliana Wolfeschlegelsteinhausen-Bergerdorff');
 });
+
+test('the header logo and the account button are at least 44 px tall on a phone', function () {
+    $this->actingAs(User::factory()->create());
+
+    visit(route('home'), ['viewport' => ['width' => 390, 'height' => 844]])->wait(1)
+        ->assertScript('document.querySelector("header a[href=\"'.route('home').'\"]").getBoundingClientRect().height >= 44', true)
+        ->assertScript('document.querySelector("[data-test=sidebar-menu-button]").getBoundingClientRect().height >= 44', true);
+});
