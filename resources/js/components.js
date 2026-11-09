@@ -325,6 +325,13 @@ export default function components(Alpine) {
             focus(event, tile) {
                 const from = event.relatedTarget;
 
+                // Focus the page moved here itself (after "Not interested") is not the reader arriving, so it leaves the card closed.
+                if (event.target.hasAttribute('data-focus-quiet')) {
+                    event.target.removeAttribute('data-focus-quiet');
+
+                    return;
+                }
+
                 if (! event.target.matches(':focus-visible') || tile.contains(from) || (tile === this.active && this.card().contains(from))) {
                     return;
                 }
@@ -509,7 +516,13 @@ export default function components(Alpine) {
                 }
 
                 this.menuId = this.menuId === id ? null : id;
-                this.menuId !== null && this.$nextTick(() => button.nextElementSibling.querySelector('[role=menuitem]').focus());
+                // The menu is shown here, ahead of x-show's own (asynchronous) update, so focus lands in the same task as the key press.
+                if (this.menuId !== null) {
+                    const menu = button.nextElementSibling;
+
+                    menu.style.removeProperty('display');
+                    menu.querySelector('[role=menuitem]').focus();
+                }
             },
 
             closeMenu(refocus = false) {
@@ -543,7 +556,9 @@ export default function components(Alpine) {
                 // Focus goes to the neighbouring tile first, so it never falls back to the page while the tile is leaving.
                 const next = neighbour?.querySelector('a[data-recommendation], a[href]') ?? document.getElementById('main');
 
+                next.setAttribute('data-focus-quiet', '');
                 next.focus();
+                next.removeAttribute('data-focus-quiet');
                 afterFocus = next;
 
                 // Everything of this dismissal is kept in `entry`, so a second one made while this tile is still leaving cannot mix them up.

@@ -99,7 +99,26 @@ test('the keyboard opens the menu on the button with Enter, focuses the item, Es
         ->keys($button.' + [role=menu] [role=menuitem]', 'Enter')->wait(0.6)
         ->assertScript($this->shelfCount, 19)
         ->assertScript('document.activeElement.matches("section[aria-labelledby=shelf-recommended] ul > li:nth-child(2) a")', true)
+        // The focus the page moves to the next tile is not an arrival: its preview card stays closed (it would cover the undo toast).
+        ->wait(0.7)
+        ->assertScript('[...document.querySelectorAll("[data-story-card]")].some((card) => getComputedStyle(card).display !== "none")', false)
         ->assertNoJavaScriptErrors();
+});
+
+test('Enter and Space on the button put focus on the first menu item at once, every time', function () {
+    $page = ($this->settle)(visit(route('home'), $this->desktop)->wait(1));
+
+    foreach ([2, 3, 4] as $n) {
+        foreach (['Enter', 'Space'] as $key) {
+            $button = ($this->tile)($n).' [data-tile-menu]';
+
+            // Focus is read in the microtask right after the key's click, before any timer, so a late focus would fail here.
+            $page->script('(() => { const b = document.querySelector("'.$button.'"); b.focus(); b.click(); window.focusedAtOnce = null; queueMicrotask(() => { window.focusedAtOnce = document.activeElement.matches("[role=menuitem]"); }); })()');
+            $page->assertScript('window.focusedAtOnce', true)->keys($button.' + [role=menu] [role=menuitem]', 'Escape')->wait(0.2);
+        }
+    }
+
+    $page->assertNoJavaScriptErrors();
 });
 
 test('on a phone the button is always there, opens a bottom sheet naming the story, and Cancel, Esc and the dimmed area close it', function () {
