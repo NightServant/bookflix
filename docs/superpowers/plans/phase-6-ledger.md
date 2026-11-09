@@ -217,3 +217,17 @@ Not in this branch (separate work): unmerged duplicates (Kusuriya no Hitorigoto 
 - R2 thin evaluation data: when the evaluation cannot compare (fewer than 2 evaluable readers) and a version is active, promote the newer candidate (no evidence to block it; it covers the current catalog). A candidate the gate refuses with evidence is retired and its rows deleted at once. If wrong: a weaker model can go live while data is thin, when nothing measures quality anyway.
 - R3 recommendation logs are kept 90 days (`recommendations.retention_days`), pruned daily; events go with them (FK cascade). If wrong: Phase 8 learning-to-rank has 90 days of logs, not all of them.
 - R4 Lighthouse is measured on the local Herd site at 390 px; production will differ.
+
+### Task A (`ec37a29..824ef83`) — DONE after one fix wave
+- Commits: `5fea71a`, `1263259`, then fixes `8a614f0`, `824ef83`. 990 tests in Discovery, Library and Intelligence pass; Pint and PHPStan clean.
+- Ruling R1 as built: the cold start counts strong `user_interactions` rows (library_add, reading_start, reading_complete, favorite, review, rating ≥ 6) on live, unmerged media; a reader with no seed titles is cold too. A retracted or lowered rating still counts (accepted). `RecordInteraction` forgets the reader's cached shelves when it stores a strong interaction.
+- Review found and fixed: pruning would have deleted "Not interested" dismissals (rows with a dismiss event are never pruned now); cold count ignored dead media; queued interactions could leave a cold digest cached 10 minutes; the reason id came from a second lookup instead of the ranked candidate (now on `RankedItem`); `generated_at` index added.
+- Kept: `HybridRanker`'s best-per-title loop (`withNeighbors` merges two lists that can share titles); the pre-sort in `recommended()` removed instead.
+- `model:prune` is scheduled daily; only `Recommendation` is prunable.
+
+### Task B (`1263259..4680c7b`) — DONE after one fix wave
+- Commits: `031f3b8`, `09940d4`, then `39a7c09`, `4680c7b`. pytest 124 passed against a dedicated `bookflix_ml_test` database; ruff, mypy clean; RunMlJob Pest tests pass.
+- Ruling R2 as built: with an active version, too few evaluable readers promotes the newer candidate (still needs similarity rows); enough readers but no neighbors is a refusal; a refusal retires the candidate and deletes its rows (`registry.retire`, sharing `promote`'s cleanup).
+- `RunMlJob`: the next step is dispatched once per run (cache marker, released if the dispatch throws); a retry continues a succeeded run; `failed()` closes the row a dead start job left.
+- `lsa` explained variance clamped at 1.0 (macOS BLAS rounding made a test fail locally).
+- Deferred minor: retiring a newer candidate leaves an older waiting candidate, which an unpinned manual `evaluate` would pick (pipelines always pin the version).
