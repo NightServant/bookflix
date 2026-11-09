@@ -295,8 +295,9 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     The gate compares against the active version scored now, on the same split in the same run (item_cf refit with the active version's
     parameters, lsa from its stored rows), never against metrics recorded at some earlier time. Both metric sets, `promoted` and `reason`
     are stored on the candidate, and the promotion goes in that same transaction. A candidate with no `media_similarities` rows is never
-    promoted. With too little data (fewer than two readers with two positive items, or no neighbors) nothing can be compared: the
-    candidate is promoted only when there is no active version yet. Any failure rolls back and re-raises, so no version or row changes;
+    promoted. With too little data (fewer than two readers with two positive items, or no neighbors) nothing can be compared, so the
+    candidate is promoted (no evidence blocks it, and a frozen model would never get neighbors for new media). A candidate the gate
+    refuses on its metrics is retired and its rows deleted in the same transaction. Any failure rolls back and re-raises, so no version or row changes;
     the job runner records the failure.
     """
     kind = str(params.get("kind", ""))
@@ -378,13 +379,23 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         neighbors = _neighbors_of(
             conn, kind, version_id, method, parameters, positive_for, held, needed, (weights, k)
         )
+        metrics_refused = False
         outcome: dict[str, Any] = {"n_eval_users": len(held)}
         if active is not None:
             outcome["active_version_id"] = active[0]
 
-        if len(held) < MIN_EVAL_USERS or not neighbors:
-            promote = active is None
-            reason = "no active version (not evaluated)" if promote else "not enough data"
+        if len(held) >= MIN_EVAL_USERS and not neighbors and active is not None:
+            # Enough readers to compare, yet the candidate ranks nothing for them: that is evidence against it.
+            promote, metrics_refused = False, True
+            reason = "the candidate had no neighbors for the evaluated readers"
+        elif len(held) < MIN_EVAL_USERS or not neighbors:
+            # Nothing can be compared, and a frozen model would never get neighbors for new media: the newer version covers more.
+            promote = True
+            reason = (
+                "no active version (not evaluated)"
+                if active is None
+                else "not enough data to compare; the newer version was promoted"
+            )
         else:
             metrics = score(neighbors, version_id if stored_rows else None)
             outcome |= metrics
@@ -410,6 +421,7 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                 )
                 outcome["active_metrics"] = active_scored
                 promote = evaluate.should_promote(metrics, active_scored)
+                metrics_refused = not promote
                 if promote:
                     reason = (
                         "passed the gate" if active_scored else "active version could not be scored"
@@ -420,11 +432,14 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                     )
         if promote and not registry.has_similarity_rows(conn, version_id, method):
             promote, reason = False, "no similarity rows (run build-similarities first)"
+            metrics_refused = False
 
         outcome |= {"promoted": promote, "reason": reason}
         registry.record_metrics(conn, version_id, outcome)
         if promote:
             registry.promote(conn, version_id)
+        elif metrics_refused:
+            registry.retire(conn, version_id)
         conn.commit()
     except BaseException:
         conn.rollback()

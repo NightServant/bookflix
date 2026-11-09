@@ -70,11 +70,7 @@ class RecommendationLogger
      */
     public function event(User $user, int $recommendationId, RecommendationEventType $event): void
     {
-        if (! $user->personalizationEnabled()) {
-            return;
-        }
-
-        $recommendation = Recommendation::query()->whereKey($recommendationId)->where('user_id', $user->id)->first();
+        $recommendation = $this->owned($user, $recommendationId);
 
         if ($recommendation === null) {
             return;

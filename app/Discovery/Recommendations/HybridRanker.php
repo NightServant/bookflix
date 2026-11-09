@@ -90,7 +90,9 @@ class HybridRanker
                     + $weights->context * $features['context']
                     + $weights->novelty * $features['novelty'];
 
-                return new RankedItem($id, $this->clamp($score / $total), $features, Explanation::fromCandidate($candidate, $reasons[$candidate->reasonMediaId] ?? null, isset($genres[$candidate->payload['genre'] ?? ''])));
+                $explanation = Explanation::fromCandidate($candidate, $reasons[$candidate->reasonMediaId] ?? null, isset($genres[$candidate->payload['genre'] ?? '']));
+
+                return new RankedItem($id, $this->clamp($score / $total), $features, $explanation, $explanation->reasonTitle === null ? null : $candidate->reasonMediaId);
             })
             ->sortBy(fn (RankedItem $item): array => [-$item->score, $item->mediaId])
             ->values();

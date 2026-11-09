@@ -85,7 +85,7 @@ def train_lsa(corpus: list[dict[str, Any]], components: int = 200) -> LsaResult:
         vectors=vectors,
         top_terms=top_terms,
         vocab_size=int(matrix.shape[1]),
-        explained_variance=float(np.nan_to_num(svd.explained_variance_ratio_.sum())),
+        explained_variance=min(1.0, float(np.nan_to_num(svd.explained_variance_ratio_.sum()))),
         vectorizer=vectorizer,
         svd=svd,
     )

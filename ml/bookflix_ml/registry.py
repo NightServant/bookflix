@@ -160,6 +160,31 @@ def promote(conn: Conn, version_id: int) -> None:
         "update model_versions set status = 'active', updated_at = now() where id = %s",
         (version_id,),
     )
+    _prune(conn, name, method)
+
+
+def retire(conn: Conn, version_id: int) -> None:
+    """Retire a `candidate` the gate refused and delete what it left behind, in the caller's transaction (it does not commit).
+
+    Uses the same cleanup as `promote`, so the active version and any other waiting candidate are never touched. A version that is
+    not a candidate raises `ValueError` before anything changes.
+    """
+    row = conn.execute(
+        "select name, kind, status from model_versions where id = %s for update", (version_id,)
+    ).fetchone()
+    if row is None or row[2] != "candidate":
+        raise ValueError(f"Model version {version_id} is not a candidate.")
+
+    conn.execute(
+        "update model_versions set status = 'retired', updated_at = now() where id = %s",
+        (version_id,),
+    )
+    _prune(conn, row[0], row[1])
+
+
+def _prune(conn: Conn, name: str, method: str) -> None:
+    """Delete the similarity rows of every version of `method` that is neither active nor a waiting candidate and, for `lsa`, the
+    vectors and features of its retired versions."""
     conn.execute(
         """
         delete from media_similarities

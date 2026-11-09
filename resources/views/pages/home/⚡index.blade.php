@@ -5,6 +5,7 @@ use App\Discovery\HomeShelves;
 use App\Discovery\Recommendations\Explanation;
 use App\Discovery\Recommendations\ShelfBuilder;
 use App\Discovery\Shelf;
+use App\Enums\ReadingStatus;
 use App\Models\Collection;
 use App\Models\Media;
 use Illuminate\Contracts\View\View;
@@ -44,6 +45,17 @@ new #[Title('Home')] class extends Component {
     public function slides(): EloquentCollection
     {
         return app(HomeShelves::class)->hero(viewer: auth()->user());
+    }
+
+    /**
+     * The reader's status for each hero story already in their library, by media id (one query).
+     *
+     * @return array<int, ReadingStatus>
+     */
+    #[Computed]
+    public function heroStatuses(): array
+    {
+        return auth()->user()->library()->whereIn('media_id', $this->slides->modelKeys())->pluck('status', 'media_id')->all();
     }
 
     /**
@@ -183,7 +195,7 @@ new #[Title('Home')] class extends Component {
 >
     @if ($this->hasCatalog)
         @if ($this->slides->isNotEmpty())
-            <x-hero :slides="$this->slides" bleed />
+            <x-hero :slides="$this->slides" :statuses="$this->heroStatuses" bleed />
         @else
             <h1 class="sr-only">{{ __('Home') }}</h1>
         @endif

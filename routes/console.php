@@ -16,6 +16,7 @@ Schedule::command('bookflix:prune-covers')->weekly();
 Schedule::command('bookflix:prune-exports')->daily();
 Schedule::command('bookflix:score-popularity')->daily();
 Schedule::command('bookflix:sync-signals')->daily();
+Schedule::command('model:prune')->daily();
 
 $sourceIsEnabled = fn (string $key): Closure => fn (): bool => ExternalSource::where('key', $key)->where('enabled', true)->exists();
 
