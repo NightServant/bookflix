@@ -295,8 +295,8 @@ return [
         'auto_title_similarity' => 0.90,
         'review_min_similarity' => 0.75,
         'year_window' => 1,
-        // Taken off a pair's score when both sides credit someone and no one is on both: the same title by different creators sinks
-        // to the bottom of the review queue, and a merely similar one drops out of it.
+        // Taken off a pair's score when both sides credit someone and no one is on both, never below `review_min_similarity`: the pair
+        // sinks down the review queue and never auto-merges, and an admin still decides (one person is often spelled two ways).
         'creator_mismatch_penalty' => 0.2,
     ],
 

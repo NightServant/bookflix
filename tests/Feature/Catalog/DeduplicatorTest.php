@@ -389,11 +389,55 @@ test('an identical title in the same year does not merge when the creators diffe
         ->and(app(Deduplicator::class)->candidates($incoming))->toHaveCount(1);
 });
 
-test('a near identical title by different creators drops below the review floor', function () {
+test('a near identical title by different creators stays in review at the floor, below the same pair without creators', function () {
     storedManga('Monster Hunter Stories', 2016, ['Capcom Staff']);
+    $deduplicator = app(Deduplicator::class);
 
-    expect(app(Deduplicator::class)->candidates(normalized(title: 'Monster Hunter Stories 2', type: 'manga', creators: ['Somebody Else'])))->toBeEmpty()
-        ->and(app(Deduplicator::class)->candidates(normalized(title: 'Monster Hunter Stories 2', type: 'manga')))->toHaveCount(1);
+    $conflicting = $deduplicator->candidates(normalized(title: 'Monster Hunter Stories 2', type: 'manga', creators: ['Somebody Else']));
+    $uncredited = $deduplicator->candidates(normalized(title: 'Monster Hunter Stories 2', type: 'manga'));
+
+    expect($conflicting)->toHaveCount(1)->and($conflicting->first()['score'])->toBe(0.75)
+        ->and($uncredited->first()['score'])->toBeGreaterThan(0.75);
+});
+
+test('an identical title in the same year with creators written in different scripts is kept for review, not merged', function () {
+    $titan = storedManga('Shingeki no Kyojin', 2009, ['諫山創']);
+    $incoming = normalized(title: 'Shingeki no Kyojin', type: 'manga', year: 2009, creators: ['Hajime Isayama']);
+
+    $candidates = app(Deduplicator::class)->candidates($incoming);
+
+    expect(app(Deduplicator::class)->match($incoming))->toBeNull()
+        ->and($candidates)->toHaveCount(1)->and($candidates->first()['media']->is($titan))->toBeTrue()->and($candidates->first()['score'])->toBe(0.8);
+});
+
+test('the work that shares a creator is found even when many works share its title', function () {
+    foreach (range(1, 30) as $n) {
+        storedManga('Monster', 2000 + $n, ["Other Author {$n}"]);
+    }
+    $urasawa = storedManga('Monster', 1994, ['Naoki Urasawa']);
+
+    expect(app(Deduplicator::class)->match(normalized(title: 'Monster', type: 'manga', year: 1994, creators: ['Naoki Urasawa']))?->is($urasawa))->toBeTrue();
+});
+
+test('a translation matching only an alternative title of a manhwa does not take its form', function () {
+    storedManhwa()->update(['alternative_titles' => ['Na Honjaman Level Up']]);
+    $translation = new NormalizedMedia(title: 'Na Honjaman Level Up', mediaTypeSlug: 'comic-book', credits: ['Chugong'], publicationYear: 2021);
+
+    expect(app(Deduplicator::class)->originalForm($translation))->toBeNull()
+        ->and(app(Deduplicator::class)->candidates($translation))->toHaveCount(1);
+});
+
+test('a volume is not merged into its series, even when the series lists the volume title', function () {
+    $series = Media::factory()->ofType('graphic-novel')->create(['title' => 'Heartstopper', 'publication_year' => 2019]);
+    $series->creators()->attach(Creator::factory()->create(['name' => 'Alice Oseman']), ['role' => 'author', 'position' => 0]);
+    $volume = normalized(title: 'Heartstopper: Volume One', type: 'graphic-novel', year: 2019, creators: ['Alice Oseman']);
+
+    expect(app(Deduplicator::class)->match($volume))->toBeNull();
+
+    $series->update(['alternative_titles' => ['Heartstopper: Volume One']]);
+
+    expect(app(Deduplicator::class)->match($volume))->toBeNull()
+        ->and(app(Deduplicator::class)->candidates($volume))->toHaveCount(1);
 });
 
 test('a rescan pairs existing works by their alternative titles, re-scores pairs by creators and merges nothing', function () {

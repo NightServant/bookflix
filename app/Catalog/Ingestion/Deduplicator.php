@@ -63,7 +63,7 @@ class Deduplicator
         $formats = ExternalSource::query()->whereIn('key', Reclassifier::FORMAT_PROVIDERS)->pluck('id')->all();
 
         $original = $this->similar($incoming)->first(fn (array $hit): bool => $hit['media']->id !== $except
-            && $hit['score'] >= (float) config('bookflix.dedup.auto_title_similarity')
+            && $hit['title'] >= (float) config('bookflix.dedup.auto_title_similarity')
             && in_array($hit['media']->mediaType->slug, ['manga', 'manhwa', 'manhua'], true)
             && in_array($hit['media']->primary_external_source_id, $formats, true)
             && ($incoming->publicationYear === null || $hit['media']->publication_year === null || $incoming->publicationYear >= $hit['media']->publication_year)
@@ -397,11 +397,15 @@ class Deduplicator
     /**
      * Same-family media whose title is similar to one of the record's titles, or whose alternative title is similar to the record's title,
      * from the review floor up, best first. The score is that best similarity, less the creator penalty when both sides credit someone and
-     * no one is on both; `title` is the similarity of the two main titles alone, which is all an auto merge goes by. Alternative titles are
-     * never compared with each other: a short alias two works share ("FMA") says nothing.
+     * no one is on both, but never below the floor: providers spell one person differently (in another script, under a pen name), so a creator
+     * conflict sinks a pair and bars an auto merge but leaves the decision to an admin. `title` is the similarity of the two main titles alone,
+     * which is all an auto merge goes by. Alternative titles are never compared with each other: a short alias two works share ("FMA") says nothing.
      *
      * The trigram indexes on the title and on the alternative titles narrow the family down first (pg_trgm's default thresholds sit well
-     * below the review floor, so they drop nothing that could reach it); only those rows are scored.
+     * below the review floor, so they drop nothing that could reach it); only those rows are scored. The best 100 by title are ranked again
+     * after the creator penalty, so the one work among many of the same title that shares a creator still comes first.
+     *
+     * ponytail: a title shared by more than 100 works in one family can still crowd the right one out; move the creator check into the query then.
      *
      * @return Collection<int, array{media: Media, score: float, title: float, shared: bool, auto: bool}>
      */
@@ -417,7 +421,8 @@ class Deduplicator
             .'(select max(similarity('.sprintf(self::NORMALIZE, 'value').', '.$bound.')) from jsonb_array_elements_text(media.alternative_titles)))';
         $floor = (float) config('bookflix.dedup.review_min_similarity');
         $penalty = (float) config('bookflix.dedup.creator_mismatch_penalty');
-        $credited = $this->creatorKeys([...array_map(fn ($creator): string => $creator->name, $incoming->creators), ...$incoming->credits]);
+        $creditedNames = [...array_map(fn ($creator): string => $creator->name, $incoming->creators), ...$incoming->credits];
+        $credited = $this->creatorKeys($creditedNames);
 
         return Media::query()
             ->select('media.*')
@@ -429,25 +434,25 @@ class Deduplicator
                 ->orWhereRaw('immutable_unaccent(lower(media.alternative_titles::text)) %> immutable_unaccent(lower(cast(? as text)))', [$incoming->title]))
             ->whereRaw($bestName.' >= cast(? as real)', [$names, $incoming->title, $floor])
             ->orderByDesc('name_score')
-            ->limit(25)
+            ->limit(100)
             ->with(['creators', 'mediaType'])
             ->get()
-            ->map(function (Media $media) use ($incoming, $credited, $penalty): array {
-                $creators = $this->creatorKeys($media->creators->pluck('name'));
-                $shared = array_intersect($credited, $creators) !== [];
-                $conflict = ! $shared && $credited !== [] && $creators !== [];
+            ->map(function (Media $media) use ($incoming, $creditedNames, $credited, $floor, $penalty): array {
+                $shared = array_intersect($credited, $this->creatorKeys($media->creators->pluck('name'))) !== [];
+                $conflict = ! $shared && $creditedNames !== [] && $media->creators->isNotEmpty();
+                $best = (float) $media->getAttribute('name_score');
                 $title = round((float) $media->getAttribute('title_score'), 4);
 
                 return [
                     'media' => $media,
-                    'score' => round((float) $media->getAttribute('name_score') - ($conflict ? $penalty : 0.0), 4),
+                    'score' => round($conflict ? max($floor, $best - $penalty) : $best, 4),
                     'title' => $title,
                     'shared' => $shared,
                     'auto' => $this->qualifiesForAutoMerge($incoming, $media, $title, $shared, $conflict),
                 ];
             })
-            ->filter(fn (array $hit): bool => $hit['score'] >= $floor)
             ->sortByDesc('score')
+            ->take(25)
             ->values();
     }
 
@@ -468,7 +473,8 @@ class Deduplicator
     }
 
     /**
-     * Comparable forms of credited names; two lists share a creator when they share a form. Providers write the same person differently:
+     * Comparable forms of credited names; two lists share a creator when they share a form. A name with no Latin form ("諫山創") has none, so it
+     * can never be shared, though it still counts as a credit. Providers write the same person differently:
      * MangaUpdates adds the name in its own script and puts the family name first ("Oda Eiichirou (尾田栄一郎)"), AniList writes long vowels out
      * ("Katsuhiro Ootomo"), Comic Vine closes up pen names ("singNsong"). So the script part is dropped, long vowels folded, and a name matches
      * in its own word order or with its words sorted.
