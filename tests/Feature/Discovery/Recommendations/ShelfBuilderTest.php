@@ -440,6 +440,8 @@ test('a reader is cold until five strong interactions, and the exit path warms t
 test('views, searches and low ratings are not strong interactions', function () {
     $catalog = homeCatalog();
     $user = User::factory()->create();
+    // A seed title that counts for taste but is no strong interaction: the weak events below must not add up to one.
+    libraryEntry($user, $catalog[7], 'reading');
 
     foreach ($catalog->take(6) as $story) {
         foreach ([InteractionEvent::View, InteractionEvent::Click, InteractionEvent::Search, InteractionEvent::ReadingProgress] as $event) {

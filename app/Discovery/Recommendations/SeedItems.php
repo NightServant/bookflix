@@ -111,21 +111,27 @@ class SeedItems
     {
         $seeds = $this->for($user);
 
-        $completed = LibraryEntry::query()->where('user_id', $user->id)->where('status', ReadingStatus::Completed)->whereNotNull('completed_at')
-            ->get(['media_id', 'completed_at'])->map(fn (LibraryEntry $entry): array => [$entry->media_id, $entry->completed_at]);
+        for ($limit = 20; ; $limit *= 4) {
+            $completed = LibraryEntry::query()->where('user_id', $user->id)->where('status', ReadingStatus::Completed)->whereNotNull('completed_at')
+                ->orderByDesc('completed_at')->limit($limit)->get(['media_id', 'completed_at'])->map(fn (LibraryEntry $entry): array => [$entry->media_id, $entry->completed_at->getTimestamp()]);
 
-        $rated = Rating::query()->where('user_id', $user->id)->where('score', '>=', self::LOVED_FROM)
-            ->get(['media_id', 'updated_at'])->map(fn (Rating $rating): array => [$rating->media_id, $rating->updated_at]);
+            $rated = Rating::query()->where('user_id', $user->id)->where('score', '>=', self::LOVED_FROM)
+                ->orderByDesc('updated_at')->limit($limit)->get(['media_id', 'updated_at'])->map(fn (Rating $rating): array => [$rating->media_id, $rating->updated_at->getTimestamp()]);
 
-        $ids = $completed->concat($rated)->filter(fn (array $pair): bool => $seeds->has($pair[0]))
-            ->sortByDesc(fn (array $pair): int => $pair[1]->getTimestamp())->pluck(0)->unique()->values();
+            // Anything past a full window is older than its last row: only candidates at or after that cutoff are certain to be the newest.
+            $cutoff = collect([$completed, $rated])->filter(fn (Collection $window): bool => $window->count() === $limit)->map(fn (Collection $window): int => $window->last()[1])->max();
+            $complete = $cutoff === null;
 
-        if ($ids->isEmpty()) {
-            return null;
+            $pairs = $completed->concat($rated)->filter(fn (array $pair): bool => $seeds->has($pair[0]) && ($complete || $pair[1] >= $cutoff))
+                ->sortByDesc(fn (array $pair): int => $pair[1]);
+
+            $ids = $pairs->pluck(0)->unique()->values();
+            $visible = $ids->isEmpty() ? collect() : Media::query()->unmerged()->visibleTo($user)->whereIn('media.id', $ids->all())->get()->keyBy('id');
+            $found = $ids->first(fn (int $id): bool => $visible->has($id));
+
+            if ($found !== null || $complete) {
+                return $found === null ? null : $visible->get($found);
+            }
         }
-
-        $visible = Media::query()->unmerged()->visibleTo($user)->whereIn('media.id', $ids->all())->get()->keyBy('id');
-
-        return $visible->get($ids->first(fn (int $id): bool => $visible->has($id)));
     }
 }

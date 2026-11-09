@@ -112,9 +112,11 @@ test('Enter and Space on the button put focus on the first menu item at once, ev
         foreach (['Enter', 'Space'] as $key) {
             $button = ($this->tile)($n).' [data-tile-menu]';
 
-            // Focus is read in the microtask right after the key's click, before any timer, so a late focus would fail here.
-            $page->script('(() => { const b = document.querySelector("'.$button.'"); b.focus(); b.click(); window.focusedAtOnce = null; queueMicrotask(() => { window.focusedAtOnce = document.activeElement.matches("[role=menuitem]"); }); })()');
-            $page->assertScript('window.focusedAtOnce', true)->keys($button.' + [role=menu] [role=menuitem]', 'Escape')->wait(0.2);
+            // A real key press on the focused trigger; focus must already be on the first item when the next script runs, before any timer.
+            $page->script('document.querySelector("'.$button.'").focus()');
+            $page->keys($button, $key)
+                ->assertScript('document.activeElement.matches("'.$button.' + [role=menu] [role=menuitem]")', true)
+                ->keys($button.' + [role=menu] [role=menuitem]', 'Escape')->wait(0.2);
         }
     }
 
