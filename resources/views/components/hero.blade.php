@@ -4,6 +4,7 @@
     'size' => 'L',
     'label' => null,
     'bleed' => false,
+    'statuses' => [],
 ])
 
 {{--
@@ -14,6 +15,7 @@
     `size` is L|M|S (S has no cards). `bleed` makes it a band that spans the whole page (in a `flush` layout) with its content
     on the header's gutter; otherwise it is a rounded card inside the page's container. There is no autoplay. The `cta` slot replaces the two per-slide buttons.
     "Add to Library" is <x-library-add>: it raises a `library-add` event with the media id, and only a signed-in reader sees it.
+    `statuses` maps a media id to the signed-in reader's ReadingStatus for it, so a story already in their library shows that instead of "Add to Library".
     Eager-load `mediaType` and `genres` on fetched media (the eyebrow reads them).
 --}}
 @php
@@ -100,7 +102,7 @@
                                 {{ $cta }}
                             @else
                                 <x-cta icon="book-open" :href="route('stories.show', $slide->slug)" wire:navigate>{{ __('View story') }}</x-cta>
-                                <x-library-add :media="$slide" />
+                                <x-library-add :media="$slide" :status="$statuses[$slide->id] ?? null" />
                             @endif
                         </div>
                     </article>

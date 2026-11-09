@@ -2,6 +2,8 @@
 
 use App\Discovery\HomeShelves;
 use App\Discovery\Shelf;
+use App\Enums\ReadingStatus;
+use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
@@ -197,6 +199,19 @@ test('hero renders eyebrow, one h1, blurb, the CTAs, the next three cards and th
         ->and(htmlQuery($html, '//article[@aria-label="1 of 5"]//button[normalize-space()="Add to Library"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@x-text="String(current + 1).padStart(2, \'0\')"]')->item(0)->textContent)->toBe('01')
         ->and(htmlQuery($html, '//img[@data-backdrop="0"][@fetchpriority="high"]')->length)->toBe(1);
+});
+
+test('the hero shows the reader\'s status instead of "Add to Library" for a story already in their library', function () {
+    ratedStories(6);
+    $first = Media::query()->where('title', 'Rated Story 1')->first();
+    $user = User::factory()->create();
+    LibraryEntry::factory()->for($user)->for($first)->create(['status' => ReadingStatus::Completed]);
+
+    $html = $this->actingAs($user)->get(route('home'))->getContent();
+
+    expect(htmlQuery($html, '//article[@aria-label="1 of 5"]//button[normalize-space()="Add to Library"]')->length)->toBe(0)
+        ->and(htmlQuery($html, '//article[@aria-label="1 of 5"]//a[normalize-space()="Completed"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//article[@aria-label="2 of 5"]//button[normalize-space()="Add to Library"]')->length)->toBe(1);
 });
 
 test('the hero is the five most trending stories that have a cover, with the everyday sized ctas', function () {
