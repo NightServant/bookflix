@@ -521,7 +521,11 @@ export default function components(Alpine) {
                     const menu = button.nextElementSibling;
 
                     menu.style.removeProperty('display');
-                    menu.querySelector('[role=menuitem]').focus();
+                    const item = menu.querySelector('[role=menuitem]');
+
+                    item.focus();
+                    // A pointer click can lose that focus to the click's own default handling; once the update has settled, make sure it is there.
+                    this.$nextTick(() => this.menuId !== null && document.activeElement !== item && item.focus());
                 }
             },
 

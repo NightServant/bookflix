@@ -80,7 +80,9 @@ function expand(el, { expression }, { effect, evaluateLater, cleanup }) {
 
 /**
  * x-motion-crossfade: fades the element in on mount (so a `wire:key` change on a hero remounts and
- * crossfades the new content in) and replays whenever the optional expression changes value.
+ * crossfades the new content in) and replays whenever the optional expression changes value. With an expression the first
+ * read does not play: the element is already on screen (a hero backdrop is the page's largest image, and starting it at
+ * opacity 0 would hold back its paint until the script ran).
  */
 function crossfade(el, { expression }, { effect, evaluateLater, cleanup }) {
     if (prefersReducedMotion()) {
@@ -96,8 +98,11 @@ function crossfade(el, { expression }, { effect, evaluateLater, cleanup }) {
 
     if (expression) {
         const read = evaluateLater(expression);
+        let first = true;
 
-        effect(() => read(play));
+        effect(() => read(() => {
+            first ? (first = false) : play();
+        }));
     } else {
         play();
     }

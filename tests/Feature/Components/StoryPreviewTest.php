@@ -78,6 +78,12 @@ test('without a cover or a description the summary falls back to a placeholder a
         ->and(htmlQuery($html, '//template//p[contains(@class,"line-clamp")]')->length)->toBe(0);
 });
 
+test('a long description is cut in the summary, so a shelf of tiles does not ship every full blurb', function () {
+    $html = renderStoryPreview(frankenstein(['description' => str_repeat('word ', 400)]));
+
+    expect(mb_strlen(htmlQuery($html, '//template//p[contains(@class,"line-clamp-3")]')->item(0)->textContent))->toBeLessThanOrEqual(183);
+});
+
 test('attributes land on the tile', function () {
     expect(htmlQuery(renderStoryPreview(frankenstein(), 'data-test="preview" class="w-fit"'), '//*[@data-test="preview"][@data-story-preview][contains(@class,"w-fit")]')->length)->toBe(1);
 });
