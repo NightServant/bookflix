@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\CoverPolicy;
+use App\Models\ExternalSource;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\User;
@@ -51,6 +53,22 @@ test('the backdrop is the cover: first loaded eagerly, the rest lazily, under a 
         ->and(htmlQuery($html, '//img[@data-backdrop][@loading="lazy"]')->length)->toBe(4)
         ->and(htmlQuery($html, '//img[@data-backdrop][@x-motion-crossfade="fade"]')->length)->toBe(5)
         ->and(htmlQuery($html, '//div[@data-hero-scrim][contains(@class,"from-canvas")]')->length)->toBe(1);
+});
+
+test('below lg a cover we serve ourselves is backed by its small backdrop copy, and the hidden desktop book loads lazily', function () {
+    ExternalSource::factory()->create(['key' => 'mangadex', 'cover_policy' => CoverPolicy::Cache]);
+    $slides = heroSlides(2);
+    $slides[0]->update(['cover_url' => 'https://uploads.mangadex.org/covers/a/b.jpg.512.jpg']);
+    $slides = $slides->map->fresh(['mediaType', 'genres']);
+
+    $html = renderHero(slides: $slides);
+    $source = htmlQuery($html, '//picture/source[@media="(width < 64rem)"]');
+
+    expect($source->length)->toBe(1)
+        ->and($source->item(0)->getAttribute('srcset'))->toBe($slides[0]->coverBackdropUrl())
+        ->and(htmlQuery($html, '//picture[source]/img[@data-backdrop="0"][@src="'.$slides[0]->cover_url.'"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//picture[not(source)]/img[@data-backdrop="1"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//*[@data-hero-books]//*[@data-size="xl"]//img[@loading="lazy"]')->length)->toBe(1);
 });
 
 test('the eyebrow is the media type and the first genre, then the title and a two-line blurb', function () {

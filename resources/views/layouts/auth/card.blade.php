@@ -29,6 +29,7 @@
         @endpersist
 
         @livewireScriptConfig
-        @fluxScripts
+        {{-- Flux's script is bundled into app.js (static, compressed, no parser-blocking tag); this keeps the rest of @fluxScripts. --}}
+        @php(app('livewire')->forceAssetInjection())
     </body>
 </html>

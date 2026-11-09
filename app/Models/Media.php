@@ -158,6 +158,19 @@ class Media extends Model
     }
 
     /**
+     * The small blurred-backdrop copy of a cover we already serve ourselves (see CoverController), or null for a hotlinked cover:
+     * the proxy never follows redirects (Open Library), so a cover it does not serve already keeps its own URL.
+     */
+    public function coverBackdropUrl(): ?string
+    {
+        $url = $this->coverSourceUrl();
+
+        return $url !== null && $this->cover_url !== $url
+            ? route('covers.show', ['media' => $this->getKey(), 'v' => substr(sha1($url), 0, 8), 'size' => 'backdrop'], false)
+            : null;
+    }
+
+    /**
      * The cover to show for a stored URL, for raw rows that skip the model: our copy when the host's source caches covers, else the URL as is.
      */
     public static function displayCover(int $id, ?string $url): ?string
