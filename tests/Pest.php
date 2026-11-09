@@ -13,6 +13,7 @@ use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
+use App\Enums\InteractionEvent;
 use App\Enums\ModelKind;
 use App\Enums\ModelStatus;
 use App\Enums\ReadingStatus;
@@ -571,6 +572,18 @@ function homeCatalog(): Collection
 }
 
 /**
+ * The library adds these stories would have recorded: the interactions, not the library, are what end a reader's cold start.
+ *
+ * @param  iterable<int, Media>  $stories
+ */
+function warm(User $user, iterable $stories): void
+{
+    foreach ($stories as $story) {
+        UserInteraction::factory()->create(['user_id' => $user->id, 'media_id' => $story->id, 'event' => InteractionEvent::LibraryAdd]);
+    }
+}
+
+/**
  * A reader with eight seeds from the catalog (six completed, the first of them the latest; two read and favorited) and text neighbors of each
  * seed among the other stories, so every personalized shelf has something.
  *
@@ -599,6 +612,8 @@ function richReader(): array
     foreach ($catalog->slice(6, 2) as $seed) {
         libraryEntry($user, $seed, 'reading', favorite: true);
     }
+
+    warm($user, $catalog->take(8));
 
     foreach ($catalog->take(8) as $seed) {
         foreach ($catalog->slice(8 + $seed->id % 3, 24) as $j => $neighbor) {

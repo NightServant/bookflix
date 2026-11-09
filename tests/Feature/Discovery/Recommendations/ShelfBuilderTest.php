@@ -1,19 +1,24 @@
 <?php
 
 use App\Actions\Library\AddToLibrary;
+use App\Actions\Library\LogProgress;
+use App\Actions\Ratings\RateMedia;
 use App\Discovery\Recommendations\CandidatePool;
 use App\Discovery\Recommendations\ExplorationInjector;
 use App\Discovery\Recommendations\SeedItems;
 use App\Discovery\Recommendations\ServedItem;
 use App\Discovery\Recommendations\ShelfBuilder;
+use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
 use App\Enums\ReasonType;
 use App\Models\Genre;
+use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\ModelVersion;
 use App\Models\Rating;
 use App\Models\Recommendation;
 use App\Models\User;
+use App\Models\UserInteraction;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -148,14 +153,14 @@ test('mature stories never reach a reader without access, in any shelf or cache 
         ->and(Recommendation::where('media_id', $mature->id)->count())->toBe(0);
 });
 
-test('a mature seed is not named for a reader without access', function () {
+test('a mature seed is not named for a reader without access, the next seed heads the shelf', function () {
     [$user, $catalog] = richReader();
     $catalog[0]->genres()->attach(Genre::factory()->mature()->create());
 
     $shelves = homeShelves($user);
 
-    expect($shelves->pluck('key')->all())->not->toContain('because-you-read')
-        ->and(json_encode($shelves->map(fn ($shelf) => $shelf->title)))->not->toContain($catalog[0]->title);
+    expect(json_encode($shelves->map(fn ($shelf) => $shelf->title)))->not->toContain($catalog[0]->title)
+        ->and($shelves->firstWhere('key', 'because-you-read')?->title)->toBe('Because You Read '.$catalog[1]->title);
 });
 
 test('an empty catalog and a reader with nothing produce an empty list instead of an error', function () {
@@ -231,6 +236,7 @@ test('Because You Read and Similar To fill up from neighbors the shared pool cut
     foreach ($quiet as $j => $neighbor) {
         similar($catalog[0], $neighbor, 'lsa', 0.2 - $j * 0.001, $lsa);
     }
+    warm($user, $catalog->take(8));
 
     $pool = app(CandidatePool::class);
     $pooled = $pool->combine($user, $pool->bySource($user, 100))->pluck('mediaId');
@@ -401,4 +407,77 @@ test('what is logged is what is shown after de-duplication', function () {
     $logged = Recommendation::query()->get()->map(fn ($row) => $row->shelf.':'.$row->media_id)->sort()->values()->all();
 
     expect($logged)->toBe($shown);
+});
+
+test('a reader is cold until five strong interactions, and the exit path warms them', function () {
+    $catalog = homeCatalog();
+    $berserk = $catalog[0];
+    $user = User::factory()->create();
+
+    foreach (Media::factory()->count(30)->create() as $j => $neighbor) {
+        similar($berserk, $neighbor, 'lsa', 0.9 - $j * 0.02, activeVersion('lsa'));
+    }
+
+    foreach ($catalog->slice(1, 3) as $pick) {
+        app(AddToLibrary::class)->handle($user, $pick, ReadingStatus::Completed);
+    }
+
+    $builder = app(ShelfBuilder::class);
+    expect($builder->isCold($user))->toBeTrue();
+
+    LibraryEntry::query()->where('user_id', $user->id)->update(['completed_at' => now()->subDays(5)]);
+    app(AddToLibrary::class)->handle($user, $berserk);
+    expect($builder->isCold($user))->toBeTrue();
+
+    app(LogProgress::class)->handle($user, $berserk, 20.0);
+    app(RateMedia::class)->handle($user, $berserk, 9);
+    Cache::flush();
+
+    expect($builder->isCold($user))->toBeFalse()
+        ->and(homeShelves($user)->firstWhere('key', 'because-you-read')?->title)->toBe('Because You Read '.$berserk->title);
+});
+
+test('views, searches and low ratings are not strong interactions', function () {
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+
+    foreach ($catalog->take(6) as $story) {
+        foreach ([InteractionEvent::View, InteractionEvent::Click, InteractionEvent::Search, InteractionEvent::ReadingProgress] as $event) {
+            UserInteraction::factory()->create(['user_id' => $user->id, 'media_id' => $story->id, 'event' => $event]);
+        }
+        UserInteraction::factory()->create(['user_id' => $user->id, 'media_id' => $story->id, 'event' => InteractionEvent::Rating, 'value' => 5]);
+    }
+
+    expect(app(ShelfBuilder::class)->isCold($user))->toBeTrue();
+});
+
+test('a Recommended tile from a neighbor the pool cut off keeps the id of the title its label names', function () {
+    $catalog = homeCatalog();
+    $user = User::factory()->create();
+    $lsa = activeVersion('lsa');
+    $crowd = Media::factory()->count(130)->create(['published_on' => now()->subYears(3), 'popularity_score' => 0.01]);
+    $fresh = Media::factory()->count(12)->create(['published_on' => now()->subDays(100), 'popularity_score' => 0, 'ratings_count' => 0, 'average_rating' => 0]);
+
+    foreach ($catalog->slice(6, 2) as $seed) {
+        libraryEntry($user, $seed, 'reading', favorite: true);
+        foreach ($crowd as $j => $neighbor) {
+            similar($seed, $neighbor, 'lsa', 0.25 - $j * 0.0005, $lsa);
+        }
+    }
+    libraryEntry($user, $catalog[0], 'completed')->update(['completed_at' => now()]);
+    foreach ($fresh as $j => $neighbor) {
+        similar($catalog[0], $neighbor, 'lsa', 0.2 - $j * 0.001, $lsa);
+    }
+    warm($user, $catalog->take(5));
+    config(['bookflix.recommendations.epsilon' => 0]);
+
+    $pool = app(CandidatePool::class);
+    $pooled = $pool->combine($user, $pool->bySource($user, 100))->pluck('mediaId');
+    $cut = $fresh->pluck('id')->diff($pooled);
+    // The exploration candidates have a label of their own; the neighbors carry the label of the title they came from.
+    $tiles = homeShelves($user)->firstWhere('key', 'recommended')->items->filter(fn ($tile) => $cut->contains($tile->id) && $tile->reason_label !== 'Something different for you');
+
+    expect($cut)->not->toBeEmpty()
+        ->and($tiles)->not->toBeEmpty()
+        ->and($tiles->every(fn ($tile) => $tile->reason_label === 'Because you read '.$catalog[0]->title && $tile->reason_media_id === $catalog[0]->id))->toBeTrue();
 });

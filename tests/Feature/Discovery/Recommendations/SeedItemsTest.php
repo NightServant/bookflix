@@ -85,3 +85,37 @@ test('a reader with nothing has no seeds', function () {
     expect(app(SeedItems::class)->for($user))->toBeEmpty()
         ->and(app(SeedItems::class)->mostRecent($user))->toBeNull();
 });
+
+test('most recent passes over a newest story that is no seed any more', function () {
+    $user = User::factory()->create();
+    [$older, $rated, $abandoned] = Media::factory()->count(3)->create();
+    libraryEntry($user, $older, 'completed')->update(['completed_at' => now()->subDays(10)]);
+    libraryEntry($user, $rated, 'completed')->update(['completed_at' => now()->subDays(2)]);
+    rated($user, $rated, 4);
+    libraryEntry($user, $abandoned, 'abandoned');
+    rated($user, $abandoned, 9)->touch();
+
+    expect(app(SeedItems::class)->mostRecent($user)->id)->toBe($older->id);
+});
+
+test('most recent passes over a newest story that is deleted or merged', function () {
+    $user = User::factory()->create();
+    [$older, $deleted, $merged] = Media::factory()->count(3)->create();
+    libraryEntry($user, $older, 'completed')->update(['completed_at' => now()->subDays(10)]);
+    libraryEntry($user, $deleted, 'completed')->update(['completed_at' => now()->subDays(2)]);
+    libraryEntry($user, $merged, 'completed')->update(['completed_at' => now()->subDay()]);
+    $deleted->delete();
+    $merged->update(['merged_into_id' => $older->id]);
+
+    expect(app(SeedItems::class)->mostRecent($user)->id)->toBe($older->id);
+});
+
+test('most recent passes over a newest story that is gated for the reader', function () {
+    $user = User::factory()->create();
+    $older = Media::factory()->create();
+    $mature = matureStory();
+    libraryEntry($user, $older, 'completed')->update(['completed_at' => now()->subDays(10)]);
+    libraryEntry($user, $mature, 'completed')->update(['completed_at' => now()->subDay()]);
+
+    expect(app(SeedItems::class)->mostRecent($user)->id)->toBe($older->id);
+});
