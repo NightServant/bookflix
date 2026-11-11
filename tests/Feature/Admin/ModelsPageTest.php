@@ -53,6 +53,21 @@ test('run now queues the pipeline from its first step, for an admin only', funct
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 });
 
+test('every pipeline on the page exists, and every pipeline is on the page', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    expect(array_keys(Livewire::test('pages::admin.models.index')->instance()->pipelines))->toEqualCanonicalizing(array_keys(RunMlJob::PIPELINES));
+});
+
+test('run now queues the embedding pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Embeddings')->call('runNow', 'embed');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'embed-media' && $job->then === [] && $job->pipeline === 'embed');
+});
+
 test('run now is refused with a message while that pipeline is running, and its button shows it', function () {
     Bus::fake([RunMlJob::class]);
     $this->actingAs(User::factory()->admin()->create());
@@ -65,7 +80,7 @@ test('run now is refused with a message while that pipeline is running, and its 
         ->call('runNow', 'lsa')->assertDispatched('toast-show', fn (string $event, array $params) => str_contains(json_encode($params), 'already running'));
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 
-    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false]);
+    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false, 'embed' => false]);
 });
 
 test('run now is refused once the reader is no longer an admin', function () {

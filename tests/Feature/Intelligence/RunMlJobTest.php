@@ -36,10 +36,23 @@ function runOnce(RunMlJob $job): void
     $job->handle(app(MlClient::class));
 }
 
-test('every pipeline runs train, build-similarities and evaluate in that order, and the popularity refresh alone', function () {
+test('every pipeline runs train, build-similarities and evaluate in that order, and the popularity refresh and embedding alone', function () {
     expect(RunMlJob::PIPELINES['item-cf'])->toBe([['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]])
         ->and(RunMlJob::PIPELINES['lsa'])->toBe([['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]])
-        ->and(RunMlJob::PIPELINES['popularity'])->toBe([['refresh-popularity', []]]);
+        ->and(RunMlJob::PIPELINES['popularity'])->toBe([['refresh-popularity', []]])
+        ->and(RunMlJob::PIPELINES['embed'])->toBe([['embed-media', []]]);
+});
+
+test('the embed pipeline starts embed-media and ends when it succeeds', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['mode' => 'incremental', 'embedded' => 3, 'version_id' => 9]);
+    expect(RunMlJob::dispatchPipeline('embed'))->toBeTrue();
+    $run = MlJobRun::factory()->create(['name' => 'embed-media', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('embed-media', [], [], $run->id, pipeline: 'embed'));
+
+    expect($run->refresh()->status)->toBe('succeeded')->and($run->metrics['version_id'])->toBe(9)
+        ->and(RunMlJob::isRunning('embed'))->toBeFalse();
 });
 
 test('starting a job records the run and polls it again in thirty seconds', function () {

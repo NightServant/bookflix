@@ -33,6 +33,8 @@ class RunMlJob implements ShouldQueue
         'popularity' => [['refresh-popularity', []]],
         'item-cf' => [['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]],
         'lsa' => [['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]],
+        // Embeds new and changed media under the active version, or re-embeds everything and promotes when the service runs another model.
+        'embed' => [['embed-media', []]],
     ];
 
     /** Seconds between two looks at a running job. */

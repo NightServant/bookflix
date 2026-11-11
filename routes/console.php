@@ -34,3 +34,5 @@ $mlIsConfigured = fn (): bool => (string) config('services.ml.token') !== '';
 Schedule::call(fn () => RunMlJob::dispatchPipeline('popularity'))->name('ml:popularity')->hourly()->when($mlIsConfigured);
 Schedule::call(fn () => RunMlJob::dispatchPipeline('item-cf'))->name('ml:item-cf')->dailyAt('03:00')->when($mlIsConfigured);
 Schedule::call(fn () => RunMlJob::dispatchPipeline('lsa'))->name('ml:lsa')->weeklyOn(0, '02:00')->when($mlIsConfigured);
+// Half past, so it does not queue behind the popularity refresh on the service's one worker.
+Schedule::call(fn () => RunMlJob::dispatchPipeline('embed'))->name('ml:embed')->hourlyAt(30)->when($mlIsConfigured);
