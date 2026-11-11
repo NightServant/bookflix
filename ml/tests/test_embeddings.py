@@ -117,6 +117,7 @@ def test_passage_text_skips_a_missing_description() -> None:
 @pytest.mark.slow
 def test_multilingual_pairs_are_closer_than_unrelated() -> None:
     """The real model (needs the `embed` extra and the downloaded weights): run with `-m slow`."""
+    pytest.importorskip("sentence_transformers")
     from app.settings import get_settings
 
     settings = get_settings()
