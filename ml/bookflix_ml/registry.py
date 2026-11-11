@@ -69,6 +69,20 @@ def latest_candidate(conn: Conn, name: str) -> tuple[int, str] | None:
     return None if row is None else (int(row[0]), str(row[1]))
 
 
+def candidate_with_parameters(conn: Conn, name: str, parameters: dict[str, Any]) -> int | None:
+    """The newest `candidate` of `name` created with exactly these parameters, or None."""
+    row = conn.execute(
+        """
+        select id from model_versions
+        where name = %s and status = 'candidate' and parameters = %s
+        order by id desc limit 1
+        """,
+        (name, Jsonb(parameters)),
+    ).fetchone()
+
+    return None if row is None else int(row[0])
+
+
 def require_candidate(conn: Conn, version_id: int, name: str) -> tuple[int, str, str | None]:
     """The id, method and artifact URI of the version `version_id`, which must be a `candidate` named `name`; `ValueError` otherwise.
 
@@ -183,8 +197,8 @@ def retire(conn: Conn, version_id: int) -> None:
 
 
 def _prune(conn: Conn, name: str, method: str) -> None:
-    """Delete the similarity rows of every version of `method` that is neither active nor a waiting candidate and, for `lsa`, the
-    vectors and features of its retired versions."""
+    """Delete the similarity rows of every version of `method` that is neither active nor a waiting candidate and, for `lsa` and
+    `embedding`, the vectors (and LSA features) of their retired versions."""
     conn.execute(
         """
         delete from media_similarities
@@ -193,8 +207,9 @@ def _prune(conn: Conn, name: str, method: str) -> None:
         """,
         (method,),
     )
-    if name == "lsa":
-        for table in ("media_lsa_vectors", "media_features"):
-            conn.execute(
-                f"delete from {table} where model_version_id in (select id from model_versions where name = 'lsa' and status = 'retired')"  # noqa: S608
-            )
+    tables = {"lsa": ("media_lsa_vectors", "media_features"), "embedding": ("media_embeddings",)}
+    for table in tables.get(name, ()):
+        conn.execute(
+            f"delete from {table} where model_version_id in (select id from model_versions where name = %s and status = 'retired')",  # noqa: S608
+            (name,),
+        )

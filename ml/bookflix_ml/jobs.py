@@ -1,5 +1,6 @@
 """The job registry, an in-memory runner for it, and the training jobs themselves."""
 
+import hashlib
 import threading
 import uuid
 from collections.abc import Callable, Iterator
@@ -10,7 +11,17 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from app.settings import get_settings
-from bookflix_ml import artifacts, db, evaluate, item_cf, lsa, popularity, registry, similarities
+from bookflix_ml import (
+    artifacts,
+    db,
+    embeddings,
+    evaluate,
+    item_cf,
+    lsa,
+    popularity,
+    registry,
+    similarities,
+)
 from bookflix_ml.db import Conn
 
 CHUNK = 1000
@@ -219,6 +230,96 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
             raise
 
     return metrics
+
+
+EMBED_CHUNK = 256
+
+
+def _embed_missing(
+    conn: Conn, embedder: embeddings.Embedder, version_id: int, docs: list[dict[str, Any]]
+) -> int:
+    """Embed the media that have no row under `version_id`, or one made from other text, committing every `EMBED_CHUNK` media.
+
+    Each chunk is committed on its own, so a failure keeps what was already written and the next run starts where this one stopped.
+    """
+    stored = dict(
+        conn.execute(
+            "select media_id, content_hash from media_embeddings where model_version_id = %s",
+            (version_id,),
+        ).fetchall()
+    )
+    texts = {doc["id"]: embeddings.passage_text(doc) for doc in docs}
+    hashes = {m: hashlib.sha256(text.encode()).hexdigest() for m, text in texts.items()}
+    todo = [m for m in texts if stored.get(m) != hashes[m]]
+
+    for start in range(0, len(todo), EMBED_CHUNK):
+        ids = todo[start : start + EMBED_CHUNK]
+        try:
+            vectors = embeddings.embed(embedder, [texts[m] for m in ids], "passage")
+            with conn.cursor() as cur:
+                cur.executemany(
+                    """
+                    insert into media_embeddings (media_id, model_version_id, embedding, content_hash)
+                    values (%s, %s, %s, %s)
+                    on conflict (media_id, model_version_id)
+                    do update set embedding = excluded.embedding, content_hash = excluded.content_hash
+                    """,
+                    [(m, version_id, vectors[i], hashes[m]) for i, m in enumerate(ids)],
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+    return len(todo)
+
+
+def run_embed_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Keep `media_embeddings` current for the live media with the model this service has loaded.
+
+    Incremental when the active `embedding` version was made by that model (same name, revision and dims): media with no row, or whose
+    text changed since, are embedded under the active version. Otherwise in full: every live media is embedded under a `candidate`
+    (the newest candidate made by the same model is resumed, so a failed run is not started over), and only when all are written is
+    the candidate promoted, in one transaction that retires the old version and deletes its embeddings and `embedding` similarities.
+    A failure leaves the active version and its rows as they were. No model loaded fails the job before anything is written.
+    """
+    embedder = embeddings.current()
+    if embedder.dims != embeddings.DIMS:
+        raise ValueError(
+            f"media_embeddings holds {embeddings.DIMS}-dimensional vectors; a model with {embedder.dims} needs its own table."
+        )
+
+    model = {"model": embedder.name, "revision": embedder.revision, "dims": embedder.dims}
+    docs = db.fetch_corpus(conn)
+    active = registry.active_version(conn, "embedding")
+
+    if active is not None and all(active[2].get(k) == v for k, v in model.items()):
+        embedded = _embed_missing(conn, embedder, active[0], docs)
+
+        return {
+            "mode": "incremental",
+            "embedded": embedded,
+            "n_media": len(docs),
+            "version_id": active[0],
+        }
+
+    version_id = registry.candidate_with_parameters(conn, "embedding", model)
+    if version_id is None:
+        version_id, _ = registry.create_version(conn, "embedding", "embedding", model, "media:live")
+        registry.finish_version(conn, version_id, "candidate", {})
+        conn.commit()
+
+    embedded = _embed_missing(conn, embedder, version_id, docs)
+    metrics = {"mode": "full", "embedded": embedded, "n_media": len(docs)}
+    try:
+        registry.record_metrics(conn, version_id, metrics)
+        registry.promote(conn, version_id)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+    return {**metrics, "version_id": version_id}
 
 
 def run_refresh_popularity(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
@@ -464,4 +565,5 @@ JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "build-similarities": _with_connection(run_build_similarities),
     "refresh-popularity": _with_connection(run_refresh_popularity),
     "evaluate": _with_connection(run_evaluate),
+    "embed-media": _with_connection(run_embed_media),
 }
