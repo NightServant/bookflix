@@ -12,8 +12,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Models')] class extends Component
-{
+new #[Title('Models')] class extends Component {
     /** The pipelines an admin can start: name and icon. */
     private const PIPELINES = [
         'item-cf' => ['Readers also read', 'arrow-path'],
