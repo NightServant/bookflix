@@ -70,6 +70,15 @@ create table media_lsa_vectors (
 );
 create index media_lsa_vectors_vector_idx on media_lsa_vectors using hnsw (vector vector_cosine_ops);
 
+create table media_embeddings (
+    media_id bigint not null references media (id) on delete cascade,
+    model_version_id bigint not null references model_versions (id) on delete cascade,
+    embedding vector(384) not null,
+    content_hash varchar(64) not null,
+    primary key (media_id, model_version_id)
+);
+create index media_embeddings_embedding_idx on media_embeddings using hnsw (embedding vector_cosine_ops);
+
 create table media_similarities (
     media_id bigint not null references media (id) on delete cascade,
     similar_media_id bigint not null references media (id) on delete cascade,

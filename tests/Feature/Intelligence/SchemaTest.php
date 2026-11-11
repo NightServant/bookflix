@@ -3,6 +3,7 @@
 use App\Enums\InteractionEvent;
 use App\Enums\ModelStatus;
 use App\Models\Media;
+use App\Models\MediaEmbedding;
 use App\Models\MediaSimilarity;
 use App\Models\MlJobRun;
 use App\Models\ModelVersion;
@@ -108,6 +109,31 @@ test('two versions of a method keep the same pair side by side, and saving one l
     MediaSimilarity::where('model_version_id', $old->model_version_id)->delete();
 
     expect(MediaSimilarity::pluck('model_version_id')->all())->toBe([$candidate->id]);
+});
+
+test('an embedding is one 384-dimensional vector per media and version, and cascades with media', function () {
+    $row = MediaEmbedding::factory()->create();
+    $other = ModelVersion::factory()->create(['name' => 'embedding', 'kind' => 'embedding']);
+    MediaEmbedding::factory()->create(['media_id' => $row->media_id, 'model_version_id' => $other->id]);
+
+    expect(refused(fn () => MediaEmbedding::factory()->create(['media_id' => $row->media_id, 'model_version_id' => $row->model_version_id])))->toThrow(QueryException::class)
+        ->and(refused(fn () => MediaEmbedding::factory()->create(['embedding' => array_fill(0, 200, 0.1)])))->toThrow(QueryException::class);
+
+    $stored = MediaEmbedding::where('model_version_id', $row->model_version_id)->sole();
+
+    expect($stored->embedding)->toHaveCount(384)
+        ->and($stored->embedding[0])->toEqualWithDelta($row->embedding[0], 1e-6)
+        ->and($stored->content_hash)->toHaveLength(64);
+
+    Media::find($row->media_id)->forceDelete();
+
+    expect(MediaEmbedding::count())->toBe(0);
+});
+
+test('embeddings have an hnsw cosine index', function () {
+    $definition = DB::table('pg_indexes')->where('tablename', 'media_embeddings')->where('indexname', 'media_embeddings_embedding_idx')->value('indexdef');
+
+    expect($definition)->toContain('hnsw')->toContain('vector_cosine_ops');
 });
 
 test('a media is never its own neighbor', function () {
