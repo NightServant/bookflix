@@ -24,18 +24,62 @@ class MlClient
     }
 
     /**
-     * @return array{embedding: array{name: string, dims: int}}
+     * @return array{embedding: array{name: string, revision: string, dims: int}}
      *
      * @throws MlServiceUnavailable
      */
     public function models(): array
     {
         try {
-            /** @var array{embedding: array{name: string, dims: int}} */
+            /** @var array{embedding: array{name: string, revision: string, dims: int}} */
             return $this->request()->get('/v1/models')->throw()->json();
         } catch (HttpClientException $exception) {
             throw new MlServiceUnavailable('The ML service is unavailable.', previous: $exception);
         }
+    }
+
+    /**
+     * Embed texts (`kind` is `query` or `passage`). `$timeout` is in seconds and may be a fraction (search passes 0.3); without it the configured
+     * timeout applies. Any failure, including an answer that is not one vector of `dims` numbers per text, is `MlServiceUnavailable`.
+     *
+     * @param  list<string>  $texts
+     *
+     * @throws MlServiceUnavailable
+     */
+    public function embed(array $texts, string $kind, ?float $timeout = null): EmbeddingResult
+    {
+        try {
+            $response = $this->request($timeout)->post('/v1/embed', ['texts' => $texts, 'kind' => $kind])->throw();
+        } catch (HttpClientException $exception) {
+            throw new MlServiceUnavailable('The ML service did not embed the texts.', previous: $exception);
+        }
+
+        $modelVersion = $response->json('model_version');
+        $dims = $response->json('dims');
+        $vectors = $response->json('vectors');
+
+        if (! is_string($modelVersion) || $modelVersion === '' || ! is_int($dims) || $dims < 1
+            || ! is_array($vectors) || ! array_is_list($vectors) || count($vectors) !== count($texts)) {
+            throw new MlServiceUnavailable('The ML service answered the embedding request out of shape.');
+        }
+
+        $floats = [];
+
+        foreach ($vectors as $vector) {
+            if (! is_array($vector) || ! array_is_list($vector) || count($vector) !== $dims) {
+                throw new MlServiceUnavailable('The ML service answered the embedding request out of shape.');
+            }
+
+            foreach ($vector as $value) {
+                if (! is_float($value) && ! is_int($value)) {
+                    throw new MlServiceUnavailable('The ML service answered the embedding request out of shape.');
+                }
+            }
+
+            $floats[] = array_map(floatval(...), $vector);
+        }
+
+        return new EmbeddingResult($modelVersion, $dims, $floats);
     }
 
     /**
@@ -86,9 +130,11 @@ class MlClient
     }
 
     /**
+     * The connect timeout is short and never longer than the whole request's, so a service that is down fails fast.
+     *
      * @throws MlServiceUnavailable
      */
-    private function request(): PendingRequest
+    private function request(?float $timeout = null): PendingRequest
     {
         $token = (string) config('services.ml.token');
 
@@ -98,7 +144,8 @@ class MlClient
 
         return Http::baseUrl((string) config('services.ml.url'))
             ->withToken($token)
-            ->timeout((int) config('services.ml.timeout'))
+            ->timeout($timeout ??= (float) config('services.ml.timeout'))
+            ->connectTimeout(min((float) config('services.ml.connect_timeout'), $timeout))
             ->acceptJson()
             ->when(
                 Context::get('request_id'),
