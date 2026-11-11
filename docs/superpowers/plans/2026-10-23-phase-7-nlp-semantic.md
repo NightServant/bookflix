@@ -14,6 +14,51 @@
 
 **Depends on:** Phase 6 (`MlClient` jobs, `ml/` job runner + registry, `model_versions`, `ml_job_runs`, `RunMlJob`, `CandidateSource`, `HybridSearch`/`SearchLeg`/`Rrf`, `media_lsa_vectors`), Phase 3 (`ClassificationService`, `ClassifyMedia`, review queue), Phase 4 (search page).
 
+## Revision 2026-11-11 (against `main` at `d649bfd`, after Phase 6 and #27–#30)
+
+Where the plan below disagrees with this section, **this section wins**. Branch `phase-7-semantic` off `main`; ledger `docs/superpowers/plans/phase-7-ledger.md` (conflict scan, rulings with their cost if wrong, deferred items, commit ranges). Migrations are dated `2026_11_12_*` or later.
+
+**Rules for every task**
+- Every listing goes through `Media::visibleTo` (the search legs do it with `$filters->apply(Media::query()->unmerged())`, as `KeywordLeg` does). Type filters use `Media::ofTypes()`. Raw `cover_url` reads go through `Media::displayCover()`. Never weaken `ProhibitedContent` or the mature gate.
+- Expensive ML never runs in a web request. The one request-path ML call is the search query embedding (R1). Everything else is a queued job or a Python batch job.
+- Every model-dependent feature falls back to Phase 6 behaviour when its model, version or service is missing.
+- Tests never download a model: Python tests use a fake embedder, PHP tests fake HTTP. Model weights stay out of git.
+
+**7.1 Embeddings**
+- R2. `sentence-transformers` and CPU-only torch are an optional extra (`embed`) in `ml/pyproject.toml`, pinned to the PyTorch CPU index. Only the Docker image installs it; CI and tests don't. The import is lazy. A `slow` pytest marker covers the one real-model test and is deselected by default. With the extra missing or the model not loaded, `/v1/embed` answers 503 and `embed-media` fails cleanly.
+- R3. Version flow follows Phase 6, not the plan. Python owns embeddings: there is no `GenerateMediaFeatures`, no `EmbeddingText` in PHP and no `EnsureEmbeddingVersion`. The job `embed-media` builds the passage text itself and has two modes:
+  - *Incremental* (the active `embedding` version was made by the model the service runs): embed live media with no row or a changed text hash, under the active version.
+  - *Full* (no active version, or a different model, revision or dims): create a candidate, write every row under it (resumable), then promote in one transaction, which retires the old version and prunes its `media_embeddings` and `media_similarities` rows. A failure leaves the active version untouched.
+  - `model_versions.version` stays a timestamp; the model name, revision and dims go in `parameters`. `media_embeddings` has `content_hash`.
+- `MlClient::embed(array $texts, string $kind, ?float $timeout = null)` passes a float timeout and a short connect timeout (today's config casts to int, so 0.3 would become 0) and validates the JSON shape. `/v1/embed` returns `model_version` = `"{name}@{revision}"`; `models()` and its contract fixture gain the revision together.
+- Pipelines: `embed` (hourly: `embed-media`) and `embedding-similarities` (nightly: `build-similarities` with method `embedding` for the active version). Both go in `RunMlJob::PIPELINES`, the schedule and the admin models page labels. `ml/tests/schema.sql` and `expected_columns.json` gain `media_embeddings`.
+
+**7.2 Semantic leg**
+- R1. The query embedding is the one ML call in a request: 300 ms timeout, cached 24 h under `q-embed:{version id}:{sha1(normalized query)}`, any failure gives keyword-only results and one warning log. After a failure the leg is skipped for 30 s (a cache flag), so a dead service doesn't add 300 ms to every search. Queries under 3 characters, or with no letters or digits, never call ML.
+- The leg compares the response's `model_version` with the active version's parameters and returns `[]` on a mismatch (Review Focus #3).
+- `HybridSearch` takes the leg as a third constructor dependency (there is no legs list). The leg is capped at 30 ids, never sets `hasMore`, and uses `bookflix.search.semantic_min_similarity` (default 0.80, to be tuned on the real model). It always passes an array to `whereVectorSimilarTo`. pgvector is 0.6 locally and 0.8 in CI, so the query must be correct on both: fetch the nearest rows for the active version first (raising `hnsw.ef_search` for the statement), then apply the filters and the cap.
+
+**7.3 Query parser**
+- The vocabulary class is `QueryVocabulary` (`App\Catalog\Taxonomy\Vocabulary` exists). `QueryIntent` carries `mediaTypes`, `genres`, `themes`, `deweyCode` (one string, as `SearchFilters` has), `lengthHint`, `semanticText`.
+- Expectations use the real vocabulary: "dark fantasy manga with political intrigue" gives type `manga`, genre `dark-fantasy`, theme `political-intrigue`; "history books" gives Dewey `900`. Map a word only where the vocabulary has a clear match; synonyms live in `database/data/query_synonyms.csv`, and none may be a term `ProhibitedContent` matches (tested).
+- The vocabulary and the parser cache are keyed by `MatureAccess::cacheKey`, so a reader without access never gets a mature genre parsed, applied or named.
+- Chips reuse `FilteredPage`'s chips and `chips.blade.php` (an intent group), not a new component. The parsed intent is written to `search_queries.intent`.
+- The parser, vocabulary, intent application with relaxation and logging are not UI and go ahead. The chips on the search page wait for the design sign-off.
+
+**7.4 Summaries**
+- R4. Summaries are stored unversioned in a new ML-owned table `media_summaries` (`media_id` PK, `summary`, `source_hash`, `method`, `generated_at`), because `media_features` rows are keyed by LSA version and pruned weekly. A Python batch job `summarize-media` (in the hourly `embed` pipeline, after `embed-media`) summarizes live media whose description is over 600 characters and has no row or a changed hash. There is no `/v1/summarize` endpoint, `MlClient::summarize` or `SummarizeText` job: nothing in PHP would call them. The `Summarizer` protocol stays in Python for Phase 11.
+- The story page shows the summary with the full description one step away, reusing `<x-clamped-text>`. This is UI and waits for the design sign-off. No summary row means today's page.
+
+**7.5 Semantic source**
+- `SemanticSimilarSource` (key `semantic_similar`, reason `SimilarThemes`) is added to `RecommendationServiceProvider::SOURCES` and `CandidatePool::PERSONALIZED`. `ContentSimilarSource::similarTo` prefers `embedding` neighbors when the active version has them. `HybridRanker` already reads `embedding` neighbors. `build-similarities` gains the `embedding` method and accepts the active embedding version.
+
+**7.6 Dewey classifier**
+- R5. Classifier candidates are capped at `bookflix.classification.classifier_max_confidence` (default 0.79), so they never become public or outrank a rule or external primary by themselves; reviewers accept them. The #28 rule also applies to classifier output: no literature class for prose with no genres.
+- `/v1/classify/dewey` embeds and LSA-transforms the text itself (new media have no stored vectors yet). It is called only from the queued `ClassifyMedia` job. ML down, no active classifier version, or the `embed` extra missing means rules only.
+- The review queue shows the model version. `schema.sql` gains `media_dewey_classes`, `dewey_classes` and `media_types`.
+
+**Order:** 7.1 and the non-UI part of 7.3 in parallel, then 7.2 with 7.5, then 7.4, then 7.6, then the UI after sign-off.
+
 ## Global Constraints
 
 - **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
