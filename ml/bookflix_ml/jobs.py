@@ -179,6 +179,10 @@ def run_train_item_cf(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     return {**counts, "n_items_with_neighbors": len(neighbors), "version_id": version_id}
 
 
+# The `model_versions.name` each similarity method's rows are built from.
+SIMILARITY_VERSIONS = {"lsa": "lsa", "item_cf": "item-cf", "embedding": "embedding"}
+
+
 def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Write the top-50 neighbors of the newest candidate-or-active `lsa` and `item-cf` versions to `media_similarities`.
 
@@ -192,7 +196,7 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
     failing one untouched. A method with no version yet is skipped. Neighbors of media that are no longer live are dropped.
     """
     methods = list(params.get("methods") or ["lsa", "item_cf"])
-    unknown = sorted(set(methods) - {"lsa", "item_cf", "embedding"})
+    unknown = sorted(set(methods) - SIMILARITY_VERSIONS.keys())
     if unknown:
         raise ValueError(f"Unknown similarity method: {', '.join(unknown)}")
 
@@ -212,7 +216,7 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
                 metrics["skipped"].append(method)
                 continue
         else:
-            name = "lsa" if method == "lsa" else "item-cf"
+            name = SIMILARITY_VERSIONS[method]
             if pinned is None:
                 found = registry.latest_version(conn, name)
                 if found is None:
