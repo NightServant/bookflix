@@ -13,6 +13,8 @@ use Illuminate\Support\Collection;
  * `appliedIntent` and `suggestedIntent` split what a QueryIntent named, in the shape of SearchFilters::toArray() (`mediaTypes`, `genres`,
  * `themes`, `deweyCode`): applied values narrowed these results, suggested ones were dropped because they would have left none.
  *
+ * `includesSemanticMatches` is true when the semantic leg listed at least one story no other leg found: the results then hold matches by meaning, not only by words.
+ *
  * @extends LengthAwarePaginator<int, Media>
  */
 class SearchResults extends LengthAwarePaginator
@@ -33,6 +35,7 @@ class SearchResults extends LengthAwarePaginator
         public readonly bool $throttled = false,
         public readonly array $appliedIntent = [],
         public readonly array $suggestedIntent = [],
+        public readonly bool $includesSemanticMatches = false,
     ) {
         parent::__construct($items, $total, $perPage, $currentPage, $options);
     }

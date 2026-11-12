@@ -73,6 +73,9 @@ class HybridSearch
         // The semantic leg lists at most SemanticLeg::MAX_IDS, under the ceiling, so only the text legs can make the total a floor.
         $hasMore = collect($lists)->contains(fn (array $ids): bool => count($ids) >= self::LEG_LIMIT);
 
+        // The legs are keyword, subject, semantic (see relaxed()): a hit only the last one listed is a match by meaning.
+        $includesSemanticMatches = $lists !== [] && array_diff($lists[2], $lists[0], $lists[1]) !== [];
+
         $pageIds = array_slice($ranked, ($page - 1) * $perPage, $perPage);
         $media = $pageIds === [] ? collect() : Media::query()->whereIn('id', $pageIds)->get()->keyBy('id');
 
@@ -85,6 +88,7 @@ class HybridSearch
             $hasMore,
             appliedIntent: $applied,
             suggestedIntent: array_diff_key($groups, $applied),
+            includesSemanticMatches: $includesSemanticMatches,
         );
     }
 
