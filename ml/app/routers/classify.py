@@ -1,8 +1,8 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
 import psycopg
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from bookflix_ml import db, dewey, embeddings
 
@@ -13,6 +13,8 @@ Name = Annotated[str, StringConstraints(strict=True, max_length=255)]
 
 class ClassifyDeweyRequest(BaseModel):
     media_id: Annotated[int, Field(strict=True, ge=1)]
+    # The work's title and description apart, as `embed-media` builds its passage text from them; a work needs one of the two.
+    title: Annotated[str, StringConstraints(strict=True, max_length=500)] = ""
     text: Annotated[str, StringConstraints(strict=True, max_length=20000)]
     genres: Annotated[list[Name], Field(max_length=50)] = []
     themes: Annotated[list[Name], Field(max_length=50)] = []
@@ -20,12 +22,11 @@ class ClassifyDeweyRequest(BaseModel):
     # Accepted for the contract; the classifier learns from text, and PHP already resolves a provider's own code.
     external_code: Annotated[str | None, StringConstraints(strict=True, max_length=16)] = None
 
-    @field_validator("text")
-    @classmethod
-    def not_blank(cls, text: str) -> str:
-        if not text.strip():
-            raise ValueError("The text is blank.")
-        return text
+    @model_validator(mode="after")
+    def not_blank(self) -> Self:
+        if not self.title.strip() and not self.text.strip():
+            raise ValueError("The title and the text are both blank.")
+        return self
 
 
 @router.post("/dewey")
@@ -41,7 +42,14 @@ def classify_dewey(body: ClassifyDeweyRequest) -> dict[str, Any]:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from None
 
     candidates = dewey.classify(
-        embedder, model, lsa_artifact, body.text, body.genres, body.themes, body.subjects
+        embedder,
+        model,
+        lsa_artifact,
+        body.title,
+        body.text,
+        body.genres,
+        body.themes,
+        body.subjects,
     )
 
     return {"candidates": candidates, "model_version": version}

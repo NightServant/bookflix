@@ -44,10 +44,21 @@ test('classifyDewey posts the work and maps the contract to candidates of the ac
         ->and($candidates[0]->modelVersionId)->toBe($version->id);
     Http::assertSent(fn (Request $request) => $request->method() === 'POST'
         && $request['media_id'] === $media->id
-        && $request['text'] === "Berserk\nA lone mercenary."
+        && $request['title'] === 'Berserk'
+        && $request['text'] === 'A lone mercenary.'
         && $request['genres'] === ['Dark Fantasy'] && $request['themes'] === ['Revenge'] && $request['subjects'] === ['Mercenaries']
         && $request['external_code'] === '741.5952'
-        && array_keys($request->data()) === ['media_id', 'text', 'genres', 'themes', 'subjects', 'external_code']);
+        && array_keys($request->data()) === ['media_id', 'title', 'text', 'genres', 'themes', 'subjects', 'external_code']);
+});
+
+test('classifyDewey sends the title alone for a work with no description', function () {
+    fixtureClassifier();
+    $media = Media::factory()->create(['title' => 'Berserk', 'description' => null]);
+    Http::fake(['ml.test/v1/classify/dewey' => Http::response(contract('classify-dewey.json'))]);
+
+    app(MlClient::class)->classifyDewey($media);
+
+    Http::assertSent(fn (Request $request) => $request['title'] === 'Berserk' && $request['text'] === '');
 });
 
 test('classifyDewey refuses an answer from a version that is not the active classifier', function () {

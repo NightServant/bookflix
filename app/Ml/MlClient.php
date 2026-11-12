@@ -103,7 +103,8 @@ class MlClient
         try {
             $response = $this->request()->post('/v1/classify/dewey', [
                 'media_id' => $media->id,
-                'text' => trim($media->title."\n".$media->description),
+                'title' => $media->title,
+                'text' => (string) $media->description,
                 'genres' => $media->genres->pluck('name')->values()->all(),
                 'themes' => $media->themes->pluck('name')->values()->all(),
                 'subjects' => $media->tags->pluck('name')->values()->all(),

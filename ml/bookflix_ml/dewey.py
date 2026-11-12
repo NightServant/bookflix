@@ -223,14 +223,16 @@ def classify(
     embedder: embeddings.Embedder,
     model: DeweyModel,
     lsa_artifact: Any,
+    title: str,
     text: str,
     genres: list[str],
     themes: list[str],
     subjects: list[str],
 ) -> list[dict[str, Any]]:
-    """Candidates for a work from its text and names, vectors made here as the stored ones were (a new work has none stored)."""
+    """Candidates for a work from its title, description (`text`) and names, vectors made here as the stored ones were (a new work has none
+    stored), so the passage text is the one `embed-media` builds from the same fields."""
     doc = {
-        "title": "",
+        "title": title,
         "description": text,
         "genres": genres,
         "themes": themes,

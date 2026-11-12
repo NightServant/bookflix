@@ -17,7 +17,8 @@ pytestmark = pytest.mark.db
 
 BODY = {
     "media_id": 7,
-    "text": "Berserk\nA lone mercenary fights demons in a dark medieval world.",
+    "title": "Berserk",
+    "text": "A lone mercenary fights demons in a dark medieval world.",
     "genres": ["Dark Fantasy", "Action"],
     "themes": ["Revenge"],
     "subjects": ["Mercenaries"],
@@ -76,6 +77,37 @@ def test_it_answers_the_likeliest_known_classes_with_the_classifier_version(
     assert confidences == sorted(confidences, reverse=True) and sum(confidences) <= 1 + 1e-6
     # The text is embedded here: a new work has no stored vector.
     assert fake_embedder.calls and fake_embedder.calls[0][0].startswith("passage: Berserk")
+
+
+def test_the_text_embedded_is_the_passage_text_embed_media_builds_for_the_same_work(
+    client: TestClient, auth_headers: dict[str, str], classifier: str, fake_embedder: FakeEmbedder
+) -> None:
+    """Classifying must see what the classifier was trained on: the title apart from the description, then the names."""
+    assert classify(client, auth_headers).status_code == 200
+
+    work = {
+        "title": BODY["title"],
+        "description": BODY["text"],
+        "genres": BODY["genres"],
+        "themes": BODY["themes"],
+        "tags": BODY["subjects"],
+        "characters": [],
+    }
+    assert fake_embedder.calls[0] == [f"passage: {embeddings.passage_text(work)}"]
+
+
+def test_a_work_with_a_title_and_no_description_is_classified(
+    client: TestClient, auth_headers: dict[str, str], classifier: str
+) -> None:
+    assert classify(client, auth_headers, {**BODY, "text": ""}).status_code == 200
+
+
+def test_the_title_is_optional(
+    client: TestClient, auth_headers: dict[str, str], classifier: str
+) -> None:
+    body = {key: value for key, value in BODY.items() if key != "title"}
+
+    assert classify(client, auth_headers, body).status_code == 200
 
 
 def test_the_same_request_gives_the_same_answer(
@@ -150,9 +182,11 @@ def test_a_loaded_model_other_than_the_active_embedding_versions_is_503(
 @pytest.mark.parametrize(
     "change",
     [
-        pytest.param({"text": "   "}, id="blank text"),
+        pytest.param({"title": "", "text": "   "}, id="blank text and no title"),
         pytest.param({"text": "x" * 20001}, id="text over 20000 chars"),
         pytest.param({"text": 3}, id="text not a string"),
+        pytest.param({"title": "x" * 501}, id="title over 500 chars"),
+        pytest.param({"title": 3}, id="title not a string"),
         pytest.param({"media_id": 0}, id="media id below 1"),
         pytest.param({"media_id": "7"}, id="media id not an integer"),
         pytest.param({"genres": ["x"] * 51}, id="more than 50 genres"),
