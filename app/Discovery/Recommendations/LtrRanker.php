@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
  * never adds a title: it only reorders the items it is given, which the hybrid ranker already limited to what the reader may see.
  *
  * It answers null, meaning "use the hybrid order unchanged", when there is no active `ltr` version, or the reader has no score under that
- * version newer than `FRESH_HOURS` (a retired or older version's scores are never read). Otherwise the scored titles come first by stored score
+ * version newer than `FRESH_HOURS` (a retired or older version's scores are never read), or none of its scores is for a title it is given. Otherwise the scored titles come first by stored score
  * and the unscored ones follow in their hybrid order.
  */
 class LtrRanker
@@ -44,8 +44,9 @@ class LtrRanker
 
         $scored = $ranked->filter(fn (RankedItem $item): bool => $scores->has($item->mediaId));
 
+        // Fresh scores that match none of these titles reorder nothing: null, so the shelf is served and logged as the hybrid order it is.
         if ($scored->isEmpty()) {
-            return $ranked->values();
+            return null;
         }
 
         $low = (float) $scores->min();

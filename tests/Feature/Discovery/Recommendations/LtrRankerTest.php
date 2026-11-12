@@ -110,6 +110,14 @@ test('titles with scores that are not among the candidates are never added', fun
     expect(app(LtrRanker::class)->rank($user, hybridOrder($a))->pluck('mediaId')->all())->toBe([$a->id]);
 });
 
+test('scores that match none of the candidates give null, so the hybrid order is used and logged as such', function () {
+    $user = User::factory()->create();
+    [$a, $stranger] = Media::factory()->count(2)->create();
+    ltrScore($user, $stranger, 9.0, activeVersion('ltr'));
+
+    expect(app(LtrRanker::class)->rank($user, hybridOrder($a)))->toBeNull();
+});
+
 test('scores that are all equal give every scored title the top score', function () {
     $user = User::factory()->create();
     [$a, $b] = Media::factory()->count(2)->create();
