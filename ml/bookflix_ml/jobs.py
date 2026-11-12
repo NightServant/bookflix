@@ -1,6 +1,7 @@
 """The job registry, an in-memory runner for it, and the training jobs themselves."""
 
 import hashlib
+import logging
 import threading
 import uuid
 from collections.abc import Callable, Iterator
@@ -21,8 +22,11 @@ from bookflix_ml import (
     popularity,
     registry,
     similarities,
+    summarize,
 )
 from bookflix_ml.db import Conn
+
+logger = logging.getLogger(__name__)
 
 CHUNK = 1000
 KEEP_RUNS = 500
@@ -355,6 +359,89 @@ def run_embed_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     return {**metrics, "version_id": version_id}
 
 
+SUMMARY_CHUNK = 500
+# Descriptions up to this many characters are short enough to show whole.
+SUMMARY_MIN_CHARS = 600
+
+
+def run_summarize_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Keep `media_summaries` current: one extractive summary per live media whose description is over `SUMMARY_MIN_CHARS` characters.
+
+    It reads the live media embed-media reads (not soft deleted, not merged away), and only their stored descriptions, which the import
+    has already cleaned and refused where needed. Rows of media that are no longer live, or whose description is now short, go first. A
+    media is summarized when it has no row or one made from another description (`source_hash`); a description that gives no summary
+    loses its row, and so does one that raises, which is counted and skipped. Every `SUMMARY_CHUNK` media are committed, so an interrupted run keeps its
+    work and the next one starts where it stopped.
+    """
+    summarizer: summarize.Summarizer = summarize.LsaSummarizer()
+    rows = conn.execute(
+        """
+        select id, description from media
+        where deleted_at is null and merged_into_id is null and char_length(description) > %s
+        order by id
+        """,
+        (SUMMARY_MIN_CHARS,),
+    ).fetchall()
+    descriptions = {int(r[0]): str(r[1]) for r in rows}
+
+    removed = conn.execute(
+        "delete from media_summaries where media_id <> all(%s)", (list(descriptions),)
+    ).rowcount
+    conn.commit()
+
+    stored = dict(conn.execute("select media_id, source_hash from media_summaries").fetchall())
+    hashes = {m: hashlib.sha256(text.encode()).hexdigest() for m, text in descriptions.items()}
+    todo = [m for m in descriptions if stored.get(m) != hashes[m]]
+    metrics = {
+        "eligible": len(descriptions),
+        "summarized": 0,
+        "unchanged": len(descriptions) - len(todo),
+        "no_summary": 0,
+        "failed": 0,
+        "removed": removed,
+    }
+
+    for start in range(0, len(todo), SUMMARY_CHUNK):
+        written: list[tuple[int, str, str, str]] = []
+        dropped: list[int] = []
+        try:
+            for media_id in todo[start : start + SUMMARY_CHUNK]:
+                try:
+                    result = summarizer.summarize(descriptions[media_id])
+                except Exception:  # noqa: BLE001 - one bad description must not fail the run
+                    logger.warning("Could not summarize media %s", media_id, exc_info=True)
+                    metrics["failed"] += 1
+                    # A summary of the description it replaced would be stale.
+                    dropped.append(media_id)
+                    continue
+                if result is None:
+                    metrics["no_summary"] += 1
+                    dropped.append(media_id)
+                else:
+                    written.append((media_id, result.summary, hashes[media_id], summarizer.method))
+
+            with conn.cursor() as cur:
+                cur.execute("delete from media_summaries where media_id = any(%s)", (dropped,))
+                metrics["removed"] += cur.rowcount
+                cur.executemany(
+                    """
+                    insert into media_summaries (media_id, summary, source_hash, method, generated_at)
+                    values (%s, %s, %s, %s, now())
+                    on conflict (media_id) do update
+                    set summary = excluded.summary, source_hash = excluded.source_hash, method = excluded.method,
+                        generated_at = excluded.generated_at
+                    """,
+                    written,
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        metrics["summarized"] += len(written)
+
+    return metrics
+
+
 def run_refresh_popularity(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     popularity.refresh(conn)
     row = conn.execute("select count(*) from media_popularity").fetchone()
@@ -599,4 +686,5 @@ JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "refresh-popularity": _with_connection(run_refresh_popularity),
     "evaluate": _with_connection(run_evaluate),
     "embed-media": _with_connection(run_embed_media),
+    "summarize-media": _with_connection(run_summarize_media),
 }
