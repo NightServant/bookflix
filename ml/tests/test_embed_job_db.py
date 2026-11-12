@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from bookflix_ml import embeddings
+from bookflix_ml import embeddings, jobs, registry
 from bookflix_ml.embeddings import EmbedderUnavailable, FakeEmbedder
 from bookflix_ml.jobs import run_embed_media
 from tests.db_helpers import Conn, count, seed_corpus
@@ -264,6 +264,34 @@ def test_a_resumed_full_run_does_not_carry_media_no_longer_live_into_its_candida
     assert metrics["version_id"] == candidate and metrics["mode"] == "full"
     assert embedded_media(db, candidate) == set(range(1, 13)) - {1, 3}
     assert rows_by_version(db) == {candidate: 10}
+
+
+def test_a_full_run_whose_candidate_another_run_promoted_meanwhile_succeeds(
+    db: Conn,
+    corpus: list[dict[str, Any]],
+    fake_embedder: FakeEmbedder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_corpus(db, corpus)
+    old = run_embed_media(db, {})["version_id"]
+    monkeypatch.setattr(embeddings, "_loaded", FakeEmbedder(revision="newer"))
+    embed_missing = jobs._embed_missing
+
+    def overlapped(conn: Conn, embedder: Any, version_id: int, docs: list[dict[str, Any]]) -> int:
+        """Another run, which resumed the same candidate, finishes and promotes it first."""
+        embedded = embed_missing(conn, embedder, version_id, docs)
+        registry.promote(conn, version_id)
+        conn.commit()
+        return embedded
+
+    monkeypatch.setattr(jobs, "_embed_missing", overlapped)
+
+    metrics = run_embed_media(db, {})
+
+    new = metrics["version_id"]
+    assert metrics["mode"] == "already-promoted" and metrics["n_media"] == 12
+    assert embedding_versions(db) == [(old, "retired"), (new, "active")]
+    assert rows_by_version(db) == {new: 12}
 
 
 def test_without_a_loaded_model_the_job_fails_and_writes_nothing(

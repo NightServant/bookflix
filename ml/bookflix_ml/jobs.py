@@ -306,7 +306,8 @@ def run_embed_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     text changed since, are embedded under the active version. Otherwise in full: every live media is embedded under a `candidate`
     (the newest candidate made by the same model is resumed, so a failed run is not started over), and only when all are written is
     the candidate promoted, in one transaction that retires the old version and deletes its embeddings and `embedding` similarities.
-    A failure leaves the active version and its rows as they were. No model loaded fails the job before anything is written.
+    A failure leaves the active version and its rows as they were. No model loaded fails the job before anything is written. A candidate
+    that an overlapping run promoted meanwhile ends this run as `already-promoted`, a success.
     """
     embedder = embeddings.current()
     if embedder.dims != embeddings.DIMS:
@@ -337,6 +338,13 @@ def run_embed_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     embedded = _embed_missing(conn, embedder, version_id, docs)
     metrics = {"mode": "full", "embedded": embedded, "n_media": len(docs)}
     try:
+        # Another run that resumed the same candidate may have finished first; its promotion is this run's too.
+        status = conn.execute(
+            "select status from model_versions where id = %s for update", (version_id,)
+        ).fetchone()
+        if status is not None and status[0] == "active":
+            conn.rollback()
+            return {**metrics, "mode": "already-promoted", "version_id": version_id}
         registry.record_metrics(conn, version_id, metrics)
         registry.promote(conn, version_id)
         conn.commit()
