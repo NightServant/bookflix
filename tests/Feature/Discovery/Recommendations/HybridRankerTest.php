@@ -313,3 +313,55 @@ test('the reason id is that of the candidate the ranker kept, even when a neighb
     expect($ranked->reasonMediaId)->toBe($first->id)
         ->and($ranked->explanation->label())->toBe('Because you read '.$first->title);
 });
+
+/** One reader, one seed and two candidates the item_cf rows score 0.4 and 0.8 (the second also by the lsa rows), for the collaborative feature. */
+function collaborativeFixture(): array
+{
+    $user = User::factory()->create();
+    $seed = Media::factory()->create();
+    libraryEntry($user, $seed, 'completed');
+    [$low, $high] = Media::factory()->count(2)->create(['popularity_score' => 0.2, 'published_on' => null]);
+    $cf = activeVersion('item-cf');
+    similar($seed, $low, 'item_cf', 0.4, $cf);
+    similar($seed, $high, 'item_cf', 0.8, $cf);
+    similar($seed, $high, 'lsa', 0.5, activeVersion('lsa'));
+
+    return [$user, $seed, $low, $high];
+}
+
+function rankedBy(User $user, Media ...$media): Collection
+{
+    return app(HybridRanker::class)->rank($user, collect($media)->map(fn ($m) => candidateFor($m)), RankingWeights::fromArray(config('bookflix.hybrid_weights')));
+}
+
+test('with no active als version the ranking is exactly what the item cf rows give, whatever als rows exist', function () {
+    [$user, $seed, $low, $high] = collaborativeFixture();
+
+    $before = rankedBy($user, $low, $high);
+    similar($seed, $low, 'als', 0.99, ModelVersion::factory()->create(['name' => 'als', 'kind' => ModelKind::Als, 'status' => 'candidate']));
+    similar($seed, $high, 'als', 0.99, ModelVersion::factory()->create(['name' => 'als', 'kind' => ModelKind::Als, 'status' => 'retired']));
+    $after = rankedBy($user, $low, $high);
+
+    expect($before->map->features->pluck('collaborative_score')->all())->toEqualWithDelta([0.8, 0.4], 1e-9)
+        ->and($after->all())->toEqual($before->all());
+});
+
+test('the collaborative feature is the larger of the item cf and als neighbor scores', function () {
+    [$user, $seed, $low, $high] = collaborativeFixture();
+    $als = activeVersion('als');
+    similar($seed, $low, 'als', 0.9, $als);
+    similar($seed, $high, 'als', 0.3, $als);
+
+    $features = rankedBy($user, $low, $high)->keyBy('mediaId')->map->features;
+
+    expect($features[$low->id]['collaborative_score'])->toEqualWithDelta(0.9, 1e-9)
+        ->and($features[$high->id]['collaborative_score'])->toEqualWithDelta(0.8, 1e-9);
+});
+
+test('a title only als neighbors lead to still gets the als score as its collaborative feature', function () {
+    [$user, $seed] = collaborativeFixture();
+    $only = Media::factory()->create(['published_on' => null]);
+    similar($seed, $only, 'als', 0.6, activeVersion('als'));
+
+    expect(rankedBy($user, $only)->first()->features['collaborative_score'])->toEqualWithDelta(0.6, 1e-9);
+});

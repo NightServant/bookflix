@@ -16,6 +16,7 @@ new #[Title('Models')] class extends Component {
     /** The pipelines an admin can start: name and icon. */
     private const PIPELINES = [
         'item-cf' => ['Readers also read', 'arrow-path'],
+        'als' => ['Similar readers', 'users'],
         'lsa' => ['Text similarity', 'document-text'],
         'popularity' => ['Popularity', 'fire'],
         'embed' => ['Embeddings and summaries', 'sparkles'],
@@ -132,7 +133,7 @@ new #[Title('Models')] class extends Component {
     </div>
 
     <h2 class="mt-10 text-section tracking-tight text-ink">{{ __('Run now') }}</h2>
-    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity, embeddings and summaries hourly, readers also read and semantic similarity nightly, text similarity and the Dewey classifier weekly.') }}</p>
+    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity, embeddings and summaries hourly, readers also read, similar readers and semantic similarity nightly, text similarity and the Dewey classifier weekly.') }}</p>
 
     <div class="mt-4 flex flex-wrap gap-2">
         @foreach ($this->pipelines as $key => [$name, $icon])

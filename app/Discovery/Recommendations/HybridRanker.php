@@ -30,6 +30,9 @@ class HybridRanker
     /** The most seed titles the neighbors are read for; the strongest are kept (as in the sources). */
     private const SEED_LIMIT = 50;
 
+    /** The methods whose neighbor scores make the collaborative feature; the larger of them counts (P8-R4). */
+    private const COLLABORATIVE_METHODS = ['item_cf', 'als'];
+
     public function __construct(private SeedItems $seeds, private DeweyHierarchy $dewey) {}
 
     /**
@@ -117,7 +120,7 @@ class HybridRanker
 
     /**
      * Content similarity (best `neighbor score × seed strength` over the text methods) and collaborative score (the strength weighted mean of the
-     * item_cf neighbor scores of the seeds that lead to the title), from the active versions only.
+     * neighbor scores of the seeds that lead to the title, the larger of the `item_cf` and `als` ones), from the active versions only.
      *
      * @param  Collection<int, float>  $seeds
      * @param  list<int>  $ids
@@ -133,21 +136,23 @@ class HybridRanker
             ->join('model_versions as v', 'v.id', '=', 's.model_version_id')
             ->where('v.status', 'active')
             ->whereColumn('v.kind', 's.method')
-            ->whereIn('s.method', ['lsa', 'embedding', 'item_cf'])
+            ->whereIn('s.method', ['lsa', 'embedding', 'item_cf', 'als'])
             ->whereIn('s.media_id', $seeds->keys()->all())
             ->whereIn('s.similar_media_id', $ids)
             ->get(['s.media_id', 's.similar_media_id', 's.method', 's.score']);
 
         $content = [];
+        /** @var array<string, array<int, float>> $weighted */
         $weighted = [];
+        /** @var array<string, array<int, float>> $strengths */
         $strengths = [];
 
         foreach ($rows as $row) {
             $strength = $seeds[$row->media_id];
 
-            if ($row->method === 'item_cf') {
-                $weighted[$row->similar_media_id] = ($weighted[$row->similar_media_id] ?? 0.0) + $row->score * $strength;
-                $strengths[$row->similar_media_id] = ($strengths[$row->similar_media_id] ?? 0.0) + $strength;
+            if (in_array($row->method, self::COLLABORATIVE_METHODS, true)) {
+                $weighted[$row->method][$row->similar_media_id] = ($weighted[$row->method][$row->similar_media_id] ?? 0.0) + $row->score * $strength;
+                $strengths[$row->method][$row->similar_media_id] = ($strengths[$row->method][$row->similar_media_id] ?? 0.0) + $strength;
             } else {
                 $content[$row->similar_media_id] = max($content[$row->similar_media_id] ?? 0.0, $row->score * $strength);
             }
@@ -155,8 +160,12 @@ class HybridRanker
 
         $collaborative = [];
 
-        foreach ($weighted as $id => $sum) {
-            $collaborative[$id] = $strengths[$id] > 0 ? $sum / $strengths[$id] : 0.0;
+        foreach ($weighted as $method => $sums) {
+            foreach ($sums as $id => $sum) {
+                $total = $strengths[$method][$id] ?? 0.0;
+                $mean = $total > 0 ? $sum / $total : 0.0;
+                $collaborative[$id] = isset($collaborative[$id]) ? max($collaborative[$id], $mean) : $mean;
+            }
         }
 
         return [$content, $collaborative];
