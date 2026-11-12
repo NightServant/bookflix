@@ -191,6 +191,8 @@ test('with fresh scores the Recommended shelf follows them and its rows are logg
 });
 
 test('Recommended rows log their place in the hybrid order, equal to position without LTR and to the hybrid index when LTR re-ordered', function () {
+    // No exploration slots, so the hybrid run's positions are the diversified hybrid order itself.
+    config(['bookflix.recommendations.epsilon' => 0]);
     [$user] = richReader();
     $today = recommendedIds($user);
     $hybrid = Recommendation::where('shelf', 'recommended')->get();
@@ -201,7 +203,7 @@ test('Recommended rows log their place in the hybrid order, equal to position wi
     $hybridPlace = $hybrid->pluck('reason_payload.hybrid_position', 'media_id');
     $version = activeVersion('ltr');
     Recommendation::query()->delete();
-    foreach (array_reverse($today) as $i => $id) {
+    foreach ($today as $i => $id) {
         LtrScore::create(['user_id' => $user->id, 'media_id' => $id, 'score' => $i + 10, 'model_version_id' => $version->id, 'generated_at' => now()]);
     }
     recommendedIds($user);

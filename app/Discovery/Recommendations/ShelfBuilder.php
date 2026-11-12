@@ -353,15 +353,20 @@ class ShelfBuilder
      */
     private function recommended(array $lists, Collection $ranked, ?Collection $learned = null): array
     {
-        // Where the hybrid ranker put each title, kept in the log: once LTR serves the shelf, `position` is the LTR order, and the next candidate's
-        // baseline must still be the hybrid one.
-        $hybridPlace = $ranked->values()->pluck('mediaId')->flip();
         $picked = $this->diversifier->rerank($learned ?? $ranked->values(), 0.7, self::PER_SHELF);
 
         $exploration = collect($lists['exploration'] ?? [])->map(fn (Candidate $candidate): ?RankedItem => $ranked->get($candidate->mediaId))->filter()->values();
         // One slot in `1 / epsilon` (every tenth with the default 0.10); an epsilon of 0 gives exploration no slot.
         $epsilon = (float) config('bookflix.recommendations.epsilon');
         $picked = $this->injector->inject($picked, $exploration, $epsilon > 0 ? (int) round(1 / $epsilon) : 0, $this->random);
+
+        // Where the hybrid order put each title, kept in the log: once LTR serves the shelf, `position` is the LTR order and the next candidate's
+        // baseline must still be the hybrid one. Served in hybrid order, it is the position. Under LTR it is the place in the diversified hybrid
+        // top, with a title outside it (an exploration slot, or one LTR lifted) after them in the hybrid ranker's own order.
+        $hybridPlace = $learned === null
+            ? $picked->values()->pluck('mediaId')->flip()
+            : $this->diversifier->rerank($ranked->values(), 0.7, self::PER_SHELF)->values()->pluck('mediaId')->flip()
+                ->union($ranked->values()->pluck('mediaId')->flip()->map(fn (int $place): int => self::PER_SHELF + $place));
 
         return array_values($picked->map(function (RankedItem $item) use ($hybridPlace): ServedItem {
             $explanation = $item->explanation;
