@@ -63,9 +63,9 @@ test('run now queues the embedding pipeline', function () {
     Bus::fake([RunMlJob::class]);
     $this->actingAs(User::factory()->admin()->create());
 
-    Livewire::test('pages::admin.models.index')->assertSee('Run Embeddings')->call('runNow', 'embed');
+    Livewire::test('pages::admin.models.index')->assertSee('Run Embeddings and summaries')->call('runNow', 'embed');
 
-    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'embed-media' && $job->then === [] && $job->pipeline === 'embed');
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'summarize-media' && $job->then === [['embed-media', []]] && $job->pipeline === 'embed');
 });
 
 test('run now queues the embedding similarities pipeline', function () {

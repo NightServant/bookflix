@@ -40,7 +40,7 @@ test('every pipeline runs train, build-similarities and evaluate in that order, 
     expect(RunMlJob::PIPELINES['item-cf'])->toBe([['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]])
         ->and(RunMlJob::PIPELINES['lsa'])->toBe([['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]])
         ->and(RunMlJob::PIPELINES['popularity'])->toBe([['refresh-popularity', []]])
-        ->and(RunMlJob::PIPELINES['embed'])->toBe([['embed-media', []]])
+        ->and(RunMlJob::PIPELINES['embed'])->toBe([['summarize-media', []], ['embed-media', []]])
         ->and(RunMlJob::PIPELINES['embedding-similarities'])->toBe([['build-similarities', ['methods' => ['embedding']]]]);
 });
 
@@ -57,7 +57,27 @@ test('the embedding similarities pipeline builds the active version and ends whe
         ->and(RunMlJob::isRunning('embedding-similarities'))->toBeFalse();
 });
 
-test('the embed pipeline starts embed-media and ends when it succeeds', function () {
+test('the embed pipeline summarizes first, so a failing embed-media (no embed extra) never holds summaries back', function () {
+    Bus::fake([RunMlJob::class]);
+    expect(RunMlJob::dispatchPipeline('embed'))->toBeTrue();
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'summarize-media' && $job->then === [['embed-media', []]]);
+
+    // The service answers the summaries' poll, then the embedding's.
+    mlFake(['succeeded', 'failed'], error: 'The embed extra is not installed.', metrics: ['eligible' => 4, 'summarized' => 4]);
+    $summaries = MlJobRun::factory()->create(['name' => 'summarize-media', 'run_id' => 'r1', 'status' => 'running']);
+    runOnce(new RunMlJob('summarize-media', [], [['embed-media', []]], $summaries->id, pipeline: 'embed'));
+
+    expect($summaries->refresh()->status)->toBe('succeeded');
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'embed-media' && $job->mlJobRunId === null && $job->then === []);
+
+    $embed = MlJobRun::factory()->create(['name' => 'embed-media', 'run_id' => 'r1', 'status' => 'running']);
+    runOnce(new RunMlJob('embed-media', [], [], $embed->id, pipeline: 'embed'));
+
+    expect($embed->refresh()->status)->toBe('failed')->and($summaries->refresh()->status)->toBe('succeeded')
+        ->and(RunMlJob::isRunning('embed'))->toBeFalse();
+});
+
+test('the embed pipeline ends when embed-media succeeds', function () {
     Bus::fake([RunMlJob::class]);
     mlFake(['succeeded'], metrics: ['mode' => 'incremental', 'embedded' => 3, 'version_id' => 9]);
     expect(RunMlJob::dispatchPipeline('embed'))->toBeTrue();

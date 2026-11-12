@@ -33,8 +33,10 @@ class RunMlJob implements ShouldQueue
         'popularity' => [['refresh-popularity', []]],
         'item-cf' => [['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]],
         'lsa' => [['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]],
-        // Embeds new and changed media under the active version, or re-embeds everything and promotes when the service runs another model.
-        'embed' => [['embed-media', []]],
+        // Summarizes new and changed long descriptions, then embeds new and changed media under the active version, or re-embeds everything and
+        // promotes when the service runs another model. Summaries go first because a failed step ends the chain, and embed-media fails where the
+        // embed extra is missing; the summaries need nothing from it.
+        'embed' => [['summarize-media', []], ['embed-media', []]],
         // Not a train step: the service builds the neighbors of whichever embedding version is active when the step runs.
         'embedding-similarities' => [['build-similarities', ['methods' => ['embedding']]]],
     ];
