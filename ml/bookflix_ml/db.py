@@ -120,6 +120,28 @@ def fetch_lsa_vectors(conn: Conn, version_id: int) -> tuple[list[int], np.ndarra
     return ids, vectors
 
 
+def fetch_embedding_vectors(conn: Conn, version_id: int) -> tuple[list[int], np.ndarray]:
+    """The stored embeddings of one `embedding` version for media that are still live, in id order."""
+    rows = conn.execute(
+        """
+        select e.media_id, e.embedding
+        from media_embeddings e
+        join media m on m.id = e.media_id
+        where e.model_version_id = %s and m.deleted_at is null and m.merged_into_id is null
+        order by e.media_id
+        """,
+        (version_id,),
+    ).fetchall()
+
+    if not rows:
+        return [], np.empty((0, 0), dtype=np.float32)
+
+    ids = [int(r[0]) for r in rows]
+    vectors = np.asarray([r[1].to_numpy() for r in rows], dtype=np.float32)
+
+    return ids, vectors
+
+
 def fetch_live_media_ids(conn: Conn) -> set[int]:
     return {
         int(r[0])

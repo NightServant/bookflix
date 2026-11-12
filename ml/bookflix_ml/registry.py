@@ -98,6 +98,21 @@ def require_candidate(conn: Conn, version_id: int, name: str) -> tuple[int, str,
     return version_id, str(row[0]), row[1]
 
 
+def require_active(conn: Conn, version_id: int, name: str) -> int:
+    """`version_id`, which must be the `active` version of `name`; `ValueError` otherwise.
+
+    Embedding versions are promoted by `embed-media` itself, so their similarities are built for the active version, never a candidate.
+    """
+    row = conn.execute(
+        "select 1 from model_versions where id = %s and name = %s and status = 'active'",
+        (version_id, name),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"Model version {version_id} is not the active version of {name}.")
+
+    return version_id
+
+
 def parse_version_id(params: dict[str, Any]) -> int | None:
     """The optional `version_id` param as an int; `ValueError` when it is present but not an integer."""
     value = params.get("version_id")

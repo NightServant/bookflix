@@ -185,11 +185,14 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
     With a `version_id` (the one its `train` step reported, so overlapping pipelines do not mix versions) it builds exactly that version
     instead, which must be a `candidate` of the one method in `methods`; anything else fails the job.
 
+    `embedding` is built only when asked for, and always from the `active` embedding version: `embed-media` promotes a version only once
+    every media is embedded, so a candidate is never complete. A `version_id` for it must be that active version.
+
     Each method goes in its own transaction under its own version id, so one failing leaves the other's rows and the old rows of the
     failing one untouched. A method with no version yet is skipped. Neighbors of media that are no longer live are dropped.
     """
     methods = list(params.get("methods") or ["lsa", "item_cf"])
-    unknown = sorted(set(methods) - {"lsa", "item_cf"})
+    unknown = sorted(set(methods) - {"lsa", "item_cf", "embedding"})
     if unknown:
         raise ValueError(f"Unknown similarity method: {', '.join(unknown)}")
 
@@ -199,19 +202,30 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
 
     metrics: dict[str, Any] = {"written": {}, "skipped": []}
     for method in methods:
-        name = "lsa" if method == "lsa" else "item-cf"
-        if pinned is None:
-            found = registry.latest_version(conn, name)
-            if found is None:
+        uri: str | None = None
+        if method == "embedding":
+            if pinned is not None:
+                version_id = registry.require_active(conn, pinned, "embedding")
+            elif (active := registry.active_version(conn, "embedding")) is not None:
+                version_id = active[0]
+            else:
                 metrics["skipped"].append(method)
                 continue
-            version_id, uri = found
         else:
-            version_id, _, uri = registry.require_candidate(conn, pinned, name)
+            name = "lsa" if method == "lsa" else "item-cf"
+            if pinned is None:
+                found = registry.latest_version(conn, name)
+                if found is None:
+                    metrics["skipped"].append(method)
+                    continue
+                version_id, uri = found
+            else:
+                version_id, _, uri = registry.require_candidate(conn, pinned, name)
 
         try:
-            if method == "lsa":
-                ids, vectors = db.fetch_lsa_vectors(conn, version_id)
+            if method in ("lsa", "embedding"):
+                fetch = db.fetch_lsa_vectors if method == "lsa" else db.fetch_embedding_vectors
+                ids, vectors = fetch(conn, version_id)
                 neighbors = similarities.top_k_cosine(ids, vectors, 50)
             else:
                 if uri is None:
