@@ -5,6 +5,7 @@ use App\Enums\ModelStatus;
 use App\Models\Media;
 use App\Models\MediaEmbedding;
 use App\Models\MediaSimilarity;
+use App\Models\MediaSummary;
 use App\Models\MlJobRun;
 use App\Models\ModelVersion;
 use App\Models\Profile;
@@ -128,6 +129,24 @@ test('an embedding is one 384-dimensional vector per media and version, and casc
     Media::find($row->media_id)->forceDelete();
 
     expect(MediaEmbedding::count())->toBe(0);
+});
+
+test('a summary is one unversioned row per media, and cascades with media', function () {
+    $row = MediaSummary::factory()->create();
+
+    expect(refused(fn () => MediaSummary::factory()->create(['media_id' => $row->media_id])))->toThrow(QueryException::class);
+
+    $stored = MediaSummary::sole();
+
+    expect($stored->summary)->toBe($row->summary)
+        ->and($stored->source_hash)->toHaveLength(64)
+        ->and($stored->method)->toBe('lsa')
+        ->and($stored->generated_at)->not->toBeNull()
+        ->and($stored->media->is(Media::find($row->media_id)))->toBeTrue();
+
+    Media::find($row->media_id)->forceDelete();
+
+    expect(MediaSummary::count())->toBe(0);
 });
 
 test('embeddings have an hnsw cosine index', function () {

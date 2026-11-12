@@ -79,6 +79,14 @@ create table media_embeddings (
 );
 create index media_embeddings_embedding_idx on media_embeddings using hnsw (embedding vector_cosine_ops);
 
+create table media_summaries (
+    media_id bigint primary key references media (id) on delete cascade,
+    summary text not null,
+    source_hash varchar(64) not null,
+    method varchar(32) not null,
+    generated_at timestamp not null
+);
+
 create table media_similarities (
     media_id bigint not null references media (id) on delete cascade,
     similar_media_id bigint not null references media (id) on delete cascade,

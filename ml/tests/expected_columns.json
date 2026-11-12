@@ -15,5 +15,6 @@
   "media_lsa_vectors": ["media_id", "model_version_id", "vector"],
   "media_embeddings": ["media_id", "model_version_id", "embedding", "content_hash"],
   "media_similarities": ["media_id", "similar_media_id", "method", "score", "model_version_id"],
-  "media_features": ["media_id", "model_version_id", "top_terms", "summary", "computed_at"]
+  "media_features": ["media_id", "model_version_id", "top_terms", "summary", "computed_at"],
+  "media_summaries": ["media_id", "summary", "source_hash", "method", "generated_at"]
 }
