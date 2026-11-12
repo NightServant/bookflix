@@ -87,6 +87,21 @@ create table media_summaries (
     generated_at timestamp not null
 );
 
+-- Only the columns the Dewey classifier's training reads; Laravel has more (and enums where these are text).
+create table dewey_classes (
+    id bigserial primary key,
+    code varchar(16) not null unique
+);
+
+create table media_dewey_classes (
+    id bigserial primary key,
+    media_id bigint not null references media (id) on delete cascade,
+    dewey_class_id bigint not null references dewey_classes (id),
+    classification_type varchar(16) not null,
+    review_status varchar(16) not null default 'pending',
+    unique (media_id, dewey_class_id)
+);
+
 create table media_similarities (
     media_id bigint not null references media (id) on delete cascade,
     similar_media_id bigint not null references media (id) on delete cascade,

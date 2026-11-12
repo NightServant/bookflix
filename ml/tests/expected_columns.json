@@ -16,5 +16,7 @@
   "media_embeddings": ["media_id", "model_version_id", "embedding", "content_hash"],
   "media_similarities": ["media_id", "similar_media_id", "method", "score", "model_version_id"],
   "media_features": ["media_id", "model_version_id", "top_terms", "summary", "computed_at"],
-  "media_summaries": ["media_id", "summary", "source_hash", "method", "generated_at"]
+  "media_summaries": ["media_id", "summary", "source_hash", "method", "generated_at"],
+  "dewey_classes": ["id", "code"],
+  "media_dewey_classes": ["media_id", "dewey_class_id", "classification_type", "review_status"]
 }

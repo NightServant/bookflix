@@ -15,6 +15,7 @@ from app.settings import get_settings
 from bookflix_ml import (
     artifacts,
     db,
+    dewey,
     embeddings,
     evaluate,
     item_cf,
@@ -359,6 +360,66 @@ def run_embed_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     return {**metrics, "version_id": version_id}
 
 
+def run_train_dewey_classifier(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Train the Dewey classifier on the accepted primary classes and promote it when it beats the majority-class baseline.
+
+    It learns from the vectors of the active `embedding` and `lsa` versions and records their ids in its parameters, so `/v1/classify/dewey`
+    can refuse to compare vectors of other models. The data gate runs before any version exists: with no active embedding or LSA version,
+    or too few accepted primaries or classes, the job succeeds with `skipped` (reason, have, need) and creates nothing.
+
+    A version whose held-out accuracy is not above the baseline is retired, never promoted; otherwise it is promoted at once (retiring the
+    active one), since it learned from every decision reviewers have made so far. A failure retires the version.
+    """
+    active = {}
+    for name in ("embedding", "lsa"):
+        found = registry.active_version(conn, name)
+        if found is None:
+            return {"skipped": {"reason": f"no active {name} version", "have": 0, "need": 1}}
+        active[name] = found[0]
+
+    _, emb, lsa_vectors, labels = db.fetch_dewey_training(conn, active["embedding"], active["lsa"])
+    try:
+        dewey.check(labels)
+    except dewey.NotEnoughData as e:
+        return {"skipped": e.skipped}
+
+    parameters = {
+        "embedding_version_id": active["embedding"],
+        "lsa_version_id": active["lsa"],
+        "k": dewey.K,
+        "seed": dewey.SEED,
+    }
+    version_id, version = registry.create_version(
+        conn,
+        "dewey-classifier",
+        "dewey_classifier",
+        parameters,
+        "media_dewey_classes:accepted-primary",
+    )
+    conn.commit()
+
+    try:
+        model, metrics = dewey.train(emb, lsa_vectors, labels)
+        uri = artifacts.save(model, "dewey-classifier", version)
+        registry.finish_version(conn, version_id, "candidate", metrics, uri)
+        promoted = metrics["accuracy"] > metrics["baseline"]
+        outcome: dict[str, Any] = {"promoted": promoted}
+        if promoted:
+            registry.promote(conn, version_id)
+        else:
+            outcome["reason"] = "held-out accuracy is not above the majority-class baseline"
+            registry.retire(conn, version_id)
+        registry.record_metrics(conn, version_id, outcome)
+        conn.commit()
+    except BaseException as e:
+        conn.rollback()
+        registry.finish_version(conn, version_id, "retired", {"error": str(e) or type(e).__name__})
+        conn.commit()
+        raise
+
+    return {**metrics, **outcome, "version_id": version_id}
+
+
 SUMMARY_CHUNK = 500
 # Descriptions up to this many characters are short enough to show whole.
 SUMMARY_MIN_CHARS = 600
@@ -687,4 +748,5 @@ JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "evaluate": _with_connection(run_evaluate),
     "embed-media": _with_connection(run_embed_media),
     "summarize-media": _with_connection(run_summarize_media),
+    "train-dewey-classifier": _with_connection(run_train_dewey_classifier),
 }

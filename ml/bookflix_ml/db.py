@@ -142,6 +142,37 @@ def fetch_embedding_vectors(conn: Conn, version_id: int) -> tuple[list[int], np.
     return ids, vectors
 
 
+def fetch_dewey_training(
+    conn: Conn, embedding_version_id: int, lsa_version_id: int
+) -> tuple[list[int], np.ndarray, np.ndarray, list[str]]:
+    """The accepted primary class of every live media that has vectors under both versions: ids, embeddings, LSA vectors and class
+    codes, in id order."""
+    rows = conn.execute(
+        """
+        select mdc.media_id, e.embedding, v.vector, dc.code
+        from media_dewey_classes mdc
+        join dewey_classes dc on dc.id = mdc.dewey_class_id
+        join media m on m.id = mdc.media_id
+        join media_embeddings e on e.media_id = mdc.media_id and e.model_version_id = %s
+        join media_lsa_vectors v on v.media_id = mdc.media_id and v.model_version_id = %s
+        where mdc.review_status = 'accepted' and mdc.classification_type = 'primary'
+            and m.deleted_at is null and m.merged_into_id is null
+        order by mdc.media_id
+        """,
+        (embedding_version_id, lsa_version_id),
+    ).fetchall()
+
+    if not rows:
+        return [], np.empty((0, 0), dtype=np.float32), np.empty((0, 0), dtype=np.float32), []
+
+    return (
+        [int(r[0]) for r in rows],
+        np.asarray([r[1].to_numpy() for r in rows], dtype=np.float32),
+        np.asarray([r[2].to_numpy() for r in rows], dtype=np.float32),
+        [str(r[3]) for r in rows],
+    )
+
+
 def fetch_live_media_ids(conn: Conn) -> set[int]:
     return {
         int(r[0])
