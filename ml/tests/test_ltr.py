@@ -123,7 +123,8 @@ def test_the_artifact_round_trips() -> None:
 
 def test_ndcg_at_k() -> None:
     assert ltr.ndcg_at_k([[0, 0, 0]]) == (0.0, 0)
-    assert ltr.ndcg_at_k([[4, 3, 1, 0]]) == (pytest.approx(1.0), 1)
+    perfect, n = ltr.ndcg_at_k([[4, 3, 1, 0]])
+    assert perfect == pytest.approx(1.0) and n == 1
     worse, n = ltr.ndcg_at_k([[0, 0, 3]])
     assert n == 1 and 0 < worse < 1
     assert ltr.ndcg_at_k([[1, 0], [0, 0], [0, 1]])[1] == 2
