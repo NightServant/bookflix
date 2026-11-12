@@ -89,7 +89,7 @@ test('run now is refused with a message while that pipeline is running, and its 
         ->call('runNow', 'lsa')->assertDispatched('toast-show', fn (string $event, array $params) => str_contains(json_encode($params), 'already running'));
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 
-    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false, 'embed' => false, 'embedding-similarities' => false]);
+    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false, 'embed' => false, 'embedding-similarities' => false, 'dewey-classifier' => false]);
 });
 
 test('run now is refused once the reader is no longer an admin', function () {
@@ -106,4 +106,23 @@ test('run now is refused once the reader is no longer an admin', function () {
 
 test('the admin index links to the models page', function () {
     $this->actingAs(User::factory()->admin()->create())->get(route('admin.index'))->assertSee(route('admin.models'), false);
+});
+
+test('run now queues the dewey classifier pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Dewey classifier')->call('runNow', 'dewey-classifier');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'train-dewey-classifier' && $job->pipeline === 'dewey-classifier');
+});
+
+test('a run that skipped for too little data shows why', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    MlJobRun::factory()->create(['name' => 'train-dewey-classifier', 'status' => 'succeeded', 'metrics' => ['skipped' => ['reason' => 'too few accepted primaries', 'have' => 40, 'need' => 100]], 'finished_at' => now()]);
+    MlJobRun::factory()->create(['name' => 'build-similarities', 'status' => 'succeeded', 'metrics' => ['written' => [], 'skipped' => ['embedding']], 'finished_at' => now()]);
+
+    Livewire::test('pages::admin.models.index')
+        ->assertSee('Skipped: too few accepted primaries (40 of 100)')
+        ->assertDontSee('Skipped: embedding');
 });

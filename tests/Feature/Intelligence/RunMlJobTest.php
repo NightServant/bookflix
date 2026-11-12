@@ -213,6 +213,36 @@ test('a train step that succeeds without a version id ends the chain with a fail
         ->and(MlJobRun::where('status', 'failed')->sole())->name->toBe('build-similarities')->error->toContain('version_id');
 });
 
+test('a train step that skipped for too little data ends its pipeline as a success, with no failed row and no retry', function () {
+    Bus::fake([RunMlJob::class]);
+    $skipped = ['skipped' => ['reason' => 'too few accepted primaries', 'have' => 40, 'need' => 100]];
+    mlFake(['succeeded'], metrics: $skipped);
+    expect(RunMlJob::dispatchPipeline('item-cf'))->toBeTrue();
+    Bus::fake([RunMlJob::class]);
+    $run = MlJobRun::factory()->create(['name' => 'train-item-cf', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-item-cf', [], [['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]], $run->id, pipeline: 'item-cf'));
+
+    Bus::assertNotDispatched(RunMlJob::class);
+    expect($run->refresh()->status)->toBe('succeeded')->and($run->metrics)->toEqual($skipped)
+        ->and(MlJobRun::where('status', 'failed')->count())->toBe(0)
+        ->and(RunMlJob::isRunning('item-cf'))->toBeFalse();
+});
+
+test('the dewey classifier pipeline trains alone and a skip ends it cleanly', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['skipped' => ['reason' => 'too few classes', 'have' => 2, 'need' => 3]]);
+    expect(RunMlJob::PIPELINES['dewey-classifier'])->toBe([['train-dewey-classifier', []]])
+        ->and(RunMlJob::dispatchPipeline('dewey-classifier'))->toBeTrue();
+    $run = MlJobRun::factory()->create(['name' => 'train-dewey-classifier', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-dewey-classifier', [], [], $run->id, pipeline: 'dewey-classifier'));
+
+    expect($run->refresh()->status)->toBe('succeeded')
+        ->and(MlJobRun::where('status', 'failed')->count())->toBe(0)
+        ->and(RunMlJob::isRunning('dewey-classifier'))->toBeFalse();
+});
+
 test('only one run of a pipeline is accepted at a time, and the last step frees it', function () {
     Bus::fake([RunMlJob::class]);
 
