@@ -5,6 +5,7 @@ from typing import Any
 
 from psycopg.types.json import Jsonb
 
+from bookflix_ml import artifacts
 from bookflix_ml.db import Conn
 
 
@@ -213,7 +214,8 @@ def retire(conn: Conn, version_id: int) -> None:
 
 def _prune(conn: Conn, name: str, method: str) -> None:
     """Delete the similarity rows of every version of `method` that is neither active nor a waiting candidate and, for `lsa` and
-    `embedding`, the vectors (and LSA features) of their retired versions."""
+    `embedding`, the vectors (and LSA features) of their retired versions and, for `dewey-classifier`, their stored model files (the
+    only artifact worth its disk: a weekly retrain would otherwise leave one for ever)."""
     conn.execute(
         """
         delete from media_similarities
@@ -228,3 +230,13 @@ def _prune(conn: Conn, name: str, method: str) -> None:
             f"delete from {table} where model_version_id in (select id from model_versions where name = %s and status = 'retired')",  # noqa: S608
             (name,),
         )
+    if name == "dewey-classifier":
+        retired = conn.execute(
+            "select id, artifact_uri from model_versions where name = %s and status = 'retired' and artifact_uri is not null",
+            (name,),
+        ).fetchall()
+        for version_id, uri in retired:
+            artifacts.delete(uri)
+            conn.execute(
+                "update model_versions set artifact_uri = null where id = %s", (version_id,)
+            )
