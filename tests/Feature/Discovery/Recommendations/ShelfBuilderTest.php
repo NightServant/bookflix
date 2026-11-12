@@ -218,6 +218,8 @@ test('the reader\'s seeds are read once per build and never kept between builds'
 });
 
 test('Because You Read and Similar To fill up from neighbors the shared pool cut off', function () {
+    // The exploration source draws at random and can pick the quiet titles; a fixed seed keeps how many reach the pool the same on every run.
+    app()->bind(Randomizer::class, fn () => new Randomizer(new Mt19937(1)));
     $catalog = homeCatalog();
     $user = User::factory()->create();
     $lsa = activeVersion('lsa');
