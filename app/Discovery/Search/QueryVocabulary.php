@@ -40,9 +40,10 @@ class QueryVocabulary
 
     /**
      * The phrase table this reader parses with: `phrases` maps a phrase key (see key()) to its kind and value, `longest` is the most words
-     * a phrase has, and `unspaced` lists the phrases in scripts without word spacing.
+     * a phrase has, `unspaced` lists the phrases in scripts without word spacing, and `generation` is new each time the table is built, so a
+     * cache keyed by it (the parser's) never outlives a re-seed.
      *
-     * @return array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>}
+     * @return array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>, generation: string}
      */
     public function lookup(?User $viewer): array
     {
@@ -88,7 +89,7 @@ class QueryVocabulary
     }
 
     /**
-     * @return array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>}
+     * @return array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>, generation: string}
      */
     private function build(bool $includeMature): array
     {
@@ -147,6 +148,7 @@ class QueryVocabulary
             'longest' => max([1, ...array_map(fn (string $key): int => substr_count($key, ' ') + 1, array_keys($phrases))]),
             'unspaced' => array_values(array_filter(array_map('strval', array_keys($phrases)), fn (string $key): bool => preg_match(self::UNSPACED, $key) === 1)),
             'slugs' => $slugs,
+            'generation' => Str::random(12),
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Discovery\Search\RuleBasedQueryParser;
 use App\Discovery\Search\SearchFilters;
 use App\Discovery\Search\TaxonomyFacets;
 use App\Models\DeweyClass;
+use App\Models\Genre;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
@@ -53,7 +54,7 @@ test('a natural language query names a type a genre and a theme from the taxonom
     expect($intent->mediaTypes)->toBe(['manga'])
         ->and($intent->genres)->toBe(['dark-fantasy'])
         ->and($intent->themes)->toBe(['political-intrigue'])
-        ->and($intent->semanticText)->toContain('dark')->toContain('fantasy')->toContain('political intrigue')->not->toContain('manga');
+        ->and($intent->semanticText)->toContain('dark')->toContain('fantasy')->toContain('political intrigue')->toContain('manga');
 });
 
 test('a short read is a length hint', function () {
@@ -93,8 +94,35 @@ test('plural case accents scripts and multiword synonyms are understood', functi
 test('negated words are ignored', function () {
     expect(intentOf('not romance')->genres)->toBe([])
         ->and(intentOf('fantasy without romance')->genres)->toBe(['fantasy'])
-        ->and(intentOf('fantasy without romance')->semanticText)->not->toContain('romance')
-        ->and(intentOf('romance not horror')->genres)->toBe(['romance']);
+        ->and(intentOf('fantasy without romance')->semanticText)->toBe('fantasy')
+        ->and(intentOf('romance not horror')->genres)->toBe(['romance'])
+        ->and(intentOf('without any romance')->genres)->toBe([]);
+});
+
+test('the semantic text is the query without its negated spans', function (string $query, string $text) {
+    expect(intentOf($query)->semanticText)->toBe($text);
+})->with([
+    ['The Long Walk', 'the long walk'],
+    ['Manga Guide to Databases', 'manga guide to databases'],
+    ['short science-fiction novel', 'short science fiction novel'],
+    ['fantasy without magic', 'fantasy'],
+    ['not not romance', ''],
+    ['romance not horror set in space', 'romance set in space'],
+    ['no', ''],
+]);
+
+test('a query naming prohibited content has no semantic text', function () {
+    expect(intentOf('lolicon robot story')->semanticText)->toBe('')
+        ->and(intentOf('robot story')->semanticText)->toBe('robot story');
+});
+
+test('a re-seed never serves a parse made with the old vocabulary', function () {
+    expect(intentOf('fantasy')->genres)->toBe(['fantasy']);
+
+    Genre::where('slug', 'fantasy')->update(['slug' => 'fantasy-renamed']);
+    TaxonomyFacets::flush();
+
+    expect(intentOf('fantasy')->genres)->toBe(['fantasy-renamed']);
 });
 
 test('degenerate queries return an intent without exceptions', function (string $query) {

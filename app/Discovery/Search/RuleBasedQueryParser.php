@@ -2,29 +2,28 @@
 
 namespace App\Discovery\Search;
 
-use App\Access\MatureAccess;
+use App\Catalog\Ingestion\ProhibitedContent;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
 /**
  * Reads a query against the reader's QueryVocabulary, left to right, longest phrase first: "dark fantasy manga" is the subgenre Dark Fantasy and
- * the type Manga, not the family Fantasy. A phrase right after a negation ("not romance", "without romance") is left out of the intent and of the
- * semantic text. Words in scripts without spacing (`進撃の巨人の漫画`) are also searched inside for a phrase. Nothing here throws: the query is
+ * the type Manga, not the family Fantasy. A negation ("not romance", "without magic") is left out of the intent and of the semantic text with
+ * what it negates. Words in scripts without spacing (`進撃の巨人の漫画`) are also searched inside for a phrase. Nothing here throws: the query is
  * capped at the search box's length, invalid UTF-8 is scrubbed and a text with no words is an empty intent.
  *
- * The result is kept ten minutes per normalized query and access level, so once the vocabulary is cached a parse reads the reader's profile at most.
+ * The semantic text is the reader's words minus the negated ones: type and length words stay ("The Long Walk", "Manga Guide to Databases"),
+ * and a query naming prohibited content has none, so the term is neither embedded nor stored a second time in `search_queries.intent`.
+ *
+ * The result is kept ten minutes per normalized query and vocabulary build (one per access level), so once the vocabulary is cached a parse
+ * reads the reader's profile at most, and a re-seed, which drops the vocabulary, never serves an old slug.
  */
 class RuleBasedQueryParser implements QueryParser
 {
     private const TTL = 600;
 
-    /** Words that keep the next phrase (within two words) out of the intent. */
+    /** Words that keep what follows them out of the intent and the semantic text: the next phrase, or the next word and a phrase right after it. */
     private const NEGATIONS = ['not', 'no', 'without', 'except', 'excluding', 'never', 'nor', 'minus', 'sans', 'sin'];
-
-    private const NEGATION_REACH = 2;
-
-    /** Kinds that only narrow the results and say nothing about what a story is about, so they leave the semantic text. */
-    private const FILTER_ONLY = ['type', 'length'];
 
     public function __construct(private QueryVocabulary $vocabulary) {}
 
@@ -36,56 +35,51 @@ class RuleBasedQueryParser implements QueryParser
             return new QueryIntent;
         }
 
-        $key = 'query-intent:v1:'.MatureAccess::cacheKey($viewer).':'.sha1(implode(' ', $words));
+        $vocabulary = $this->vocabulary->lookup($viewer);
+        $key = 'query-intent:v2:'.$vocabulary['generation'].':'.sha1(implode(' ', $words));
 
-        return new QueryIntent(...Cache::remember($key, self::TTL, fn (): array => $this->read($words, $this->vocabulary->lookup($viewer))->toArray()));
+        return QueryIntent::fromArray(Cache::remember($key, self::TTL, fn (): array => $this->read($words, $vocabulary)->toArray()));
     }
 
     /**
      * @param  list<string>  $words
-     * @param  array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>}  $vocabulary
+     * @param  array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>, generation: string}  $vocabulary
      */
     private function read(array $words, array $vocabulary): QueryIntent
     {
         $keys = array_map(fn (string $word): string => QueryVocabulary::key([$word]), $words);
+        $spans = []; // [first word, length, kind or null, value or null]
+
+        for ($i = 0, $count = count($words); $i < $count; $i += $spans[array_key_last($spans)][1]) {
+            [$length, $kind, $value] = $this->phraseAt($keys, $i, $vocabulary) ?? [1, null, null];
+            $spans[] = [$i, $length, $kind, $value];
+        }
+
         $found = ['type' => [], 'genre' => [], 'theme' => [], 'dewey' => [], 'length' => []];
         $kept = [];
-        $negation = null; // the index in $kept of the last negation word still in reach
-        $reach = -1;
 
-        for ($i = 0, $count = count($words); $i < $count;) {
-            [$length, $kind, $value] = $this->phraseAt($keys, $i, $vocabulary) ?? [0, null, null];
+        for ($s = 0, $count = count($spans); $s < $count; $s++) {
+            [$first, $length, $kind, $value] = $spans[$s];
 
-            if ($length === 0) {
-                if (in_array($words[$i], self::NEGATIONS, true)) {
-                    $negation = count($kept);
-                    $reach = $i + self::NEGATION_REACH;
-                }
-
-                foreach ($this->inside($keys[$i], $vocabulary) as [$innerKind, $innerValue]) {
-                    $found[$innerKind][] = $innerValue;
-                }
-
-                $kept[] = $words[$i++];
+            if ($kind === null && in_array($words[$first], self::NEGATIONS, true)) {
+                $s = $this->negatedThrough($spans, $words, $s);
 
                 continue;
             }
 
-            if ($i <= $reach && $negation !== null) {
-                array_splice($kept, $negation); // "without romance" means nothing to a semantic leg that cannot read "without"
-                $negation = null;
+            if ($kind === null) {
+                foreach ($this->inside($keys[$first], $vocabulary) as [$innerKind, $innerValue]) {
+                    $found[$innerKind][] = $innerValue;
+                }
             } else {
                 $found[$kind][] = $value;
-
-                if (! in_array($kind, self::FILTER_ONLY, true)) {
-                    array_push($kept, ...array_slice($words, $i, $length));
-                }
             }
 
-            $i += $length;
+            array_push($kept, ...array_slice($words, $first, $length));
         }
 
         $unique = fn (array $values): array => array_values(array_unique($values));
+        $text = implode(' ', $kept);
 
         return new QueryIntent(
             mediaTypes: $unique($found['type']),
@@ -93,15 +87,37 @@ class RuleBasedQueryParser implements QueryParser
             themes: $unique($found['theme']),
             deweyCode: $found['dewey'][0] ?? null,
             lengthHint: $found['length'][0] ?? null,
-            semanticText: implode(' ', $kept),
+            semanticText: ProhibitedContent::matches(implode(' ', $words)) ? '' : $text,
         );
+    }
+
+    /**
+     * The last span a negation at span $s reaches: the next phrase; or the next word, and a phrase right after it ("without any romance");
+     * a negation it reaches negates in turn ("not not romance" leaves nothing).
+     *
+     * @param  list<array{0: int, 1: int, 2: string|null, 3: string|null}>  $spans
+     * @param  list<string>  $words
+     */
+    private function negatedThrough(array $spans, array $words, int $s): int
+    {
+        $next = $s + 1;
+
+        if (! isset($spans[$next]) || $spans[$next][2] !== null) {
+            return min($next, count($spans) - 1);
+        }
+
+        if (in_array($words[$spans[$next][0]], self::NEGATIONS, true)) {
+            return $this->negatedThrough($spans, $words, $next);
+        }
+
+        return isset($spans[$next + 1]) && $spans[$next + 1][2] !== null ? $next + 1 : $next;
     }
 
     /**
      * The longest phrase starting at word $i, as [its length in words, kind, value], or null.
      *
      * @param  list<string>  $keys
-     * @param  array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>}  $vocabulary
+     * @param  array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>, generation: string}  $vocabulary
      * @return array{0: int, 1: string, 2: string}|null
      */
     private function phraseAt(array $keys, int $i, array $vocabulary): ?array
@@ -120,7 +136,7 @@ class RuleBasedQueryParser implements QueryParser
     /**
      * The unspaced-script phrases found inside one word that is not itself a phrase.
      *
-     * @param  array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>}  $vocabulary
+     * @param  array{phrases: array<string, array{0: string, 1: string}>, longest: int, unspaced: list<string>, slugs: array<string, list<string>>, generation: string}  $vocabulary
      * @return list<array{0: string, 1: string}>
      */
     private function inside(string $word, array $vocabulary): array
