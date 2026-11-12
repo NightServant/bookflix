@@ -18,3 +18,9 @@ test('rrf orders equal scores by id, whatever order the lists listed them in', f
     expect(array_keys(Rrf::fuse([[5, 2], [2, 5]])))->toBe([2, 5])
         ->and(array_keys(Rrf::fuse([[2, 5], [5, 2]])))->toBe([2, 5]);
 });
+
+test('a keyword and a semantic list fuse with k 60', function () {
+    [$a, $b, $c, $d] = [1, 2, 3, 4];
+
+    expect(array_keys(Rrf::fuse([[$a, $b, $c], [$c, $a, $d]])))->toBe([$a, $c, $b, $d]);
+});

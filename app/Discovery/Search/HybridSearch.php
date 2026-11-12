@@ -2,7 +2,9 @@
 
 namespace App\Discovery\Search;
 
+use App\Catalog\Ingestion\ProhibitedContent;
 use App\Discovery\Search\Legs\KeywordLeg;
+use App\Discovery\Search\Legs\SemanticLeg;
 use App\Discovery\Search\Legs\SubjectLeg;
 use App\Models\Media;
 use App\Models\User;
@@ -23,7 +25,7 @@ class HybridSearch
     /** The intent groups in the order they are kept: relaxation drops the last one first, since a type says most about what the reader wants. */
     private const INTENT_GROUPS = ['mediaTypes' => 'type', 'genres' => 'genre', 'themes' => 'theme', 'deweyCode' => 'dewey'];
 
-    public function __construct(private KeywordLeg $keyword, private SubjectLeg $subject, private QueryVocabulary $vocabulary) {}
+    public function __construct(private KeywordLeg $keyword, private SubjectLeg $subject, private SemanticLeg $semantic, private QueryVocabulary $vocabulary) {}
 
     /**
      * Every leg's hits, fused by reciprocal rank, one page of media in rank order. A blank or punctuation-only query runs nothing.
@@ -35,7 +37,8 @@ class HybridSearch
      * An intent (see QueryParser) adds its types, genres, themes and Dewey code as filters, but only while at least one result remains: when they
      * would leave none, the Dewey code, then the themes, then the genres, then the types are dropped until some result does, and what was dropped
      * is reported as suggested rather than applied. A group the reader filtered by themselves is theirs and the intent's is ignored, as is any
-     * value outside the reader's vocabulary (a mature genre for a gated reader). The keyword leg still reads the reader's own words.
+     * value outside the reader's vocabulary (a mature genre for a gated reader). The keyword leg still reads the reader's own words; the semantic
+     * leg reads the intent's `semanticText` when it has one. The semantic leg falls silent, never fails, when the ML service does (see SemanticLeg).
      *
      * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
      */
@@ -56,8 +59,11 @@ class HybridSearch
         $filters = $filters->forViewer($user);
 
         $groups = $query === '' || $intent === null ? [] : $this->intentGroups($intent, $filters, $user);
-        [$lists, $applied] = $query === '' ? [[], []] : $this->relaxed($query, $filters, $groups);
+        // A query naming prohibited content (see ProhibitedContent) is never embedded or matched by meaning: keyword results only.
+        $semanticText = ProhibitedContent::matches($query) ? '' : ($intent !== null && $intent->semanticText !== '' ? $intent->semanticText : $query);
+        [$lists, $applied] = $query === '' ? [[], []] : $this->relaxed($query, $semanticText, $filters, $groups);
         $ranked = array_keys(Rrf::fuse($lists));
+        // The semantic leg lists at most SemanticLeg::MAX_IDS, under the ceiling, so only the text legs can make the total a floor.
         $hasMore = collect($lists)->contains(fn (array $ids): bool => count($ids) >= self::LEG_LIMIT);
 
         $pageIds = array_slice($ranked, ($page - 1) * $perPage, $perPage);
@@ -104,15 +110,17 @@ class HybridSearch
     /**
      * Every leg's ids with as many intent groups applied as still leave a result, and the groups that were.
      * One run when the whole intent fits, two when even the reader's own filters find nothing, at most one more per dropped group otherwise.
+     * The semantic leg embeds its text and fetches its neighbours on the first run only; later runs filter the same neighbours.
      *
      * @param  array<string, list<string>|string>  $groups
      * @return array{0: list<list<int>>, 1: array<string, list<string>|string>}
      */
-    private function relaxed(string $query, SearchFilters $filters, array $groups): array
+    private function relaxed(string $query, string $semanticText, SearchFilters $filters, array $groups): array
     {
+        $legs = [[$this->keyword, $query], [$this->subject, $query], [$this->semantic, $semanticText]];
         $run = fn (array $applied): array => array_map(
-            fn (SearchLeg $leg): array => $leg->ids($query, new SearchFilters(...[...get_object_vars($filters), ...$applied]), self::LEG_LIMIT),
-            [$this->keyword, $this->subject],
+            fn (array $leg): array => $leg[0]->ids($leg[1], new SearchFilters(...[...get_object_vars($filters), ...$applied]), self::LEG_LIMIT),
+            $legs,
         );
         $found = fn (array $lists): bool => collect($lists)->contains(fn (array $ids): bool => $ids !== []);
 
