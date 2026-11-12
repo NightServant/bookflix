@@ -44,6 +44,10 @@ class ExportLtrCandidates implements ShouldQueue
 
     public function handle(CandidatePool $pool, HybridRanker $ranker, SeedItems $seeds): void
     {
+        // Cleared before the version check, so rows left by a retired `ltr` version do not outlive it. What no longer gets rewritten
+        // (a reader gone quiet or opted out) would only go stale; Python ignores it after 36 hours anyway.
+        LtrCandidate::query()->where('generated_at', '<', now()->subHours(48))->delete();
+
         if (ModelVersion::activeFor('ltr') === null) {
             return;
         }
@@ -55,9 +59,6 @@ class ExportLtrCandidates implements ShouldQueue
                 $written += $this->export($reader, $pool, $ranker, $seeds);
             }
         });
-
-        // What no longer gets rewritten (a reader gone quiet or opted out) would only go stale; Python ignores it after 36 hours anyway.
-        LtrCandidate::query()->where('generated_at', '<', now()->subHours(48))->delete();
 
         if ($written > 0) {
             RunMlJob::dispatchPipeline('ltr-scores');

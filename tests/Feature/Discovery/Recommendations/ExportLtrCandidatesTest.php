@@ -40,6 +40,18 @@ test('without an active ltr version the export writes nothing and queues nothing
     Bus::assertNothingDispatched();
 });
 
+test('without an active ltr version, stale rows are still removed and nothing is written', function () {
+    [$user] = readerWithNeighbors();
+    $media = Media::factory()->create();
+    LtrCandidate::create(['user_id' => $user->id, 'media_id' => $media->id, 'features' => [], 'generated_at' => now()->subHours(49)]);
+    $fresh = LtrCandidate::create(['user_id' => $user->id, 'media_id' => Media::factory()->create()->id, 'features' => [], 'generated_at' => now()->subHours(47)]);
+
+    exportRun();
+
+    expect(LtrCandidate::pluck('media_id')->all())->toBe([$fresh->media_id]);
+    Bus::assertNothingDispatched();
+});
+
 test('an active reader gets their hybrid candidates with the features, and the scoring pipeline is queued', function () {
     [$user, , $neighbors] = readerWithNeighbors();
     activeVersion('ltr');
