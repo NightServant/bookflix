@@ -53,7 +53,8 @@ test('what the query names shows as removable chips above the results', function
 
     $page->assertSee('From your search')->assertSee('Shadow Court')->assertDontSee('Bright Court');
 
-    expect(chipNames($page->html(), 'From your search'))->toBe(['Remove Manga from your search', 'Remove Dark Fantasy from your search', 'Remove Political Intrigue from your search']);
+    expect($page->html())->toContain("dismissIntent('mediaTypes', 'manga')")
+        ->and(chipNames($page->html(), 'From your search'))->toBe(['Remove Manga from your search', 'Remove Dark Fantasy from your search', 'Remove Political Intrigue from your search']);
 });
 
 test('removing an applied chip searches again without it and offers it under narrow by', function () {
@@ -93,11 +94,19 @@ test('a suggested chip adds the value to the readers own filters', function () {
 
     $page = Livewire::test('pages::search.index')->set('q', 'Fantasy Island');
 
-    expect(chipNames($page->html(), 'Narrow by'))->toBe(['Filter by Fantasy']);
+    expect(chipNames($page->html(), 'Narrow by'))->toBe(['Filter by Fantasy'])->and($page->html())->toContain("addIntentFilter('genres', 'fantasy')");
 
     $page->call('addIntentFilter', 'genres', 'fantasy')->assertSet('filters.genres', ['fantasy']);
 
     expect($page->html())->not->toContain('Narrow by')->and($page->html())->toContain('Remove filter Fantasy');
+});
+
+test('a value the reader removed can be added as a filter from narrow by', function () {
+    $page = Livewire::test('pages::search.index')->set('q', COURT_QUERY)->call('dismissIntent', 'mediaTypes', 'manga')->call('addIntentFilter', 'mediaTypes', 'manga');
+
+    $page->assertSet('filters.mediaTypes', ['manga'])->assertSee('Shadow Court')->assertDontSee('Bright Court');
+
+    expect($page->html())->not->toContain('Filter by Manga');
 });
 
 test('only a chip on offer can be added as a filter', function () {

@@ -74,7 +74,7 @@ new #[Title('Search')] class extends FilteredPage {
     }
 
     /**
-     * Act on a chip of "Narrow by": a value the reader removed comes back into the search, any other becomes one of the reader's own filters. Only a chip on offer counts.
+     * Act on a chip of "Narrow by": a value becomes one of the reader's own filters (a Dewey class the reader removed comes back into the search instead). Only a chip on offer counts.
      */
     public function addIntentFilter(string $group, mixed $value): void
     {
@@ -84,7 +84,8 @@ new #[Title('Search')] class extends FilteredPage {
             return;
         }
 
-        if (in_array($value, $this->dismissed[$group] ?? [], true)) {
+        // The reader's filters have no Dewey class: a class the reader removed is put back into the search instead.
+        if ($group === 'deweyCode') {
             $this->dismissed[$group] = array_values(array_diff($this->dismissed[$group], [$value]));
             $this->searchChanged();
 

@@ -21,9 +21,9 @@
                         @foreach ($row['chips'] as $chip)
                             <li wire:key="intent-{{ $row['key'] }}-{{ $chip['group'] }}-{{ $chip['value'] }}">
                                 @if ($row['key'] === 'applied')
-                                    <x-chip intent="applied" wire:click="dismissIntent('{{ $chip['group'] }}', @js($chip['value']))" aria-label="{{ __('Remove :label from your search', ['label' => $chip['text']]) }}">{{ $chip['text'] }}</x-chip>
+                                    <x-chip intent="applied" wire:click="dismissIntent('{{ $chip['group'] }}', '{{ $chip['value'] }}')" aria-label="{{ __('Remove :label from your search', ['label' => $chip['text']]) }}">{{ $chip['text'] }}</x-chip>
                                 @else
-                                    <x-chip intent="suggested" wire:click="addIntentFilter('{{ $chip['group'] }}', @js($chip['value']))" aria-label="{{ __('Filter by :label', ['label' => $chip['text']]) }}">{{ $chip['text'] }}</x-chip>
+                                    <x-chip intent="suggested" wire:click="addIntentFilter('{{ $chip['group'] }}', '{{ $chip['value'] }}')" aria-label="{{ __('Filter by :label', ['label' => $chip['text']]) }}">{{ $chip['text'] }}</x-chip>
                                 @endif
                             </li>
                         @endforeach
