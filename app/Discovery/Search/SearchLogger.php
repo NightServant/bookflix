@@ -13,9 +13,10 @@ class SearchLogger
     private const MAX_LENGTH = 255;
 
     /**
-     * Record one settled search. A reader who opted out of personalization is logged without their id; the session is only ever stored as a keyed hash.
+     * Record one settled search, with what the query parser read in it when it was parsed. A reader who opted out of personalization is logged
+     * without their id; the session is only ever stored as a keyed hash.
      */
-    public function log(string $query, SearchFilters $filters, int $resultsCount, ?User $user, ?int $previousQueryId): SearchQuery
+    public function log(string $query, SearchFilters $filters, int $resultsCount, ?User $user, ?int $previousQueryId, ?QueryIntent $intent = null): SearchQuery
     {
         $query = mb_substr($query, 0, self::MAX_LENGTH);
 
@@ -25,6 +26,7 @@ class SearchLogger
             'query' => $query,
             'normalized' => mb_substr($this->normalize($query), 0, self::MAX_LENGTH),
             'filters' => $filters->toArray(),
+            'intent' => $intent?->toArray(),
             'results_count' => $resultsCount,
             'previous_query_id' => $previousQueryId,
         ]);

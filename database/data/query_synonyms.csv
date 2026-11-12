@@ -1,0 +1,36 @@
+phrase,kind,slug
+漫画,type,manga
+マンガ,type,manga
+まんが,type,manga
+만화,type,manhwa
+웹툰,type,webcomic
+漫畫,type,manhua
+comic,type,comic-book
+webtoon,type,webcomic
+web comic,type,webcomic
+non fiction,type,nonfiction
+novela,type,novel
+bande dessinee,type,comic-book
+fantasia,genre,fantasy
+scifi,genre,science-fiction
+ciencia ficcion,genre,science-fiction
+mystery,genre,mystery-crime-and-thriller
+thriller,genre,mystery-crime-and-thriller
+romcom,genre,romantic-comedy
+rom com,genre,romantic-comedy
+whodunnit,genre,whodunit
+ai,theme,artificial-intelligence
+politics,theme,political-intrigue
+political intrigue,theme,political-intrigue
+space travel,theme,space-exploration
+short,length,short
+short read,length,short
+quick read,length,short
+weekend read,length,short
+long,length,long
+long read,length,long
+doorstopper,length,long
+medium length,length,medium
+cookbook,dewey,640
+mythology,genre,mythology-folklore-and-religion
+sports,genre,sports-music-and-performing-arts
