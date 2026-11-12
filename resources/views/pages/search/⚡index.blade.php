@@ -61,11 +61,11 @@ new #[Title('Search')] class extends FilteredPage {
     /**
      * Take one value the search understood out of this search ("Remove Manga"). Only a value that is applied right now can go, and nothing is ever added.
      */
-    public function dismissIntent(string $group, mixed $value): void
+    public function dismissIntent(mixed $group, mixed $value): void
     {
         $applied = $this->results instanceof SearchResults ? $this->results->appliedIntent : [];
 
-        if (! is_string($value) || ! in_array($value, (array) ($applied[$group] ?? []), true)) {
+        if (! is_string($group) || ! is_string($value) || ! in_array($value, (array) ($applied[$group] ?? []), true)) {
             return;
         }
 
@@ -76,11 +76,11 @@ new #[Title('Search')] class extends FilteredPage {
     /**
      * Act on a chip of "Narrow by": a value becomes one of the reader's own filters (a Dewey class the reader removed comes back into the search instead). Only a chip on offer counts.
      */
-    public function addIntentFilter(string $group, mixed $value): void
+    public function addIntentFilter(mixed $group, mixed $value): void
     {
         $offered = collect($this->intentChips['suggested'])->contains(fn (array $chip): bool => $chip['group'] === $group && $chip['value'] === $value);
 
-        if (! $offered || ! is_string($value)) {
+        if (! $offered || ! is_string($group) || ! is_string($value)) {
             return;
         }
 

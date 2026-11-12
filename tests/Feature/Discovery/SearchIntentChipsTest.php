@@ -83,7 +83,8 @@ test('changing the query brings the dismissed chips back', function () {
 });
 
 test('a value the query did not name cannot be dismissed into anything', function () {
-    $page = Livewire::test('pages::search.index')->set('q', COURT_QUERY)->call('dismissIntent', 'genres', 'horror')->call('dismissIntent', 'nonsense', 'manga')->call('dismissIntent', 'mediaTypes', ['manga']);
+    $page = Livewire::test('pages::search.index')->set('q', COURT_QUERY)->call('dismissIntent', 'genres', 'horror')->call('dismissIntent', 'nonsense', 'manga')->call('dismissIntent', 'mediaTypes', ['manga'])
+        ->call('dismissIntent', ['mediaTypes'], 'manga')->call('dismissIntent', null, 'manga');
 
     expect(chipNames($page->html(), 'From your search'))->toHaveCount(3)->and($page->html())->not->toContain('Narrow by');
 });
@@ -110,7 +111,8 @@ test('a value the reader removed can be added as a filter from narrow by', funct
 });
 
 test('only a chip on offer can be added as a filter', function () {
-    $page = Livewire::test('pages::search.index')->set('q', COURT_QUERY)->call('addIntentFilter', 'genres', 'horror')->call('addIntentFilter', 'genres', 'dark-fantasy')->call('addIntentFilter', 'tropes', 'x');
+    $page = Livewire::test('pages::search.index')->set('q', COURT_QUERY)->call('addIntentFilter', 'genres', 'horror')->call('addIntentFilter', 'genres', 'dark-fantasy')->call('addIntentFilter', 'tropes', 'x')
+        ->call('addIntentFilter', ['genres'], 'dark-fantasy')->call('addIntentFilter', null, 'dark-fantasy');
 
     $page->assertSet('filters.genres', [])->assertSet('filters.tropes', []);
 });
