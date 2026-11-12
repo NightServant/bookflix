@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, Depends, FastAPI
 
 from app.auth import require_token
-from app.routers import embed, jobs
+from app.routers import classify, embed, jobs
 from app.settings import get_settings
 from bookflix_ml import embeddings
 
@@ -49,6 +49,7 @@ def models() -> dict[str, dict[str, str | int]]:
 
 
 v1.include_router(embed.router)
+v1.include_router(classify.router)
 v1.include_router(jobs.router)
 
 app.include_router(v1)

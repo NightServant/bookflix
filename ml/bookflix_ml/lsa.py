@@ -89,3 +89,17 @@ def train_lsa(corpus: list[dict[str, Any]], components: int = 200) -> LsaResult:
         vectorizer=vectorizer,
         svd=svd,
     )
+
+
+def transform(artifact: dict[str, Any], rows: list[dict[str, Any]], width: int) -> np.ndarray:
+    """LSA vectors for media that were not in the training corpus, made as `train_lsa` made the stored ones (same document text, L2
+    normalization, zero padding to `width`), with the vectorizer and SVD of a stored `lsa` artifact."""
+    matrix = artifact["vectorizer"].transform([build_document(row) for row in rows])
+    reduced = np.nan_to_num(artifact["svd"].transform(matrix))
+    norms = np.linalg.norm(reduced, axis=1, keepdims=True)
+    reduced = np.divide(reduced, norms, out=np.zeros_like(reduced), where=norms > 0)
+
+    vectors = np.zeros((len(rows), width), dtype=np.float32)
+    vectors[:, : reduced.shape[1]] = reduced
+
+    return vectors

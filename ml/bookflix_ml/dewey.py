@@ -15,6 +15,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 
+from bookflix_ml import artifacts, embeddings, lsa, registry
+from bookflix_ml.db import Conn
+
 K = 15
 SEED = 42
 # The data gate: fewer accepted primaries or classes than this and training is skipped (no version is created).
@@ -157,3 +160,84 @@ def train(
     }
 
     return fit(embeddings, lsa, labels), metrics
+
+
+class ClassifierUnavailable(RuntimeError):
+    """No classifier can answer: none is active, its artifact is missing, or the vectors it learned from are no longer the active ones."""
+
+
+# Artifacts this service wrote, kept after the first request that needs them: (version id, URI) -> object.
+_artifacts: dict[tuple[int, str], Any] = {}
+
+
+def _artifact(version_id: int, uri: str | None) -> Any:
+    if not uri:
+        raise ClassifierUnavailable(f"Model version {version_id} has no artifact.")
+    key = (version_id, uri)
+    if key not in _artifacts:
+        _artifacts.clear()  # only the active versions are ever needed
+        _artifacts[key] = artifacts.load(uri)
+    return _artifacts[key]
+
+
+def active(conn: Conn, embedder: embeddings.Embedder) -> tuple[str, DeweyModel, Any]:
+    """The active classifier's version string, its model and the LSA artifact it reads, when it can still be used.
+
+    It can only be used while the active embedding and LSA versions are the ones it was trained on, and the loaded embedding model is the
+    one that made that embedding version: otherwise it would compare vectors of two models. `ClassifierUnavailable` says which is wrong.
+    """
+    row = conn.execute(
+        "select id, version, parameters, artifact_uri from model_versions where name = 'dewey-classifier' and status = 'active'"
+    ).fetchone()
+    if row is None:
+        raise ClassifierUnavailable("No Dewey classifier version is active.")
+    version_id, version, parameters, uri = int(row[0]), str(row[1]), dict(row[2] or {}), row[3]
+
+    embedding = registry.active_version(conn, "embedding")
+    if embedding is None or embedding[0] != parameters.get("embedding_version_id"):
+        raise ClassifierUnavailable(
+            "The active embedding version is not the one the classifier was trained on."
+        )
+    made_by = embedding[2]
+    if (made_by.get("model"), made_by.get("revision")) != (embedder.name, embedder.revision):
+        raise ClassifierUnavailable(
+            "The loaded embedding model did not make the vectors the classifier was trained on."
+        )
+
+    lsa_row = conn.execute(
+        "select id, artifact_uri from model_versions where name = 'lsa' and status = 'active'"
+    ).fetchone()
+    if lsa_row is None or int(lsa_row[0]) != parameters.get("lsa_version_id"):
+        raise ClassifierUnavailable(
+            "The active LSA version is not the one the classifier was trained on."
+        )
+
+    model = _artifact(version_id, uri)
+    if model.embedding_width != embedder.dims:
+        raise ClassifierUnavailable("The loaded embedding model has other dimensions.")
+
+    return version, model, _artifact(int(lsa_row[0]), lsa_row[1])
+
+
+def classify(
+    embedder: embeddings.Embedder,
+    model: DeweyModel,
+    lsa_artifact: Any,
+    text: str,
+    genres: list[str],
+    themes: list[str],
+    subjects: list[str],
+) -> list[dict[str, Any]]:
+    """Candidates for a work from its text and names, vectors made here as the stored ones were (a new work has none stored)."""
+    doc = {
+        "title": "",
+        "description": text,
+        "genres": genres,
+        "themes": themes,
+        "tags": subjects,
+        "characters": [],
+    }
+    embedding = embeddings.embed(embedder, [embeddings.passage_text(doc)], "passage")[0]
+    vector = lsa.transform(lsa_artifact, [doc], model.lsa_width)[0]
+
+    return model.candidates(embedding, vector)
