@@ -17,6 +17,8 @@ Schedule::command('bookflix:prune-exports')->daily();
 Schedule::command('bookflix:score-popularity')->daily();
 Schedule::command('bookflix:sync-signals')->daily();
 Schedule::command('model:prune')->daily();
+// At :20, clear of the minutes the ML pipelines take; the shelf order reads only what this writes.
+Schedule::command('bookflix:refresh-shelf-stats')->hourlyAt(20);
 
 $sourceIsEnabled = fn (string $key): Closure => fn (): bool => ExternalSource::where('key', $key)->where('enabled', true)->exists();
 

@@ -67,6 +67,7 @@ class ShelfBuilder
         private ContinueReading $continueReading,
         private EditorialCollections $editorial,
         private HomeShelves $home,
+        private ShelfBandit $bandit,
     ) {}
 
     /**
@@ -85,8 +86,9 @@ class ShelfBuilder
 
         $add($this->continueReading->shelf($user));
 
-        foreach (self::CANDIDATE_SHELVES as $key) {
-            $add($built->get($key));
+        // The built shelves are already in order: the default one, or with the reorderable shelves sampled (see `build`).
+        foreach ($built as $shelf) {
+            $add($shelf);
         }
 
         foreach ($this->editorial->shelves($user) as $collection) {
@@ -217,6 +219,10 @@ class ShelfBuilder
         $kept = $this->withoutRepeats($specs->map(fn (array $spec): array => $spec['items'])->all());
         $specs = $specs->filter(fn (array $spec, string $key): bool => isset($kept[$key]))->map(fn (array $spec, string $key): array => ['items' => $kept[$key]] + $spec);
 
+        if ($personal && config('bookflix.recommendations.bandit_enabled')) {
+            $specs = $this->sampled($specs);
+        }
+
         $ids = $this->logger->log($user, $specs->flatMap(fn (array $spec): array => $spec['items']), ModelVersion::activeFor('hybrid-weights'));
 
         $shelves = $specs->map(function (array $spec, string $key) use ($media, $ids): Shelf {
@@ -231,6 +237,28 @@ class ShelfBuilder
         })->values();
 
         return [$shelves, $specs->filter(fn (array $spec): bool => isset($spec['reason']))->map(fn (array $spec): int => $spec['reason'])->all(), $cold];
+    }
+
+    /**
+     * The shelves with `similar-to`, `popular-in-genres` and `discover-new` in the order Thompson sampling gives them, from the hourly cache of
+     * their impressions and clicks (`similar-to` is one arm: the log records the shelf, not the title it is around). Only their order changes, never
+     * what a shelf holds. An empty or missing cache, or too few impressions, leaves the default order. The sample is drawn here, once per cache fill,
+     * and the cached shelves keep it.
+     *
+     * @template TSpec of array<string, mixed>
+     *
+     * @param  Collection<string, TSpec>  $specs
+     * @return Collection<string, TSpec>
+     */
+    private function sampled(Collection $specs): Collection
+    {
+        $stats = Cache::get(ShelfBandit::CACHE_KEY);
+
+        if (! is_array($stats) || $stats === []) {
+            return $specs;
+        }
+
+        return collect($this->bandit->order($specs->keys()->all(), $stats, $this->random))->mapWithKeys(fn (string $key): array => [$key => $specs[$key]]);
     }
 
     /**
