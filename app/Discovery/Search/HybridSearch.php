@@ -8,6 +8,7 @@ use App\Discovery\Search\Legs\SemanticLeg;
 use App\Discovery\Search\Legs\SubjectLeg;
 use App\Models\Media;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\RateLimiter;
@@ -39,6 +40,9 @@ class HybridSearch
      * is reported as suggested rather than applied. A group the reader filtered by themselves is theirs and the intent's is ignored, as is any
      * value outside the reader's vocabulary (a mature genre for a gated reader). The keyword leg still reads the reader's own words; the semantic
      * leg reads the intent's `semanticText` when it has one. The semantic leg falls silent, never fails, when the ML service does (see SemanticLeg).
+     * When the query is the title of a work the reader may see and the intent would hide that work ("Fantasy Island", a thriller), the reader
+     * named a title, not a taxonomy: no group is applied and every group is suggested. The intent is untrusted input and is cleaned first
+     * (QueryIntent::fromArray).
      *
      * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
      */
@@ -58,10 +62,12 @@ class HybridSearch
         // The access gate is applied here, to every leg, from who is asking; the filters cannot widen it.
         $filters = $filters->forViewer($user);
 
+        $intent = $intent === null ? null : QueryIntent::fromArray($intent->toArray());
         $groups = $query === '' || $intent === null ? [] : $this->intentGroups($intent, $filters, $user);
+        $suggested = $groups !== [] && $this->hidesNamedTitle($query, $filters, $groups) ? $groups : [];
         // A query naming prohibited content (see ProhibitedContent) is never embedded or matched by meaning: keyword results only.
         $semanticText = ProhibitedContent::matches($query) ? '' : ($intent !== null && $intent->semanticText !== '' ? $intent->semanticText : $query);
-        [$lists, $applied] = $query === '' ? [[], []] : $this->relaxed($query, $semanticText, $filters, $groups);
+        [$lists, $applied] = $query === '' ? [[], []] : $this->relaxed($query, $semanticText, $filters, $suggested === [] ? $groups : []);
         $ranked = array_keys(Rrf::fuse($lists));
         // The semantic leg lists at most SemanticLeg::MAX_IDS, under the ceiling, so only the text legs can make the total a floor.
         $hasMore = collect($lists)->contains(fn (array $ids): bool => count($ids) >= self::LEG_LIMIT);
@@ -105,6 +111,32 @@ class HybridSearch
         }
 
         return $groups;
+    }
+
+    /**
+     * Whether a work the reader may see has the query as a whole phrase of its title or of an alternative title, and the intent's groups would
+     * leave it out. One indexed lookup (the trigram indexes serve the `like`; the regular expression keeps whole words only), through the same
+     * filters and access gate as the legs, so a work the reader may not see never switches the guard on.
+     *
+     * @param  array<string, list<string>|string>  $groups
+     */
+    private function hidesNamedTitle(string $query, SearchFilters $filters, array $groups): bool
+    {
+        $like = '%'.addcslashes($query, '\\%_').'%';
+        // Every character that is not a letter, digit or space is escaped, so the query is literal inside the regular expression.
+        $phrase = '(^|[^[:alnum:]])'.preg_replace('/[^\p{L}\p{N} ]/u', '\\\\$0', $query).'($|[^[:alnum:]])';
+        $intended = new SearchFilters(...[...get_object_vars($filters), ...$groups]);
+
+        return $filters->apply(Media::query()->unmerged())
+            ->where(fn (Builder $titles) => $titles
+                ->where(fn (Builder $title) => $title
+                    ->whereRaw('immutable_unaccent(lower(media.title)) like immutable_unaccent(lower(?))', [$like])
+                    ->whereRaw('immutable_unaccent(lower(media.title)) ~ immutable_unaccent(lower(?))', [$phrase]))
+                ->orWhere(fn (Builder $alternative) => $alternative
+                    ->whereRaw('immutable_unaccent(lower(cast(media.alternative_titles as text))) like immutable_unaccent(lower(?))', [$like])
+                    ->whereRaw('immutable_unaccent(lower(cast(media.alternative_titles as text))) ~ immutable_unaccent(lower(?))', [$phrase])))
+            ->whereNotIn('media.id', $intended->apply(Media::query()->unmerged())->select('media.id'))
+            ->exists();
     }
 
     /**
