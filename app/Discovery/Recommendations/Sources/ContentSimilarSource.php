@@ -10,9 +10,9 @@ use Illuminate\Support\Collection;
 use stdClass;
 
 /**
- * Titles close in text to what the reader liked: the neighbors of the seeds from the active `lsa` version (Phase 7 adds `embedding`). A
- * neighbor scores its similarity times the strength of the seed it came from, the best seed when several lead to it, and is credited to
- * that seed ("Because you read ...").
+ * Titles close in text to what the reader liked: the neighbors of the seeds from the active `lsa` version (`embedding` neighbors are
+ * `SemanticSimilarSource`'s). A neighbor scores its similarity times the strength of the seed it came from, the best seed when several lead
+ * to it, and is credited to that seed ("Because you read ...").
  */
 class ContentSimilarSource extends Source
 {
@@ -41,13 +41,18 @@ class ContentSimilarSource extends Source
     }
 
     /**
-     * The neighbors of one title the reader chose (their latest favorite for a shelf), strongest first, labelled with it.
+     * The neighbors of one title the reader chose (their latest favorite for a shelf), strongest first, labelled with it. They come from the
+     * active `embedding` version when it has neighbors of that title the reader may be offered, which match on meaning rather than words,
+     * and from the active `lsa` version otherwise (so a catalog with no embeddings gets the shelves it always had).
      *
      * @return Collection<int, Candidate>
      */
     public function similarTo(User $user, Media $seed, ReasonType $reason, int $limit): Collection
     {
-        return $this->neighborsOf($user, collect([$seed->id => 1.0]), 'lsa')
+        $seeds = collect([$seed->id => 1.0]);
+        $rows = $this->neighborsOf($user, $seeds, 'embedding');
+
+        return ($rows->isEmpty() ? $this->neighborsOf($user, $seeds, 'lsa') : $rows)
             ->take($limit)
             ->map(fn (stdClass $row): Candidate => new Candidate((int) $row->similar_media_id, $this->key(), min(1.0, (float) $row->score), $reason, $seed->id))
             ->values();
