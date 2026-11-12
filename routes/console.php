@@ -38,5 +38,6 @@ Schedule::call(fn () => RunMlJob::dispatchPipeline('lsa'))->name('ml:lsa')->week
 Schedule::call(fn () => RunMlJob::dispatchPipeline('embed'))->name('ml:embed')->hourlyAt(30)->when($mlIsConfigured);
 // Nightly, after the item-cf training, so the embeddings of the day's new media have neighbors by morning.
 Schedule::call(fn () => RunMlJob::dispatchPipeline('embedding-similarities'))->name('ml:embedding-similarities')->dailyAt('04:15')->when($mlIsConfigured);
-// Weekly, Saturday morning, in a slot no other pipeline uses; it skips cleanly until reviewers have accepted enough primary classes.
-Schedule::call(fn () => RunMlJob::dispatchPipeline('dewey-classifier'))->name('ml:dewey-classifier')->weeklyOn(6, '05:10')->when($mlIsConfigured);
+// Weekly, Sunday morning, three hours after the weekly LSA run starts: the classifier is tied to the LSA version it was trained on, so it retrains
+// the same morning. It skips cleanly until reviewers have accepted enough primary classes.
+Schedule::call(fn () => RunMlJob::dispatchPipeline('dewey-classifier'))->name('ml:dewey-classifier')->weeklyOn(0, '05:10')->when($mlIsConfigured);

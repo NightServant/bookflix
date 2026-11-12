@@ -16,7 +16,7 @@ test('the ml pipelines are scheduled at the documented times', function () {
         ->and(scheduledMl('ml:lsa')->expression)->toBe('0 2 * * 0')
         ->and(scheduledMl('ml:embed')->expression)->toBe('30 * * * *')
         ->and(scheduledMl('ml:embedding-similarities')->expression)->toBe('15 4 * * *')
-        ->and(scheduledMl('ml:dewey-classifier')->expression)->toBe('10 5 * * 6');
+        ->and(scheduledMl('ml:dewey-classifier')->expression)->toBe('10 5 * * 0');
 });
 
 test('every pipeline waits for a configured ml service', function (string $name) {
