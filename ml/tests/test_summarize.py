@@ -166,3 +166,35 @@ def test_no_sentence_starts_or_ends_with_whitespace() -> None:
     for sentence in split_sentences(STORY + "\n\n" + STORY):
         assert sentence == sentence.strip()
         assert re.search(r"[.!?。！？]['\"”’)\]]*$", sentence)
+
+
+def test_dotted_abbreviations_and_lowercase_continuations_do_not_end_a_sentence() -> None:
+    text = (
+        "She moved to the U.S. army base near Dover. "
+        "He asked, e.g. a map of the old kingdom, for help. "
+        "Ph.D. students joined the cause."
+    )
+
+    assert split_sentences(text) == [
+        "She moved to the U.S. army base near Dover.",
+        "He asked, e.g. a map of the old kingdom, for help.",
+        "Ph.D. students joined the cause.",
+    ]
+
+
+def test_a_sentence_never_starts_mid_sentence_after_an_abbreviation() -> None:
+    sentences = split_sentences(
+        "The envoy served in the U.S. Army for years before the war. "
+        "The meeting ran until 5 p.m. The envoy left at once for the coast. "
+        "Her mentor, i.e. the old professor, was waiting there."
+    )
+
+    assert all(sentence[0].isupper() for sentence in sentences)
+    assert "The meeting ran until 5 p.m. The envoy left at once for the coast." in sentences
+
+
+def test_a_dotted_abbreviation_at_the_end_of_a_line_still_closes_the_sentence() -> None:
+    assert split_sentences("The envoy was born in the U.S.\nThe harbour town lies far away.") == [
+        "The envoy was born in the U.S.",
+        "The harbour town lies far away.",
+    ]

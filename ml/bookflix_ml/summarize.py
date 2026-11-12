@@ -32,6 +32,8 @@ _STRUCTURE = re.compile(r"^(?:[-*•+|#>=_~]|\d+[.)]\s)")
 _ASIDE = re.compile(r"^[(\[].*[)\]][.!?]?$")
 # A period after these is an abbreviation or an initial, not the end of a sentence.
 _ABBREVIATION = re.compile(r"(?:^|\s)(?:[A-Z]|Mr|Mrs|Ms|Dr|St|Jr|Sr|Prof|Vol|vs|etc|No)\.$")
+# A dotted abbreviation: two or more letter-dot groups such as "U.S.", "e.g.", "p.m." or "Ph.D.".
+_DOTTED_ABBREVIATION = re.compile(r"(?:^|[^\w.])(?:[A-Za-z]{1,2}\.){2,}$")
 _CJK_END = ("。", "！", "？", "」", "』", "）")
 
 
@@ -54,6 +56,21 @@ def plain_text(text: str) -> str:
     return _TAGS.sub("", html.unescape(text)).strip()
 
 
+def _continues(line: str, start: int, end: int) -> bool:
+    """Whether the period ending at `end` leaves the sentence going. When in doubt it does: two sentences joined are better than a
+    fragment that starts mid-sentence."""
+    rest = line[end:].lstrip()
+    if rest[:1].islower():
+        return True
+
+    candidate = line[start:end]
+    if _ABBREVIATION.search(candidate):
+        return True
+
+    # At the end of the line there is nothing to merge with, so a dotted abbreviation there closes the sentence.
+    return bool(rest) and bool(_DOTTED_ABBREVIATION.search(candidate))
+
+
 def split_sentences(text: str) -> list[str]:
     """The sentences of the text's prose lines, in order. Structure lines, asides and a line's unfinished tail are not sentences."""
     sentences: list[str] = []
@@ -65,7 +82,7 @@ def split_sentences(text: str) -> list[str]:
 
         start = 0
         for match in _END.finditer(line):
-            if match.group().startswith(".") and _ABBREVIATION.search(line[start : match.end()]):
+            if match.group().startswith(".") and _continues(line, start, match.end()):
                 continue
             sentence = line[start : match.end()].strip()
             start = match.end()
