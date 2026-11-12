@@ -214,8 +214,8 @@ def retire(conn: Conn, version_id: int) -> None:
 
 def _prune(conn: Conn, name: str, method: str) -> None:
     """Delete the similarity rows of every version of `method` that is neither active nor a waiting candidate and, for `lsa` and
-    `embedding`, the vectors (and LSA features) of their retired versions and, for `dewey-classifier`, their stored model files (the
-    only artifact worth its disk: a weekly retrain would otherwise leave one for ever)."""
+    `embedding`, the vectors (and LSA features) of their retired versions, for `ltr` their stored scores and, for `dewey-classifier` and `ltr`,
+    their stored model files (the artifacts worth their disk: a weekly retrain would otherwise leave one for ever)."""
     conn.execute(
         """
         delete from media_similarities
@@ -224,13 +224,17 @@ def _prune(conn: Conn, name: str, method: str) -> None:
         """,
         (method,),
     )
-    tables = {"lsa": ("media_lsa_vectors", "media_features"), "embedding": ("media_embeddings",)}
+    tables = {
+        "lsa": ("media_lsa_vectors", "media_features"),
+        "embedding": ("media_embeddings",),
+        "ltr": ("ltr_scores",),
+    }
     for table in tables.get(name, ()):
         conn.execute(
             f"delete from {table} where model_version_id in (select id from model_versions where name = %s and status = 'retired')",  # noqa: S608
             (name,),
         )
-    if name == "dewey-classifier":
+    if name in ("dewey-classifier", "ltr"):
         retired = conn.execute(
             "select id, artifact_uri from model_versions where name = %s and status = 'retired' and artifact_uri is not null",
             (name,),

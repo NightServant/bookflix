@@ -6,9 +6,11 @@ import threading
 import uuid
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import numpy as np
+import pandas as pd
 from psycopg.types.json import Jsonb
 
 from app.settings import get_settings
@@ -19,8 +21,10 @@ from bookflix_ml import (
     dewey,
     embeddings,
     evaluate,
+    impressions,
     item_cf,
     lsa,
+    ltr,
     popularity,
     registry,
     similarities,
@@ -236,6 +240,158 @@ def run_train_als(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         raise
 
     return {**counts, "version_id": version_id}
+
+
+def run_train_ltr(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Train the LambdaMART ranker on the labeled impressions of eligible readers and store it as a `candidate` `ltr` version.
+
+    The data gate (`min_labeled` param, default `ltr.MIN_LABELED`) runs before any version exists, and so does the check that the
+    impressions can be split in time: either failing makes the job succeed with `skipped` (reason, have, need) and create nothing. Promotion
+    is `evaluate`'s: nothing is promoted here. A failure retires the version.
+    """
+    frame = impressions.fetch_labeled(conn)
+    try:
+        ltr.check_gates(len(frame), int(params.get("min_labeled", ltr.MIN_LABELED)))
+        ltr.split(ltr.clean(frame)[0])
+    except ltr.NotEnoughData as e:
+        return {"skipped": e.skipped}
+
+    parameters = {
+        **{k: v for k, v in ltr.PARAMS.items() if k != "eval_at"},
+        "rounds": ltr.ROUNDS,
+        "window_days": impressions.WINDOW_DAYS,
+        "features": ltr.MODEL_FEATURES,
+        "n_labeled": len(frame),
+    }
+    version_id, version = registry.create_version(
+        conn, "ltr", "ltr", parameters, "recommendations:labeled"
+    )
+    conn.commit()
+
+    try:
+        model = ltr.train(frame)
+        uri = artifacts.save(ltr.to_artifact(model), "ltr", version)
+        metrics = {
+            "n_labeled": len(frame),
+            "n_train": model.n_train,
+            "n_validation": model.n_validation,
+            "n_dropped": model.n_dropped,
+        }
+        registry.finish_version(conn, version_id, "candidate", metrics, uri)
+        conn.commit()
+    except BaseException as e:
+        conn.rollback()
+        registry.finish_version(conn, version_id, "retired", {"error": str(e) or type(e).__name__})
+        conn.commit()
+        raise
+
+    return {**metrics, "version_id": version_id}
+
+
+SCORE_CHUNK = 500
+
+
+def run_score_ltr(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Score the exported candidates of the readers who have fresh ones with the active `ltr` version, into `ltr_scores`.
+
+    Only candidates newer than `ltr.FRESH_HOURS` are read. The position of every row is set to one constant, so it cannot influence the
+    order. A reader's rows are replaced as a whole, in chunks of readers; scores of readers who are no longer eligible (deactivated, or
+    personalization off) and scores of any other version go. With no active version nothing is scored and every score goes.
+    """
+    active = registry.active_version(conn, "ltr")
+    if active is None:
+        removed = conn.execute("delete from ltr_scores").rowcount
+        conn.commit()
+
+        return {"scored": 0, "removed": removed, "reason": "no active version"}
+
+    row = conn.execute(
+        "select artifact_uri from model_versions where id = %s", (active[0],)
+    ).fetchone()
+    if row is None or row[0] is None:
+        raise RuntimeError("The active ltr version has no artifact.")
+    model = ltr.from_artifact(artifacts.load(row[0]))
+
+    cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=ltr.FRESH_HOURS)
+    candidates = conn.execute(
+        """
+        select c.user_id, c.media_id, c.features
+        from ltr_candidates c
+        join users u on u.id = c.user_id
+        left join profiles p on p.user_id = u.id
+        join media m on m.id = c.media_id
+        where c.generated_at >= %s and u.deactivated_at is null and coalesce(p.personalization_enabled, true)
+            and m.deleted_at is null and m.merged_into_id is null
+        order by c.user_id, c.media_id
+        """,
+        (cutoff,),
+    ).fetchall()
+
+    by_user: dict[int, list[tuple[int, dict[str, Any]]]] = {}
+    for user_id, media_id, features in candidates:
+        by_user.setdefault(int(user_id), []).append((int(media_id), features or {}))
+
+    scored = skipped = 0
+    users = list(by_user)
+    for start in range(0, len(users), SCORE_CHUNK):
+        chunk = users[start : start + SCORE_CHUNK]
+        flat = [(u, m, f) for u in chunk for m, f in by_user[u]]
+        frame = pd.DataFrame(
+            [
+                {name: _number(f.get(name)) for name in impressions.FEATURES} | {"position": 0.0}
+                for _, _, f in flat
+            ],
+            columns=ltr.MODEL_FEATURES,
+        )
+        finite = np.isfinite(frame.to_numpy(dtype=float)).all(axis=1)
+        skipped += int((~finite).sum())
+        values = ltr.score(model, frame[finite]) if finite.any() else np.empty(0)
+        rows = [
+            (flat[i][0], flat[i][1], float(v), active[0])
+            for i, v in zip(np.flatnonzero(finite), values, strict=True)
+        ]
+
+        try:
+            conn.execute("delete from ltr_scores where user_id = any(%s)", (chunk,))
+            with conn.cursor() as cur:
+                cur.executemany(
+                    "insert into ltr_scores (user_id, media_id, score, model_version_id, generated_at) values (%s, %s, %s, %s, now() at time zone 'utc')",
+                    rows,
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        scored += len(rows)
+
+    removed = conn.execute(
+        """
+        delete from ltr_scores s
+        where s.model_version_id <> %s
+            or not exists (
+                select 1 from users u left join profiles p on p.user_id = u.id
+                where u.id = s.user_id and u.deactivated_at is null and coalesce(p.personalization_enabled, true)
+            )
+        """,
+        (active[0],),
+    ).rowcount
+    conn.commit()
+
+    return {
+        "scored": scored,
+        "readers": len(users),
+        "skipped_rows": skipped,
+        "removed": removed,
+        "version_id": active[0],
+    }
+
+
+def _number(value: Any) -> float:
+    return (
+        float(value)
+        if isinstance(value, int | float) and not isinstance(value, bool)
+        else float("nan")
+    )
 
 
 # The `model_versions.name` each similarity method's rows are built from.
@@ -577,7 +733,7 @@ def run_refresh_popularity(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
     return {"media": int(row[0]) if row else 0}
 
 
-EVAL_KINDS = {"item_cf": "item-cf", "lsa": "lsa", "als": "als"}
+EVAL_KINDS = {"item_cf": "item-cf", "lsa": "lsa", "als": "als", "ltr": "ltr"}
 # The kinds scored on neighbors refitted in memory on the training split; the others read their stored rows.
 REFIT_KINDS = {"item_cf", "als"}
 EVAL_K = 10
@@ -645,6 +801,42 @@ def _neighbors_of(
     return _held_out_neighbors(conn, positive, held, int(parameters.get("k", fallback[1])))
 
 
+def _evaluate_ltr(conn: Conn, version_id: int) -> dict[str, Any]:
+    """Score an `ltr` candidate against the hybrid order on the impressions it was not trained on (P8-R3).
+
+    It is promoted only on evidence: its NDCG@10 must be higher than the hybrid order's NDCG@10 on the same held-out lists. This is the one
+    kind for which thin data does not promote the newer version, since the hybrid ranker is always there to fall back on: with fewer than
+    `ltr.MIN_EVAL_LISTS` held-out lists that have something relevant in them the candidate is retired, and so is one that does not beat
+    the hybrid order. Its stored scores go with it (a candidate has none until `score-ltr` runs).
+    """
+    row = conn.execute(
+        "select artifact_uri from model_versions where id = %s", (version_id,)
+    ).fetchone()
+    if row is None or row[0] is None:
+        raise RuntimeError("The ltr version has no artifact.")
+
+    model = ltr.from_artifact(artifacts.load(row[0]))
+    outcome: dict[str, Any] = ltr.compare(model, impressions.fetch_labeled(conn))
+    if outcome["n_eval_lists"] < ltr.MIN_EVAL_LISTS:
+        promote = False
+        reason = f"not enough held-out impressions to evaluate ({outcome['n_eval_lists']} of {ltr.MIN_EVAL_LISTS} lists)"
+    elif outcome["ndcg@10"] > outcome["hybrid_ndcg@10"]:
+        promote, reason = True, "NDCG@10 is above the hybrid order"
+    else:
+        promote, reason = False, "NDCG@10 is not above the hybrid order"
+
+    outcome["ndcg_delta"] = outcome["ndcg@10"] - outcome["hybrid_ndcg@10"]
+    outcome |= {"promoted": promote, "reason": reason}
+    registry.record_metrics(conn, version_id, outcome)
+    if promote:
+        registry.promote(conn, version_id)
+    else:
+        registry.retire(conn, version_id)
+    conn.commit()
+
+    return outcome
+
+
 def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Score the `candidate` of `kind` (the one `version_id` names, else the newest) against each eligible reader's last positive item
     and promote it if the gate allows.
@@ -677,6 +869,13 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         version_id, method = found
     else:
         version_id, method, _ = registry.require_candidate(conn, pinned, EVAL_KINDS[kind])
+
+    if kind == "ltr":
+        try:
+            return _evaluate_ltr(conn, version_id)
+        except BaseException:
+            conn.rollback()
+            raise
 
     try:
         parameters = registry.version_parameters(conn, version_id)
@@ -828,6 +1027,8 @@ JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "train-lsa": _with_connection(run_train_lsa),
     "train-item-cf": _with_connection(run_train_item_cf),
     "train-als": _with_connection(run_train_als),
+    "train-ltr": _with_connection(run_train_ltr),
+    "score-ltr": _with_connection(run_score_ltr),
     "build-similarities": _with_connection(run_build_similarities),
     "refresh-popularity": _with_connection(run_refresh_popularity),
     "evaluate": _with_connection(run_evaluate),
