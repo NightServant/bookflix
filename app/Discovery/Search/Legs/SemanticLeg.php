@@ -54,10 +54,14 @@ class SemanticLeg implements SearchLeg
      * filters are applied, so the HNSW index serves the query on any pgvector version; the filters (and with them the access gate, merges and
      * soft deletes) then narrow those rows as they narrow the keyword leg. Without an active version, for text under three characters or
      * without a letter or digit, for text naming prohibited content, while the service is paused, or when its answer comes from another model, the leg finds nothing and search is
-     * keyword-only.
+     * keyword-only. Without a service token the leg does not run at all: nothing is called, logged or paused.
      */
     public function ids(string $query, SearchFilters $filters, int $limit = 100): array
     {
+        if ((string) config('services.ml.token') === '') {
+            return [];
+        }
+
         $text = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $query) ?? ''));
 
         if (mb_strlen($text) < 3 || ! preg_match('/[\p{L}\p{N}]/u', $text) || ProhibitedContent::matches($text)) {

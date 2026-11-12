@@ -18,6 +18,7 @@ use Database\Seeders\MediaTypeSeeder;
 use Database\Seeders\TaxonomySeeder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -196,6 +197,18 @@ test('no active embedding version makes no call', function () {
 
     expect(semanticSearch('berserk')->pluck('title')->all())->toBe(['Berserk']);
     Http::assertNothingSent();
+});
+
+test('without a configured ML service the leg does not run: no call, no warning, no pause', function () {
+    config(['services.ml.token' => '']);
+    Http::fake();
+    Log::spy();
+
+    expect(semanticSearch('berserk')->pluck('title')->all())->toBe(['Berserk']);
+
+    Http::assertNothingSent();
+    Log::shouldNotHaveReceived('warning');
+    expect(Cache::has('q-embed:paused'))->toBeFalse();
 });
 
 test('rows from a retired version are never used', function () {
