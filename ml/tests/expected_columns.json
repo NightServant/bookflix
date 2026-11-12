@@ -17,6 +17,10 @@
   "media_similarities": ["media_id", "similar_media_id", "method", "score", "model_version_id"],
   "media_features": ["media_id", "model_version_id", "top_terms", "summary", "computed_at"],
   "media_summaries": ["media_id", "summary", "source_hash", "method", "generated_at"],
+  "recommendations": ["id", "user_id", "media_id", "shelf", "position", "score", "reason_payload", "model_version_id", "generated_at"],
+  "recommendation_events": ["id", "recommendation_id", "event", "occurred_at"],
+  "ltr_candidates": ["user_id", "media_id", "features", "generated_at"],
+  "ltr_scores": ["user_id", "media_id", "score", "model_version_id", "generated_at"],
   "dewey_classes": ["id", "code"],
   "media_dewey_classes": ["media_id", "dewey_class_id", "classification_type", "review_status"]
 }

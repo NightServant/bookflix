@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 class RecommendationLogger
 {
     /**
-     * Writes one `recommendations` row per served title and returns their ids keyed `{shelf}:{media id}`. Nothing is written for an opted-out reader
+     * Writes one `recommendations` row per served title, with its place in its shelf (from 0, in the order given), and returns their ids keyed `{shelf}:{media id}`. Nothing is written for an opted-out reader
      * or without an active `hybrid-weights` version to attribute the rows to (the column is required).
      *
      * @param  iterable<ServedItem>  $served
@@ -32,12 +32,14 @@ class RecommendationLogger
 
         $now = now()->startOfSecond();
         $rows = [];
+        $places = [];
 
         foreach ($served as $item) {
             $rows[] = [
                 'user_id' => $user->id,
                 'media_id' => $item->mediaId,
                 'shelf' => $item->shelf,
+                'position' => $places[$item->shelf] = ($places[$item->shelf] ?? -1) + 1,
                 'score' => $item->score,
                 'reason_type' => $item->reason->value,
                 'reason_media_id' => $item->reasonMediaId,
