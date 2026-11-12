@@ -23,8 +23,7 @@ beforeEach(function () {
         $media = Media::factory()->ofType($type)->create(['title' => $title]);
         $media->genres()->attach(Genre::whereIn('slug', $genres)->pluck('id'));
         $media->themes()->attach(Theme::whereIn('slug', $themes)->pluck('id'));
-        // `tale` is in every story's text but in no title, so a search for it never looks like the reader named a title (see the title guard).
-        $media->update(['search_text' => app(SearchTextBuilder::class)->build($media).' tale']);
+        $media->update(['search_text' => app(SearchTextBuilder::class)->build($media)]);
 
         return $media;
     };
@@ -39,7 +38,7 @@ function intentSearch(string $query, QueryIntent $intent, ?SearchFilters $filter
 }
 
 test('intent filters apply when results remain', function () {
-    $results = intentSearch('tale', new QueryIntent(mediaTypes: ['manga'], genres: ['dark-fantasy'], themes: ['political-intrigue']));
+    $results = intentSearch('court', new QueryIntent(mediaTypes: ['manga'], genres: ['dark-fantasy'], themes: ['political-intrigue']));
 
     expect($results->pluck('title')->all())->toBe(['Shadow Court'])
         ->and($results->appliedIntent)->toBe(['mediaTypes' => ['manga'], 'genres' => ['dark-fantasy'], 'themes' => ['political-intrigue']])
@@ -47,7 +46,7 @@ test('intent filters apply when results remain', function () {
 });
 
 test('an intent filter that would empty the results is only suggested', function () {
-    $results = intentSearch('tale', new QueryIntent(mediaTypes: ['webcomic']));
+    $results = intentSearch('court', new QueryIntent(mediaTypes: ['webcomic']));
 
     expect($results->total())->toBe(2)
         ->and($results->appliedIntent)->toBe([])
@@ -57,7 +56,7 @@ test('an intent filter that would empty the results is only suggested', function
 test('relaxation drops the least telling filters first and keeps the rest', function () {
     classified($this->bright, '940');
 
-    $results = intentSearch('tale', new QueryIntent(mediaTypes: ['manga'], themes: ['revenge'], deweyCode: '940'));
+    $results = intentSearch('court', new QueryIntent(mediaTypes: ['manga'], themes: ['revenge'], deweyCode: '940'));
 
     expect($results->pluck('title')->all())->toBe(['Shadow Court'])
         ->and($results->appliedIntent)->toBe(['mediaTypes' => ['manga']])
@@ -67,7 +66,7 @@ test('relaxation drops the least telling filters first and keeps the rest', func
 test('a dewey intent applies like the filter', function () {
     classified($this->bright, '940');
 
-    $results = intentSearch('tale', new QueryIntent(deweyCode: '900'));
+    $results = intentSearch('court', new QueryIntent(deweyCode: '900'));
 
     expect($results->pluck('title')->all())->toBe(['Bright Court'])
         ->and($results->appliedIntent)->toBe(['deweyCode' => '900']);
@@ -91,12 +90,12 @@ test('the reader explicit filters win over intent', function () {
 
 test('values outside the reader vocabulary are neither applied nor named', function () {
     $erotic = matureStory('Court of Desire');
-    $erotic->update(['search_text' => 'court of desire tale']);
+    $erotic->update(['search_text' => 'court of desire']);
     $erotica = Genre::where('slug', 'erotica')->sole();
     $erotic->genres()->attach($erotica);
 
-    $guest = intentSearch('tale', new QueryIntent(genres: ['erotica', 'no-such-genre']));
-    $mature = intentSearch('tale', new QueryIntent(genres: ['erotica']), user: User::factory()->showsMature()->create());
+    $guest = intentSearch('court', new QueryIntent(genres: ['erotica', 'no-such-genre']));
+    $mature = intentSearch('court', new QueryIntent(genres: ['erotica']), user: User::factory()->showsMature()->create());
 
     expect($guest->total())->toBe(2)
         ->and($guest->appliedIntent)->toBe([])
@@ -230,8 +229,8 @@ test('the guard reads alternative titles and whole words only', function () {
 });
 
 test('an intent from untrusted input never breaks the search', function () {
-    $nested = intentSearch('tale', new QueryIntent(mediaTypes: [['manga']], genres: [['fantasy'], 7, 'fantasy'], themes: [null, 1.5], deweyCode: '9'.str_repeat('0', 100)));
-    $huge = intentSearch('tale', new QueryIntent(genres: array_fill(0, 200_000, 'fantasy')));
+    $nested = intentSearch('court', new QueryIntent(mediaTypes: [['manga']], genres: [['fantasy'], 7, 'fantasy'], themes: [null, 1.5], deweyCode: '9'.str_repeat('0', 100)));
+    $huge = intentSearch('court', new QueryIntent(genres: array_fill(0, 200_000, 'fantasy')));
 
     expect($nested->appliedIntent)->toBe(['genres' => ['fantasy']])
         ->and($huge->appliedIntent)->toBe(['genres' => ['fantasy']]);
@@ -244,3 +243,36 @@ test('regular expression and like characters in a query are literal to the guard
     expect(fn () => intentSearch($query, new QueryIntent(genres: ['fantasy'])))->not->toThrow(Throwable::class)
         ->and(intentSearch($query, new QueryIntent(genres: ['fantasy']))->appliedIntent)->toBe(['genres' => ['fantasy']]);
 })->with(['fantasy (island', 'fantasy isl.nd', 'fantasy [a-z]*', 'fantasy \\', 'fantasy %', 'fantasy _sland', 'fantasy island$|']);
+
+test('a single word guards only a work it is the whole title of', function () {
+    $horror = new QueryIntent(genres: ['horror']);
+    storyFor('Horror Tales', $horror, 'horror');
+    storyFor('Horror Hotel', extraText: 'horror');
+
+    expect(intentSearch('horror', $horror)->appliedIntent)->toBe(['genres' => ['horror']]);
+
+    storyFor('The Horror');
+
+    expect(intentSearch('horror', $horror)->appliedIntent)->toBe([])
+        ->and(intentSearch('horror', $horror)->suggestedIntent)->toBe(['genres' => ['horror']]);
+});
+
+test('a single word guards a work whose alternative title it is', function () {
+    $monster = new QueryIntent(themes: ['revenge']);
+    storyFor('Monster Hunters', $monster, 'monster');
+    $named = storyFor('Naoki Urasawa no Monster', extraText: 'monster');
+
+    expect(intentSearch('monster', $monster)->appliedIntent)->toBe(['themes' => ['revenge']]);
+
+    $named->update(['alternative_titles' => ['Monster']]);
+
+    expect(intentSearch('monster', $monster)->appliedIntent)->toBe([]);
+});
+
+test('a type word typed alone still applies its type', function () {
+    $intent = app(QueryParser::class)->parse('manga');
+    storyFor('Manga Classics', $intent);
+    storyFor('Drawing Manga Basics', extraText: 'manga');
+
+    expect(intentSearch('manga', $intent)->appliedIntent)->toBe(['mediaTypes' => ['manga']]);
+});

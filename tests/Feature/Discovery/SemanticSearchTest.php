@@ -263,12 +263,22 @@ test('an intent search embeds the semantic text once however often it relaxes', 
     Http::assertSent(fn (Request $request) => $request['texts'] === ['sad about a machine']);
 });
 
-test('without an intent text the reader query is embedded', function () {
+test('without an intent the reader query is embedded', function () {
     fakeEmbedding(unitVector([0 => 1.0]));
 
-    semanticSearch('lonely machine', intent: new QueryIntent);
+    semanticSearch('lonely machine');
 
     Http::assertSent(fn (Request $request) => $request['texts'] === ['lonely machine']);
+});
+
+test('an intent with no semantic text leaves the semantic leg out', function () {
+    Http::fake();
+    DB::enableQueryLog();
+
+    semanticSearch('not romance', intent: new QueryIntent);
+
+    Http::assertNothingSent();
+    expect(collect(DB::getQueryLog())->filter(fn (array $entry): bool => str_contains($entry['query'], '<=>')))->toBeEmpty();
 });
 
 test('a query naming prohibited content never reaches the semantic leg', function (?QueryIntent $intent) {

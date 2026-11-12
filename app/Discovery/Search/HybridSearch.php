@@ -39,7 +39,7 @@ class HybridSearch
      * would leave none, the Dewey code, then the themes, then the genres, then the types are dropped until some result does, and what was dropped
      * is reported as suggested rather than applied. A group the reader filtered by themselves is theirs and the intent's is ignored, as is any
      * value outside the reader's vocabulary (a mature genre for a gated reader). The keyword leg still reads the reader's own words; the semantic
-     * leg reads the intent's `semanticText` when it has one. The semantic leg falls silent, never fails, when the ML service does (see SemanticLeg).
+     * leg reads the intent's `semanticText` when an intent is given (none when it is empty), otherwise the query. The semantic leg falls silent, never fails, when the ML service does (see SemanticLeg).
      * When the query is the title of a work the reader may see and the intent would hide that work ("Fantasy Island", a thriller), the reader
      * named a title, not a taxonomy: no group is applied and every group is suggested. The intent is untrusted input and is cleaned first
      * (QueryIntent::fromArray).
@@ -66,7 +66,8 @@ class HybridSearch
         $groups = $query === '' || $intent === null ? [] : $this->intentGroups($intent, $filters, $user);
         $suggested = $groups !== [] && $this->hidesNamedTitle($query, $filters, $groups) ? $groups : [];
         // A query naming prohibited content (see ProhibitedContent) is never embedded or matched by meaning: keyword results only.
-        $semanticText = ProhibitedContent::matches($query) ? '' : ($intent !== null && $intent->semanticText !== '' ? $intent->semanticText : $query);
+        // With an intent the leg reads its semantic text only, so a query whose every word was negated is not embedded either.
+        $semanticText = ProhibitedContent::matches($query) ? '' : ($intent === null ? $query : $intent->semanticText);
         [$lists, $applied] = $query === '' ? [[], []] : $this->relaxed($query, $semanticText, $filters, $suggested === [] ? $groups : []);
         $ranked = array_keys(Rrf::fuse($lists));
         // The semantic leg lists at most SemanticLeg::MAX_IDS, under the ceiling, so only the text legs can make the total a floor.
@@ -115,8 +116,10 @@ class HybridSearch
 
     /**
      * Whether a work the reader may see has the query as a whole phrase of its title or of an alternative title, and the intent's groups would
-     * leave it out. One indexed lookup (the trigram indexes serve the `like`; the regular expression keeps whole words only), through the same
-     * filters and access gate as the legs, so a work the reader may not see never switches the guard on.
+     * leave it out. A single word counts only when it is the whole title (a leading "the", "a" or "an" aside): "horror" typed alone still applies
+     * its intent, while a work titled "Monster" is never hidden by its own name. One indexed lookup (the trigram indexes serve the `like`; the
+     * regular expression keeps whole words, or the whole title), through the same filters and access gate as the legs, so a work the reader may
+     * not see never switches the guard on.
      *
      * @param  array<string, list<string>|string>  $groups
      */
@@ -124,17 +127,21 @@ class HybridSearch
     {
         $like = '%'.addcslashes($query, '\\%_').'%';
         // Every character that is not a letter, digit or space is escaped, so the query is literal inside the regular expression.
-        $phrase = '(^|[^[:alnum:]])'.preg_replace('/[^\p{L}\p{N} ]/u', '\\\\$0', $query).'($|[^[:alnum:]])';
+        $literal = preg_replace('/[^\p{L}\p{N} ]/u', '\\\\$0', $query);
+        // An alternative title is one string of the JSON array, so its own quotes bound it.
+        [$titlePattern, $alternativePattern] = str_contains($query, ' ')
+            ? array_fill(0, 2, "(^|[^[:alnum:]]){$literal}($|[^[:alnum:]])")
+            : ["^[^[:alnum:]]*((the|an?)[^[:alnum:]]+)?{$literal}[^[:alnum:]]*$", "\"((the|an?)[^[:alnum:]\"]+)?{$literal}[^[:alnum:]\"]*\""];
         $intended = new SearchFilters(...[...get_object_vars($filters), ...$groups]);
 
         return $filters->apply(Media::query()->unmerged())
             ->where(fn (Builder $titles) => $titles
                 ->where(fn (Builder $title) => $title
                     ->whereRaw('immutable_unaccent(lower(media.title)) like immutable_unaccent(lower(?))', [$like])
-                    ->whereRaw('immutable_unaccent(lower(media.title)) ~ immutable_unaccent(lower(?))', [$phrase]))
+                    ->whereRaw('immutable_unaccent(lower(media.title)) ~ immutable_unaccent(lower(?))', [$titlePattern]))
                 ->orWhere(fn (Builder $alternative) => $alternative
                     ->whereRaw('immutable_unaccent(lower(cast(media.alternative_titles as text))) like immutable_unaccent(lower(?))', [$like])
-                    ->whereRaw('immutable_unaccent(lower(cast(media.alternative_titles as text))) ~ immutable_unaccent(lower(?))', [$phrase])))
+                    ->whereRaw('immutable_unaccent(lower(cast(media.alternative_titles as text))) ~ immutable_unaccent(lower(?))', [$alternativePattern])))
             ->whereNotIn('media.id', $intended->apply(Media::query()->unmerged())->select('media.id'))
             ->exists();
     }
