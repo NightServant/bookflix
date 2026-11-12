@@ -35,6 +35,8 @@ class RunMlJob implements ShouldQueue
         'lsa' => [['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]],
         // Embeds new and changed media under the active version, or re-embeds everything and promotes when the service runs another model.
         'embed' => [['embed-media', []]],
+        // Not a train step: the service builds the neighbors of whichever embedding version is active when the step runs.
+        'embedding-similarities' => [['build-similarities', ['methods' => ['embedding']]]],
     ];
 
     /** Seconds between two looks at a running job. */

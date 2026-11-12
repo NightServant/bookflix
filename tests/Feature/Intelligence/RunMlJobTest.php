@@ -40,7 +40,21 @@ test('every pipeline runs train, build-similarities and evaluate in that order, 
     expect(RunMlJob::PIPELINES['item-cf'])->toBe([['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]])
         ->and(RunMlJob::PIPELINES['lsa'])->toBe([['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]])
         ->and(RunMlJob::PIPELINES['popularity'])->toBe([['refresh-popularity', []]])
-        ->and(RunMlJob::PIPELINES['embed'])->toBe([['embed-media', []]]);
+        ->and(RunMlJob::PIPELINES['embed'])->toBe([['embed-media', []]])
+        ->and(RunMlJob::PIPELINES['embedding-similarities'])->toBe([['build-similarities', ['methods' => ['embedding']]]]);
+});
+
+test('the embedding similarities pipeline builds the active version and ends when it succeeds, with no version id to carry', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['written' => ['embedding' => 120], 'skipped' => []]);
+    expect(RunMlJob::dispatchPipeline('embedding-similarities'))->toBeTrue();
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['embedding']] && $job->then === []);
+    $run = MlJobRun::factory()->create(['name' => 'build-similarities', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('build-similarities', ['methods' => ['embedding']], [], $run->id, pipeline: 'embedding-similarities'));
+
+    expect($run->refresh()->status)->toBe('succeeded')->and($run->error)->toBeNull()
+        ->and(RunMlJob::isRunning('embedding-similarities'))->toBeFalse();
 });
 
 test('the embed pipeline starts embed-media and ends when it succeeds', function () {

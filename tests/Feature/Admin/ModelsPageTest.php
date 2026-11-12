@@ -68,6 +68,15 @@ test('run now queues the embedding pipeline', function () {
     Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'embed-media' && $job->then === [] && $job->pipeline === 'embed');
 });
 
+test('run now queues the embedding similarities pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Semantic similarity')->call('runNow', 'embedding-similarities');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['embedding']] && $job->pipeline === 'embedding-similarities');
+});
+
 test('run now is refused with a message while that pipeline is running, and its button shows it', function () {
     Bus::fake([RunMlJob::class]);
     $this->actingAs(User::factory()->admin()->create());
@@ -80,7 +89,7 @@ test('run now is refused with a message while that pipeline is running, and its 
         ->call('runNow', 'lsa')->assertDispatched('toast-show', fn (string $event, array $params) => str_contains(json_encode($params), 'already running'));
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 
-    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false, 'embed' => false]);
+    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false, 'embed' => false, 'embedding-similarities' => false]);
 });
 
 test('run now is refused once the reader is no longer an admin', function () {
