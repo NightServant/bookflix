@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import pytest
 from psycopg.types.json import Jsonb
@@ -25,7 +26,7 @@ def load(db: Conn, frame: pd.DataFrame) -> None:
         db.execute("insert into users (id) values (%s) on conflict do nothing", (int(user),))
     for r in frame.to_dict("records"):
         at = r["generated_at"] + shift
-        features = {name: r[name] for name in impressions.FEATURES}
+        features = {name: None if pd.isna(r[name]) else r[name] for name in impressions.FEATURES}
         db.execute(
             "insert into recommendations (id, user_id, media_id, shelf, position, score, reason_payload, generated_at) values (%s, %s, %s, %s, %s, %s, %s, %s)",
             (
@@ -77,6 +78,21 @@ def test_below_the_gate_the_job_skips_and_leaves_no_version(db: Conn, artifact_d
 
     assert metrics == {
         "skipped": {"reason": "too few labeled impressions", "have": 600, "need": 50000}
+    }
+    assert count(db, "model_versions") == 0
+
+
+def test_rows_dropped_by_cleaning_do_not_count_towards_the_gate(
+    db: Conn, artifact_dir: Path
+) -> None:
+    frame = lists(60)
+    frame.loc[frame["user_id"] > 30, "popularity"] = np.nan  # 300 of the 600 rows are unusable
+
+    load(db, frame)
+    metrics = run_train_ltr(db, {"min_labeled": 400})
+
+    assert metrics == {
+        "skipped": {"reason": "too few labeled impressions", "have": 300, "need": 400}
     }
     assert count(db, "model_versions") == 0
 

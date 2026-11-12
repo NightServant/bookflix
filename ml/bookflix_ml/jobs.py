@@ -245,14 +245,16 @@ def run_train_als(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
 def run_train_ltr(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Train the LambdaMART ranker on the labeled impressions of eligible readers and store it as a `candidate` `ltr` version.
 
-    The data gate (`min_labeled` param, default `ltr.MIN_LABELED`) runs before any version exists, and so does the check that the
+    The data gate (`min_labeled` param, default `ltr.MIN_LABELED`) counts the impressions left after `ltr.clean` drops the ones with a missing
+    feature, so training never runs on fewer than the gate; it runs before any version exists, and so does the check that the
     impressions can be split in time: either failing makes the job succeed with `skipped` (reason, have, need) and create nothing. Promotion
     is `evaluate`'s: nothing is promoted here. A failure retires the version.
     """
     frame = impressions.fetch_labeled(conn)
     try:
-        ltr.check_gates(len(frame), int(params.get("min_labeled", ltr.MIN_LABELED)))
-        ltr.split(ltr.clean(frame)[0])
+        usable = ltr.clean(frame)[0]
+        ltr.check_gates(len(usable), int(params.get("min_labeled", ltr.MIN_LABELED)))
+        ltr.split(usable)
     except ltr.NotEnoughData as e:
         return {"skipped": e.skipped}
 
