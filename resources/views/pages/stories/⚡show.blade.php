@@ -94,6 +94,7 @@ new #[Title('Story')] class extends Component {
             'series' => fn ($series) => $series->withCount(['media as volumes_count' => fn ($volumes) => $volumes->visibleTo(auth()->user())]),
             'relations' => fn ($relations) => $relations->visibleTo(auth()->user()),
             'externalIds.externalSource',
+            'summary',
         ]);
 
         $classes = $media->deweyClasses()->public()->with('deweyClass.parent')->orderBy('classification_type')->orderBy('id')->get();
@@ -101,6 +102,18 @@ new #[Title('Story')] class extends Component {
         return $media
             ->setRelation('publicDeweyClasses', $classes)
             ->setRelation('publicPrimaryDewey', $classes->first(fn (MediaDeweyClass $class): bool => $class->classification_type === ClassificationType::Primary));
+    }
+
+    /**
+     * The summary to lead the story with: only one written from the description as it is now (its hash is the description's), never for no description.
+     */
+    #[Computed]
+    public function summaryText(): ?string
+    {
+        $summary = $this->media->summary;
+        $description = $this->media->description;
+
+        return $summary !== null && filled($description) && hash_equals($summary->source_hash, hash('sha256', $description)) ? $summary->summary : null;
     }
 
     /**
@@ -251,7 +264,23 @@ new #[Title('Story')] class extends Component {
 
                     <x-rating-display :average="$media->average_rating" :count="$media->ratings_count" class="mt-3" />
 
-                    @if (filled($media->description))
+                    @if ($this->summaryText !== null)
+                        {{-- The summary is whole sentences of the description; the description itself is one tap away, in place. --}}
+                        <div x-data="{ open: false }" class="mt-4 max-w-prose">
+                            <p class="text-body text-ink-subtle text-pretty">{{ $this->summaryText }}</p>
+
+                            <p x-show="open" id="story-description" style="display: none" class="mt-3 text-body text-ink-subtle text-pretty">{{ $media->description }}</p>
+
+                            <button
+                                type="button"
+                                @click="open = ! open"
+                                aria-expanded="false"
+                                :aria-expanded="open"
+                                aria-controls="story-description"
+                                class="focus-ring -ms-1 inline-flex min-h-11 items-center rounded-control px-1 text-meta text-link hover:underline"
+                            ><span x-text="open ? @js(__('Hide the full description')) : @js(__('Read the full description'))">{{ __('Read the full description') }}</span></button>
+                        </div>
+                    @elseif (filled($media->description))
                         <x-clamped-text class="mt-4">{{ $media->description }}</x-clamped-text>
                     @endif
 
