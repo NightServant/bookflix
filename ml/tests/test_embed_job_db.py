@@ -127,10 +127,19 @@ def test_a_new_model_revision_runs_in_full_and_leaves_only_its_own_rows(
     """Review Focus #3: once the new version is active, no vector of the old model is left to mix with it."""
     seed_corpus(db, corpus)
     old = run_embed_media(db, {})["version_id"]
-    db.execute(
-        "insert into media_similarities (media_id, similar_media_id, method, score, model_version_id) values (1, 2, 'embedding', 0.9, %s)",
-        (old,),
-    )
+    others = {}
+    for name, method in (("lsa", "lsa"), ("item-cf", "item_cf")):
+        row = db.execute(
+            "insert into model_versions (name, version, kind, status) values (%s, 'v1', %s, 'active') returning id",
+            (name, method),
+        ).fetchone()
+        assert row is not None
+        others[method] = int(row[0])
+    for method, version_id in [("embedding", old), *others.items()]:
+        db.execute(
+            "insert into media_similarities (media_id, similar_media_id, method, score, model_version_id) values (1, 2, %s, 0.9, %s)",
+            (method, version_id),
+        )
     db.commit()
     monkeypatch.setattr(embeddings, "_loaded", FakeEmbedder(revision="newer"))
 
@@ -140,7 +149,10 @@ def test_a_new_model_revision_runs_in_full_and_leaves_only_its_own_rows(
     assert metrics["mode"] == "full" and metrics["embedded"] == 12
     assert embedding_versions(db) == [(old, "retired"), (new, "active")]
     assert rows_by_version(db) == {new: 12}
-    assert count(db, "media_similarities") == 0
+    # Only the retired version's embedding neighbors go; lsa and item_cf neighbors survive the promotion.
+    assert db.execute(
+        "select method, model_version_id from media_similarities order by method"
+    ).fetchall() == [("item_cf", others["item_cf"]), ("lsa", others["lsa"])]
 
 
 def test_a_failed_full_run_leaves_the_active_version_alone_and_the_next_run_resumes(
@@ -190,6 +202,68 @@ def test_a_failed_incremental_run_keeps_what_it_wrote_under_the_active_version(
 
     assert embedding_versions(db) == [(version_id, "active")]
     assert rows_by_version(db) == {version_id: 12}
+
+
+def embedded_media(conn: Conn, version_id: int) -> set[int]:
+    return {
+        int(r[0])
+        for r in conn.execute(
+            "select media_id from media_embeddings where model_version_id = %s", (version_id,)
+        ).fetchall()
+    }
+
+
+def test_an_incremental_run_drops_the_rows_of_media_no_longer_live_and_only_its_versions(
+    db: Conn,
+    corpus: list[dict[str, Any]],
+    fake_embedder: FakeEmbedder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_corpus(db, corpus)
+    active = run_embed_media(db, {})["version_id"]
+    # A waiting candidate of another model, left by a failed full run.
+    monkeypatch.setattr("bookflix_ml.jobs.EMBED_CHUNK", 5)
+    monkeypatch.setattr(embeddings, "_loaded", FakeEmbedder(revision="newer", fail_after=1))
+    with pytest.raises(RuntimeError):
+        run_embed_media(db, {})
+    [_, (candidate, _)] = embedding_versions(db)
+    monkeypatch.setattr(embeddings, "_loaded", fake_embedder)
+    db.execute("update media set deleted_at = now() where id = 1")
+    db.execute("update media set merged_into_id = 2 where id = 3")
+    db.commit()
+
+    metrics = run_embed_media(db, {})
+
+    assert metrics["mode"] == "incremental" and metrics["version_id"] == active
+    assert embedded_media(db, active) == set(range(1, 13)) - {1, 3}
+    assert embedded_media(db, candidate) == {1, 2, 3, 4, 5}
+
+
+def test_a_resumed_full_run_does_not_carry_media_no_longer_live_into_its_candidate(
+    db: Conn,
+    corpus: list[dict[str, Any]],
+    fake_embedder: FakeEmbedder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_corpus(db, corpus)
+    run_embed_media(db, {})
+    monkeypatch.setattr("bookflix_ml.jobs.EMBED_CHUNK", 5)
+    flaky = FakeEmbedder(revision="newer", fail_after=1)
+    monkeypatch.setattr(embeddings, "_loaded", flaky)
+    with pytest.raises(RuntimeError):
+        run_embed_media(db, {})
+    [_, (candidate, _)] = embedding_versions(db)
+    assert embedded_media(db, candidate) == {1, 2, 3, 4, 5}
+    db.execute("update media set deleted_at = now() where id = 1")
+    db.execute("update media set merged_into_id = 2 where id = 3")
+    db.commit()
+
+    flaky.fail_after = None
+    metrics = run_embed_media(db, {})
+
+    assert metrics["version_id"] == candidate and metrics["mode"] == "full"
+    assert embedded_media(db, candidate) == set(range(1, 13)) - {1, 3}
+    assert rows_by_version(db) == {candidate: 10}
 
 
 def test_without_a_loaded_model_the_job_fails_and_writes_nothing(

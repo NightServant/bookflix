@@ -258,8 +258,15 @@ def _embed_missing(
 ) -> int:
     """Embed the media that have no row under `version_id`, or one made from other text, committing every `EMBED_CHUNK` media.
 
+    The version's rows of media that are no longer live (not in `docs`: soft deleted or merged away) are deleted first, so neither the
+    active version nor a resumed candidate keeps a vector nothing should be compared with; other versions' rows are left alone.
     Each chunk is committed on its own, so a failure keeps what was already written and the next run starts where this one stopped.
     """
+    conn.execute(
+        "delete from media_embeddings where model_version_id = %s and media_id <> all(%s)",
+        (version_id, [doc["id"] for doc in docs]),
+    )
+    conn.commit()
     stored = dict(
         conn.execute(
             "select media_id, content_hash from media_embeddings where model_version_id = %s",
