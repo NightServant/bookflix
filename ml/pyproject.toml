@@ -70,5 +70,5 @@ explicit_package_bases = true
 mypy_path = "."
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "implicit.*", "joblib", "boto3", "scipy.*", "pgvector.*", "sentence_transformers.*", "torch.*"]
+module = ["sklearn.*", "implicit.*", "threadpoolctl", "joblib", "boto3", "scipy.*", "pgvector.*", "sentence_transformers.*", "torch.*"]
 ignore_missing_imports = true

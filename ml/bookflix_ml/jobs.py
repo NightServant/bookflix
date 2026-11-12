@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 
 from app.settings import get_settings
 from bookflix_ml import (
+    als,
     artifacts,
     db,
     dewey,
@@ -184,8 +185,66 @@ def run_train_item_cf(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     return {**counts, "n_items_with_neighbors": len(neighbors), "version_id": version_id}
 
 
+def run_train_als(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Fit ALS item factors on the eligible readers' decayed interactions and store them as a `candidate` `als` version.
+
+    The data gate (`min_interactions` and `min_users` params) runs before any version exists: below it the job succeeds with `skipped`
+    (reason, have, need) and creates nothing, and Laravel keeps serving what it did. Hyper-parameters are `als`'s defaults, recorded in
+    the version's parameters with the counts. Only the artifact is written here; the neighbors reach `media_similarities` in
+    `build-similarities`. A failure retires the version.
+    """
+    weights = db.fetch_interaction_weights(conn)
+    scores = item_cf.interaction_scores(db.fetch_interactions(conn), weights, datetime.now(UTC))
+    try:
+        als.check_gates(
+            scores,
+            int(params.get("min_interactions", als.MIN_INTERACTIONS)),
+            int(params.get("min_users", als.MIN_USERS)),
+        )
+    except als.NotEnoughData as e:
+        return {"skipped": e.skipped}
+
+    counts = {
+        "n_users": len({u for u, _ in scores}),
+        "n_items": len({i for _, i in scores}),
+        "n_interactions": len(scores),
+    }
+    parameters = {
+        "weights": weights,
+        "factors": als.FACTORS,
+        "regularization": als.REGULARIZATION,
+        "iterations": als.ITERATIONS,
+        "seed": als.SEED,
+        **counts,
+    }
+    version_id, version = registry.create_version(
+        conn, "als", "als", parameters, "user_interactions:eligible"
+    )
+    conn.commit()
+
+    try:
+        model = als.train(scores, als.FACTORS, als.REGULARIZATION, als.ITERATIONS, als.SEED)
+        uri = artifacts.save(
+            {"item_ids": model.item_ids, "item_factors": model.item_factors}, "als", version
+        )
+        registry.finish_version(conn, version_id, "candidate", counts, uri)
+        conn.commit()
+    except BaseException as e:
+        conn.rollback()
+        registry.finish_version(conn, version_id, "retired", {"error": str(e) or type(e).__name__})
+        conn.commit()
+        raise
+
+    return {**counts, "version_id": version_id}
+
+
 # The `model_versions.name` each similarity method's rows are built from.
-SIMILARITY_VERSIONS = {"lsa": "lsa", "item_cf": "item-cf", "embedding": "embedding"}
+SIMILARITY_VERSIONS = {
+    "lsa": "lsa",
+    "item_cf": "item-cf",
+    "embedding": "embedding",
+    "als": "als",
+}
 
 
 def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
@@ -236,6 +295,14 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
                 fetch = db.fetch_lsa_vectors if method == "lsa" else db.fetch_embedding_vectors
                 ids, vectors = fetch(conn, version_id)
                 neighbors = similarities.top_k_cosine(ids, vectors, 50)
+            elif method == "als":
+                if uri is None:
+                    raise RuntimeError("The als version has no artifact.")
+                stored_model = artifacts.load(uri)
+                neighbors = als.neighbors(
+                    als.AlsModel(stored_model["item_ids"], stored_model["item_factors"]),
+                    db.fetch_live_media_ids(conn),
+                )
             else:
                 if uri is None:
                     raise RuntimeError("The item-cf version has no artifact.")
@@ -510,7 +577,9 @@ def run_refresh_popularity(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
     return {"media": int(row[0]) if row else 0}
 
 
-EVAL_KINDS = {"item_cf": "item-cf", "lsa": "lsa"}
+EVAL_KINDS = {"item_cf": "item-cf", "lsa": "lsa", "als": "als"}
+# The kinds scored on neighbors refitted in memory on the training split; the others read their stored rows.
+REFIT_KINDS = {"item_cf", "als"}
 EVAL_K = 10
 # A single held-out reader says nothing about a model, so below this the evaluation records "not enough data" and promotes nothing.
 MIN_EVAL_USERS = 2
@@ -554,12 +623,24 @@ def _neighbors_of(
     needed: set[int],
     fallback: tuple[dict[str, Any], int],
 ) -> dict[int, list[tuple[int, float]]]:
-    """The neighbors one version is scored on: `item_cf` refits in memory on the training split with the version's own weights and `k`
-    (`fallback` when it stored none), `lsa` reads the version's stored rows, only those of the `needed` source items."""
-    if kind != "item_cf":
+    """The neighbors one version is scored on: `item_cf` and `als` refit in memory on the training split with the version's own weights
+    (and `k`, or its factors, regularization, iterations and seed; `fallback` when it stored none), `lsa` reads the version's stored
+    rows, only those of the `needed` source items."""
+    if kind not in REFIT_KINDS:
         return db.fetch_similarity_rows(conn, version_id, method, media_ids=needed)
 
     positive = positive_for(parameters.get("weights") or fallback[0])
+    if kind == "als":
+        training = {key: s for key, s in positive.items() if held.get(key[0]) != key[1]}
+        model = als.train(
+            training,
+            int(parameters.get("factors", als.FACTORS)),
+            float(parameters.get("regularization", als.REGULARIZATION)),
+            int(parameters.get("iterations", als.ITERATIONS)),
+            int(parameters.get("seed", als.SEED)),
+        )
+
+        return als.neighbors(model, db.fetch_live_media_ids(conn))
 
     return _held_out_neighbors(conn, positive, held, int(parameters.get("k", fallback[1])))
 
@@ -568,13 +649,13 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Score the `candidate` of `kind` (the one `version_id` names, else the newest) against each eligible reader's last positive item
     and promote it if the gate allows.
 
-    Interactions come from the same eligible-reader export as training. An `item_cf` model is scored on neighbors trained in memory
-    on the leave-last-out training split only, with its own weights and `k`, so a held-out item never helped build the neighbors it is
+    Interactions come from the same eligible-reader export as training. An `item_cf` or `als` model is scored on neighbors trained in
+    memory on the leave-last-out training split only, with its own weights and `k` or factors, so a held-out item never helped build the neighbors it is
     scored on; nothing is written to `media_similarities` for that (promotion still uses the stored candidate). `lsa` learns from item
     text, not interactions, so it cannot leak a held-out interaction and is ranked from its stored `media_similarities` rows (so
     `build-similarities` must have run).
 
-    The gate compares against the active version scored now, on the same split in the same run (item_cf refit with the active version's
+    The gate compares against the active version scored now, on the same split in the same run (item_cf and als refit with the active version's
     parameters, lsa from its stored rows), never against metrics recorded at some earlier time. Both metric sets, `promoted` and `reason`
     are stored on the candidate, and the promotion goes in that same transaction. A candidate with no `media_similarities` rows is never
     promoted. With too little data (fewer than two readers with two positive items, or no neighbors) nothing can be compared, so the
@@ -657,7 +738,7 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                 n_users=n_users,
             )
 
-        stored_rows = kind != "item_cf"
+        stored_rows = kind not in REFIT_KINDS
         neighbors = _neighbors_of(
             conn, kind, version_id, method, parameters, positive_for, held, needed, (weights, k)
         )
@@ -743,6 +824,7 @@ def _with_connection(
 JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "train-lsa": _with_connection(run_train_lsa),
     "train-item-cf": _with_connection(run_train_item_cf),
+    "train-als": _with_connection(run_train_als),
     "build-similarities": _with_connection(run_build_similarities),
     "refresh-popularity": _with_connection(run_refresh_popularity),
     "evaluate": _with_connection(run_evaluate),
