@@ -8,7 +8,6 @@ use App\Ml\MlServiceUnavailable;
 use App\Models\DeweyClass;
 use App\Models\Media;
 use App\Models\ModelVersion;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -25,12 +24,12 @@ class DeweyClassifier
     public function __construct(private MlClient $client, private DeweyMapper $mapper) {}
 
     /**
-     * @return Collection<int, ClassificationCandidate>
+     * @return list<ClassificationCandidate>
      */
-    public function predict(Media $media): Collection
+    public function predict(Media $media): array
     {
         if (! app()->runningInConsole() || (string) config('services.ml.token') === '' || ModelVersion::activeFor('dewey-classifier') === null) {
-            return new Collection;
+            return [];
         }
 
         try {
@@ -38,16 +37,16 @@ class DeweyClassifier
         } catch (MlServiceUnavailable $exception) {
             Log::warning('Dewey classifier unavailable; classifying by rules only.', ['media_id' => $media->id, 'error' => $exception->getMessage()]);
 
-            return new Collection;
+            return [];
         }
 
         $cap = (float) config('bookflix.classification.classifier_max_confidence');
         $known = DeweyClass::whereIn('code', $candidates->pluck('code')->all())->pluck('code')->all();
         $literature = $this->mapper->allowsLiterature($media);
 
-        return $candidates
+        return array_values($candidates
             ->filter(fn (ClassificationCandidate $candidate): bool => in_array($candidate->code, $known, true) && ($literature || ! str_starts_with($candidate->code, '8')))
             ->map(fn (ClassificationCandidate $candidate): ClassificationCandidate => new ClassificationCandidate($candidate->code, min($cap, $candidate->confidence), $candidate->method, $candidate->source, $candidate->modelVersionId))
-            ->values();
+            ->all());
     }
 }

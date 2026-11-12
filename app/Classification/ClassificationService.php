@@ -193,7 +193,7 @@ class ClassificationService
             ->all();
 
         $rules = collect($this->validator->filter([...$external, ...$this->mapper->map($media)]));
-        $guesses = collect($this->validator->filter($this->classifier->predict($media)->all()))
+        $guesses = collect($this->validator->filter($this->classifier->predict($media)))
             ->reject(fn (ClassificationCandidate $candidate): bool => $rules->contains('code', $candidate->code));
 
         return $rules->concat($guesses)->take(1 + (int) config('bookflix.classification.max_secondary'))->values();

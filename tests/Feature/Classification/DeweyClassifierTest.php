@@ -123,7 +123,7 @@ test('weak classifier candidates are dropped like weak rules', function () {
 test('codes missing from the seeded hierarchy are dropped', function () {
     classifierSays(['999.99' => 0.7, '520' => 0.6]);
 
-    expect(app(DeweyClassifier::class)->predict(unruled())->pluck('code')->all())->toBe(['520']);
+    expect(collect(app(DeweyClassifier::class)->predict(unruled()))->pluck('code')->all())->toBe(['520']);
 });
 
 test('a classifier candidate never outranks a rule or an external primary', function () {
@@ -140,9 +140,9 @@ test('the #28 rule holds for the classifier: no literature class for prose with 
     $fiction = Media::factory()->novel()->create(['description' => null, 'country_of_origin' => null, 'language' => null]);
     $fiction->genres()->attach(Genre::factory()->create(['slug' => 'fantasy']));
 
-    expect(app(DeweyClassifier::class)->predict(unruled())->pluck('code')->all())->toBe(['520'])
-        ->and(app(DeweyClassifier::class)->predict($nonfiction)->pluck('code')->all())->toBe(['520'])
-        ->and(app(DeweyClassifier::class)->predict($fiction)->pluck('code')->all())->toBe(['813', '895.6', '520']);
+    expect(collect(app(DeweyClassifier::class)->predict(unruled()))->pluck('code')->all())->toBe(['520'])
+        ->and(collect(app(DeweyClassifier::class)->predict($nonfiction))->pluck('code')->all())->toBe(['520'])
+        ->and(collect(app(DeweyClassifier::class)->predict($fiction))->pluck('code')->all())->toBe(['813', '895.6', '520']);
 });
 
 test('it never overwrites a manual or accepted decision and never resurrects a rejected pair', function () {
@@ -186,7 +186,7 @@ test('with no ML service configured the rules run alone and nothing is logged', 
 test('candidates carry the model version id', function () {
     $version = classifierSays(['520' => 0.6]);
 
-    expect(app(DeweyClassifier::class)->predict(unruled())->first()->modelVersionId)->toBe($version->id);
+    expect(app(DeweyClassifier::class)->predict(unruled())[0]->modelVersionId)->toBe($version->id);
 });
 
 test('a web request never reaches the classifier: classification there is rules only', function () {
