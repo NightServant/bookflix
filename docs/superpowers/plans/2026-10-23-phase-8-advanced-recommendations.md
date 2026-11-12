@@ -14,6 +14,52 @@
 
 **Depends on:** Phase 6 (`evaluate.py` + `should_promote`, `registry.promote`, `build-similarities`, `RunMlJob`, `RankingWeights`, `HybridRanker`, `ShelfBuilder`, `recommendations` incl. `reason_payload.features`, `recommendation_events`, `media_popularity`), Phase 7 (embedding similarities), Phase 5 (`user_interactions`).
 
+## Revision 2026-11-12 (against `phase-7-semantic` with 7.1 in, after Phase 6 and #27–#30)
+
+Where the plan below disagrees with this section, **this section wins**. Branch `phase-8-advanced` off the tip of `phase-7-semantic`; its PR opens only after Phase 7 merges (`git rebase --onto main <old base tip>`). Ledger `docs/superpowers/plans/phase-8-ledger.md`. Migrations are dated after Phase 7's.
+
+**Rules for every task**
+- Every listing goes through `Media::visibleTo`; type filters use `Media::ofTypes()`; raw `cover_url` reads go through `Media::displayCover()`. Never weaken `ProhibitedContent` or the mature gate.
+- Expensive ML never runs in a web request. Training, scoring and the candidate export are queued or Python batch jobs; a request only reads tables and caches.
+- Below its gate, or with no active version, every feature gives exactly the Phase 6 (and Phase 7) result. Each task proves this with a test on fixtures; there is no real impression data.
+- Dependencies: `implicit`, `pandas` and `scikit-learn` are already installed. `lightgbm` (8.2) and `chart.js` (8.4) are the only new ones.
+- P8-R1. A gate that is not met is not a failure. The gate runs before `create_version`; the train job succeeds with `metrics.skipped = {reason, have, need}` and creates no version, and `RunMlJob` ends the pipeline there without a failed row. Gate numbers are job parameters with the plan's values as defaults, held in one place on the PHP side so the readiness command and the job read the same number. Hyper-parameters are Python defaults recorded in `parameters` (no `recommendations.als.*` config block: `PIPELINES` is a constant).
+- Every new pipeline goes in `RunMlJob::PIPELINES`, `TRAIN_STEPS` where it trains, the schedule, and the admin models page labels and "Run now" copy. The service runs one job at a time, so new slots must not overlap the taken ones (item-cf 03:00, LSA Sunday 02:00, popularity hourly at :00, embed hourly at :30, embedding similarities nightly). The slots chosen go in the ledger.
+- `ml/tests/schema.sql` and `expected_columns.json` gain `recommendations`, `recommendation_events` and each new table.
+
+**8.1 ALS**
+- `build-similarities` and `evaluate` take the method from a method→name map (`item_cf`, `lsa`, `embedding`, `als`) instead of hard-coded lists. `similarities.top_k_cosine` is reused; `similarities.py` needs nothing else.
+- `evaluate` with `kind: "als"` refits in memory on the leave-last-out split, as item-cf does. Reading stored rows would leak the held-out items.
+- Promotion follows the settled rule, thin evaluation data included.
+- `AlsSource` goes in the provider's tag list and `CandidatePool::PERSONALIZED`. "Only when active" means the source returns empty with no active `als` version; the pool has no active check.
+- P8-R4. `HybridRanker`'s collaborative feature is the larger of the `item_cf` and `als` neighbour scores. With no active `als` version the ranking is unchanged (tested against the Phase 6 expectations).
+
+**8.2 Learning to rank**
+- A migration adds `recommendations.position` (place within the shelf, from 0), written by `RecommendationLogger::log`. Rows logged before it have null and are not used for training.
+- P8-R5. Labels. One labeled impression is one `recommendations` row with at least one `impression` event; repeated events on a row count once; a row never impressed is left out. Grades follow the plan (0, click 1, library_add 3, reading_start 4, the highest applies; `reading_start` comes from `user_interactions`); a dismissed row is grade 0. The export reads only `generated_at >= now − 90 days`, so the old rows that survive pruning because they hold a dismissal don't skew the sample, and skips rows younger than the 7-day window.
+- P8-R2. Features. Training reads the features logged at serving time (`reason_payload.features`) and `position`. For scoring, a queued PHP job (scheduled nightly, and doing nothing without an active `ltr` version) writes each active eligible reader's top 300 hybrid candidates with their features to `ltr_candidates`; the Python job `score-ltr` reads rows newer than 36 h, sets position to a constant, and writes `ltr_scores`. Python never recomputes a feature.
+- P8-R3. An LTR candidate is promoted only on evidence: a positive NDCG@10 delta against the hybrid order on the held-out impressions. Thin or missing evaluation data retires it. This is the one exception to "thin data promotes the newer version", because Hybrid is always there. `evaluate` gets its own `ltr` branch (the neighbour-based one refuses a version with no similarity rows); `registry._prune` learns `ltr_scores`.
+- `LtrRanker` re-scores the hybrid `RankedItem`s (explanations, features and `reasonMediaId` stay) and applies only in `ShelfBuilder::recommended()`. Scores are normalised to [0, 1] before `Diversifier`. No fresh rows, no active version or a retired one gives `null` and the hybrid order.
+- P8-R6. Rows served in LTR order are logged under the LTR version id; hybrid rows keep `hybrid-weights`.
+- `bookflix:ltr-readiness` prints the labeled-impression count against the gate, using the same definition as the export.
+
+**8.3 Diversity, novelty, bandit**
+- `metrics_at_k` already reports `diversity` and `novelty`. Add `genre_diversity` (Jaccard over `media_genres`) and leave the existing keys as they are. `ShelfBuilder` is PHP (the plan lists it under Python).
+- P8-R8. The reorderable shelves are `similar-to`, `popular-in-genres` and `discover-new`. `collections` is dropped: collection shelves write no log rows and their place on Home is a signed design decision, as are staff picks. Continue Reading stays first. The order is applied after `withoutRepeats`, so which titles a shelf holds does not change.
+- P8-R7. Stats come only from the hourly cache written by `RefreshShelfStats`; a request never aggregates `recommendation_events`. An empty cache gives the default order. The sample is drawn once per shelf-cache fill (10 minutes), not per request, so shelves don't move between reloads. `bandit_enabled` defaults to false.
+
+**8.4 Admin comparison**
+- No `ModelMetricsController` and no JSON route: admin routes are all `Route::livewire`, so the page passes the series itself. It makes no ML call (the models page's `health()` call is not copied).
+- Versions are ordered by `coalesce(trained_at, created_at)`; retired versions are included; the page also shows `promoted` and `reason`.
+- Chart.js is loaded with a dynamic `import()`, as three.js is. The table always renders and is the accessible alternative.
+- The page is UI and waits for the design sign-off (Figma page "Phase 8 Screens"). The query, route, authorization and their tests are not UI.
+
+**Exit criteria**
+- The plan's criteria, with a whole-branch review by a fresh agent in place of `ponytail:ponytail-review`, and the full local test run listed in the PR as a hand check.
+- LTR is trained only on logs from after Phase 7's 7.5 (embedding neighbours change `content_similarity`); with no real data this is a note for the first real training run.
+
+**Order:** 8.1, 8.3 and the non-UI part of 8.4 in parallel, then 8.2, then the 8.4 page after sign-off.
+
 ## Global Constraints
 
 - **Phase 1 as built (PR #4, authoritative):** `AssignRequestId` and `SetSecurityHeaders` are global middleware; `EnsureAccountIsActive` stays in the `web` group (new middleware is appended in `bootstrap/app.php` accordingly). Primary navigation is defined **once** in `config('bookflix.navigation')` (items `{label, route, active: [routeIs patterns], icon}`); `layouts/app/header.blade.php` and `components/bottom-nav.blade.php` loop over it, so a phase adds nav items to that config, never to the layouts (`primaryNavs()` in `tests/Pest.php` asserts them). `FILESYSTEM_DISK=local`; public-facing files use a dedicated disk setting like `config('bookflix.avatar_disk')`; **Livewire temporary uploads never use a public disk**. Red (Flux `primary`) is for CTAs only: Save/Update buttons in settings and admin use `variant="filled"`; focus rings use `accent-electric`. ML: `ML_SERVICE_TOKEN` ≥ 32 characters, docs endpoints off unless `ML_ENABLE_DOCS=true`, local `ML_SERVICE_URL=http://localhost:8001`, `MlClient` throws `MlServiceUnavailable` (and `health()` is false) when the token is empty. Deferred to deploy setup: `league/flysystem-aws-s3-v3`, Nightwatch, a shared temporary-upload disk. The spec is not in the repo (public repo): read it at the absolute path above.
