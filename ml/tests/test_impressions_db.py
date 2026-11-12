@@ -22,12 +22,20 @@ def row(
     position: int | None = 0,
     shelf: str = "recommended",
     features: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> int:
     """A logged recommendation `age_days` old; each event is (name, days after generation)."""
     at = now().replace(tzinfo=None) - timedelta(days=age_days)
     new = db.execute(
         "insert into recommendations (user_id, media_id, shelf, position, score, reason_payload, generated_at) values (%s, %s, %s, %s, 0.4, %s, %s) returning id",
-        (user, media, shelf, position, Jsonb({"features": features or FEATURES}), at),
+        (
+            user,
+            media,
+            shelf,
+            position,
+            Jsonb({"features": features or FEATURES, **(payload or {})}),
+            at,
+        ),
     ).fetchone()
     assert new is not None
     for event, after in events:
@@ -114,6 +122,20 @@ def test_young_impressions_old_ones_and_rows_without_a_position_are_excluded(db:
 
     assert set(found) == {edge, kept}
     assert {young, too_old, no_place}.isdisjoint(found)
+
+
+def test_the_hybrid_position_is_read_from_the_payload_and_falls_back_to_the_position(
+    db: Conn,
+) -> None:
+    world(db)
+    # Served in LTR order: place 2 on the shelf, 7th in the hybrid order. A row logged before the key existed was served in hybrid order.
+    served = row(db, 1, 1, [("impression", 0)], position=2, payload={"hybrid_position": 7})
+    old = row(db, 1, 2, [("impression", 0)], position=4)
+
+    frame = impressions.fetch_labeled(db).set_index("recommendation_id")
+
+    assert frame.loc[served, "position"] == 2 and frame.loc[served, "hybrid_position"] == 7
+    assert frame.loc[old, "position"] == 4 and frame.loc[old, "hybrid_position"] == 4
 
 
 def test_deactivated_and_opted_out_readers_and_gone_media_are_excluded(db: Conn) -> None:

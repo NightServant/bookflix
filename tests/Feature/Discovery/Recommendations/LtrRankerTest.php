@@ -189,3 +189,25 @@ test('with fresh scores the Recommended shelf follows them and its rows are logg
         ->and(Recommendation::where('shelf', '!=', 'recommended')->where('model_version_id', $version->id)->count())->toBe(0)
         ->and(Recommendation::where('shelf', '!=', 'recommended')->where('model_version_id', $hybridVersion->id)->count())->toBeGreaterThan(0);
 });
+
+test('Recommended rows log their place in the hybrid order, equal to position without LTR and to the hybrid index when LTR re-ordered', function () {
+    [$user] = richReader();
+    $today = recommendedIds($user);
+    $hybrid = Recommendation::where('shelf', 'recommended')->get();
+
+    expect($hybrid)->not->toBeEmpty()
+        ->and($hybrid->every(fn (Recommendation $row): bool => $row->reason_payload['hybrid_position'] === $row->position))->toBeTrue();
+
+    $hybridPlace = $hybrid->pluck('reason_payload.hybrid_position', 'media_id');
+    $version = activeVersion('ltr');
+    Recommendation::query()->delete();
+    foreach (array_reverse($today) as $i => $id) {
+        LtrScore::create(['user_id' => $user->id, 'media_id' => $id, 'score' => $i + 10, 'model_version_id' => $version->id, 'generated_at' => now()]);
+    }
+    recommendedIds($user);
+    $learned = Recommendation::where('shelf', 'recommended')->where('model_version_id', $version->id)->get();
+
+    expect($learned)->not->toBeEmpty()
+        ->and($learned->contains(fn (Recommendation $row): bool => $row->reason_payload['hybrid_position'] !== $row->position))->toBeTrue()
+        ->and($learned->every(fn (Recommendation $row): bool => ! $hybridPlace->has($row->media_id) || $hybridPlace[$row->media_id] === $row->reason_payload['hybrid_position']))->toBeTrue();
+});

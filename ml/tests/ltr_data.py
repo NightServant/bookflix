@@ -35,6 +35,7 @@ def lists(
                     "shelf": "recommended",
                     "generated_at": BASE + timedelta(hours=n),
                     "position": place,
+                    "hybrid_position": place,
                     "logged_score": 0.5,
                     **{name: float(features[item, i]) for i, name in enumerate(FEATURES)},
                     "label": int(label[item]),

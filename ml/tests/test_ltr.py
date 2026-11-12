@@ -100,6 +100,22 @@ def test_the_model_does_not_beat_a_hybrid_order_that_is_already_perfect() -> Non
     assert not result["ndcg@10"] > result["hybrid_ndcg@10"]
 
 
+def test_the_baseline_is_the_hybrid_order_even_when_another_order_was_shown() -> None:
+    # Served by an LTR version: the shown order (`position`) is random, while `hybrid_position` still says the hybrid order was perfect.
+    frame = lists(400, hybrid_is_perfect=True)
+    rng = np.random.default_rng(3)
+    shown = frame.groupby(["generated_at", "user_id", "shelf"], sort=False)["position"].transform(
+        lambda places: rng.permutation(places.to_numpy())
+    )
+    frame = frame.assign(position=shown)
+    model = ltr.train(frame, rounds=20)
+
+    result = ltr.compare(model, frame)
+
+    assert result["n_eval_lists"] > 0
+    assert result["hybrid_ndcg@10"] == pytest.approx(1.0)
+
+
 def test_compare_only_looks_at_impressions_the_model_was_not_trained_on() -> None:
     frame = lists(100)
     model = ltr.train(frame, rounds=5)

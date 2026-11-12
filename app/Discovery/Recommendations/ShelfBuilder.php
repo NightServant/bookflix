@@ -353,6 +353,9 @@ class ShelfBuilder
      */
     private function recommended(array $lists, Collection $ranked, ?Collection $learned = null): array
     {
+        // Where the hybrid ranker put each title, kept in the log: once LTR serves the shelf, `position` is the LTR order, and the next candidate's
+        // baseline must still be the hybrid one.
+        $hybridPlace = $ranked->values()->pluck('mediaId')->flip();
         $picked = $this->diversifier->rerank($learned ?? $ranked->values(), 0.7, self::PER_SHELF);
 
         $exploration = collect($lists['exploration'] ?? [])->map(fn (Candidate $candidate): ?RankedItem => $ranked->get($candidate->mediaId))->filter()->values();
@@ -360,14 +363,14 @@ class ShelfBuilder
         $epsilon = (float) config('bookflix.recommendations.epsilon');
         $picked = $this->injector->inject($picked, $exploration, $epsilon > 0 ? (int) round(1 / $epsilon) : 0, $this->random);
 
-        return array_values($picked->map(function (RankedItem $item): ServedItem {
+        return array_values($picked->map(function (RankedItem $item) use ($hybridPlace): ServedItem {
             $explanation = $item->explanation;
 
             return new ServedItem(
                 'recommended', $item->mediaId, $item->score, $explanation->type,
                 // The id of the candidate the ranker chose, and null where it left the title out of the label (gone or gated).
                 $item->reasonMediaId,
-                $item->features, array_filter(['genre' => $explanation->genre]), $explanation->label(),
+                $item->features, array_filter(['genre' => $explanation->genre]) + ['hybrid_position' => $hybridPlace->get($item->mediaId)], $explanation->label(),
             );
         })->all());
     }

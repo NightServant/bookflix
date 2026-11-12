@@ -34,6 +34,7 @@ COLUMNS = [
     "shelf",
     "generated_at",
     "position",
+    "hybrid_position",
     "logged_score",
     *FEATURES,
     "label",
@@ -45,6 +46,7 @@ GRADES = {"click": 1, "library_add": 3, "reading_start": 4}
 _SQL = """
 with shown as (
     select r.id, r.user_id, r.media_id, r.shelf, r.position, r.score, r.reason_payload -> 'features' as features, r.generated_at,
+        r.reason_payload ->> 'hybrid_position' as hybrid_position,
         min(e.occurred_at) as shown_at
     from recommendations r
     join recommendation_events e on e.recommendation_id = r.id and e.event = 'impression'
@@ -60,7 +62,7 @@ with shown as (
     group by r.id
     having min(e.occurred_at) <= %(youngest)s
 )
-select s.id, s.user_id, s.media_id, s.shelf, s.generated_at, s.position, s.score, s.features,
+select s.id, s.user_id, s.media_id, s.shelf, s.generated_at, s.position, s.score, s.features, s.hybrid_position,
     greatest(
         0,
         coalesce((
@@ -81,13 +83,22 @@ order by s.generated_at, s.id
 """
 
 
+def _hybrid_position(logged: Any, shown: int) -> int:
+    """The place the hybrid ranker gave the title. A row logged before the key existed was served in hybrid order, so it is the shown place."""
+    try:
+        return int(logged)
+    except (TypeError, ValueError):
+        return shown
+
+
 def fetch_labeled(
     conn: Conn, window_days: int = WINDOW_DAYS, now: datetime | None = None
 ) -> pd.DataFrame:
     """The labeled impressions of eligible readers (as `fetch_interactions` reads them: not deactivated, personalization on, live media).
 
     Only rows with a place in their shelf (older ones have none), generated within `RETENTION_DAYS`, and first shown at least `window_days`
-    ago, so every outcome had its whole window to happen. A feature that was not logged is NaN.
+    ago, so every outcome had its whole window to happen. A feature that was not logged is NaN. `position` is the place shown (a
+    training feature); `hybrid_position` is the place in the hybrid order, which differs once a learned ranker serves the shelf.
     """
     now = (now or datetime.now(UTC)).replace(tzinfo=None)
     rows = conn.execute(
@@ -109,8 +120,9 @@ def fetch_labeled(
             "shelf": str(r[3]),
             "generated_at": r[4],
             "position": int(r[5]),
+            "hybrid_position": _hybrid_position(r[8], int(r[5])),
             "logged_score": float(r[6]),
-            "label": int(r[8]),
+            "label": int(r[9]),
         }
         for name in FEATURES:
             value = logged.get(name)

@@ -176,9 +176,11 @@ def held_out(model: LtrModel, df: pd.DataFrame) -> pd.DataFrame:
 
 
 def compare(model: LtrModel, df: pd.DataFrame) -> dict[str, float]:
-    """NDCG@10 of the model and of the hybrid order (the order the lists were shown in) on the same held-out lists.
+    """NDCG@10 of the model and of the hybrid order on the same held-out lists.
 
-    The model ranks each list by its score with the position held constant; ties keep the shown order.
+    The hybrid order is the logged `hybrid_position`, not the shown one: once an `ltr` version serves a shelf the shown order is its own, and
+    the baseline to beat stays the hybrid ranker. The model ranks each list by its score with the position held constant; ties keep the
+    shown order.
     """
     frame = held_out(model, df)
     if frame.empty:
@@ -187,7 +189,11 @@ def compare(model: LtrModel, df: pd.DataFrame) -> dict[str, float]:
     frame = frame.assign(ltr_score=score(model, frame))
     hybrid, learned = [], []
     for _, rows in frame.groupby(GROUP, sort=False):
-        hybrid.append(rows["label"].tolist())
+        hybrid.append(
+            rows.sort_values(["hybrid_position", "recommendation_id"], kind="stable")[
+                "label"
+            ].tolist()
+        )
         learned.append(
             rows.sort_values("ltr_score", ascending=False, kind="stable")["label"].tolist()
         )
