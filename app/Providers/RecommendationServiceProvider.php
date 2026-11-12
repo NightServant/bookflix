@@ -11,6 +11,7 @@ use App\Discovery\Recommendations\Sources\EditorialSource;
 use App\Discovery\Recommendations\Sources\ExplorationSource;
 use App\Discovery\Recommendations\Sources\NewReleasesSource;
 use App\Discovery\Recommendations\Sources\PopularInGenresSource;
+use App\Discovery\Recommendations\Sources\SemanticSimilarSource;
 use App\Discovery\Recommendations\Sources\TrendingSource;
 use Illuminate\Support\ServiceProvider;
 
@@ -31,6 +32,7 @@ class RecommendationServiceProvider extends ServiceProvider
             ContentSimilarSource::class,
             CollaborativeSource::class,
             DeweySimilarSource::class,
+            SemanticSimilarSource::class,
             TrendingSource::class,
             PopularInGenresSource::class,
             NewReleasesSource::class,
