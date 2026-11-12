@@ -22,6 +22,8 @@ new #[Title('Models')] class extends Component {
         'embed' => ['Embeddings and summaries', 'sparkles'],
         'embedding-similarities' => ['Semantic similarity', 'light-bulb'],
         'dewey-classifier' => ['Dewey classifier', 'book-open'],
+        'ltr' => ['Learned ranking', 'chart-bar'],
+        'ltr-scores' => ['Score learned ranking', 'calculator'],
     ];
 
     public function boot(): void
@@ -133,7 +135,7 @@ new #[Title('Models')] class extends Component {
     </div>
 
     <h2 class="mt-10 text-section tracking-tight text-ink">{{ __('Run now') }}</h2>
-    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity, embeddings and summaries hourly, readers also read, similar readers and semantic similarity nightly, text similarity and the Dewey classifier weekly.') }}</p>
+    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity, embeddings and summaries hourly, readers also read, similar readers and semantic similarity nightly, text similarity, the Dewey classifier and the learned ranking weekly. Learned ranking is scored nightly after its candidates are exported.') }}</p>
 
     <div class="mt-4 flex flex-wrap gap-2">
         @foreach ($this->pipelines as $key => [$name, $icon])

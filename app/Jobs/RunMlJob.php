@@ -33,12 +33,19 @@ class RunMlJob implements ShouldQueue
 
     public const ALS_MIN_USERS = 200;
 
+    /** The data gate of learning to rank: labeled impressions needed before it trains (`bookflix:ltr-readiness` prints the same number). */
+    public const LTR_MIN_LABELED = 50000;
+
     /** The pipelines, each a list of `[job name, params]` steps in the order they run. */
     public const PIPELINES = [
         'popularity' => [['refresh-popularity', []]],
         'item-cf' => [['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]],
         // Below its data gate the train step skips and the pipeline ends there, as a success.
         'als' => [['train-als', ['min_interactions' => self::ALS_MIN_INTERACTIONS, 'min_users' => self::ALS_MIN_USERS]], ['build-similarities', ['methods' => ['als']]], ['evaluate', ['kind' => 'als']]],
+        // Weekly. Below its data gate the train step skips and the pipeline ends there. There is no build-similarities step: the ranker has no neighbors.
+        'ltr' => [['train-ltr', ['min_labeled' => self::LTR_MIN_LABELED]], ['evaluate', ['kind' => 'ltr']]],
+        // Not scheduled: `ExportLtrCandidates` queues it once the nightly export has written its rows. Scores the active ltr version only.
+        'ltr-scores' => [['score-ltr', []]],
         'lsa' => [['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]],
         // Summarizes new and changed long descriptions, then embeds new and changed media under the active version, or re-embeds everything and
         // promotes when the service runs another model. Summaries go first because a failed step ends the chain, and embed-media fails where the
@@ -60,7 +67,7 @@ class RunMlJob implements ShouldQueue
     private const LOCK_HOURS = 7;
 
     /** The steps that train a candidate version and report its id, or report `skipped` when there is too little data to train. */
-    private const TRAIN_STEPS = ['train-lsa', 'train-item-cf', 'train-als', 'train-dewey-classifier'];
+    private const TRAIN_STEPS = ['train-lsa', 'train-item-cf', 'train-als', 'train-ltr', 'train-dewey-classifier'];
 
     /** Tries to get the service to accept the job before its run is recorded as failed. */
     public int $tries = 5;

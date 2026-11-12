@@ -17,6 +17,8 @@ test('the ml pipelines are scheduled at the documented times', function () {
         ->and(scheduledMl('ml:embed')->expression)->toBe('30 * * * *')
         ->and(scheduledMl('ml:embedding-similarities')->expression)->toBe('15 4 * * *')
         ->and(scheduledMl('ml:als')->expression)->toBe('40 4 * * *')
+        ->and(scheduledMl('ltr:export-candidates')->expression)->toBe('30 5 * * *')
+        ->and(scheduledMl('ml:ltr')->expression)->toBe('10 6 * * 0')
         ->and(scheduledMl('ml:dewey-classifier')->expression)->toBe('10 5 * * 0');
 });
 
@@ -26,7 +28,7 @@ test('every pipeline waits for a configured ml service', function (string $name)
 
     config(['services.ml.token' => str_repeat('s', 32)]);
     expect(scheduledMl($name)->filtersPass(app()))->toBeTrue();
-})->with(['ml:popularity', 'ml:item-cf', 'ml:lsa', 'ml:embed', 'ml:embedding-similarities', 'ml:als', 'ml:dewey-classifier']);
+})->with(['ml:popularity', 'ml:item-cf', 'ml:lsa', 'ml:embed', 'ml:embedding-similarities', 'ml:als', 'ltr:export-candidates', 'ml:ltr', 'ml:dewey-classifier']);
 
 test('a scheduled pipeline is queued once and not again while it runs', function () {
     Bus::fake([RunMlJob::class]);

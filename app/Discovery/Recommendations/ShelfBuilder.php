@@ -68,6 +68,7 @@ class ShelfBuilder
         private EditorialCollections $editorial,
         private HomeShelves $home,
         private ShelfBandit $bandit,
+        private LtrRanker $ltr,
     ) {}
 
     /**
@@ -192,8 +193,11 @@ class ShelfBuilder
         ];
         $ranked = $this->withNeighbors($user, $ranked, $around);
 
+        // Recommended For You only: the precomputed learning-to-rank order, or null (no active version, no fresh scores) for the hybrid one.
+        $learned = $personal && $ranked !== null ? $this->ltr->rank($user, $ranked->values()) : null;
+
         if ($personal) {
-            $specs['recommended'] = ['title' => __('Recommended For You'), 'featured' => false, 'items' => $this->recommended($lists, $ranked)];
+            $specs['recommended'] = ['title' => __('Recommended For You'), 'featured' => false, 'items' => $this->recommended($lists, $ranked, $learned)];
 
             if ($recent !== null) {
                 $specs['because-you-read'] = ['title' => __('Because You Read :title', ['title' => $recent->title]), 'featured' => false, 'items' => $this->fromCandidates('because-you-read', $around['because-you-read'], new Explanation(ReasonType::BecauseYouRead, $recent->title), $ranked), 'reason' => $recent->id, 'href' => $this->searchLike($user, $recent)];
@@ -223,7 +227,7 @@ class ShelfBuilder
             $specs = $this->sampled($specs);
         }
 
-        $ids = $this->logger->log($user, $specs->flatMap(fn (array $spec): array => $spec['items']), ModelVersion::activeFor('hybrid-weights'));
+        $ids = $this->log($user, $specs, $learned !== null);
 
         $shelves = $specs->map(function (array $spec, string $key) use ($media, $ids): Shelf {
             $items = array_map(function (ServedItem $item) use ($media, $ids): Media {
@@ -237,6 +241,28 @@ class ShelfBuilder
         })->values();
 
         return [$shelves, $specs->filter(fn (array $spec): bool => isset($spec['reason']))->map(fn (array $spec): int => $spec['reason'])->all(), $cold];
+    }
+
+    /**
+     * Logs what is shown. Rows of Recommended For You served in learning-to-rank order go under the `ltr` version, every other row under
+     * `hybrid-weights` (P8-R6); a reader never served in LTR order is logged exactly as before.
+     *
+     * @template TSpec of array{items: list<ServedItem>}
+     *
+     * @param  Collection<string, TSpec>  $specs
+     * @return array<string, int>
+     */
+    private function log(User $user, Collection $specs, bool $learned): array
+    {
+        $served = fn (Collection $of): Collection => $of->flatMap(fn (array $spec): array => $spec['items']);
+        $version = $learned ? $this->ltr->version() : null;
+
+        if ($version === null) {
+            return $this->logger->log($user, $served($specs), ModelVersion::activeFor('hybrid-weights'));
+        }
+
+        return $this->logger->log($user, $served($specs->except('recommended')), ModelVersion::activeFor('hybrid-weights'))
+            + $this->logger->log($user, $served($specs->only('recommended')), $version);
     }
 
     /**
@@ -322,11 +348,12 @@ class ShelfBuilder
      *
      * @param  array<string, Collection<int, Candidate>>  $lists
      * @param  Collection<int, RankedItem>  $ranked
+     * @param  Collection<int, RankedItem>|null  $learned  the same items in learning-to-rank order, when there is one
      * @return list<ServedItem>
      */
-    private function recommended(array $lists, Collection $ranked): array
+    private function recommended(array $lists, Collection $ranked, ?Collection $learned = null): array
     {
-        $picked = $this->diversifier->rerank($ranked->values(), 0.7, self::PER_SHELF);
+        $picked = $this->diversifier->rerank($learned ?? $ranked->values(), 0.7, self::PER_SHELF);
 
         $exploration = collect($lists['exploration'] ?? [])->map(fn (Candidate $candidate): ?RankedItem => $ranked->get($candidate->mediaId))->filter()->values();
         // One slot in `1 / epsilon` (every tenth with the default 0.10); an epsilon of 0 gives exploration no slot.

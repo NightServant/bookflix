@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\ExportLtrCandidates;
 use App\Jobs\RunMlJob;
 use App\Jobs\SyncProvider;
 use App\Models\ExternalSource;
@@ -45,3 +46,8 @@ Schedule::call(fn () => RunMlJob::dispatchPipeline('als'))->name('ml:als')->dail
 // Weekly, Sunday morning, three hours after the weekly LSA run starts: the classifier is tied to the LSA version it was trained on, so it retrains
 // the same morning. It skips cleanly until reviewers have accepted enough primary classes.
 Schedule::call(fn () => RunMlJob::dispatchPipeline('dewey-classifier'))->name('ml:dewey-classifier')->weeklyOn(0, '05:10')->when($mlIsConfigured);
+// Nightly, once the morning's ML jobs are done: the export waits for no service (it is queued PHP work) and queues the scoring pipeline when it has written its rows.
+// It does nothing until an `ltr` version is active.
+Schedule::job(new ExportLtrCandidates)->name('ltr:export-candidates')->dailyAt('05:30')->when($mlIsConfigured);
+// Weekly, Sunday after the Dewey classifier (05:10) has had its time, so the one worker is not asked for two trainings at once. It skips cleanly until there are enough labeled impressions.
+Schedule::call(fn () => RunMlJob::dispatchPipeline('ltr'))->name('ml:ltr')->weeklyOn(0, '06:10')->when($mlIsConfigured);
