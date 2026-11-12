@@ -2,6 +2,10 @@
 
 namespace App\Ml;
 
+use App\Classification\ClassificationCandidate;
+use App\Enums\ClassificationMethod;
+use App\Models\Media;
+use App\Models\ModelVersion;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\PendingRequest;
@@ -80,6 +84,53 @@ class MlClient
         }
 
         return new EmbeddingResult($modelVersion, $dims, $floats);
+    }
+
+    /**
+     * The Dewey classifier's candidates for a work, from its title and description, genre, theme and tag names and a provider's own code,
+     * strongest first, with their raw confidence (the caller caps it). Only answers of the active `dewey-classifier` version are taken. Any
+     * failure, a 503 (no model, no classifier, or one trained on other vectors) or an answer out of shape is `MlServiceUnavailable`.
+     * Call it from a queued job or a command only: it waits for the service.
+     *
+     * @return list<ClassificationCandidate>
+     *
+     * @throws MlServiceUnavailable
+     */
+    public function classifyDewey(Media $media): array
+    {
+        $media->loadMissing(['genres', 'themes', 'tags']);
+
+        try {
+            $response = $this->request()->post('/v1/classify/dewey', [
+                'media_id' => $media->id,
+                'text' => trim($media->title."\n".$media->description),
+                'genres' => $media->genres->pluck('name')->values()->all(),
+                'themes' => $media->themes->pluck('name')->values()->all(),
+                'subjects' => $media->tags->pluck('name')->values()->all(),
+                'external_code' => $media->externalIds()->whereNotNull('dewey_code')->orderBy('id')->value('dewey_code'),
+            ])->throw();
+        } catch (HttpClientException $exception) {
+            throw new MlServiceUnavailable('The ML service did not classify the work.', previous: $exception);
+        }
+
+        $version = $response->json('model_version');
+        $candidates = $response->json('candidates');
+        $active = ModelVersion::activeFor('dewey-classifier');
+
+        if (! is_string($version) || $active === null || $active->version !== $version || ! is_array($candidates) || ! array_is_list($candidates)) {
+            throw new MlServiceUnavailable('The ML service answered the classification out of shape or from another version.');
+        }
+
+        return array_map(function (mixed $candidate) use ($active): ClassificationCandidate {
+            $code = is_array($candidate) ? ($candidate['code'] ?? null) : null;
+            $confidence = is_array($candidate) ? ($candidate['confidence'] ?? null) : null;
+
+            if (! is_string($code) || $code === '' || ! (is_float($confidence) || is_int($confidence)) || $confidence < 0 || $confidence > 1) {
+                throw new MlServiceUnavailable('The ML service answered the classification out of shape.');
+            }
+
+            return new ClassificationCandidate($code, (float) $confidence, ClassificationMethod::Automatic, 'dewey-classifier', $active->id);
+        }, $candidates);
     }
 
     /**

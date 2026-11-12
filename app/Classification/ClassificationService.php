@@ -2,6 +2,7 @@
 
 namespace App\Classification;
 
+use App\Classification\Dewey\DeweyClassifier;
 use App\Classification\Dewey\DeweyMapper;
 use App\Classification\Dewey\DeweyResolver;
 use App\Classification\Dewey\DeweyValidator;
@@ -24,6 +25,7 @@ class ClassificationService
         private DeweyMapper $mapper,
         private DeweyValidator $validator,
         private DeweyCounts $counts,
+        private DeweyClassifier $classifier,
     ) {}
 
     /**
@@ -173,7 +175,8 @@ class ClassificationService
 
     /**
      * What the rules and the providers' own codes suggest for a media: every external code on its external ids (and the given one) that resolves to a seeded class first,
-     * then the mapper's guesses, trimmed to one primary (index 0) and the allowed secondaries. Nothing is stored.
+     * then the mapper's guesses, trimmed to one primary (index 0) and the allowed secondaries. The Dewey classifier's candidates only fill the places
+     * left after them, so they never outrank a rule or a provider's code; with nothing else they make the primary. Nothing is stored.
      *
      * @return Collection<int, ClassificationCandidate>
      */
@@ -189,7 +192,11 @@ class ClassificationService
             ->values()
             ->all();
 
-        return collect($this->validator->filter([...$external, ...$this->mapper->map($media)]));
+        $rules = collect($this->validator->filter([...$external, ...$this->mapper->map($media)]));
+        $guesses = collect($this->validator->filter($this->classifier->predict($media)->all()))
+            ->reject(fn (ClassificationCandidate $candidate): bool => $rules->contains('code', $candidate->code));
+
+        return $rules->concat($guesses)->take(1 + (int) config('bookflix.classification.max_secondary'))->values();
     }
 
     /**
