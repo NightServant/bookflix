@@ -334,6 +334,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    |
+    | The semantic leg keeps a neighbour only when its cosine similarity to the
+    | query is at least `semantic_min_similarity`; to be tuned on the real model.
+    | Its timeout, cache and pause after a failure are SemanticLeg's constants.
+    |
+    */
+
+    'search' => [
+        'semantic_min_similarity' => 0.80,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Interaction Weights
     |--------------------------------------------------------------------------
     |
