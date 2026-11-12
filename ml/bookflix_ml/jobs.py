@@ -736,6 +736,9 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                 item_pop=item_pop,
                 item_sim=lambda a, b: max(lookup.get((a, b), 0.0), lookup.get((b, a), 0.0)),
                 n_users=n_users,
+                item_genres=db.fetch_media_genres(
+                    conn, {item for items in recommended.values() for item in items}
+                ),
             )
 
         stored_rows = kind not in REFIT_KINDS
