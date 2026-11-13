@@ -196,11 +196,12 @@ test('every row button names the class and the story it acts on', function () {
 
     $html = $this->get(route('admin.classifications'))->assertOk()->getContent();
 
-    foreach (['Accept', 'Reject', 'Change'] as $action) {
+    foreach (['Accept', 'Reject'] as $action) {
         expect($html)->toContain("aria-label=\"{$action} 813 American Fiction for Dune\"");
     }
 
-    expect($html)->toContain('aria-label="More actions for 813 American Fiction on Dune"');
+    // Change, add and remove sit in the row's menu, which carries the class and the story in its own name.
+    expect($html)->toContain('aria-label="More actions for 813 American Fiction on Dune"')->toContain('Change class');
 });
 
 test('the class dialog is named by its heading', function () {

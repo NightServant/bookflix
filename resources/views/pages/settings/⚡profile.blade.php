@@ -4,6 +4,7 @@ use App\Concerns\ProfileValidationRules;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -68,6 +69,9 @@ new #[Title('Profile settings')] class extends Component {
      */
     public function updateReadingProfile(): void
     {
+        // An admin account has no reader side, so it has no reading profile to save (see EnsureReaderAccount).
+        Gate::authorize('use-reader-side');
+
         $validated = $this->validate($this->readingProfileRules());
 
         $user = Auth::user();
@@ -132,7 +136,11 @@ new #[Title('Profile settings')] class extends Component {
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading', ['title' => __('Profile'), 'description' => __('Update the name and email on your account, then tell us how you like to read. Save each section when you are done.')])
+    @php($reader = auth()->user()->can('use-reader-side'))
+
+    @include('partials.settings-heading', ['title' => __('Profile'), 'description' => $reader
+        ? __('Update the name and email on your account, then tell us how you like to read. Save each section when you are done.')
+        : __('Update the name and email on your account. Your password and sign-in options are under Security.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Profile settings') }}</flux:heading>
 
@@ -169,6 +177,8 @@ new #[Title('Profile settings')] class extends Component {
         </form>
         </x-settings-card>
 
+        {{-- A reader's section: an admin account has no reading side to describe. --}}
+        @if ($reader)
         <x-settings-card :title="__('Reading Profile')" :description="__('Your avatar, a short bio and how you like to read. This shapes what we suggest.')">
         <form wire:submit="updateReadingProfile" class="w-full space-y-6">
             <div class="flex items-center gap-4">
@@ -206,6 +216,7 @@ new #[Title('Profile settings')] class extends Component {
             </x-cta>
         </form>
         </x-settings-card>
+        @endif
 
         @if ($this->showDeactivateAccount)
             <livewire:pages::settings.deactivate-account-form />

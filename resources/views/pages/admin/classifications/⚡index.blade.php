@@ -297,19 +297,18 @@ new #[Title('Classification review')] class extends Component {
                             </span>
                         </flux:table.cell>
                         <flux:table.cell class="max-md:mt-2">
-                            <div class="flex flex-wrap items-center gap-2 md:justify-end">
+                            <div class="flex flex-wrap items-center gap-2 md:flex-nowrap md:justify-end">
                                 @if ($row->review_status !== ReviewStatus::Accepted)
                                     <flux:button variant="filled" size="sm" class="focus-ring min-h-11" wire:click="accept({{ $row->id }})" :aria-label="__('Accept :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Accept') }}</flux:button>
                                 @endif
                                 @if ($row->review_status !== ReviewStatus::Rejected)
                                     <flux:button variant="filled" size="sm" class="focus-ring min-h-11" wire:click="reject({{ $row->id }})" :aria-label="__('Reject :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Reject') }}</flux:button>
                                 @endif
-                                <flux:button variant="filled" size="sm" class="focus-ring min-h-11" wire:click="openChange({{ $row->id }})" :aria-label="__('Change :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Change class') }}</flux:button>
-
                                 <flux:dropdown position="bottom" align="end">
                                     <flux:button variant="filled" size="sm" icon:trailing="chevron-down" icon:variant="outline" class="focus-ring min-h-11" :aria-label="__('More actions for :class on :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('More') }}</flux:button>
 
                                     <flux:menu>
+                                        <flux:menu.item icon="arrows-right-left" icon:variant="outline" class="focus-ring min-h-11" wire:click="openChange({{ $row->id }})">{{ __('Change class') }}</flux:menu.item>
                                         <flux:menu.item icon="plus" icon:variant="outline" class="focus-ring min-h-11" wire:click="openAdd({{ $row->media_id }})">{{ __('Add class') }}</flux:menu.item>
                                         <flux:menu.item icon="trash" icon:variant="outline" class="focus-ring min-h-11" wire:click="remove({{ $row->id }})" wire:confirm="{{ __('Remove :class from this story?', ['class' => $row->deweyClass->code]) }}">{{ __('Remove class') }}</flux:menu.item>
                                     </flux:menu>

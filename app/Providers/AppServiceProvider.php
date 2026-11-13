@@ -103,11 +103,11 @@ class AppServiceProvider extends ServiceProvider
     /**
      * An admin cannot open a reader page, but a Livewire call does not pass through the route's middleware: the library listener sits in the shared layout,
      * and a reader page left open from before the account was promoted keeps its snapshot. So every call from an admin to a component outside the admin
-     * pages, the account pages and the search palette is refused here, before it can write reader data.
+     * pages and the account pages is refused here, before it can write reader data.
      */
     private function guardReaderComponentsFromAdmins(): void
     {
-        $adminSide = ['pages::admin.', 'pages::settings.', 'command-palette-results'];
+        $adminSide = ['pages::admin.', 'pages::settings.'];
         $readerSettings = ['pages::settings.preferences', 'pages::settings.privacy'];
 
         on('call', function (Component $component) use ($adminSide, $readerSettings): void {

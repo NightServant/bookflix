@@ -138,3 +138,25 @@ test('a reader can still add through the listener', function () {
 test('an admin keeps the admin components', function () {
     Livewire::actingAs(User::factory()->admin()->create())->test('pages::admin.users.index')->assertOk();
 });
+
+test('an admin has no reading profile on the profile page and cannot save one', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->get(route('profile.edit'))->assertOk()
+        ->assertSee('Name and Email')
+        ->assertDontSee('Reading Profile')
+        ->assertDontSee('how you like to read');
+
+    Livewire::actingAs($admin)->test('pages::settings.profile')
+        ->set('bio', 'An admin who reads')
+        ->call('updateReadingProfile')
+        ->assertForbidden();
+
+    expect($admin->profile()->value('bio'))->toBeNull();
+});
+
+test('a reader keeps the reading profile on the profile page', function () {
+    $this->actingAs(User::factory()->create())->get(route('profile.edit'))->assertOk()
+        ->assertSee('Name and Email')
+        ->assertSee('Reading Profile');
+});
