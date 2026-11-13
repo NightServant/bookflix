@@ -32,16 +32,27 @@ class DeweyMapper
     {
         $media->loadMissing(['mediaType', 'genres', 'themes', 'tags']);
 
-        // Nonfiction is shelved by its subject, which only its codes and subject keywords know; literature would be a wrong guess.
-        // Prose with no genres is a novel only by default (the type classifier's answer when it has no evidence), so it gets no literature guess either:
-        // an untagged treatise or catalogue would otherwise land in 813 just because its edition is in English.
         $candidates = match ($media->mediaType->family) {
-            MediaFamily::Prose => $media->mediaType->slug === 'nonfiction' || $media->genres->isEmpty() ? [] : [$this->literature($media, 0.85)],
+            MediaFamily::Prose => $this->allowsLiterature($media) ? [$this->literature($media, 0.85)] : [],
             MediaFamily::Interactive => [$this->literature($media, 0.70)],
             MediaFamily::SequentialArt, MediaFamily::Illustrated => $this->comics($media),
         };
 
         return [...$candidates, ...$this->subjects($media)];
+    }
+
+    /**
+     * Whether a literature class (800s) may be guessed for this media, by the rules or the classifier. Nonfiction is shelved by its subject,
+     * which only its codes and subject keywords know. Prose with no genres is a novel only by default (the type classifier's answer when it has
+     * no evidence), so it gets no literature guess either: an untagged treatise or catalogue would otherwise land in 813 just because its
+     * edition is in English.
+     */
+    public function allowsLiterature(Media $media): bool
+    {
+        $media->loadMissing(['mediaType', 'genres']);
+
+        return $media->mediaType->family !== MediaFamily::Prose
+            || ($media->mediaType->slug !== 'nonfiction' && $media->genres->isNotEmpty());
     }
 
     /**

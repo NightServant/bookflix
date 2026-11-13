@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Discovery\Search\QueryParser;
+use App\Discovery\Search\RuleBasedQueryParser;
 use App\Enums\Visibility;
 use App\Models\Creator;
 use App\Models\Demographic;
@@ -28,7 +30,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(QueryParser::class, RuleBasedQueryParser::class);
     }
 
     /**

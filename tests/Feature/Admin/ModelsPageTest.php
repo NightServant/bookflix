@@ -53,6 +53,30 @@ test('run now queues the pipeline from its first step, for an admin only', funct
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 });
 
+test('every pipeline on the page exists, and every pipeline is on the page', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    expect(array_keys(Livewire::test('pages::admin.models.index')->instance()->pipelines))->toEqualCanonicalizing(array_keys(RunMlJob::PIPELINES));
+});
+
+test('run now queues the embedding pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Embeddings and summaries')->call('runNow', 'embed');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'summarize-media' && $job->then === [['embed-media', []]] && $job->pipeline === 'embed');
+});
+
+test('run now queues the embedding similarities pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Semantic similarity')->call('runNow', 'embedding-similarities');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['embedding']] && $job->pipeline === 'embedding-similarities');
+});
+
 test('run now is refused with a message while that pipeline is running, and its button shows it', function () {
     Bus::fake([RunMlJob::class]);
     $this->actingAs(User::factory()->admin()->create());
@@ -65,7 +89,7 @@ test('run now is refused with a message while that pipeline is running, and its 
         ->call('runNow', 'lsa')->assertDispatched('toast-show', fn (string $event, array $params) => str_contains(json_encode($params), 'already running'));
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 
-    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false]);
+    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false, 'embed' => false, 'embedding-similarities' => false, 'dewey-classifier' => false]);
 });
 
 test('run now is refused once the reader is no longer an admin', function () {
@@ -82,4 +106,23 @@ test('run now is refused once the reader is no longer an admin', function () {
 
 test('the admin index links to the models page', function () {
     $this->actingAs(User::factory()->admin()->create())->get(route('admin.index'))->assertSee(route('admin.models'), false);
+});
+
+test('run now queues the dewey classifier pipeline', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Dewey classifier')->call('runNow', 'dewey-classifier');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'train-dewey-classifier' && $job->pipeline === 'dewey-classifier');
+});
+
+test('a run that skipped for too little data shows why', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    MlJobRun::factory()->create(['name' => 'train-dewey-classifier', 'status' => 'succeeded', 'metrics' => ['skipped' => ['reason' => 'too few accepted primaries', 'have' => 40, 'need' => 100]], 'finished_at' => now()]);
+    MlJobRun::factory()->create(['name' => 'build-similarities', 'status' => 'succeeded', 'metrics' => ['written' => [], 'skipped' => ['embedding']], 'finished_at' => now()]);
+
+    Livewire::test('pages::admin.models.index')
+        ->assertSee('Skipped: too few accepted primaries (40 of 100)')
+        ->assertDontSee('Skipped: embedding');
 });

@@ -5,6 +5,7 @@ use App\Enums\ReadingStatus;
 use App\Models\Collection;
 use App\Models\LibraryEntry;
 use App\Models\Media;
+use App\Models\MediaSummary;
 use App\Models\Rating;
 use App\Models\User;
 
@@ -196,4 +197,33 @@ test('the breadcrumb stays on one line on a phone and shows every crumb on a des
 
     visit(route('stories.show', $this->story->slug), $this->desktop)->wait(1)
         ->assertScript($trail.'.length', 4);
+});
+
+test('a current summary leads the story, the full description opens and closes in place, and the page passes the shared checks', function () {
+    $description = 'Bored on a riverbank, young Alice tumbles down a rabbit hole. She grows and shrinks, argues with a caterpillar and sits through a tea party that never ends.';
+    $story = Media::factory()->novel()->create(['title' => 'Summary Tale', 'description' => $description]);
+    MediaSummary::factory()->create(['media_id' => $story->id, 'summary' => 'Alice falls down a rabbit hole.', 'source_hash' => hash('sha256', $description)]);
+    $button = 'button[aria-controls=story-description]';
+    $expanded = 'document.querySelector("'.$button.'").getAttribute("aria-expanded")';
+    $visible = 'getComputedStyle(document.getElementById("story-description")).display !== "none"';
+
+    foreach ([$this->desktop, $this->phone] as $viewport) {
+        $page = visit(route('stories.show', $story->slug), $viewport)->wait(1);
+
+        $page->assertSee('Alice falls down a rabbit hole.')
+            ->assertScript($expanded, 'false')
+            ->assertScript($visible, false)
+            ->assertNoAccessibilityIssues()
+            ->script('document.querySelector("'.$button.'").focus()');
+
+        $page->keys($button, ['Enter'])->wait(0.5)
+            ->assertScript($expanded, 'true')
+            ->assertScript($visible, true)
+            ->assertScript('document.querySelector("'.$button.'").textContent.trim()', 'Hide the full description')
+            ->assertNoAccessibilityIssues()
+            ->click($button)->wait(0.5)
+            ->assertScript($expanded, 'false')
+            ->assertScript($visible, false)
+            ->assertNoJavaScriptErrors();
+    }
 });

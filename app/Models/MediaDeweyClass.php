@@ -100,4 +100,14 @@ class MediaDeweyClass extends Model
     {
         return $this->belongsTo(DeweyClass::class);
     }
+
+    /**
+     * The classifier version that suggested the row, when one did.
+     *
+     * @return BelongsTo<ModelVersion, $this>
+     */
+    public function modelVersion(): BelongsTo
+    {
+        return $this->belongsTo(ModelVersion::class);
+    }
 }

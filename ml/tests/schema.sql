@@ -70,6 +70,38 @@ create table media_lsa_vectors (
 );
 create index media_lsa_vectors_vector_idx on media_lsa_vectors using hnsw (vector vector_cosine_ops);
 
+create table media_embeddings (
+    media_id bigint not null references media (id) on delete cascade,
+    model_version_id bigint not null references model_versions (id) on delete cascade,
+    embedding vector(384) not null,
+    content_hash varchar(64) not null,
+    primary key (media_id, model_version_id)
+);
+create index media_embeddings_embedding_idx on media_embeddings using hnsw (embedding vector_cosine_ops);
+
+create table media_summaries (
+    media_id bigint primary key references media (id) on delete cascade,
+    summary text not null,
+    source_hash varchar(64) not null,
+    method varchar(32) not null,
+    generated_at timestamp not null
+);
+
+-- Only the columns the Dewey classifier's training reads; Laravel has more (and enums where these are text).
+create table dewey_classes (
+    id bigserial primary key,
+    code varchar(16) not null unique
+);
+
+create table media_dewey_classes (
+    id bigserial primary key,
+    media_id bigint not null references media (id) on delete cascade,
+    dewey_class_id bigint not null references dewey_classes (id),
+    classification_type varchar(16) not null,
+    review_status varchar(16) not null default 'pending',
+    unique (media_id, dewey_class_id)
+);
+
 create table media_similarities (
     media_id bigint not null references media (id) on delete cascade,
     similar_media_id bigint not null references media (id) on delete cascade,

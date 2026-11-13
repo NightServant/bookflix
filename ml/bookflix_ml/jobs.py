@@ -1,5 +1,7 @@
 """The job registry, an in-memory runner for it, and the training jobs themselves."""
 
+import hashlib
+import logging
 import threading
 import uuid
 from collections.abc import Callable, Iterator
@@ -10,8 +12,22 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from app.settings import get_settings
-from bookflix_ml import artifacts, db, evaluate, item_cf, lsa, popularity, registry, similarities
+from bookflix_ml import (
+    artifacts,
+    db,
+    dewey,
+    embeddings,
+    evaluate,
+    item_cf,
+    lsa,
+    popularity,
+    registry,
+    similarities,
+    summarize,
+)
 from bookflix_ml.db import Conn
+
+logger = logging.getLogger(__name__)
 
 CHUNK = 1000
 KEEP_RUNS = 500
@@ -168,17 +184,24 @@ def run_train_item_cf(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     return {**counts, "n_items_with_neighbors": len(neighbors), "version_id": version_id}
 
 
+# The `model_versions.name` each similarity method's rows are built from.
+SIMILARITY_VERSIONS = {"lsa": "lsa", "item_cf": "item-cf", "embedding": "embedding"}
+
+
 def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Write the top-50 neighbors of the newest candidate-or-active `lsa` and `item-cf` versions to `media_similarities`.
 
     With a `version_id` (the one its `train` step reported, so overlapping pipelines do not mix versions) it builds exactly that version
     instead, which must be a `candidate` of the one method in `methods`; anything else fails the job.
 
+    `embedding` is built only when asked for, and always from the `active` embedding version: `embed-media` promotes a version only once
+    every media is embedded, so a candidate is never complete. A `version_id` for it must be that active version.
+
     Each method goes in its own transaction under its own version id, so one failing leaves the other's rows and the old rows of the
     failing one untouched. A method with no version yet is skipped. Neighbors of media that are no longer live are dropped.
     """
     methods = list(params.get("methods") or ["lsa", "item_cf"])
-    unknown = sorted(set(methods) - {"lsa", "item_cf"})
+    unknown = sorted(set(methods) - SIMILARITY_VERSIONS.keys())
     if unknown:
         raise ValueError(f"Unknown similarity method: {', '.join(unknown)}")
 
@@ -188,19 +211,30 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
 
     metrics: dict[str, Any] = {"written": {}, "skipped": []}
     for method in methods:
-        name = "lsa" if method == "lsa" else "item-cf"
-        if pinned is None:
-            found = registry.latest_version(conn, name)
-            if found is None:
+        uri: str | None = None
+        if method == "embedding":
+            if pinned is not None:
+                version_id = registry.require_active(conn, pinned, "embedding")
+            elif (active := registry.active_version(conn, "embedding")) is not None:
+                version_id = active[0]
+            else:
                 metrics["skipped"].append(method)
                 continue
-            version_id, uri = found
         else:
-            version_id, _, uri = registry.require_candidate(conn, pinned, name)
+            name = SIMILARITY_VERSIONS[method]
+            if pinned is None:
+                found = registry.latest_version(conn, name)
+                if found is None:
+                    metrics["skipped"].append(method)
+                    continue
+                version_id, uri = found
+            else:
+                version_id, _, uri = registry.require_candidate(conn, pinned, name)
 
         try:
-            if method == "lsa":
-                ids, vectors = db.fetch_lsa_vectors(conn, version_id)
+            if method in ("lsa", "embedding"):
+                fetch = db.fetch_lsa_vectors if method == "lsa" else db.fetch_embedding_vectors
+                ids, vectors = fetch(conn, version_id)
                 neighbors = similarities.top_k_cosine(ids, vectors, 50)
             else:
                 if uri is None:
@@ -217,6 +251,254 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
         except BaseException:
             conn.rollback()
             raise
+
+    return metrics
+
+
+EMBED_CHUNK = 256
+
+
+def _embed_missing(
+    conn: Conn, embedder: embeddings.Embedder, version_id: int, docs: list[dict[str, Any]]
+) -> int:
+    """Embed the media that have no row under `version_id`, or one made from other text, committing every `EMBED_CHUNK` media.
+
+    The version's rows of media that are no longer live (not in `docs`: soft deleted or merged away) are deleted first, so neither the
+    active version nor a resumed candidate keeps a vector nothing should be compared with; other versions' rows are left alone.
+    Each chunk is committed on its own, so a failure keeps what was already written and the next run starts where this one stopped.
+    """
+    conn.execute(
+        "delete from media_embeddings where model_version_id = %s and media_id <> all(%s)",
+        (version_id, [doc["id"] for doc in docs]),
+    )
+    conn.commit()
+    stored = dict(
+        conn.execute(
+            "select media_id, content_hash from media_embeddings where model_version_id = %s",
+            (version_id,),
+        ).fetchall()
+    )
+    texts = {doc["id"]: embeddings.passage_text(doc) for doc in docs}
+    hashes = {m: hashlib.sha256(text.encode()).hexdigest() for m, text in texts.items()}
+    todo = [m for m in texts if stored.get(m) != hashes[m]]
+
+    for start in range(0, len(todo), EMBED_CHUNK):
+        ids = todo[start : start + EMBED_CHUNK]
+        try:
+            vectors = embeddings.embed(embedder, [texts[m] for m in ids], "passage")
+            with conn.cursor() as cur:
+                cur.executemany(
+                    """
+                    insert into media_embeddings (media_id, model_version_id, embedding, content_hash)
+                    values (%s, %s, %s, %s)
+                    on conflict (media_id, model_version_id)
+                    do update set embedding = excluded.embedding, content_hash = excluded.content_hash
+                    """,
+                    [(m, version_id, vectors[i], hashes[m]) for i, m in enumerate(ids)],
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+    return len(todo)
+
+
+def run_embed_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Keep `media_embeddings` current for the live media with the model this service has loaded.
+
+    Incremental when the active `embedding` version was made by that model (same name, revision and dims): media with no row, or whose
+    text changed since, are embedded under the active version. Otherwise in full: every live media is embedded under a `candidate`
+    (the newest candidate made by the same model is resumed, so a failed run is not started over), and only when all are written is
+    the candidate promoted, in one transaction that retires the old version and deletes its embeddings and `embedding` similarities.
+    A failure leaves the active version and its rows as they were. No model loaded fails the job before anything is written. A candidate
+    that an overlapping run promoted meanwhile ends this run as `already-promoted`, a success.
+    """
+    embedder = embeddings.current()
+    if embedder.dims != embeddings.DIMS:
+        raise ValueError(
+            f"media_embeddings holds {embeddings.DIMS}-dimensional vectors; a model with {embedder.dims} needs its own table."
+        )
+
+    model = {"model": embedder.name, "revision": embedder.revision, "dims": embedder.dims}
+    docs = db.fetch_corpus(conn)
+    active = registry.active_version(conn, "embedding")
+
+    if active is not None and all(active[2].get(k) == v for k, v in model.items()):
+        embedded = _embed_missing(conn, embedder, active[0], docs)
+
+        return {
+            "mode": "incremental",
+            "embedded": embedded,
+            "n_media": len(docs),
+            "version_id": active[0],
+        }
+
+    version_id = registry.candidate_with_parameters(conn, "embedding", model)
+    if version_id is None:
+        version_id, _ = registry.create_version(conn, "embedding", "embedding", model, "media:live")
+        registry.finish_version(conn, version_id, "candidate", {})
+        conn.commit()
+
+    embedded = _embed_missing(conn, embedder, version_id, docs)
+    metrics = {"mode": "full", "embedded": embedded, "n_media": len(docs)}
+    try:
+        # Another run that resumed the same candidate may have finished first; its promotion is this run's too.
+        status = conn.execute(
+            "select status from model_versions where id = %s for update", (version_id,)
+        ).fetchone()
+        if status is not None and status[0] == "active":
+            conn.rollback()
+            return {**metrics, "mode": "already-promoted", "version_id": version_id}
+        registry.record_metrics(conn, version_id, metrics)
+        registry.promote(conn, version_id)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+    return {**metrics, "version_id": version_id}
+
+
+def run_train_dewey_classifier(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Train the Dewey classifier on the accepted primary classes and promote it when it beats the majority-class baseline.
+
+    It learns from the vectors of the active `embedding` and `lsa` versions and records their ids in its parameters, so `/v1/classify/dewey`
+    can refuse to compare vectors of other models. The data gate runs before any version exists: with no active embedding or LSA version,
+    or too few accepted primaries or classes, the job succeeds with `skipped` (reason, have, need) and creates nothing.
+
+    A version whose held-out accuracy is not above the baseline is retired, never promoted; otherwise it is promoted at once (retiring the
+    active one), since it learned from every decision reviewers have made so far. A failure retires the version.
+    """
+    active = {}
+    for name in ("embedding", "lsa"):
+        found = registry.active_version(conn, name)
+        if found is None:
+            return {"skipped": {"reason": f"no active {name} version", "have": 0, "need": 1}}
+        active[name] = found[0]
+
+    _, emb, lsa_vectors, labels = db.fetch_dewey_training(conn, active["embedding"], active["lsa"])
+    try:
+        dewey.check(labels)
+    except dewey.NotEnoughData as e:
+        return {"skipped": e.skipped}
+
+    parameters = {
+        "embedding_version_id": active["embedding"],
+        "lsa_version_id": active["lsa"],
+        "k": dewey.K,
+        "seed": dewey.SEED,
+    }
+    version_id, version = registry.create_version(
+        conn,
+        "dewey-classifier",
+        "dewey_classifier",
+        parameters,
+        "media_dewey_classes:accepted-primary",
+    )
+    conn.commit()
+
+    try:
+        model, metrics = dewey.train(emb, lsa_vectors, labels)
+        uri = artifacts.save(model, "dewey-classifier", version)
+        registry.finish_version(conn, version_id, "candidate", metrics, uri)
+        promoted = metrics["accuracy"] > metrics["baseline"]
+        outcome: dict[str, Any] = {"promoted": promoted}
+        if promoted:
+            registry.promote(conn, version_id)
+        else:
+            outcome["reason"] = "held-out accuracy is not above the majority-class baseline"
+            registry.retire(conn, version_id)
+        registry.record_metrics(conn, version_id, outcome)
+        conn.commit()
+    except BaseException as e:
+        conn.rollback()
+        registry.finish_version(conn, version_id, "retired", {"error": str(e) or type(e).__name__})
+        conn.commit()
+        raise
+
+    return {**metrics, **outcome, "version_id": version_id}
+
+
+SUMMARY_CHUNK = 500
+# Descriptions up to this many characters are short enough to show whole.
+SUMMARY_MIN_CHARS = 600
+
+
+def run_summarize_media(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Keep `media_summaries` current: one extractive summary per live media whose description is over `SUMMARY_MIN_CHARS` characters.
+
+    It reads the live media embed-media reads (not soft deleted, not merged away), and only their stored descriptions, which the import
+    has already cleaned and refused where needed. Rows of media that are no longer live, or whose description is now short, go first. A
+    media is summarized when it has no row or one made from another description (`source_hash`); a description that gives no summary
+    loses its row, and so does one that raises, which is counted and skipped. Every `SUMMARY_CHUNK` media are committed, so an interrupted run keeps its
+    work and the next one starts where it stopped.
+    """
+    summarizer: summarize.Summarizer = summarize.LsaSummarizer()
+    rows = conn.execute(
+        """
+        select id, description from media
+        where deleted_at is null and merged_into_id is null and char_length(description) > %s
+        order by id
+        """,
+        (SUMMARY_MIN_CHARS,),
+    ).fetchall()
+    descriptions = {int(r[0]): str(r[1]) for r in rows}
+
+    removed = conn.execute(
+        "delete from media_summaries where media_id <> all(%s)", (list(descriptions),)
+    ).rowcount
+    conn.commit()
+
+    stored = dict(conn.execute("select media_id, source_hash from media_summaries").fetchall())
+    hashes = {m: hashlib.sha256(text.encode()).hexdigest() for m, text in descriptions.items()}
+    todo = [m for m in descriptions if stored.get(m) != hashes[m]]
+    metrics = {
+        "eligible": len(descriptions),
+        "summarized": 0,
+        "unchanged": len(descriptions) - len(todo),
+        "no_summary": 0,
+        "failed": 0,
+        "removed": removed,
+    }
+
+    for start in range(0, len(todo), SUMMARY_CHUNK):
+        written: list[tuple[int, str, str, str]] = []
+        dropped: list[int] = []
+        try:
+            for media_id in todo[start : start + SUMMARY_CHUNK]:
+                try:
+                    result = summarizer.summarize(descriptions[media_id])
+                except Exception:  # noqa: BLE001 - one bad description must not fail the run
+                    logger.warning("Could not summarize media %s", media_id, exc_info=True)
+                    metrics["failed"] += 1
+                    # A summary of the description it replaced would be stale.
+                    dropped.append(media_id)
+                    continue
+                if result is None:
+                    metrics["no_summary"] += 1
+                    dropped.append(media_id)
+                else:
+                    written.append((media_id, result.summary, hashes[media_id], summarizer.method))
+
+            with conn.cursor() as cur:
+                cur.execute("delete from media_summaries where media_id = any(%s)", (dropped,))
+                metrics["removed"] += cur.rowcount
+                cur.executemany(
+                    """
+                    insert into media_summaries (media_id, summary, source_hash, method, generated_at)
+                    values (%s, %s, %s, %s, now())
+                    on conflict (media_id) do update
+                    set summary = excluded.summary, source_hash = excluded.source_hash, method = excluded.method,
+                        generated_at = excluded.generated_at
+                    """,
+                    written,
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        metrics["summarized"] += len(written)
 
     return metrics
 
@@ -464,4 +746,7 @@ JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "build-similarities": _with_connection(run_build_similarities),
     "refresh-popularity": _with_connection(run_refresh_popularity),
     "evaluate": _with_connection(run_evaluate),
+    "embed-media": _with_connection(run_embed_media),
+    "summarize-media": _with_connection(run_summarize_media),
+    "train-dewey-classifier": _with_connection(run_train_dewey_classifier),
 }

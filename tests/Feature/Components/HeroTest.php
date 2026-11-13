@@ -66,7 +66,7 @@ test('below lg a cover we serve ourselves is backed by its small backdrop copy, 
 
     expect($source->length)->toBe(1)
         ->and($source->item(0)->getAttribute('srcset'))->toBe($slides[0]->coverBackdropUrl())
-        ->and(htmlQuery($html, '//picture[source]/img[@data-backdrop="0"][@src="'.$slides[0]->cover_url.'"]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//picture[.//source]//img[@data-backdrop="0"][@src="'.$slides[0]->cover_url.'"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//picture[not(source)]/img[@data-backdrop="1"]')->length)->toBe(1)
         ->and(htmlQuery($html, '//*[@data-hero-books]//*[@data-size="xl"]//img[@loading="lazy"]')->length)->toBe(1);
 });

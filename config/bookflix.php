@@ -323,6 +323,8 @@ return [
     | Automatic classes below `min_confidence` are dropped. The public site shows
     | accepted classes plus pending ones at or above `public_min_confidence`.
     | A media keeps one primary class and at most `max_secondary` secondary ones.
+    | The Dewey classifier's confidence is capped at `classifier_max_confidence`,
+    | below the public minimum, so its guesses wait for a reviewer.
     |
     */
 
@@ -330,6 +332,22 @@ return [
         'public_min_confidence' => 0.80,
         'min_confidence' => 0.50,
         'max_secondary' => 3,
+        'classifier_max_confidence' => 0.79,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    |
+    | The semantic leg keeps a neighbour only when its cosine similarity to the
+    | query is at least `semantic_min_similarity`; to be tuned on the real model.
+    | Its timeout, cache and pause after a failure are SemanticLeg's constants.
+    |
+    */
+
+    'search' => [
+        'semantic_min_similarity' => 0.80,
     ],
 
     /*

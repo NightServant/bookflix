@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from bookflix_ml.lsa import NotEnoughData, train_lsa
+from bookflix_ml.lsa import NotEnoughData, train_lsa, transform
 
 
 def test_space_opera_synopses_are_closer_to_each_other_than_to_a_cookbook(
@@ -67,3 +67,15 @@ def test_too_little_data_raises_not_enough_data() -> None:
 def test_a_corpus_without_any_words_raises_not_enough_data() -> None:
     with pytest.raises(NotEnoughData):
         train_lsa([{"id": 1, "title": ""}, {"id": 2, "title": ""}, {"id": 3, "title": "the"}])
+
+
+def test_transform_makes_the_vectors_training_stored_for_the_same_media(
+    corpus: list[dict[str, Any]],
+) -> None:
+    result = train_lsa(corpus, components=20)
+    artifact = {"vectorizer": result.vectorizer, "svd": result.svd}
+
+    vectors = transform(artifact, corpus, 20)
+
+    assert vectors.shape == (len(corpus), 20)
+    assert np.allclose(vectors, result.vectors, atol=1e-5)

@@ -1,5 +1,6 @@
 """Model artifacts: S3 when ARTIFACT_BUCKET is set, else a local folder. boto3 is only imported for S3."""
 
+import contextlib
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -56,3 +57,31 @@ def load(uri: str) -> Any:
         raise ValueError("Refusing to load an artifact from outside the artifact directory.")
 
     return joblib.load(path)
+
+
+def delete(uri: str) -> None:
+    """Remove an artifact this service wrote, and its folder when that leaves it empty. A missing file is not an error; a URI outside our
+    own bucket or folder is refused, as in `load`."""
+    settings = get_settings()
+
+    if uri.startswith("s3://"):
+        if not settings.artifact_bucket or not uri.startswith(
+            f"s3://{settings.artifact_bucket}/{PREFIX}/"
+        ):
+            raise ValueError("Refusing to delete an artifact from outside the artifact bucket.")
+
+        import boto3
+
+        boto3.client("s3").delete_object(
+            Bucket=settings.artifact_bucket,
+            Key=uri.removeprefix(f"s3://{settings.artifact_bucket}/"),
+        )
+        return
+
+    path = Path(uri).resolve()
+    if not path.is_relative_to((Path(settings.artifact_dir) / PREFIX).resolve()):
+        raise ValueError("Refusing to delete an artifact from outside the artifact directory.")
+
+    path.unlink(missing_ok=True)
+    with contextlib.suppress(OSError):
+        path.parent.rmdir()

@@ -31,7 +31,8 @@ return [
     'ml' => [
         'url' => env('ML_SERVICE_URL'),
         'token' => env('ML_SERVICE_TOKEN'),
-        'timeout' => (int) env('ML_SERVICE_TIMEOUT', 5),
+        'timeout' => (float) env('ML_SERVICE_TIMEOUT', 5),
+        'connect_timeout' => (float) env('ML_SERVICE_CONNECT_TIMEOUT', 1),
     ],
 
     'slack' => [

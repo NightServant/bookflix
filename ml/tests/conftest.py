@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
 from app.settings import get_settings  # noqa: E402
+from bookflix_ml import embeddings  # noqa: E402
 from bookflix_ml.db import connect  # noqa: E402
 from bookflix_ml.jobs import JOBS, JobRunner  # noqa: E402
 
@@ -45,6 +46,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         if "db" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture
+def fake_embedder(monkeypatch: pytest.MonkeyPatch) -> embeddings.FakeEmbedder:
+    """Stands in for the loaded model (tests never download one) and records what it was asked to encode."""
+    fake = embeddings.FakeEmbedder()
+    monkeypatch.setattr(embeddings, "_loaded", fake)
+    return fake
 
 
 @pytest.fixture

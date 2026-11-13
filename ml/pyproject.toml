@@ -18,6 +18,12 @@ dependencies = [
     "implicit>=0.7.3",
 ]
 
+[project.optional-dependencies]
+embed = [
+    "sentence-transformers>=6.3.0",
+    "torch>=2.15.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest",
@@ -29,10 +35,23 @@ dev = [
 [tool.uv]
 package = false
 
+# CPU-only torch for the `embed` extra; the CUDA wheels from PyPI are gigabytes the service never uses.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-markers = ["db: needs a Postgres database with pgvector at ML_TEST_DATABASE_URL (skipped when it is unset)"]
+markers = [
+    "db: needs a Postgres database with pgvector at ML_TEST_DATABASE_URL (skipped when it is unset)",
+    "slow: needs the `embed` extra and the downloaded model; deselected by default, run with `-m slow`",
+]
+addopts = "-m 'not slow'"
 
 [tool.ruff]
 line-length = 100
@@ -51,5 +70,5 @@ explicit_package_bases = true
 mypy_path = "."
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "implicit.*", "joblib", "boto3", "scipy.*", "pgvector.*"]
+module = ["sklearn.*", "implicit.*", "joblib", "boto3", "scipy.*", "pgvector.*", "sentence_transformers.*", "torch.*"]
 ignore_missing_imports = true

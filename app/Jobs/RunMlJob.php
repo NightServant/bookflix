@@ -22,7 +22,7 @@ use Throwable;
  *
  * The steps of a pipeline name the model version they work on: a train step reports `metrics.version_id`, and that id goes into the params of the
  * steps after it, so a second training that finishes in between can never be the one that gets its similarities built or evaluated. A train step
- * without it ends the chain. Only one run of a pipeline is accepted at a time (`dispatchPipeline`): the flag is held until the chain ends.
+ * without it ends the chain; one that reports `skipped` (too little data) ends it too, as a success. Only one run of a pipeline is accepted at a time (`dispatchPipeline`): the flag is held until the chain ends.
  */
 class RunMlJob implements ShouldQueue
 {
@@ -33,6 +33,14 @@ class RunMlJob implements ShouldQueue
         'popularity' => [['refresh-popularity', []]],
         'item-cf' => [['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]],
         'lsa' => [['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]],
+        // Summarizes new and changed long descriptions, then embeds new and changed media under the active version, or re-embeds everything and
+        // promotes when the service runs another model. Summaries go first because a failed step ends the chain, and embed-media fails where the
+        // embed extra is missing; the summaries need nothing from it.
+        'embed' => [['summarize-media', []], ['embed-media', []]],
+        // Not a train step: the service builds the neighbors of whichever embedding version is active when the step runs.
+        'embedding-similarities' => [['build-similarities', ['methods' => ['embedding']]]],
+        // Trains, scores and promotes in one step; it skips cleanly until reviewers have accepted enough primary classes.
+        'dewey-classifier' => [['train-dewey-classifier', []]],
     ];
 
     /** Seconds between two looks at a running job. */
@@ -44,8 +52,8 @@ class RunMlJob implements ShouldQueue
     /** Hours a pipeline stays marked as running at most, in case its chain died without freeing it: three steps of up to MAX_HOURS each, and a little over. */
     private const LOCK_HOURS = 7;
 
-    /** The steps that train a candidate version and report its id. */
-    private const TRAIN_STEPS = ['train-lsa', 'train-item-cf'];
+    /** The steps that train a candidate version and report its id, or report `skipped` when there is too little data to train. */
+    private const TRAIN_STEPS = ['train-lsa', 'train-item-cf', 'train-dewey-classifier'];
 
     /** Tries to get the service to accept the job before its run is recorded as failed. */
     public int $tries = 5;
@@ -265,6 +273,13 @@ class RunMlJob implements ShouldQueue
         $next = $this->then;
 
         if (in_array($this->name, self::TRAIN_STEPS, true)) {
+            // Too little data is an outcome, not a failure: the step succeeded, trained nothing, and the pipeline ends here.
+            if (self::skipped($metrics) !== null) {
+                $this->free();
+
+                return;
+            }
+
             $versionId = $metrics['version_id'] ?? null;
 
             if (! is_int($versionId)) {
@@ -280,6 +295,23 @@ class RunMlJob implements ShouldQueue
         [$name, $params] = array_shift($next);
 
         self::dispatch($name, $params, $next, null, $this->pipeline);
+    }
+
+    /**
+     * Why a train step trained nothing (`metrics.skipped`: reason, have, need), or null when it did not skip.
+     *
+     * @param  array<string, mixed>|null  $metrics
+     * @return array{reason: string, have: int, need: int}|null
+     */
+    public static function skipped(?array $metrics): ?array
+    {
+        $skipped = $metrics['skipped'] ?? null;
+
+        if (! is_array($skipped) || ! is_string($skipped['reason'] ?? null) || ! is_int($skipped['have'] ?? null) || ! is_int($skipped['need'] ?? null)) {
+            return null;
+        }
+
+        return ['reason' => $skipped['reason'], 'have' => $skipped['have'], 'need' => $skipped['need']];
     }
 
     private function again(MlJobRun $run): void

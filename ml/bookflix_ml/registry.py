@@ -5,6 +5,7 @@ from typing import Any
 
 from psycopg.types.json import Jsonb
 
+from bookflix_ml import artifacts
 from bookflix_ml.db import Conn
 
 
@@ -69,6 +70,20 @@ def latest_candidate(conn: Conn, name: str) -> tuple[int, str] | None:
     return None if row is None else (int(row[0]), str(row[1]))
 
 
+def candidate_with_parameters(conn: Conn, name: str, parameters: dict[str, Any]) -> int | None:
+    """The newest `candidate` of `name` created with exactly these parameters, or None."""
+    row = conn.execute(
+        """
+        select id from model_versions
+        where name = %s and status = 'candidate' and parameters = %s
+        order by id desc limit 1
+        """,
+        (name, Jsonb(parameters)),
+    ).fetchone()
+
+    return None if row is None else int(row[0])
+
+
 def require_candidate(conn: Conn, version_id: int, name: str) -> tuple[int, str, str | None]:
     """The id, method and artifact URI of the version `version_id`, which must be a `candidate` named `name`; `ValueError` otherwise.
 
@@ -82,6 +97,21 @@ def require_candidate(conn: Conn, version_id: int, name: str) -> tuple[int, str,
         raise ValueError(f"Model version {version_id} is not a candidate of {name}.")
 
     return version_id, str(row[0]), row[1]
+
+
+def require_active(conn: Conn, version_id: int, name: str) -> int:
+    """`version_id`, which must be the `active` version of `name`; `ValueError` otherwise.
+
+    Embedding versions are promoted by `embed-media` itself, so their similarities are built for the active version, never a candidate.
+    """
+    row = conn.execute(
+        "select 1 from model_versions where id = %s and name = %s and status = 'active'",
+        (version_id, name),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"Model version {version_id} is not the active version of {name}.")
+
+    return version_id
 
 
 def parse_version_id(params: dict[str, Any]) -> int | None:
@@ -183,8 +213,9 @@ def retire(conn: Conn, version_id: int) -> None:
 
 
 def _prune(conn: Conn, name: str, method: str) -> None:
-    """Delete the similarity rows of every version of `method` that is neither active nor a waiting candidate and, for `lsa`, the
-    vectors and features of its retired versions."""
+    """Delete the similarity rows of every version of `method` that is neither active nor a waiting candidate and, for `lsa` and
+    `embedding`, the vectors (and LSA features) of their retired versions and, for `dewey-classifier`, their stored model files (the
+    only artifact worth its disk: a weekly retrain would otherwise leave one for ever)."""
     conn.execute(
         """
         delete from media_similarities
@@ -193,8 +224,19 @@ def _prune(conn: Conn, name: str, method: str) -> None:
         """,
         (method,),
     )
-    if name == "lsa":
-        for table in ("media_lsa_vectors", "media_features"):
+    tables = {"lsa": ("media_lsa_vectors", "media_features"), "embedding": ("media_embeddings",)}
+    for table in tables.get(name, ()):
+        conn.execute(
+            f"delete from {table} where model_version_id in (select id from model_versions where name = %s and status = 'retired')",  # noqa: S608
+            (name,),
+        )
+    if name == "dewey-classifier":
+        retired = conn.execute(
+            "select id, artifact_uri from model_versions where name = %s and status = 'retired' and artifact_uri is not null",
+            (name,),
+        ).fetchall()
+        for version_id, uri in retired:
+            artifacts.delete(uri)
             conn.execute(
-                f"delete from {table} where model_version_id in (select id from model_versions where name = 'lsa' and status = 'retired')"  # noqa: S608
+                "update model_versions set artifact_uri = null where id = %s", (version_id,)
             )

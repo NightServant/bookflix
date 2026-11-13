@@ -23,6 +23,7 @@ class TaxonomyFacets
     public const KEYS = [
         'taxonomy:genres:v2:public', 'taxonomy:genres:v2:all', 'taxonomy:flat:v1',
         'discover:genre-counts:v3:gated', 'discover:genre-counts:v3:mature',
+        'query-vocabulary:v1:gated', 'query-vocabulary:v1:mature',
     ];
 
     public static function flush(): void

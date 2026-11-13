@@ -58,7 +58,7 @@ new #[Title('Classification review')] class extends Component {
         $query = MediaDeweyClass::query()
             ->where('review_status', ReviewStatus::tryFrom($this->status) ?? ReviewStatus::Pending)
             ->whereHas('media')
-            ->with(['media.mediaType', 'media.creators', 'deweyClass'])
+            ->with(['media.mediaType', 'media.creators', 'deweyClass', 'modelVersion'])
             ->orderBy('confidence')
             ->orderBy('id');
 
@@ -247,7 +247,7 @@ new #[Title('Classification review')] class extends Component {
                     <div class="flex flex-wrap items-center gap-2">
                         <flux:badge size="sm" :color="match ($row->review_status) { ReviewStatus::Accepted => 'green', ReviewStatus::Pending => 'amber', default => 'zinc' }">{{ __(ucfirst($row->review_status->value)) }}</flux:badge>
                         <flux:badge size="sm" color="zinc">{{ __(ucfirst($row->classification_type->value)) }}</flux:badge>
-                        <span class="text-meta text-ink-subtle">{{ __(':percent% confidence', ['percent' => round($row->confidence * 100)]) }} · {{ __(ucfirst($row->classification_method->value)) }}</span>
+                        <span class="text-meta text-ink-subtle">{{ __(':percent% confidence', ['percent' => round($row->confidence * 100)]) }} · {{ __(ucfirst($row->classification_method->value)) }}@if ($row->modelVersion) · {{ __('Model :version', ['version' => $row->modelVersion->version]) }}@endif</span>
                     </div>
 
                     <h2 class="mt-2 text-lead text-ink">

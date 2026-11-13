@@ -1,9 +1,12 @@
 <?php
 
 use App\Discovery\Search\HybridSearch;
+use App\Discovery\Search\QueryIntent;
+use App\Discovery\Search\QueryParser;
 use App\Discovery\Search\SearchResults;
 use App\Discovery\Search\SearchLogger;
 use App\Livewire\FilteredPage;
+use App\Models\DeweyClass;
 use App\Models\Media;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -31,6 +34,15 @@ new #[Title('Search')] class extends FilteredPage {
     #[Locked]
     public string $loggedSignature = '';
 
+    /**
+     * The values of the reader's words the reader removed from this search, as `group => values` in the shape of a QueryIntent. Only the page sets it
+     * (never the browser), only to values the search offered, and it is emptied whenever the text changes.
+     *
+     * @var array<string, list<string>>
+     */
+    #[Locked]
+    public array $dismissed = [];
+
     public function mount(): void
     {
         $this->q = $this->cleanQuery($this->q);
@@ -41,8 +53,63 @@ new #[Title('Search')] class extends FilteredPage {
     public function updatedQ(): void
     {
         $this->q = $this->cleanQuery($this->q);
+        $this->dismissed = [];
         $this->resetPage();
         $this->recordSearch();
+    }
+
+    /**
+     * Take one value the search understood out of this search ("Remove Manga"). Only a value that is applied right now can go, and nothing is ever added.
+     */
+    public function dismissIntent(mixed $group, mixed $value): void
+    {
+        $applied = $this->results instanceof SearchResults ? $this->results->appliedIntent : [];
+
+        if (! is_string($group) || ! is_string($value) || ! in_array($value, (array) ($applied[$group] ?? []), true)) {
+            return;
+        }
+
+        $this->dismissed[$group] = [...($this->dismissed[$group] ?? []), $value];
+        $this->searchChanged();
+    }
+
+    /**
+     * Act on a chip of "Narrow by": a value becomes one of the reader's own filters (a Dewey class the reader removed comes back into the search instead). Only a chip on offer counts.
+     */
+    public function addIntentFilter(mixed $group, mixed $value): void
+    {
+        $offered = collect($this->intentChips['suggested'])->contains(fn (array $chip): bool => $chip['group'] === $group && $chip['value'] === $value);
+
+        if (! $offered || ! is_string($group) || ! is_string($value)) {
+            return;
+        }
+
+        // The reader's filters have no Dewey class: a class the reader removed is put back into the search instead.
+        if ($group === 'deweyCode') {
+            $this->dismissed[$group] = array_values(array_diff($this->dismissed[$group], [$value]));
+            $this->searchChanged();
+
+            return;
+        }
+
+        $this->filters[$group] = [...($this->filters[$group] ?? []), $value];
+        $this->forgetSearch();
+        $this->updatedFilters();
+    }
+
+    private function searchChanged(): void
+    {
+        $this->forgetSearch();
+        $this->resetPage();
+        $this->recordSearch();
+    }
+
+    /**
+     * What was worked out from the text and the filters before this change is stale.
+     */
+    private function forgetSearch(): void
+    {
+        unset($this->results, $this->searchIntent, $this->intentChips, $this->chips, $this->isSearching, $this->throttled);
     }
 
     protected function filtersChanged(): void
@@ -73,7 +140,8 @@ new #[Title('Search')] class extends FilteredPage {
 
         $logger = app(SearchLogger::class);
         $filters = $this->searchFilters();
-        $signature = json_encode([$logger->normalize($this->q), $filters->toArray()], JSON_THROW_ON_ERROR);
+        $intent = $this->searchIntent;
+        $signature = json_encode([$logger->normalize($this->q), $filters->toArray(), $intent?->toArray()], JSON_THROW_ON_ERROR);
 
         if ($signature === $this->loggedSignature) {
             return;
@@ -83,7 +151,7 @@ new #[Title('Search')] class extends FilteredPage {
             return;
         }
 
-        $this->lastQueryId = $logger->log(trim($this->q), $filters, $this->results->total(), auth()->user(), $this->lastQueryId)->id;
+        $this->lastQueryId = $logger->log(trim($this->q), $filters, $this->results->total(), auth()->user(), $this->lastQueryId, $intent)->id;
         $this->loggedSignature = $signature;
     }
 
@@ -129,7 +197,7 @@ new #[Title('Search')] class extends FilteredPage {
         $search = app(HybridSearch::class);
         $filters = $this->searchFilters();
         $fetch = fn (): LengthAwarePaginator => $this->hasQuery
-            ? $search->search(trim($this->q), $filters, auth()->user(), self::PER_PAGE)
+            ? $search->search(trim($this->q), $filters, auth()->user(), self::PER_PAGE, $this->searchIntent)
             : $search->browse($filters, self::PER_PAGE, auth()->user());
 
         $page = $fetch();
@@ -144,6 +212,84 @@ new #[Title('Search')] class extends FilteredPage {
             : ['mediaType']);
 
         return $page;
+    }
+
+    /**
+     * What the reader's words name in the taxonomy, less what the reader removed: the intent the search runs with. Null without a text search.
+     * The parser gates it for the reader; what is removed is only ever taken out of it, and it is cleaned again on the way.
+     */
+    #[Computed]
+    public function searchIntent(): ?QueryIntent
+    {
+        if (! $this->hasQuery) {
+            return null;
+        }
+
+        $intent = app(QueryParser::class)->parse(trim($this->q), auth()->user())->toArray();
+
+        foreach (['mediaTypes', 'genres', 'themes'] as $group) {
+            $intent[$group] = array_values(array_diff($intent[$group], $this->dismissed[$group] ?? []));
+        }
+
+        $intent['deweyCode'] = in_array($intent['deweyCode'], $this->dismissed['deweyCode'] ?? [], true) ? null : $intent['deweyCode'];
+
+        return QueryIntent::fromArray($intent);
+    }
+
+    /**
+     * The chips for what the search understood: `applied` ones narrowed these results, `suggested` ones can be added (a value the reader removed is
+     * offered again; a Dewey class is offered only for that, since the reader's filters have no class). Each is `group`, `value` and its `text`. A value with
+     * no label for this reader is left out. None are offered when nothing was found.
+     *
+     * @return array{applied: list<array{group: string, value: string, text: string}>, suggested: list<array{group: string, value: string, text: string}>}
+     */
+    #[Computed]
+    public function intentChips(): array
+    {
+        $none = ['applied' => [], 'suggested' => []];
+
+        if (! $this->results instanceof SearchResults || $this->results->isEmpty()) {
+            return $none;
+        }
+
+        $labels = $this->facets;
+        $filters = $this->searchFilters();
+        $text = fn (string $group, string $value): ?string => $group === 'deweyCode'
+            ? DeweyClass::where('code', $value)->value('name')
+            : ($labels[$group][$value] ?? null);
+        $collect = function (array $values) use ($text): array {
+            $chips = [];
+
+            foreach (['mediaTypes', 'genres', 'themes', 'deweyCode'] as $group) {
+                foreach (array_unique((array) ($values[$group] ?? [])) as $value) {
+                    $label = $text($group, $value);
+                    $label === null || $chips[] = ['group' => $group, 'value' => $value, 'text' => $label];
+                }
+            }
+
+            return $chips;
+        };
+
+        $suggested = $this->results->suggestedIntent;
+        unset($suggested['deweyCode']);
+
+        foreach ($this->dismissed as $group => $values) {
+            // A group the reader filters by hand is theirs; the words no longer speak for it.
+            if ($filters->{$group} === [] || $filters->{$group} === null) {
+                $suggested[$group] = [...(array) ($suggested[$group] ?? []), ...$values];
+            }
+        }
+
+        return ['applied' => $collect($this->results->appliedIntent), 'suggested' => $collect($suggested)];
+    }
+
+    /**
+     * Whether the semantic leg found stories the words did not (see SearchResults): the page says so once, quietly.
+     */
+    #[Computed]
+    public function includesMeaningMatches(): bool
+    {
+        return $this->results instanceof SearchResults && $this->results->includesSemanticMatches && $this->results->isNotEmpty();
     }
 
     /**
@@ -165,6 +311,8 @@ new #[Title('Search')] class extends FilteredPage {
     <x-search-panel wire:model.live.debounce.300ms="q" :browse="false" :placeholder="__('Titles, authors, series and subjects')" class="mt-6" />
 
     <x-filter-islands :panel="fn () => $this->panel" :years="$this->facets['years']" />
+
+    @include('pages.search.intent-chips')
 
     <div x-data="filterPanel(@js($this->panelConfig))" x-on:filter-sheet-close="discard()" class="mt-8 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-12">
         <aside aria-labelledby="search-filters-title" class="hidden self-start lg:sticky lg:top-20 lg:block">
@@ -210,6 +358,10 @@ new #[Title('Search')] class extends FilteredPage {
                     <x-view-toggle wire:model.live="view" />
                 </div>
             </div>
+
+            @if ($this->includesMeaningMatches)
+                <p class="mt-2 max-w-prose text-meta text-ink-subtle">{{ __('Includes stories that match the meaning of your search, not only its words.') }}</p>
+            @endif
 
             @include('pages.search.chips')
 

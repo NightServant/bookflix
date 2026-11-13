@@ -36,10 +36,57 @@ function runOnce(RunMlJob $job): void
     $job->handle(app(MlClient::class));
 }
 
-test('every pipeline runs train, build-similarities and evaluate in that order, and the popularity refresh alone', function () {
+test('every pipeline runs train, build-similarities and evaluate in that order, and the popularity refresh and embedding alone', function () {
     expect(RunMlJob::PIPELINES['item-cf'])->toBe([['train-item-cf', []], ['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]])
         ->and(RunMlJob::PIPELINES['lsa'])->toBe([['train-lsa', []], ['build-similarities', ['methods' => ['lsa']]], ['evaluate', ['kind' => 'lsa']]])
-        ->and(RunMlJob::PIPELINES['popularity'])->toBe([['refresh-popularity', []]]);
+        ->and(RunMlJob::PIPELINES['popularity'])->toBe([['refresh-popularity', []]])
+        ->and(RunMlJob::PIPELINES['embed'])->toBe([['summarize-media', []], ['embed-media', []]])
+        ->and(RunMlJob::PIPELINES['embedding-similarities'])->toBe([['build-similarities', ['methods' => ['embedding']]]]);
+});
+
+test('the embedding similarities pipeline builds the active version and ends when it succeeds, with no version id to carry', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['written' => ['embedding' => 120], 'skipped' => []]);
+    expect(RunMlJob::dispatchPipeline('embedding-similarities'))->toBeTrue();
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['embedding']] && $job->then === []);
+    $run = MlJobRun::factory()->create(['name' => 'build-similarities', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('build-similarities', ['methods' => ['embedding']], [], $run->id, pipeline: 'embedding-similarities'));
+
+    expect($run->refresh()->status)->toBe('succeeded')->and($run->error)->toBeNull()
+        ->and(RunMlJob::isRunning('embedding-similarities'))->toBeFalse();
+});
+
+test('the embed pipeline summarizes first, so a failing embed-media (no embed extra) never holds summaries back', function () {
+    Bus::fake([RunMlJob::class]);
+    expect(RunMlJob::dispatchPipeline('embed'))->toBeTrue();
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'summarize-media' && $job->then === [['embed-media', []]]);
+
+    // The service answers the summaries' poll, then the embedding's.
+    mlFake(['succeeded', 'failed'], error: 'The embed extra is not installed.', metrics: ['eligible' => 4, 'summarized' => 4]);
+    $summaries = MlJobRun::factory()->create(['name' => 'summarize-media', 'run_id' => 'r1', 'status' => 'running']);
+    runOnce(new RunMlJob('summarize-media', [], [['embed-media', []]], $summaries->id, pipeline: 'embed'));
+
+    expect($summaries->refresh()->status)->toBe('succeeded');
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'embed-media' && $job->mlJobRunId === null && $job->then === []);
+
+    $embed = MlJobRun::factory()->create(['name' => 'embed-media', 'run_id' => 'r1', 'status' => 'running']);
+    runOnce(new RunMlJob('embed-media', [], [], $embed->id, pipeline: 'embed'));
+
+    expect($embed->refresh()->status)->toBe('failed')->and($summaries->refresh()->status)->toBe('succeeded')
+        ->and(RunMlJob::isRunning('embed'))->toBeFalse();
+});
+
+test('the embed pipeline ends when embed-media succeeds', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['mode' => 'incremental', 'embedded' => 3, 'version_id' => 9]);
+    expect(RunMlJob::dispatchPipeline('embed'))->toBeTrue();
+    $run = MlJobRun::factory()->create(['name' => 'embed-media', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('embed-media', [], [], $run->id, pipeline: 'embed'));
+
+    expect($run->refresh()->status)->toBe('succeeded')->and($run->metrics['version_id'])->toBe(9)
+        ->and(RunMlJob::isRunning('embed'))->toBeFalse();
 });
 
 test('starting a job records the run and polls it again in thirty seconds', function () {
@@ -164,6 +211,36 @@ test('a train step that succeeds without a version id ends the chain with a fail
     Bus::assertNotDispatched(RunMlJob::class);
     expect($run->refresh()->status)->toBe('succeeded')
         ->and(MlJobRun::where('status', 'failed')->sole())->name->toBe('build-similarities')->error->toContain('version_id');
+});
+
+test('a train step that skipped for too little data ends its pipeline as a success, with no failed row and no retry', function () {
+    Bus::fake([RunMlJob::class]);
+    $skipped = ['skipped' => ['reason' => 'too few accepted primaries', 'have' => 40, 'need' => 100]];
+    mlFake(['succeeded'], metrics: $skipped);
+    expect(RunMlJob::dispatchPipeline('item-cf'))->toBeTrue();
+    Bus::fake([RunMlJob::class]);
+    $run = MlJobRun::factory()->create(['name' => 'train-item-cf', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-item-cf', [], [['build-similarities', ['methods' => ['item_cf']]], ['evaluate', ['kind' => 'item_cf']]], $run->id, pipeline: 'item-cf'));
+
+    Bus::assertNotDispatched(RunMlJob::class);
+    expect($run->refresh()->status)->toBe('succeeded')->and($run->metrics)->toEqual($skipped)
+        ->and(MlJobRun::where('status', 'failed')->count())->toBe(0)
+        ->and(RunMlJob::isRunning('item-cf'))->toBeFalse();
+});
+
+test('the dewey classifier pipeline trains alone and a skip ends it cleanly', function () {
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['skipped' => ['reason' => 'too few classes', 'have' => 2, 'need' => 3]]);
+    expect(RunMlJob::PIPELINES['dewey-classifier'])->toBe([['train-dewey-classifier', []]])
+        ->and(RunMlJob::dispatchPipeline('dewey-classifier'))->toBeTrue();
+    $run = MlJobRun::factory()->create(['name' => 'train-dewey-classifier', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-dewey-classifier', [], [], $run->id, pipeline: 'dewey-classifier'));
+
+    expect($run->refresh()->status)->toBe('succeeded')
+        ->and(MlJobRun::where('status', 'failed')->count())->toBe(0)
+        ->and(RunMlJob::isRunning('dewey-classifier'))->toBeFalse();
 });
 
 test('only one run of a pipeline is accepted at a time, and the last step frees it', function () {

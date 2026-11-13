@@ -18,6 +18,9 @@ new #[Title('Models')] class extends Component {
         'item-cf' => ['Readers also read', 'arrow-path'],
         'lsa' => ['Text similarity', 'document-text'],
         'popularity' => ['Popularity', 'fire'],
+        'embed' => ['Embeddings and summaries', 'sparkles'],
+        'embedding-similarities' => ['Semantic similarity', 'light-bulb'],
+        'dewey-classifier' => ['Dewey classifier', 'book-open'],
     ];
 
     public function boot(): void
@@ -129,7 +132,7 @@ new #[Title('Models')] class extends Component {
     </div>
 
     <h2 class="mt-10 text-section tracking-tight text-ink">{{ __('Run now') }}</h2>
-    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity hourly, readers also read nightly, text similarity weekly.') }}</p>
+    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity, embeddings and summaries hourly, readers also read and semantic similarity nightly, text similarity and the Dewey classifier weekly.') }}</p>
 
     <div class="mt-4 flex flex-wrap gap-2">
         @foreach ($this->pipelines as $key => [$name, $icon])
@@ -197,6 +200,8 @@ new #[Title('Models')] class extends Component {
                         <flux:badge size="sm" :color="match ($run->status) { 'succeeded' => 'green', 'failed' => 'red', 'running' => 'sky', default => 'zinc' }">{{ $run->status }}</flux:badge>
                         @if ($run->error)
                             <span class="ms-2 text-meta text-ink-subtle">{{ $run->error }}</span>
+                        @elseif ($skipped = RunMlJob::skipped($run->metrics))
+                            <span class="ms-2 text-meta text-ink-subtle">{{ __('Skipped: :reason (:have of :need)', $skipped) }}</span>
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>{{ $run->started_at->diffForHumans() }}</flux:table.cell>

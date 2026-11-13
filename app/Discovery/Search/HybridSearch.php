@@ -2,10 +2,13 @@
 
 namespace App\Discovery\Search;
 
+use App\Catalog\Ingestion\ProhibitedContent;
 use App\Discovery\Search\Legs\KeywordLeg;
+use App\Discovery\Search\Legs\SemanticLeg;
 use App\Discovery\Search\Legs\SubjectLeg;
 use App\Models\Media;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\RateLimiter;
@@ -20,7 +23,10 @@ class HybridSearch
     /** Text searches allowed per reader per minute; each one runs several queries. */
     public const PER_MINUTE = 120;
 
-    public function __construct(private KeywordLeg $keyword, private SubjectLeg $subject) {}
+    /** The intent groups in the order they are kept: relaxation drops the last one first, since a type says most about what the reader wants. */
+    private const INTENT_GROUPS = ['mediaTypes' => 'type', 'genres' => 'genre', 'themes' => 'theme', 'deweyCode' => 'dewey'];
+
+    public function __construct(private KeywordLeg $keyword, private SubjectLeg $subject, private SemanticLeg $semantic, private QueryVocabulary $vocabulary) {}
 
     /**
      * Every leg's hits, fused by reciprocal rank, one page of media in rank order. A blank or punctuation-only query runs nothing.
@@ -29,9 +35,18 @@ class HybridSearch
      * Mature and adult titles are left out of every leg unless the reader opted in (see MatureAccess); a guest never sees them.
      * Past 120 searches a minute the page comes back empty and `throttled`, without touching the database.
      *
+     * An intent (see QueryParser) adds its types, genres, themes and Dewey code as filters, but only while at least one result remains: when they
+     * would leave none, the Dewey code, then the themes, then the genres, then the types are dropped until some result does, and what was dropped
+     * is reported as suggested rather than applied. A group the reader filtered by themselves is theirs and the intent's is ignored, as is any
+     * value outside the reader's vocabulary (a mature genre for a gated reader). The keyword leg still reads the reader's own words; the semantic
+     * leg reads the intent's `semanticText` when an intent is given (none when it is empty), otherwise the query. The semantic leg falls silent, never fails, when the ML service does (see SemanticLeg).
+     * When the query is the title of a work the reader may see and the intent would hide that work ("Fantasy Island", a thriller), the reader
+     * named a title, not a taxonomy: no group is applied and every group is suggested. The intent is untrusted input and is cleaned first
+     * (QueryIntent::fromArray).
+     *
      * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
      */
-    public function search(string $query, SearchFilters $filters, ?User $user, int $perPage = 24): SearchResults
+    public function search(string $query, SearchFilters $filters, ?User $user, int $perPage = 24, ?QueryIntent $intent = null): SearchResults
     {
         $page = Paginator::resolveCurrentPage();
         $query = $this->normalize($query);
@@ -47,12 +62,19 @@ class HybridSearch
         // The access gate is applied here, to every leg, from who is asking; the filters cannot widen it.
         $filters = $filters->forViewer($user);
 
-        $lists = $query === '' ? [] : array_map(
-            fn (SearchLeg $leg): array => $leg->ids($query, $filters, self::LEG_LIMIT),
-            [$this->keyword, $this->subject],
-        );
+        $intent = $intent === null ? null : QueryIntent::fromArray($intent->toArray());
+        $groups = $query === '' || $intent === null ? [] : $this->intentGroups($intent, $filters, $user);
+        $suggested = $groups !== [] && $this->hidesNamedTitle($query, $filters, $groups) ? $groups : [];
+        // A query naming prohibited content (see ProhibitedContent) is never embedded or matched by meaning: keyword results only.
+        // With an intent the leg reads its semantic text only, so a query whose every word was negated is not embedded either.
+        $semanticText = ProhibitedContent::matches($query) ? '' : ($intent === null ? $query : $intent->semanticText);
+        [$lists, $applied] = $query === '' ? [[], []] : $this->relaxed($query, $semanticText, $filters, $suggested === [] ? $groups : []);
         $ranked = array_keys(Rrf::fuse($lists));
+        // The semantic leg lists at most SemanticLeg::MAX_IDS, under the ceiling, so only the text legs can make the total a floor.
         $hasMore = collect($lists)->contains(fn (array $ids): bool => count($ids) >= self::LEG_LIMIT);
+
+        // The legs are keyword, subject, semantic (see relaxed()): a hit only the last one listed is a match by meaning.
+        $includesSemanticMatches = $lists !== [] && array_diff($lists[2], $lists[0], $lists[1]) !== [];
 
         $pageIds = array_slice($ranked, ($page - 1) * $perPage, $perPage);
         $media = $pageIds === [] ? collect() : Media::query()->whereIn('id', $pageIds)->get()->keyBy('id');
@@ -64,7 +86,105 @@ class HybridSearch
             $page,
             ['path' => Paginator::resolveCurrentPath()],
             $hasMore,
+            appliedIntent: $applied,
+            suggestedIntent: array_diff_key($groups, $applied),
+            includesSemanticMatches: $includesSemanticMatches,
         );
+    }
+
+    /**
+     * The intent's filter values this search may use, keyed like SearchFilters, in INTENT_GROUPS order: none for a group the reader set,
+     * and none outside the reader's vocabulary.
+     *
+     * @return array<string, list<string>|string>
+     */
+    private function intentGroups(QueryIntent $intent, SearchFilters $filters, ?User $user): array
+    {
+        $known = $this->vocabulary->slugs($user);
+        $groups = [];
+
+        foreach (self::INTENT_GROUPS as $group => $kind) {
+            if ($filters->{$group} !== [] && $filters->{$group} !== null) {
+                continue;
+            }
+
+            $values = array_values(array_intersect((array) $intent->{$group}, $known[$kind]));
+
+            if ($values !== []) {
+                $groups[$group] = $group === 'deweyCode' ? $values[0] : $values;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Whether a work the reader may see has the query as a whole phrase of its title or of an alternative title, and the intent's groups would
+     * leave it out. A single word counts only when it is the whole title (a leading "the", "a" or "an" aside): "horror" typed alone still applies
+     * its intent, while a work titled "Monster" is never hidden by its own name. One indexed lookup (the trigram indexes serve the `like`; the
+     * regular expression keeps whole words, or the whole title), through the same filters and access gate as the legs, so a work the reader may
+     * not see never switches the guard on.
+     *
+     * @param  array<string, list<string>|string>  $groups
+     */
+    private function hidesNamedTitle(string $query, SearchFilters $filters, array $groups): bool
+    {
+        $like = '%'.addcslashes($query, '\\%_').'%';
+        // Every character that is not a letter, digit or space is escaped, so the query is literal inside the regular expression.
+        $literal = preg_replace('/[^\p{L}\p{N} ]/u', '\\\\$0', $query);
+        // An alternative title is one string of the JSON array, so its own quotes bound it.
+        [$titlePattern, $alternativePattern] = str_contains($query, ' ')
+            ? array_fill(0, 2, "(^|[^[:alnum:]]){$literal}($|[^[:alnum:]])")
+            : ["^[^[:alnum:]]*((the|an?)[^[:alnum:]]+)?{$literal}[^[:alnum:]]*$", "\"((the|an?)[^[:alnum:]\"]+)?{$literal}[^[:alnum:]\"]*\""];
+        $intended = new SearchFilters(...[...get_object_vars($filters), ...$groups]);
+
+        return $filters->apply(Media::query()->unmerged())
+            ->where(fn (Builder $titles) => $titles
+                ->where(fn (Builder $title) => $title
+                    ->whereRaw('immutable_unaccent(lower(media.title)) like immutable_unaccent(lower(?))', [$like])
+                    ->whereRaw('immutable_unaccent(lower(media.title)) ~ immutable_unaccent(lower(?))', [$titlePattern]))
+                ->orWhere(fn (Builder $alternative) => $alternative
+                    ->whereRaw('immutable_unaccent(lower(cast(media.alternative_titles as text))) like immutable_unaccent(lower(?))', [$like])
+                    ->whereRaw('immutable_unaccent(lower(cast(media.alternative_titles as text))) ~ immutable_unaccent(lower(?))', [$alternativePattern])))
+            ->whereNotIn('media.id', $intended->apply(Media::query()->unmerged())->select('media.id'))
+            ->exists();
+    }
+
+    /**
+     * Every leg's ids with as many intent groups applied as still leave a result, and the groups that were.
+     * One run when the whole intent fits, two when even the reader's own filters find nothing, at most one more per dropped group otherwise.
+     * The semantic leg embeds its text and fetches its neighbours on the first run only; later runs filter the same neighbours.
+     *
+     * @param  array<string, list<string>|string>  $groups
+     * @return array{0: list<list<int>>, 1: array<string, list<string>|string>}
+     */
+    private function relaxed(string $query, string $semanticText, SearchFilters $filters, array $groups): array
+    {
+        $legs = [[$this->keyword, $query], [$this->subject, $query], [$this->semantic, $semanticText]];
+        $run = fn (array $applied): array => array_map(
+            fn (array $leg): array => $leg[0]->ids($leg[1], new SearchFilters(...[...get_object_vars($filters), ...$applied]), self::LEG_LIMIT),
+            $legs,
+        );
+        $found = fn (array $lists): bool => collect($lists)->contains(fn (array $ids): bool => $ids !== []);
+
+        $lists = $run($groups);
+
+        if ($groups === [] || $found($lists)) {
+            return [$lists, $groups];
+        }
+
+        $plain = $run([]);
+
+        while ($found($plain) && count($groups) > 1) {
+            array_pop($groups);
+            $lists = $run($groups);
+
+            if ($found($lists)) {
+                return [$lists, $groups];
+            }
+        }
+
+        return [$plain, []];
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Discovery\Recommendations\ExplorationInjector;
 use App\Discovery\Recommendations\SeedItems;
 use App\Discovery\Recommendations\ServedItem;
 use App\Discovery\Recommendations\ShelfBuilder;
+use App\Discovery\Recommendations\Sources\SemanticSimilarSource;
 use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
 use App\Enums\ReasonType;
@@ -19,6 +20,7 @@ use App\Models\Rating;
 use App\Models\Recommendation;
 use App\Models\User;
 use App\Models\UserInteraction;
+use App\Providers\RecommendationServiceProvider;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -216,6 +218,8 @@ test('the reader\'s seeds are read once per build and never kept between builds'
 });
 
 test('Because You Read and Similar To fill up from neighbors the shared pool cut off', function () {
+    // The exploration source draws at random and can pick the quiet titles; a fixed seed keeps how many reach the pool the same on every run.
+    app()->bind(Randomizer::class, fn () => new Randomizer(new Mt19937(1)));
     $catalog = homeCatalog();
     $user = User::factory()->create();
     $lsa = activeVersion('lsa');
@@ -508,4 +512,54 @@ test('a reader with enough interactions but no seed title is cold', function () 
 
     libraryEntry($user, $catalog[0], 'completed');
     expect(app(ShelfBuilder::class)->isCold($user))->toBeFalse();
+});
+
+test('shelf "Similar To {Y}" prefers embedding neighbors when present', function () {
+    [$user, $catalog] = richReader();
+    $embedding = activeVersion('embedding');
+    $lsaNeighbors = DB::table('media_similarities')->where('media_id', $catalog[7]->id)->where('method', 'lsa')->pluck('similar_media_id');
+    $semantic = Media::factory()->count(40)->create(['published_on' => now()->subYears(2), 'popularity_score' => 0]);
+    $mature = matureStory('Forbidden Fruit');
+    similar($catalog[7], $mature, 'embedding', 0.99, $embedding);
+    foreach ($semantic as $j => $neighbor) {
+        similar($catalog[7], $neighbor, 'embedding', 0.95 - $j * 0.01, $embedding);
+    }
+
+    $shelves = homeShelves($user);
+    $similarTo = $shelves->firstWhere('key', 'similar-to');
+
+    expect($similarTo->title)->toBe('Similar To '.$catalog[7]->title)
+        ->and($similarTo->items)->not->toBeEmpty()
+        ->and($similarTo->items->pluck('id')->diff($semantic->pluck('id'))->all())->toBe([])
+        ->and($similarTo->items->pluck('id')->intersect($lsaNeighbors)->all())->toBe([])
+        ->and($similarTo->items->first()->reason_label)->toBe('Similar themes to '.$catalog[7]->title)
+        // A seed with no embedding rows keeps its lsa neighbors.
+        ->and(shelfIds($shelves, 'because-you-read'))->not->toBeEmpty()
+        ->and(collect(shelfIds($shelves, 'because-you-read'))->intersect($semantic->pluck('id'))->all())->toBe([])
+        ->and($shelves->flatMap(fn ($shelf) => $shelf->items->pluck('id')))->not->toContain($mature->id);
+});
+
+test('with no active embedding version, or one without rows, every shelf is what the Phase 6 sources give', function () {
+    [$user] = richReader();
+    $build = function () use ($user): array {
+        Cache::flush();
+        app()->bind(Randomizer::class, fn () => new Randomizer(new Mt19937(3)));
+
+        return app()->make(ShelfBuilder::class)->forHome($user)
+            ->map(fn ($shelf) => [$shelf->key, $shelf->title, $shelf->items->map(fn ($m) => [$m->id, $m->reason_label, $m->reason_media_id])->all()])
+            ->all();
+    };
+
+    $now = $build();
+
+    $phase6 = collect(app()->tagged(RecommendationServiceProvider::SOURCES))->reject(fn ($source) => $source instanceof SemanticSimilarSource)->values()->all();
+    app()->instance(CandidatePool::class, new CandidatePool($phase6));
+    $before = $build();
+    app()->forgetInstance(CandidatePool::class);
+
+    activeVersion('embedding');
+    $emptyVersion = $build();
+
+    expect($now)->toBe($before)->and($emptyVersion)->toBe($before)
+        ->and(collect($now)->pluck(0)->all())->toContain('recommended', 'because-you-read', 'similar-to');
 });

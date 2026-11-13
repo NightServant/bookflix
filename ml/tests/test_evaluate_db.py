@@ -1,12 +1,13 @@
 import json
 import math
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from bookflix_ml import artifacts, registry
 from bookflix_ml import db as db_module
-from bookflix_ml import registry
 from bookflix_ml.item_cf import DEFAULT_WEIGHTS, interaction_scores, item_neighbors
 from bookflix_ml.jobs import JOBS, run_evaluate
 from bookflix_ml.similarities import write
@@ -110,6 +111,42 @@ def test_promote_prunes_old_rows_but_keeps_a_waiting_candidate_and_other_methods
 
     assert sim_versions(db) == {new, waiting}
     assert sim_versions(db, "lsa") == {lsa}
+
+
+def test_promote_and_retire_delete_the_files_of_retired_classifiers_but_never_the_active_one(
+    db: Conn, artifact_dir: Path
+) -> None:
+    def classifier(
+        status: str, name: str = "dewey-classifier", kind: str = "dewey_classifier"
+    ) -> int:
+        v = version(db, status, name, kind)
+        uri = artifacts.save({"id": v}, name, f"v{v}")
+        db.execute("update model_versions set artifact_uri = %s where id = %s", (uri, v))
+        db.commit()
+        return v
+
+    def uri_of(v: int) -> str | None:
+        row = db.execute("select artifact_uri from model_versions where id = %s", (v,)).fetchone()
+        assert row is not None
+        return None if row[0] is None else str(row[0])
+
+    old, new, stale = classifier("active"), classifier("candidate"), classifier("retired")
+    waiting, other = classifier("candidate"), classifier("retired", "lsa", "lsa")
+    old_uri, stale_uri, other_uri = uri_of(old), uri_of(stale), uri_of(other)
+    assert old_uri and stale_uri and other_uri
+
+    registry.promote(db, new)
+    db.commit()
+
+    assert not Path(stale_uri).exists() and uri_of(stale) is None
+    assert not Path(old_uri).exists() and status_of(db, old) == "retired"
+    assert Path(uri_of(new) or "").exists() and Path(uri_of(waiting) or "").exists()
+    assert Path(other_uri).exists()
+
+    registry.retire(db, waiting)
+    db.commit()
+
+    assert uri_of(waiting) is None and Path(uri_of(new) or "").exists()
 
 
 def test_promote_rolls_back_entirely_when_the_candidate_cannot_be_promoted(db: Conn) -> None:
