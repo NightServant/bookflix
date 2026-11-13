@@ -65,6 +65,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Admin Navigation
+    |--------------------------------------------------------------------------
+    |
+    | Rendered by the admin sidebar (layouts/admin). Groups in order; an item's
+    | `active` lists the route name patterns that mark it as current, and an
+    | optional `count` names the figure in App\Admin\AdminCounts shown beside it.
+    |
+    */
+
+    'admin_navigation' => [
+        ['group' => null, 'items' => [
+            ['label' => 'Overview', 'icon' => 'squares-2x2', 'route' => 'admin.index', 'active' => ['admin.index']],
+        ]],
+        ['group' => 'Catalog', 'items' => [
+            ['label' => 'Sync', 'icon' => 'arrow-path', 'route' => 'admin.providers', 'active' => ['admin.providers']],
+            ['label' => 'Media', 'icon' => 'book-open', 'route' => 'admin.media.index', 'active' => ['admin.media.*']],
+            ['label' => 'Duplicates', 'icon' => 'square-2-stack', 'route' => 'admin.duplicates', 'active' => ['admin.duplicates'], 'count' => 'duplicates'],
+            ['label' => 'Classification', 'icon' => 'rectangle-group', 'route' => 'admin.classifications', 'active' => ['admin.classifications'], 'count' => 'classifications'],
+        ]],
+        ['group' => 'Intelligence', 'items' => [
+            ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models']],
+        ]],
+        ['group' => 'People', 'items' => [
+            ['label' => 'Users', 'icon' => 'users', 'route' => 'admin.users', 'active' => ['admin.users']],
+        ]],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Collections
     |--------------------------------------------------------------------------
     |

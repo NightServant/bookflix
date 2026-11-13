@@ -4,8 +4,10 @@
     (`$this->view()->layoutData(['flush' => true])`) and brings the container itself: `px-gutter` inside every band.
     A page whose first band is an image (`band`, in the same layoutData) has the header float over it, translucent: that band adds the
     header's 3.5rem to its own top padding. Every other page keeps an opaque header.
+
+    An admin account gets the admin shell instead (layouts/admin): it has none of the reader pages this one frames.
 --}}
-<x-layouts::app.header :title="$title ?? null" :band="$band ?? false">
+@if (auth()->user()?->can('access-admin'))<x-layouts::admin :title="$title ?? null">{{ $slot }}</x-layouts::admin>@else<x-layouts::app.header :title="$title ?? null" :band="$band ?? false">
     <main id="main" tabindex="-1" class="pb-24 outline-none lg:pb-12">
         @if ($flush ?? false)
             {{ $slot }}
@@ -16,3 +18,4 @@
         @endif
     </main>
 </x-layouts::app.header>
+@endif
