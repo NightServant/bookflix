@@ -36,6 +36,11 @@ new #[Title('Profile settings')] class extends Component {
         $this->name = Auth::user()->name;
         $this->email = Auth::user()->email;
 
+        // An admin has no reading profile on this page, so none of it is loaded into the page's state.
+        if (Gate::denies('use-reader-side')) {
+            return;
+        }
+
         $profile = Auth::user()->profile;
         $this->bio = $profile->bio ?? '';
         $this->preferredLanguages = $profile->preferred_languages;

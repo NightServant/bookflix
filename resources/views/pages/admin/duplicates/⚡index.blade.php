@@ -138,13 +138,16 @@ new #[Title('Duplicates')] class extends Component {
 
             <flux:table.rows>
                 @foreach ($this->candidates as $candidate)
+                    {{-- Below md the header row is hidden, so each cell carries its column's name (data-label), shown before it. --}}
+                    @php($cell = 'max-md:flex! max-md:gap-4 max-md:py-1 max-md:before:w-24 max-md:before:shrink-0 max-md:before:text-ink-subtle max-md:before:content-[attr(data-label)]')
                     <flux:table.row wire:key="candidate-{{ $candidate->id }}" class="max-md:border-t max-md:border-hairline max-md:py-3">
-                        <flux:table.cell>
+                        <flux:table.cell data-label="{{ __('Similarity') }}" class="{{ $cell }}">
                             <flux:badge size="sm" :color="$candidate->score >= 0.95 ? 'amber' : 'zinc'">{{ __(':score% similar', ['score' => round($candidate->score * 100)]) }}</flux:badge>
                         </flux:table.cell>
 
                         @foreach ([$candidate->media, $candidate->duplicateMedia] as $side)
-                            <flux:table.cell wire:key="candidate-{{ $candidate->id }}-{{ $side->id }}" class="md:max-w-56 md:whitespace-normal!">
+                            <flux:table.cell wire:key="candidate-{{ $candidate->id }}-{{ $side->id }}" data-label="{{ $loop->first ? __('First record') : __('Second record') }}" class="{{ $cell }} md:max-w-56 md:whitespace-normal!">
+                                <span class="block min-w-0">
                                 <span class="block text-body text-ink">{{ $side->title }}</span>
                                 <span class="block text-meta text-ink-subtle">
                                     {{ $side->mediaType->name }}@if ($side->publication_year) · {{ $side->publication_year }}@endif
@@ -154,14 +157,15 @@ new #[Title('Duplicates')] class extends Component {
                                 @if ($side->alternative_titles)
                                     <span class="block truncate text-meta text-ink-subtle">{{ __('Also known as :titles', ['titles' => collect($side->alternative_titles)->take(4)->join(' · ')]) }}</span>
                                 @endif
+                                </span>
                             </flux:table.cell>
                         @endforeach
 
                         <flux:table.cell>
                             <div class="flex flex-wrap gap-2 md:justify-end">
-                                <flux:button size="sm" variant="filled" class="min-h-11" wire:click="merge({{ $candidate->id }}, {{ $candidate->media_id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}">{{ __('Keep first') }}</flux:button>
-                                <flux:button size="sm" variant="filled" class="min-h-11" wire:click="merge({{ $candidate->id }}, {{ $candidate->duplicate_media_id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}">{{ __('Keep second') }}</flux:button>
-                                <flux:button size="sm" variant="filled" class="min-h-11" icon="x-mark" icon:variant="outline" wire:click="dismiss({{ $candidate->id }})">{{ __('Not a duplicate') }}</flux:button>
+                                <flux:button size="sm" variant="filled" class="min-h-11" wire:click="merge({{ $candidate->id }}, {{ $candidate->media_id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}" :aria-label="__('Keep the first record, :title', ['title' => $candidate->media->title])">{{ __('Keep first') }}</flux:button>
+                                <flux:button size="sm" variant="filled" class="min-h-11" wire:click="merge({{ $candidate->id }}, {{ $candidate->duplicate_media_id }})" wire:confirm="{{ __('Keep this record and merge the other into it?') }}" :aria-label="__('Keep the second record, :title', ['title' => $candidate->duplicateMedia->title])">{{ __('Keep second') }}</flux:button>
+                                <flux:button size="sm" variant="filled" class="min-h-11" icon="x-mark" icon:variant="outline" wire:click="dismiss({{ $candidate->id }})" :aria-label="__(':first and :second are not duplicates', ['first' => $candidate->media->title, 'second' => $candidate->duplicateMedia->title])">{{ __('Not a duplicate') }}</flux:button>
                                 <flux:button size="sm" variant="ghost" class="min-h-11" icon="arrows-right-left" icon:variant="outline" wire:click="compare({{ $candidate->id }})" :aria-label="__('Compare :first with :second', ['first' => $candidate->media->title, 'second' => $candidate->duplicateMedia->title])">{{ __('Compare') }}</flux:button>
                             </div>
                         </flux:table.cell>
@@ -178,7 +182,7 @@ new #[Title('Duplicates')] class extends Component {
 
     <flux:modal name="compare" variant="flyout" class="w-full max-w-4xl">
         @if ($candidate = $this->compared)
-            <div class="space-y-6">
+            <div class="space-y-6" role="group" aria-labelledby="compare-title">
                 <div class="flex flex-wrap items-center gap-3">
                     <flux:heading size="lg" id="compare-title">{{ __('Compare records') }}</flux:heading>
                     <flux:badge size="sm" color="amber">{{ __(':score% similar', ['score' => round($candidate->score * 100)]) }}</flux:badge>
