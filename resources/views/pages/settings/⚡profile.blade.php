@@ -107,7 +107,7 @@ new #[Title('Profile settings')] class extends Component {
         $user = Auth::user();
 
         if ($user->hasVerifiedEmail()) {
-            $this->redirectIntended(default: route('home', absolute: false));
+            $this->redirectIntended(default: $user->homePath());
 
             return;
         }

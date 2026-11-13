@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
+use Laravel\Fortify\Fortify;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
@@ -134,6 +135,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function preferences(): HasMany
     {
         return $this->hasMany(UserPreference::class);
+    }
+
+    /**
+     * Where a signed-in user is sent "home": the admin dashboard for an admin, Fortify's home path (Home) for a reader.
+     */
+    public function homePath(): string
+    {
+        return $this->is_admin ? route('admin.index', absolute: false) : Fortify::redirects('login');
     }
 
     public function isDeactivated(): bool
