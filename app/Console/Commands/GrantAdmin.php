@@ -27,7 +27,7 @@ class GrantAdmin extends Command
         $user->is_admin = true;
         $user->save();
 
-        $this->info("{$user->email} is now an admin.");
+        $this->info("{$user->email} is now an admin. They reach the admin area only: the reader side (Home, Library and the rest) is closed to an admin account.");
 
         return self::SUCCESS;
     }

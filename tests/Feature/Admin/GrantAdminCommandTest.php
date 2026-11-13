@@ -5,7 +5,8 @@ use App\Models\User;
 test('grant admin promotes the user with that email', function () {
     $user = User::factory()->create();
 
-    $this->artisan('bookflix:grant-admin', ['email' => $user->email])->assertSuccessful();
+    $this->artisan('bookflix:grant-admin', ['email' => $user->email])->expectsOutputToContain('reader side')
+        ->assertSuccessful();
 
     expect($user->refresh()->is_admin)->toBeTrue();
 });
