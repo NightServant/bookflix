@@ -47,8 +47,6 @@ new class extends Component {
 
     public string $visibility = 'private';
 
-    public bool $isEditorial = false;
-
     /** What the owner typed in the add stories box. */
     public string $find = '';
 
@@ -65,7 +63,6 @@ new class extends Component {
         $this->name = $collection->name;
         $this->description = (string) $collection->description;
         $this->visibility = $collection->visibility->value;
-        $this->isEditorial = $collection->is_editorial;
     }
 
     /**
@@ -214,8 +211,6 @@ new class extends Component {
             'name' => trim($this->name),
             'description' => trim($this->description) ?: null,
             'visibility' => Visibility::from($this->visibility),
-            // Only an admin can make a staff pick (or take it back); anyone else's value is ignored.
-            ...(Gate::allows('access-admin') ? ['is_editorial' => $this->isEditorial] : []),
         ]);
 
         unset($this->collection);
@@ -420,10 +415,6 @@ new class extends Component {
                             <flux:radio value="private" :label="__('Private')" :description="__('Only you can see this collection.')" />
                             <flux:radio value="public" :label="__('Public')" :description="__('Anyone with the link can open it.')" />
                         </flux:radio.group>
-
-                        @can('access-admin')
-                            <flux:switch wire:model="isEditorial" :label="__('Show as an editor pick')" :description="__('Staff picks are open to every reader and appear as a themed row on Discover and Home.')" />
-                        @endcan
 
                         <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="save-collection">{{ __('Save') }}</x-cta>
                     </form>

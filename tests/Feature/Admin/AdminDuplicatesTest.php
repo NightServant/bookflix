@@ -109,6 +109,7 @@ test('a merged away slug answers 301 to the winner and unknown slugs 404', funct
     $this->actingAs(User::factory()->admin()->create());
     Livewire::test('pages::admin.duplicates.index')->call('merge', $candidate->id);
 
+    $this->actingAs(User::factory()->create());
     $this->get(route('stories.show', $loser->slug))
         ->assertStatus(301)
         ->assertRedirect(route('stories.show', $winner->slug));
