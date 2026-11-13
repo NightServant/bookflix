@@ -6,6 +6,7 @@ use App\Models\Media;
 use App\Models\Series;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
@@ -125,6 +126,22 @@ test('an admin cannot add to a library through the listener or any reader compon
     Livewire::actingAs($admin)->test('library-controls', ['media' => $media])->call('add')->assertForbidden();
 
     expect(LibraryEntry::count())->toBe(0);
+});
+
+test('a reader page left open from before a promotion answers nothing to the new admin, not even a property update', function () {
+    $user = User::factory()->create();
+    $entry = LibraryEntry::factory()->for($user)->create();
+
+    $search = Livewire::actingAs($user)->test('pages::search.index');
+    $library = Livewire::actingAs($user)->test('pages::library.index')->assertSee($entry->media->title);
+
+    $user->forceFill(['is_admin' => true])->save();
+    $this->actingAs($user->fresh());
+
+    $search->set('q', 'dragon quest')->assertForbidden();
+    $library->set('sort', 'title')->assertForbidden();
+
+    expect(DB::table('search_queries')->count())->toBe(0);
 });
 
 test('a reader can still add through the listener', function () {

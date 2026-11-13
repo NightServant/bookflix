@@ -36,8 +36,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(QueryParser::class, RuleBasedQueryParser::class);
 
-        // Registered here, not in boot: Livewire runs its own `call` hooks in registration order, and an event listener executes inside one of them (SupportEvents),
-        // so the guard has to be on the list before Livewire boots.
+        // Registered here, not in boot, so the guard is on Livewire's list before any of its own hooks.
         $this->guardReaderComponentsFromAdmins();
     }
 
@@ -101,16 +100,16 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * An admin cannot open a reader page, but a Livewire call does not pass through the route's middleware: the library listener sits in the shared layout,
-     * and a reader page left open from before the account was promoted keeps its snapshot. So every call from an admin to a component outside the admin
-     * pages and the account pages is refused here, before it can write reader data.
+     * An admin cannot open a reader page, but a Livewire request does not pass through the route's middleware: the library listener sits in the shared layout,
+     * and a reader page left open from before the account was promoted keeps its snapshot. So every request from an admin to a component outside the admin
+     * pages and the account pages is refused as the component is restored, before a method call, a property update or a render can read or write reader data.
      */
     private function guardReaderComponentsFromAdmins(): void
     {
         $adminSide = ['pages::admin.', 'pages::settings.'];
         $readerSettings = ['pages::settings.preferences', 'pages::settings.privacy'];
 
-        on('call', function (Component $component) use ($adminSide, $readerSettings): void {
+        on('hydrate', function (Component $component) use ($adminSide, $readerSettings): void {
             $user = auth()->user();
 
             if ($user === null || Gate::forUser($user)->allows('use-reader-side')) {
