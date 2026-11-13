@@ -21,7 +21,7 @@ class MakeAdmin extends Command
      */
     public function handle(): int
     {
-        $email = (string) $this->argument('email');
+        $email = $this->stringArgument('email');
 
         if (Validator::make(['email' => $email], ['email' => ['required', 'email:rfc', 'max:255']])->fails()) {
             $this->error('That is not a valid email address.');
@@ -38,10 +38,10 @@ class MakeAdmin extends Command
         $password = Str::password(24);
 
         DB::transaction(function () use ($email, $password): void {
-            $user = new User(['name' => (string) $this->option('name'), 'email' => $email, 'password' => $password]);
+            $user = new User(['name' => $this->stringOption('name'), 'email' => $email, 'password' => $password]);
             $user->is_admin = true;
-            $user->email_verified_at = now();
             $user->save();
+            $user->markEmailAsVerified();
 
             // An admin never meets onboarding, which is a reader's first-run page (see EnsureOnboarded).
             $user->profile()->updateOrCreate([], ['onboarded_at' => now()]);
@@ -52,5 +52,19 @@ class MakeAdmin extends Command
         $this->warn('Store this password now: it is shown only once. Change it after the first sign-in.');
 
         return self::SUCCESS;
+    }
+
+    private function stringArgument(string $name): string
+    {
+        $value = $this->argument($name);
+
+        return is_string($value) ? $value : '';
+    }
+
+    private function stringOption(string $name): string
+    {
+        $value = $this->option($name);
+
+        return is_string($value) ? $value : '';
     }
 }
