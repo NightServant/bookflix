@@ -56,6 +56,9 @@ test('the list is paginated at 25', function () {
 
     expect($page->instance()->users)->toHaveCount(25)->and($page->instance()->users->total())->toBe(31);
 
+    // The count line names accounts; the table's built-in line would call them stories.
+    $page->assertSee('31 accounts')->assertSee('Page 1 of 2')->assertDontSee('stories');
+
     $page->call('nextPage');
 
     expect($page->instance()->users)->toHaveCount(6);

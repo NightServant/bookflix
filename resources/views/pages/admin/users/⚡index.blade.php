@@ -52,7 +52,7 @@ new #[Title('Users')] class extends Component {
     </x-admin-toolbar>
 
     <x-admin-table :label="__('Users')" class="mt-6">
-        <flux:table :paginate="$this->users">
+        <flux:table>
             <flux:table.columns>
                 <flux:table.column>{{ __('Name') }}</flux:table.column>
                 <flux:table.column>{{ __('Email') }}</flux:table.column>
@@ -91,4 +91,10 @@ new #[Title('Users')] class extends Component {
             </flux:table.rows>
         </flux:table>
     </x-admin-table>
+
+    {{-- Its own count line: the table's built-in one calls every row a story. --}}
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-meta text-ink-subtle">{{ trans_choice(':count account|:count accounts', $this->users->total(), ['count' => Number::format($this->users->total())]) }}</p>
+        <x-pager :paginator="$this->users" class="justify-end" />
+    </div>
 </section>
