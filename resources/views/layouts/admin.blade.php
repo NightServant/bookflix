@@ -19,7 +19,7 @@
         >{{ __('Skip to content') }}</a>
 
         {{-- Escape closes the drawer (Flux closes it only from its buttons) and gives focus back to the menu button that opened it. --}}
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-hairline bg-surface-deep lg:bg-canvas" :aria-label="__('Admin')" x-on:keydown.escape.window="if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $el.querySelector('[data-flux-sidebar-collapse] button').click(); document.querySelector('[data-flux-sidebar-toggle]').focus() }">
+        <flux:sidebar sticky collapsible="mobile" class="border-e border-hairline bg-surface-deep lg:bg-canvas" :aria-label="__('Admin')" x-on:keydown.escape.window="if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $el.querySelector('[data-flux-sidebar-collapse] button').click(); $nextTick(() => document.querySelector('[data-flux-sidebar-toggle]').focus()) }">
             <flux:sidebar.header>
                 <span class="flex items-center gap-2">
                     <x-app-logo :href="route('admin.index')" wire:navigate />
