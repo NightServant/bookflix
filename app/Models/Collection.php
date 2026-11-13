@@ -43,6 +43,16 @@ class Collection extends Model
         'is_editorial' => false,
     ];
 
+    protected static function booted(): void
+    {
+        // A staff pick is shown to every reader, so it ends when its owner makes the collection private (see the admin Staff picks page).
+        static::updating(function (Collection $collection): void {
+            if ($collection->isDirty('visibility') && $collection->visibility !== Visibility::Public) {
+                $collection->is_editorial = false;
+            }
+        });
+    }
+
     /**
      * Get the attributes that should be cast.
      *

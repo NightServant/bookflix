@@ -83,6 +83,7 @@ return [
             ['label' => 'Media', 'icon' => 'book-open', 'route' => 'admin.media.index', 'active' => ['admin.media.*']],
             ['label' => 'Duplicates', 'icon' => 'square-2-stack', 'route' => 'admin.duplicates', 'active' => ['admin.duplicates'], 'count' => 'duplicates'],
             ['label' => 'Classification', 'icon' => 'rectangle-group', 'route' => 'admin.classifications', 'active' => ['admin.classifications'], 'count' => 'classifications'],
+            ['label' => 'Staff picks', 'icon' => 'star', 'route' => 'admin.staff-picks', 'active' => ['admin.staff-picks']],
         ]],
         ['group' => 'Intelligence', 'items' => [
             ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models']],
