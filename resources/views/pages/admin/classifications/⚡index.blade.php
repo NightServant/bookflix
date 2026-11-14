@@ -14,6 +14,7 @@ use Flux\Flux;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Number;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -56,7 +57,7 @@ new #[Title('Classification review')] class extends Component {
     public function rows(): LengthAwarePaginator
     {
         $query = MediaDeweyClass::query()
-            ->where('review_status', ReviewStatus::tryFrom($this->status) ?? ReviewStatus::Pending)
+            ->when($this->status !== 'all', fn ($query) => $query->where('review_status', ReviewStatus::tryFrom($this->status) ?? ReviewStatus::Pending))
             ->whereHas('media')
             ->with(['media.mediaType', 'media.creators', 'deweyClass', 'modelVersion'])
             ->orderBy('confidence')
@@ -79,6 +80,17 @@ new #[Title('Classification review')] class extends Component {
     public function classes(): Collection
     {
         return DeweyClass::query()->orderBy('code')->get(['id', 'code', 'name']);
+    }
+
+    /**
+     * The status filters, in the order of the chips.
+     *
+     * @return array<string, string>
+     */
+    #[Computed]
+    public function statuses(): array
+    {
+        return ['pending' => __('Pending'), 'accepted' => __('Accepted'), 'rejected' => __('Rejected'), 'all' => __('All')];
     }
 
     public function accept(int $rowId): void
@@ -230,70 +242,92 @@ new #[Title('Classification review')] class extends Component {
 }; ?>
 
 <section class="py-8">
-    <x-admin-header :back="route('admin.index')" :title="__('Classification review')" :description="__('Classes the sync suggested for each story, least confident first. Accept or reject each one: accepted classes show on the shelves, rejected ones never do.')" />
+    <x-admin-header :title="__('Classification review')" :description="__('Classes the sync suggested for each story, least confident first. Accept or reject each one: accepted classes show on the shelves, rejected ones never do.')" />
 
-    <x-admin-toolbar>
-        <flux:select class="max-w-xs" wire:model.live="status" :aria-label="__('Status')">
-            <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>
-            <flux:select.option value="accepted">{{ __('Accepted') }}</flux:select.option>
-            <flux:select.option value="rejected">{{ __('Rejected') }}</flux:select.option>
-        </flux:select>
-    </x-admin-toolbar>
+    @php($shown = array_key_exists($status, $this->statuses) ? $status : 'pending')
 
-    <ul class="mt-6 space-y-4">
-        @forelse ($this->rows as $row)
-            <li wire:key="row-{{ $row->id }}" class="rounded-card bg-surface-card p-4 md:grid md:grid-cols-[1fr_auto] md:items-center md:gap-6">
-                <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <flux:badge size="sm" :color="match ($row->review_status) { ReviewStatus::Accepted => 'green', ReviewStatus::Pending => 'amber', default => 'zinc' }">{{ __(ucfirst($row->review_status->value)) }}</flux:badge>
-                        <flux:badge size="sm" color="zinc">{{ __(ucfirst($row->classification_type->value)) }}</flux:badge>
-                        <span class="text-meta text-ink-subtle">{{ __(':percent% confidence', ['percent' => round($row->confidence * 100)]) }} · {{ __(ucfirst($row->classification_method->value)) }}@if ($row->modelVersion) · {{ __('Model :version', ['version' => $row->modelVersion->version]) }}@endif</span>
-                    </div>
+    <nav aria-label="{{ __('Status') }}" class="mt-6 flex flex-wrap gap-2">
+        @foreach ($this->statuses as $value => $label)
+            <x-chip wire:key="status-{{ $value }}" :href="route('admin.classifications', ['status' => $value])" wire:click.prevent="$set('status', '{{ $value }}')" :active="$shown === $value" class="min-h-11 px-4">{{ $label }}</x-chip>
+        @endforeach
+    </nav>
 
-                    <h2 class="mt-2 text-lead text-ink">
-                        <a href="{{ route('admin.media.edit', $row->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control hover:underline md:min-h-0">{{ $row->media->title }}</a>
-                    </h2>
-                    <p class="text-meta text-ink-subtle">
-                        {{ $row->media->mediaType->name }}@if ($row->media->publication_year) · {{ $row->media->publication_year }}@endif
-                        @if ($row->media->creators->isNotEmpty()) · {{ $row->media->creators->pluck('name')->join(', ') }}@endif
-                    </p>
-                    <p class="mt-2 text-body text-ink-subtle">{{ $row->deweyClass->code }} · {{ $row->deweyClass->name }}</p>
-                    @if ($row->reviewed_at)
-                        <p class="text-meta text-ink-subtle">{{ __('Reviewed :date', ['date' => $row->reviewed_at->toFormattedDateString()]) }}</p>
-                    @endif
-                </div>
+    @if ($this->rows->isEmpty())
+        <x-admin-empty class="mt-6 rounded-card bg-surface-card" icon="check-circle" :title="__('Nothing to review here')" :description="__('Classes the sync suggests will queue up under Pending.')" />
+    @else
+        {{-- A table from md up; below it each row is a card (the table's parts become blocks, each cell labelled by its data-label). --}}
+        <flux:table class="mt-6 table-auto! max-md:block max-md:whitespace-normal! max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tr]:block max-md:[&_td]:block max-md:[&_td]:border-0 max-md:[&_td]:px-0">
+            <flux:table.columns>
+                <flux:table.column>{{ __('Story') }}</flux:table.column>
+                <flux:table.column>{{ __('Class') }}</flux:table.column>
+                <flux:table.column>{{ __('Confidence') }}</flux:table.column>
+                <flux:table.column>{{ __('Method') }}</flux:table.column>
+                <flux:table.column>{{ __('Source') }}</flux:table.column>
+                <flux:table.column>{{ __('Status') }}</flux:table.column>
+                <flux:table.column><span class="sr-only">{{ __('Actions') }}</span></flux:table.column>
+            </flux:table.columns>
 
-                @php($subject = $row->deweyClass->code.' '.$row->deweyClass->name)
-                <div class="mt-4 flex flex-wrap items-center gap-2 md:mt-0">
-                    @if ($row->review_status !== ReviewStatus::Accepted)
-                        <flux:button variant="filled" size="sm" icon="check" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="accept({{ $row->id }})" :aria-label="__('Accept :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Accept') }}</flux:button>
-                    @endif
-                    @if ($row->review_status !== ReviewStatus::Rejected)
-                        <flux:button variant="filled" size="sm" icon="x-mark" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="reject({{ $row->id }})" :aria-label="__('Reject :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Reject') }}</flux:button>
-                    @endif
-                    <flux:button variant="filled" size="sm" icon="arrows-right-left" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="openChange({{ $row->id }})" :aria-label="__('Change :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Change') }}</flux:button>
+            <flux:table.rows>
+                @foreach ($this->rows as $row)
+                    @php($subject = $row->deweyClass->code.' '.$row->deweyClass->name)
+                    @php($cell = 'max-md:flex! max-md:gap-4 max-md:py-1 max-md:before:w-24 max-md:before:shrink-0 max-md:before:text-ink-subtle max-md:before:content-[attr(data-label)]')
+                    <flux:table.row wire:key="row-{{ $row->id }}" class="max-md:mb-4 max-md:rounded-card max-md:bg-surface-card max-md:p-4">
+                        <flux:table.cell class="md:max-w-60 md:whitespace-normal!">
+                            <a href="{{ route('admin.media.edit', $row->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control text-body text-ink hover:underline md:min-h-0">{{ $row->media->title }}</a>
+                            <span class="block text-meta text-ink-subtle">
+                                {{ $row->media->mediaType->name }}@if ($row->media->publication_year) · {{ $row->media->publication_year }}@endif
+                                @if ($row->media->creators->isNotEmpty()) · {{ $row->media->creators->pluck('name')->join(', ') }}@endif
+                            </span>
+                        </flux:table.cell>
+                        <flux:table.cell data-label="{{ __('Class') }}" class="{{ $cell }} md:max-w-52 md:whitespace-normal!">
+                            <span>
+                                <span class="text-ink">{{ $row->deweyClass->code }}</span>
+                                <span class="block text-meta text-ink-subtle md:block">{{ $row->deweyClass->name }}</span>
+                            </span>
+                        </flux:table.cell>
+                        <flux:table.cell data-label="{{ __('Confidence') }}" class="{{ $cell }} tabular-nums"><span title="{{ __(':percent% confidence', ['percent' => round($row->confidence * 100)]) }}">{{ round($row->confidence * 100) }}%</span></flux:table.cell>
+                        <flux:table.cell data-label="{{ __('Method') }}" class="{{ $cell }}">{{ __(ucfirst($row->classification_method->value)) }} · {{ __(ucfirst($row->classification_type->value)) }}</flux:table.cell>
+                        <flux:table.cell data-label="{{ __('Source') }}" class="{{ $cell }}">{{ $row->modelVersion ? __('Model :version', ['version' => $row->modelVersion->version]) : $row->source }}</flux:table.cell>
+                        <flux:table.cell data-label="{{ __('Status') }}" class="{{ $cell }}">
+                            <span>
+                                <flux:badge size="sm" :color="match ($row->review_status) { ReviewStatus::Accepted => 'green', ReviewStatus::Pending => 'amber', default => 'zinc' }" :icon="match ($row->review_status) { ReviewStatus::Accepted => 'check-circle', ReviewStatus::Pending => 'clock', default => 'x-circle' }">{{ __(ucfirst($row->review_status->value)) }}</flux:badge>
+                                @if ($row->reviewed_at)
+                                    <span class="mt-1 block text-legal text-ink-subtle">{{ __('Reviewed :date', ['date' => $row->reviewed_at->toFormattedDateString()]) }}</span>
+                                @endif
+                            </span>
+                        </flux:table.cell>
+                        <flux:table.cell class="max-md:mt-2">
+                            <div class="flex flex-wrap items-center gap-2 md:flex-nowrap md:justify-end">
+                                @if ($row->review_status !== ReviewStatus::Accepted)
+                                    <flux:button variant="filled" size="sm" class="focus-ring min-h-11" wire:click="accept({{ $row->id }})" :aria-label="__('Accept :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Accept') }}</flux:button>
+                                @endif
+                                @if ($row->review_status !== ReviewStatus::Rejected)
+                                    <flux:button variant="filled" size="sm" class="focus-ring min-h-11" wire:click="reject({{ $row->id }})" :aria-label="__('Reject :class for :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('Reject') }}</flux:button>
+                                @endif
+                                <flux:dropdown position="bottom" align="end">
+                                    <flux:button variant="filled" size="sm" icon:trailing="chevron-down" icon:variant="outline" class="focus-ring min-h-11" :aria-label="__('More actions for :class on :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('More') }}</flux:button>
 
-                    <flux:dropdown position="bottom" align="end">
-                        <flux:button variant="filled" size="sm" icon:trailing="chevron-down" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" :aria-label="__('More actions for :class on :title', ['class' => $subject, 'title' => $row->media->title])">{{ __('More') }}</flux:button>
+                                    <flux:menu>
+                                        <flux:menu.item icon="arrows-right-left" icon:variant="outline" class="focus-ring min-h-11" wire:click="openChange({{ $row->id }})">{{ __('Change class') }}</flux:menu.item>
+                                        <flux:menu.item icon="plus" icon:variant="outline" class="focus-ring min-h-11" wire:click="openAdd({{ $row->media_id }})">{{ __('Add class') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" icon:variant="outline" class="focus-ring min-h-11" wire:click="remove({{ $row->id }})" wire:confirm="{{ __('Remove :class from this story?', ['class' => $row->deweyClass->code]) }}">{{ __('Remove class') }}</flux:menu.item>
+                                    </flux:menu>
+                                </flux:dropdown>
+                            </div>
+                        </flux:table.cell>
+                    </flux:table.row>
+                @endforeach
+            </flux:table.rows>
+        </flux:table>
 
-                        <flux:menu>
-                            <flux:menu.item icon="plus" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="openAdd({{ $row->media_id }})">{{ __('Add class') }}</flux:menu.item>
-                            <flux:menu.item icon="trash" icon:variant="outline" class="focus-ring min-h-11 md:min-h-0" wire:click="remove({{ $row->id }})" wire:confirm="{{ __('Remove :class from this story?', ['class' => $row->deweyClass->code]) }}">{{ __('Remove class') }}</flux:menu.item>
-                        </flux:menu>
-                    </flux:dropdown>
-                </div>
-            </li>
-        @empty
-            <li><x-admin-empty class="rounded-card bg-surface-card" icon="check-circle" :title="__('Nothing to review here')" :description="__('Classes the sync suggests will queue up under Pending.')" /></li>
-        @endforelse
-    </ul>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-meta text-ink-subtle">{{ trans_choice(':count class|:count classes', $this->rows->total(), ['count' => Number::format($this->rows->total())]) }} · {{ __('lowest confidence first') }}</p>
+            <x-pager :paginator="$this->rows" class="justify-end" />
+        </div>
+    @endif
 
-    <div class="mt-6">
-        <x-pager :paginator="$this->rows" />
-    </div>
-
-    <flux:modal name="class-editor" class="w-full max-w-lg" aria-labelledby="class-editor-title">
-        <form wire:submit="save" class="space-y-6">
+    <flux:modal name="class-editor" class="w-full max-w-lg">
+        <form wire:submit="save" class="space-y-6" role="group" aria-labelledby="class-editor-title">
             <div>
                 <flux:heading size="lg" id="class-editor-title">{{ $mode === 'add' ? __('Add a class') : __('Change class') }}</flux:heading>
                 <flux:subheading>

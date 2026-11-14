@@ -34,13 +34,13 @@ test('explore and its class pages pass the audit, with stories and without', fun
     }
 })->with(['desktop', 'phone']);
 
-test('home passes the audit with an empty catalog, for a reader and for an admin', function (string $viewport, bool $admin) {
-    $this->actingAs($admin ? User::factory()->admin()->create() : User::factory()->create());
+test('home passes the audit with an empty catalog', function (string $viewport) {
+    $this->actingAs(User::factory()->create());
 
     visit('/home', $this->viewports[$viewport])->wait(1)
-        ->assertSee('The catalog is empty')->assertSee($admin ? 'Sync providers' : 'Set up your reading profile')
+        ->assertSee('The catalog is empty')->assertSee('Set up your reading profile')
         ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
-})->with(['desktop', 'phone'])->with([[false], [true]]);
+})->with(['desktop', 'phone']);
 
 test('a story with nothing but a title passes the audit', function (string $viewport) {
     $this->actingAs(User::factory()->create());

@@ -52,42 +52,44 @@ new #[Title('Media')] class extends Component {
 }; ?>
 
 <section class="py-8">
-    <x-admin-header :back="route('admin.index')" :title="__('Media')" :description="__('Every story in the catalog. Search for a title, then open it to correct its details or remove an invalid record.')" />
+    <x-admin-header :title="__('Media')" :description="__('Every story in the catalog. Search for a title, then open it to correct its details or remove an invalid record.')" />
 
     <x-admin-toolbar>
         <flux:input class="max-w-sm" type="search" icon="magnifying-glass" icon:variant="outline" wire:model.live.debounce.300ms="search" :placeholder="__('Search titles')" :aria-label="__('Search titles')" />
         <flux:checkbox wire:model.live="trashed" :label="__('Show removed and merged')" />
     </x-admin-toolbar>
 
-    <flux:table class="mt-6" :paginate="$this->media">
-        <flux:table.columns>
-            <flux:table.column>{{ __('Title') }}</flux:table.column>
-            <flux:table.column>{{ __('Type') }}</flux:table.column>
-            <flux:table.column>{{ __('Year') }}</flux:table.column>
-            <flux:table.column>{{ __('Locked fields') }}</flux:table.column>
-            <flux:table.column></flux:table.column>
-        </flux:table.columns>
+    <x-admin-table :label="__('Media')" class="mt-6">
+        <flux:table :paginate="$this->media">
+            <flux:table.columns>
+                <flux:table.column>{{ __('Title') }}</flux:table.column>
+                <flux:table.column>{{ __('Type') }}</flux:table.column>
+                <flux:table.column>{{ __('Year') }}</flux:table.column>
+                <flux:table.column>{{ __('Locked fields') }}</flux:table.column>
+                <flux:table.column></flux:table.column>
+            </flux:table.columns>
 
-        <flux:table.rows>
-            @forelse ($this->media as $item)
-                <flux:table.row wire:key="media-{{ $item->id }}">
-                    <flux:table.cell variant="strong">{{ $item->title }}</flux:table.cell>
-                    <flux:table.cell>{{ $item->mediaType->name }}</flux:table.cell>
-                    <flux:table.cell>{{ $item->publication_year }}</flux:table.cell>
-                    <flux:table.cell>{{ implode(', ', $item->locked_fields) ?: '—' }}</flux:table.cell>
-                    <flux:table.cell class="text-end">
-                        @if ($item->trashed())
-                            <flux:badge size="sm" color="zinc">{{ $item->merged_into_id ? __('Merged') : __('Removed') }}</flux:badge>
-                        @else
-                            <flux:button size="sm" variant="filled" icon="pencil-square" icon:variant="outline" :href="route('admin.media.edit', $item)" wire:navigate>{{ __('Edit') }}</flux:button>
-                        @endif
-                    </flux:table.cell>
-                </flux:table.row>
-            @empty
-                <flux:table.row>
-                    <flux:table.cell colspan="5"><x-admin-empty icon="book-open" :title="__('No media found')" :description="__('Try another title, or switch the removed and merged filter.')" /></flux:table.cell>
-                </flux:table.row>
-            @endforelse
-        </flux:table.rows>
-    </flux:table>
+            <flux:table.rows>
+                @forelse ($this->media as $item)
+                    <flux:table.row wire:key="media-{{ $item->id }}">
+                        <flux:table.cell variant="strong">{{ $item->title }}</flux:table.cell>
+                        <flux:table.cell>{{ $item->mediaType->name }}</flux:table.cell>
+                        <flux:table.cell>{{ $item->publication_year }}</flux:table.cell>
+                        <flux:table.cell>{{ implode(', ', $item->locked_fields) ?: '—' }}</flux:table.cell>
+                        <flux:table.cell class="text-end">
+                            @if ($item->trashed())
+                                <flux:badge size="sm" color="zinc">{{ $item->merged_into_id ? __('Merged') : __('Removed') }}</flux:badge>
+                            @else
+                                <flux:button size="sm" variant="filled" icon="pencil-square" icon:variant="outline" :href="route('admin.media.edit', $item)" wire:navigate>{{ __('Edit') }}</flux:button>
+                            @endif
+                        </flux:table.cell>
+                    </flux:table.row>
+                @empty
+                    <flux:table.row>
+                        <flux:table.cell colspan="5"><x-admin-empty icon="book-open" :title="__('No media found')" :description="__('Try another title, or switch the removed and merged filter.')" /></flux:table.cell>
+                    </flux:table.row>
+                @endforelse
+            </flux:table.rows>
+        </flux:table>
+    </x-admin-table>
 </section>

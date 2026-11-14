@@ -44,7 +44,7 @@ test('the discover item is current on every explore page', function (string $rou
 
 test('admins see the admin link in the user menu', function () {
     $this->actingAs(User::factory()->admin()->create())
-        ->get(route('home'))
+        ->get(route('admin.index'))
         ->assertSee('href="'.route('admin.index').'"', false);
 });
 

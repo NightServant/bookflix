@@ -14,7 +14,7 @@ Route::get('/', [LandingController::class, 'show'])->name('landing');
 // here (see Media::coverUrl), hence the roomy limit. Still not an open proxy (see the controller).
 Route::get('covers/{media}', [CoverController::class, 'show'])->middleware('throttle:600,1')->name('covers.show');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'reader'])->group(function () {
     // The one page a reader who has not onboarded is sent away from; everything else stays open to them (see EnsureOnboarded).
     Route::livewire('home', 'pages::home.index')->middleware('onboarded')->name('home');
     Route::livewire('onboarding', 'pages::onboarding.index')->name('onboarding');
@@ -43,7 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // A reader's data export: signed (24 hours), their own account only. The file name is a ULID by the route, so it can never be a path. Its own throttle bucket, like library.store.
 Route::get('exports/{user}/{file}', [ExportDownloadController::class, 'show'])
-    ->middleware(['auth', 'signed', 'throttle:30,1,exports'])
+    ->middleware(['auth', 'reader', 'signed', 'throttle:30,1,exports'])
     ->where(['user' => '[0-9]+', 'file' => ExportStorage::FILE_PATTERN])
     ->name('exports.download');
 

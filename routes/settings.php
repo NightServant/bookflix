@@ -9,8 +9,11 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::livewire('settings/preferences', 'pages::settings.preferences')->name('preferences.edit');
-    Route::livewire('settings/privacy', 'pages::settings.privacy')->name('privacy.edit');
+    // Reading preferences and the data export are a reader's; an admin keeps the profile and security pages.
+    Route::middleware('reader')->group(function () {
+        Route::livewire('settings/preferences', 'pages::settings.preferences')->name('preferences.edit');
+        Route::livewire('settings/privacy', 'pages::settings.privacy')->name('privacy.edit');
+    });
 
     Route::livewire('settings/security', 'pages::settings.security')
         ->middleware([

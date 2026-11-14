@@ -1,103 +1,97 @@
 <?php
 
-use App\Enums\DuplicateStatus;
-use App\Enums\ReviewStatus;
-use App\Models\DuplicateCandidate;
-use App\Models\ExternalSource;
-use App\Models\IngestionRun;
-use App\Models\Media;
-use App\Models\MediaDeweyClass;
-use App\Models\User;
-use Illuminate\Support\Facades\Cache;
+use App\Admin\AdminCounts;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Number;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Admin')] class extends Component {
+new #[Title('Overview')] class extends Component {
     public function boot(): void
     {
         Gate::authorize('access-admin');
     }
 
     /**
-     * The figures on the task cards: six small queries, kept for a minute so reloading the dashboard costs none.
+     * The figures on this page and in the sidebar's badges: a few small queries, kept for a minute so reloading costs none (see AdminCounts).
      *
-     * @return array{media: int, users: int, duplicates: int, classifications: int, sources: int, lastRun: ?array{status: string, at: string}}
+     * @return array{media: int, users: int, admins?: int, duplicates: int, classifications: int, sources: int, oldestDuplicate?: ?string, oldestClassification?: ?string, lastRun: ?array{status: string, at: string}}
      */
     #[Computed]
     public function counts(): array
     {
-        return Cache::remember('admin.dashboard-counts', 60, function (): array {
-            $lastRun = IngestionRun::query()->latest('started_at')->first(['status', 'started_at']);
+        return AdminCounts::get();
+    }
 
-            return [
-                'media' => Media::query()->count(),
-                'users' => User::query()->count(),
-                'duplicates' => DuplicateCandidate::query()->where('status', DuplicateStatus::Pending)->count(),
-                'classifications' => MediaDeweyClass::query()->where('review_status', ReviewStatus::Pending)->count(),
-                'sources' => ExternalSource::providers()->where('enabled', true)->count(),
-                'lastRun' => $lastRun ? ['status' => $lastRun->status->value, 'at' => $lastRun->started_at->diffForHumans()] : null,
-            ];
-        });
+    /**
+     * How long ago the oldest waiting item arrived, or a dash when nothing waits.
+     */
+    public function oldest(?string $at): string
+    {
+        return $at === null ? '—' : Carbon::parse($at)->diffForHumans();
     }
 }; ?>
 
 <section class="py-8">
-    <x-page-header :title="__('Admin')" :description="__('Run and review the catalog: sync providers, fix records, clear duplicates and manage users. Pick a task below.')" />
+    <x-admin-header :title="__('Overview')" :description="__('What is waiting for a decision, and how the catalog and its jobs are doing.')" />
 
     @php($counts = $this->counts)
 
-    <div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <x-admin-task
-            :href="route('admin.duplicates')"
-            icon="square-2-stack"
-            :title="__('Duplicate review')"
-            :description="__('Pairs the sync found similar but not certain. Merge them or keep both.')"
-            :stat="$counts['duplicates'] > 0 ? trans_choice(':count pair waiting|:count pairs waiting', $counts['duplicates'], ['count' => Number::format($counts['duplicates'])]) : __('All clear')"
-            :attention="$counts['duplicates'] > 0"
-        />
+    <h2 class="mt-10 text-section tracking-tight text-ink">{{ __('Needs attention') }}</h2>
 
-        <x-admin-task
-            :href="route('admin.classifications')"
-            icon="rectangle-group"
-            :title="__('Classification review')"
-            :description="__('Accept or reject the shelves the sync suggested, least confident first.')"
-            :stat="$counts['classifications'] > 0 ? __(':count to review', ['count' => Number::format($counts['classifications'])]) : __('All clear')"
-            :attention="$counts['classifications'] > 0"
-        />
+    <x-admin-table :label="__('Needs attention')" class="mt-4">
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>{{ __('Task') }}</flux:table.column>
+                <flux:table.column>{{ __('Waiting') }}</flux:table.column>
+                <flux:table.column>{{ __('Oldest') }}</flux:table.column>
+                <flux:table.column><span class="sr-only">{{ __('Action') }}</span></flux:table.column>
+            </flux:table.columns>
 
-        <x-admin-task
-            :href="route('admin.providers')"
-            icon="arrow-path"
-            :title="__('Providers and sync runs')"
-            :description="__('Turn metadata sources on or off and start a sync.')"
-            :stat="$counts['lastRun'] ? __('Last sync :status, :when', ['status' => $counts['lastRun']['status'], 'when' => $counts['lastRun']['at']]) : __('Never synced')"
-        />
+            <flux:table.rows>
+                <flux:table.row>
+                    <flux:table.cell>
+                        <span class="block text-ink">{{ __('Duplicate review') }}</span>
+                        <span class="block text-meta text-ink-subtle">{{ __('Pairs the sync found similar but not certain') }}</span>
+                    </flux:table.cell>
+                    <flux:table.cell class="tabular-nums">{{ $counts['duplicates'] > 0 ? trans_choice(':count pair waiting|:count pairs waiting', $counts['duplicates'], ['count' => Number::format($counts['duplicates'])]) : __('All clear') }}</flux:table.cell>
+                    <flux:table.cell>{{ $this->oldest($counts['oldestDuplicate'] ?? null) }}</flux:table.cell>
+                    <flux:table.cell class="text-end">
+                        <flux:button size="sm" variant="filled" class="min-h-11" :href="route('admin.duplicates')" wire:navigate :aria-label="__('Review duplicates')">{{ __('Review') }}</flux:button>
+                    </flux:table.cell>
+                </flux:table.row>
 
-        <x-admin-task
-            :href="route('admin.media.index')"
-            icon="book-open"
-            :title="__('Media')"
-            :description="__('Search the catalog, correct a record or remove an invalid one.')"
-            :stat="trans_choice(':count story|:count stories', $counts['media'], ['count' => Number::format($counts['media'])])"
-        />
+                <flux:table.row>
+                    <flux:table.cell>
+                        <span class="block text-ink">{{ __('Classification review') }}</span>
+                        <span class="block text-meta text-ink-subtle">{{ __('Classes suggested for a story, least confident first') }}</span>
+                    </flux:table.cell>
+                    <flux:table.cell class="tabular-nums">{{ $counts['classifications'] > 0 ? __(':count to review', ['count' => Number::format($counts['classifications'])]) : __('All clear') }}</flux:table.cell>
+                    <flux:table.cell>{{ $this->oldest($counts['oldestClassification'] ?? null) }}</flux:table.cell>
+                    <flux:table.cell class="text-end">
+                        <flux:button size="sm" variant="filled" class="min-h-11" :href="route('admin.classifications')" wire:navigate :aria-label="__('Review classifications')">{{ __('Review') }}</flux:button>
+                    </flux:table.cell>
+                </flux:table.row>
+            </flux:table.rows>
+        </flux:table>
+    </x-admin-table>
 
-        <x-admin-task
-            :href="route('admin.models')"
-            icon="cpu-chip"
-            :title="__('Models')"
-            :description="__('Recommendation model versions, the jobs that train them and the ML service.')"
-            :stat="__('Versions and runs')"
-        />
+    <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('At a glance') }}</h2>
 
-        <x-admin-task
-            :href="route('admin.users')"
-            icon="users"
-            :title="__('Users')"
-            :description="__('Everyone with an account, with their role and status.')"
-            :stat="trans_choice(':count person|:count people', $counts['users'], ['count' => Number::format($counts['users'])])"
-        />
-    </div>
+    <ul class="mt-4 divide-y divide-hairline rounded-card bg-surface-card">
+        @foreach ([
+            [__('Catalog'), trans_choice(':count story|:count stories', $counts['media'], ['count' => Number::format($counts['media'])]).' · '.trans_choice(':count enabled source|:count enabled sources', $counts['sources'], ['count' => $counts['sources']]), route('admin.media.index'), __('Open media')],
+            [__('Last sync'), $counts['lastRun'] ? __('Last sync :status, :when', ['status' => $counts['lastRun']['status'], 'when' => $counts['lastRun']['at']]) : __('Never synced'), route('admin.providers'), __('Open sync')],
+            [__('Models'), __('Versions, training jobs and the ML service'), route('admin.models'), __('Open models')],
+            [__('People'), isset($counts['admins']) ? trans_choice(':count account|:count accounts', $counts['users'], ['count' => Number::format($counts['users'])]).', '.trans_choice(':count admin|:count admins', $counts['admins'], ['count' => $counts['admins']]) : trans_choice(':count person|:count people', $counts['users'], ['count' => Number::format($counts['users'])]), route('admin.users'), __('Open users')],
+        ] as [$label, $line, $href, $action])
+            <li wire:key="glance-{{ $label }}" class="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+                <span class="w-40 shrink-0 text-body text-ink">{{ $label }}</span>
+                <span class="min-w-0 flex-1 text-body text-ink-subtle">{{ $line }}</span>
+                <flux:button size="sm" variant="filled" class="min-h-11" :href="$href" wire:navigate>{{ $action }}</flux:button>
+            </li>
+        @endforeach
+    </ul>
 </section>

@@ -174,15 +174,11 @@ test('the discover nav item opens this page and stays current on the explore pag
     }
 });
 
-test('an empty catalog explains itself, and only admins are offered the sync', function () {
+test('an empty catalog explains itself and offers no sync to a reader', function () {
     $this->actingAs(User::factory()->create())->get(route('discover'))
         ->assertOk()
         ->assertSee('The catalog is empty')
         ->assertDontSee('Sync providers');
-
-    $this->actingAs(User::factory()->admin()->create())->get(route('discover'))
-        ->assertSee('Sync providers')
-        ->assertSee(route('admin.providers'));
 });
 
 test('discover runs a bounded number of queries without lazy loading', function () {

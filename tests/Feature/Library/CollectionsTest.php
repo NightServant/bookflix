@@ -519,27 +519,6 @@ test('the details are validated', function () {
         ->set('description', '')->set('visibility', 'friends')->call('save')->assertHasErrors('visibility');
 });
 
-test('only admins can mark a collection editorial', function () {
-    $c = Collection::factory()->create();
-    Livewire::actingAs($c->user)->test('pages::collections.show', ['slug' => $c->slug])->set('isEditorial', true)->call('save');
-    expect($c->fresh()->is_editorial)->toBeFalse();
-
-    $admin = User::factory()->admin()->create();
-    $e = Collection::factory()->for($admin)->create();
-    Livewire::actingAs($admin)->test('pages::collections.show', ['slug' => $e->slug])->set('isEditorial', true)->call('save');
-    expect($e->fresh()->is_editorial)->toBeTrue();
-});
-
-test('the editorial switch is on the page for admins only', function () {
-    $c = Collection::factory()->create();
-
-    expect(Livewire::actingAs($c->user)->test('pages::collections.show', ['slug' => $c->slug])->html())->not->toContain('Show as an editor pick');
-
-    $admin = User::factory()->admin()->create();
-    $e = Collection::factory()->for($admin)->create();
-    expect(Livewire::actingAs($admin)->test('pages::collections.show', ['slug' => $e->slug])->html())->toContain('Show as an editor pick');
-});
-
 test('editorial collections are viewable by everyone, deleting a collection removes its items', function () {
     $c = Collection::factory()->create(['is_editorial' => true, 'visibility' => 'private']);
     $this->actingAs(User::factory()->create())->get(route('collections.show', $c->slug))->assertOk();

@@ -124,6 +124,31 @@ function primaryNavs(string $html): array
 }
 
 /**
+ * The admin sidebar navigation of a rendered page, as its items: label, href, whether it is the current one, and the count beside it (or null).
+ *
+ * @return list<array{label: string, href: string, current: bool, count: ?string}>
+ */
+function adminNav(string $html): array
+{
+    preg_match('#<nav[^>]*aria-label="Admin sections".*?</nav>#s', $html, $nav);
+
+    preg_match_all('#<a\b([^>]*)>(.*?)</a>#s', $nav[0] ?? '', $links, PREG_SET_ORDER);
+
+    return array_map(function (array $link): array {
+        preg_match('#href="([^"]*)"#', $link[1], $href);
+        preg_match('#data-content[^>]*>(.*?)</div>#s', $link[2], $label);
+        preg_match('#data-flux-navlist-badge>(.*?)</span>#s', $link[2], $count);
+
+        return [
+            'label' => trim(strip_tags($label[1] ?? '')),
+            'href' => $href[1] ?? '',
+            'current' => str_contains($link[1], 'aria-current="page"'),
+            'count' => isset($count[1]) ? trim(strip_tags($count[1])) : null,
+        ];
+    }, $links);
+}
+
+/**
  * A response the ML service and Laravel agree on (`tests/Fixtures/ml-contracts/`); the Python tests check the same files.
  *
  * @return array<string, mixed>

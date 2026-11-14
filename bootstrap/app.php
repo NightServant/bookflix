@@ -3,6 +3,7 @@
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureOnboarded;
+use App\Http\Middleware\EnsureReaderAccount;
 use App\Http\Middleware\SetSecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,7 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(AssignRequestId::class);
         $middleware->append(SetSecurityHeaders::class);
         $middleware->appendToGroup('web', EnsureAccountIsActive::class);
-        $middleware->alias(['onboarded' => EnsureOnboarded::class]);
+        $middleware->alias(['onboarded' => EnsureOnboarded::class, 'reader' => EnsureReaderAccount::class]);
+        $middleware->redirectUsersTo(fn (Request $request) => $request->user()?->homePath());
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
