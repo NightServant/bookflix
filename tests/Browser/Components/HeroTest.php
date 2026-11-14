@@ -81,13 +81,19 @@ test('the new title rises word by word out of its mask, and the cards glide one 
 
     // On the first frame the new slide is on screen its last word (80ms stagger) is still low; the sliding cards are mid-flight soon after.
     $page->assertScript('(async () => {
-        // Alpine renders the cards: on a busy machine they can arrive after the one-second wait, so wait for the card (up to ~5s) before clicking.
+        // Click the first card in Up next and follow its slide (not a fixed one), waiting up to ~5s for Alpine to render the cards. If none
+        // arrives, fail with what the page held instead of a bare null.
         let card = null;
-        for (let frame = 0; frame < 300 && !(card = document.querySelector(\'ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]\')); frame++) {
+        for (let frame = 0; frame < 300 && !(card = document.querySelector(\'ul[aria-label="Up next"] [data-card] button\')); frame++) {
             await new Promise(requestAnimationFrame);
         }
+        if (!card) {
+            const list = document.querySelector(\'ul[aria-label="Up next"]\');
+            throw new Error("No Up next card: " + JSON.stringify({ ready: document.readyState, alpine: !!window.Alpine, list: list ? list.outerHTML.slice(0, 300) : null }));
+        }
+        const target = card.getAttribute("aria-label").replace(/^Show /, "");
         card.click();
-        const article = document.querySelector(\'article[data-slide="1"]\');
+        const article = Array.from(document.querySelectorAll("main article[data-slide]")).find((a) => a.querySelector("h1").textContent.replace(/\\s+/g, " ").trim() === target);
         for (let frame = 0; frame < 60 && article.offsetParent === null; frame++) {
             await new Promise(requestAnimationFrame);
         }
