@@ -56,6 +56,11 @@ new #[Title('Compare model versions')] class extends Component {
                 'accuracy' => ['label' => __('Accuracy'), 'decimals' => 3],
                 'baseline' => ['label' => __('Baseline'), 'decimals' => 3],
             ],
+            // Embedding models are not evaluated: a full embedding run records what it embedded and promotes its own version.
+            'embedding' => [
+                'n_media' => ['label' => __('Stories'), 'decimals' => 0],
+                'embedded' => ['label' => __('Embedded in the run'), 'decimals' => 0],
+            ],
             'ltr' => [
                 'ndcg@10' => ['label' => __('NDCG@10'), 'decimals' => 3],
                 'hybrid_ndcg@10' => ['label' => __('Hybrid NDCG@10'), 'decimals' => 3],
@@ -100,8 +105,20 @@ new #[Title('Compare model versions')] class extends Component {
         return [
             'labels' => $versions->map(fn (ModelVersion $version): string => ($version->trained_at ?? $version->created_at)?->format('M j') ?? '')->all(),
             'values' => collect($this->metrics)->map(fn (array $metric, string $key): array => $versions->map(fn (ModelVersion $version): ?float => $this->value($version, $key))->all())->all(),
-            'promoted' => $versions->map(fn (ModelVersion $version): bool => ($version->metrics['promoted'] ?? false) === true)->all(),
+            'promoted' => $versions->map(fn (ModelVersion $version): bool => $this->wasPromoted($version))->all(),
         ];
+    }
+
+    /**
+     * Whether the version was promoted: what its evaluation recorded, or, for an embedding model (never evaluated), a finished full run.
+     */
+    public function wasPromoted(ModelVersion $version): bool
+    {
+        if (array_key_exists('promoted', $version->metrics)) {
+            return $version->metrics['promoted'] === true;
+        }
+
+        return $this->name === 'embedding' && isset($version->metrics['mode']) && in_array($version->status, [ModelStatus::Active, ModelStatus::Retired], true);
     }
 
     public function value(ModelVersion $version, string $key): ?float
@@ -141,6 +158,7 @@ new #[Title('Compare model versions')] class extends Component {
         return match (true) {
             ($metrics['promoted'] ?? null) === true => __('Promoted'),
             ($metrics['promoted'] ?? null) === false => $reason ? __('Not promoted: :reason', ['reason' => $reason]) : __('Not promoted'),
+            $this->wasPromoted($version) => __('Promoted by its own full run (embedding models are not evaluated)'),
             $version->status === ModelStatus::Training => __('Training'),
             $this->statusLabel($version) === __('Failed') => __('Training failed, no metrics'),
             default => __('Not evaluated yet'),

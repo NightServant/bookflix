@@ -149,7 +149,7 @@ test('the models page splits the metrics into columns and names a skipped run', 
     $this->get(route('admin.models'))->assertOk()
         ->assertSee('NDCG@10')->assertSee('Coverage')->assertSee('0.123')->assertSee('0.500')
         ->assertSee('Outcome')->assertSee('Skipped')->assertSee('Skipped: too few accepted primaries (40 of 100)')
-        ->assertDontSee('Compare versions');
+        ->assertSee('Compare versions');
 });
 
 function classified_pending_for_overview(): void

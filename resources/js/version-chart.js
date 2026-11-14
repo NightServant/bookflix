@@ -22,7 +22,8 @@ export default function versionChart(Alpine) {
                 const { drawVersionChart } = await import('./charts.js');
                 this.drawChart = drawVersionChart;
                 this.render();
-                this.$watch('metric', () => this.render());
+                // Render after Alpine has shown the canvas (x-show), so Chart.js measures a visible box.
+                this.$watch('metric', () => this.$nextTick(() => this.render()));
             },
 
             render() {

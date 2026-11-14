@@ -120,3 +120,15 @@ test('the page re-authorizes on every request', function () {
 
     $page->call('$refresh')->assertForbidden();
 });
+
+test('an embedding model, which is never evaluated, shows what its runs embedded and says its full runs promoted it', function () {
+    ModelVersion::factory()->create(['name' => 'embedding', 'kind' => ModelKind::Embedding, 'status' => ModelStatus::Retired, 'trained_at' => '2026-10-01 00:00', 'metrics' => ['mode' => 'full', 'embedded' => 1200, 'n_media' => 1200]]);
+    ModelVersion::factory()->create(['name' => 'embedding', 'kind' => ModelKind::Embedding, 'status' => ModelStatus::Active, 'trained_at' => '2026-11-01 00:00', 'metrics' => ['mode' => 'full', 'embedded' => 1310, 'n_media' => 1310]]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    $page = Livewire::test('pages::admin.models.compare', ['name' => 'embedding'])
+        ->assertSee('Stories')->assertSee('1,310')->assertSee('Promoted by its own full run (embedding models are not evaluated)')
+        ->assertDontSee('Not evaluated yet')->assertDontSee('NDCG@10');
+
+    expect($page->instance()->series['promoted'])->toBe([true, true]);
+});
