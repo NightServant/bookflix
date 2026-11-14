@@ -4,6 +4,7 @@ use App\Models\Genre;
 use App\Models\Media;
 use App\Models\User;
 use Database\Seeders\MediaTypeSeeder;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->seed(MediaTypeSeeder::class);
@@ -97,4 +98,42 @@ test('on a phone the filter sheet applies nothing until Apply filters, and close
         ->assertScript($isOpen, false)
         ->assertScript($this->chips, 'Comic Book')
         ->assertNoJavaScriptErrors();
+});
+
+test('the chips for what the search understood work from the keyboard and pass the shared checks', function () {
+    Media::query()->update(['search_text' => DB::raw("search_text || ' fantasy manga'")]);
+    $applied = "ul[aria-label='From your search'] button";
+    $suggested = "ul[aria-label='Narrow by'] button";
+    $names = fn (string $selector): string => 'Array.from(document.querySelectorAll("'.$selector.'")).map((button) => button.getAttribute("aria-label")).join("|")';
+    $page = visit(route('search', ['q' => 'fantasy manga dune']), $this->desktop)->wait(1);
+
+    $page->assertScript($names($applied), 'Remove Manga from your search|Remove Fantasy from your search')
+        ->assertScript($this->count, '1 story')
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues()
+        ->script('document.querySelector("button[aria-label=\'Remove Fantasy from your search\']").focus()');
+
+    $page->keys("button[aria-label='Remove Fantasy from your search']", ['Enter'])->wait(1.5)
+        ->assertScript($names($applied), 'Remove Manga from your search')
+        ->assertScript($names($suggested), 'Filter by Fantasy')
+        ->assertScript($this->count, '2 stories')
+        ->assertNoAccessibilityIssues()
+        ->keys($suggested, ['Enter'])->wait(1.5)
+        ->assertScript($this->chips, 'Fantasy')
+        ->assertScript($this->count, '1 story')
+        ->assertNoJavaScriptErrors();
+});
+
+test('the chips wrap on a phone and pass the shared checks', function () {
+    Media::query()->update(['search_text' => DB::raw("search_text || ' fantasy manga'")]);
+    $page = visit(route('search', ['q' => 'fantasy manga dune']), ['viewport' => ['width' => 390, 'height' => 844]])->wait(1);
+
+    $page->assertScript('document.querySelectorAll("ul[aria-label=\'From your search\'] button").length', 2)
+        ->assertScript('Array.from(document.querySelectorAll("ul[aria-label=\'From your search\'] button")).every((button) => button.getBoundingClientRect().height + 8 >= 44)', true)
+        ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true)
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues()
+        ->click('button[aria-label="Remove Manga from your search"]')->wait(1.5)
+        ->assertScript('document.querySelectorAll("ul[aria-label=\'Narrow by\'] button").length', 1)
+        ->assertNoAccessibilityIssues();
 });

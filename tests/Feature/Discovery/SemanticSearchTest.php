@@ -306,3 +306,35 @@ test('a query naming prohibited content never reaches the semantic leg', functio
     'no intent' => [null],
     'intent text' => [new QueryIntent(semanticText: 'robot story')],
 ]);
+
+test('the results say when the semantic leg found a story no other leg did', function () {
+    fakeEmbedding(unitVector([0 => 1.0, 2 => 0.1]));
+
+    expect(semanticSearch('sad machine who feels')->includesSemanticMatches)->toBeTrue();
+});
+
+test('the results do not claim a semantic match when the text legs found every story', function () {
+    config(['bookflix.search.semantic_min_similarity' => 0.60]);
+    fakeEmbedding(unitVector([1 => 1.0, 0 => 0.95]));
+
+    $results = semanticSearch('berserk');
+
+    expect($results->pluck('title')->all())->toBe(['Berserk', 'A lonely robot learns to love'])->and($results->includesSemanticMatches)->toBeTrue();
+
+    $this->robot->delete();
+
+    expect(semanticSearch('berserk')->includesSemanticMatches)->toBeFalse();
+});
+
+test('the semantic flag is false whenever the leg did not run', function () {
+    Http::fake(fn () => throw new ConnectionException('Operation timed out'));
+    expect(semanticSearch('berserk')->includesSemanticMatches)->toBeFalse();
+
+    Cache::flush();
+    config(['services.ml.token' => '']);
+    expect(semanticSearch('sad machine who feels')->includesSemanticMatches)->toBeFalse();
+
+    config(['services.ml.token' => str_repeat('s', 32)]);
+    $this->version->update(['status' => ModelStatus::Retired]);
+    expect(semanticSearch('sad machine who feels')->includesSemanticMatches)->toBeFalse();
+});

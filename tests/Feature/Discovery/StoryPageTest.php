@@ -9,6 +9,7 @@ use App\Models\ExternalSource;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\MediaExternalId;
+use App\Models\MediaSummary;
 use App\Models\Series;
 use App\Models\Theme;
 use App\Models\User;
@@ -324,11 +325,11 @@ test('the story page runs a bounded number of queries', function () {
     $this->actingAs(User::factory()->create());
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
-    // Three of the 29 are the controls': the reader's rating, their library entry, and their collections (with whether each holds this story); one is the types the story also is.
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(29);
+    // Three of the 30 are the controls': the reader's rating, their library entry, and their collections (with whether each holds this story); one is the types the story also is; one is the summary.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(30);
 });
 
-test('the story page runs at most twenty five queries once the similar ids are cached', function () {
+test('the story page runs at most twenty six queries once the similar ids are cached', function () {
     Queue::fake();
     $m = fullMedia();
     $this->actingAs(User::factory()->create());
@@ -338,8 +339,8 @@ test('the story page runs at most twenty five queries once the similar ids are c
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
 
-    // One of the twenty five is the mature access gate (whether this story is behind it for the reader), another the reader's rating, another their library entry, another their collections, another the types the story also is.
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25);
+    // One of the twenty six is the mature access gate (whether this story is behind it for the reader), another the reader's rating, another their library entry, another their collections, another the types the story also is, another the summary.
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(26);
 });
 
 test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {
@@ -404,7 +405,7 @@ test('a story in a 300 volume series hydrates at most eleven volumes and stays w
         ->assertSee('All 300 volumes')
         ->assertSeeInOrder([$volumes[148]->title, $volumes[150]->title]);
 
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(25)
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(26)
         ->and(count(array_diff(array_keys($hydrated), $shelf)))->toBeLessThanOrEqual(11);
 });
 
@@ -416,4 +417,50 @@ test('the breadcrumb keeps its middle crumbs for a desktop and collapses them be
     // Two ancestors, each hidden below `sm`, and one ellipsis item that only shows there.
     expect(htmlQuery($html, '//nav[@aria-label="Breadcrumb"]//li[contains(@class,"sm:flex")][.//a]')->length)->toBe(2)
         ->and(htmlQuery($html, '//nav[@aria-label="Breadcrumb"]//li[contains(@class,"sm:hidden")][normalize-space()="…"]')->length)->toBe(1);
+});
+
+const LONG_DESCRIPTION = 'Bored on a riverbank, young Alice tumbles down a rabbit hole. She grows and shrinks, argues with a caterpillar and sits through a tea party that never ends.';
+
+test('a current summary leads the story and the full description is one tap away', function () {
+    $m = Media::factory()->create(['description' => LONG_DESCRIPTION]);
+    MediaSummary::factory()->create(['media_id' => $m->id, 'summary' => 'Alice falls down a rabbit hole.', 'source_hash' => hash('sha256', LONG_DESCRIPTION)]);
+
+    $html = $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertOk()->getContent();
+
+    $button = htmlQuery($html, '//button[normalize-space(.)="Read the full description"]');
+    $controls = $button->item(0)?->getAttribute('aria-controls');
+
+    expect($html)->toContain('Alice falls down a rabbit hole.')
+        ->and($button->length)->toBe(1)
+        ->and($button->item(0)->getAttribute('aria-expanded'))->toBe('false')
+        ->and(htmlQuery($html, '//*[@id="'.$controls.'"]')->item(0)?->textContent)->toContain('tumbles down a rabbit hole')
+        ->and($html)->not->toContain('id="clamp-')
+        ->and(strtolower($html))->not->toContain('ai-generated');
+});
+
+test('a summary of a changed description is not shown', function () {
+    $m = Media::factory()->create(['description' => LONG_DESCRIPTION]);
+    MediaSummary::factory()->create(['media_id' => $m->id, 'summary' => 'Stale words about something else.', 'source_hash' => hash('sha256', 'an older description')]);
+
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))
+        ->assertOk()
+        ->assertDontSee('Stale words')
+        ->assertDontSee('Read the full description')
+        ->assertSee('tumbles down a rabbit hole');
+});
+
+test('a story with no summary shows its description as before', function () {
+    $m = Media::factory()->create(['description' => LONG_DESCRIPTION]);
+
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))
+        ->assertOk()
+        ->assertDontSee('Read the full description')
+        ->assertSee('tumbles down a rabbit hole');
+});
+
+test('a summary without a description is not shown', function () {
+    $m = Media::factory()->create(['description' => null]);
+    MediaSummary::factory()->create(['media_id' => $m->id, 'summary' => 'Orphan summary words.', 'source_hash' => hash('sha256', '')]);
+
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $m->slug))->assertOk()->assertDontSee('Orphan summary words.');
 });

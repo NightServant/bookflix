@@ -588,6 +588,16 @@ class Media extends Model
     }
 
     /**
+     * The extractive summary of the description, when the summarize job has written one (see MediaSummary).
+     *
+     * @return HasOne<MediaSummary, $this>
+     */
+    public function summary(): HasOne
+    {
+        return $this->hasOne(MediaSummary::class);
+    }
+
+    /**
      * @return HasMany<MediaExternalId, $this>
      */
     public function externalIds(): HasMany
