@@ -81,7 +81,12 @@ test('the new title rises word by word out of its mask, and the cards glide one 
 
     // On the first frame the new slide is on screen its last word (80ms stagger) is still low; the sliding cards are mid-flight soon after.
     $page->assertScript('(async () => {
-        document.querySelector(\'ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]\').click();
+        // Alpine renders the cards: on a busy machine they can arrive after the one-second wait, so wait for the card (up to ~5s) before clicking.
+        let card = null;
+        for (let frame = 0; frame < 300 && !(card = document.querySelector(\'ul[aria-label="Up next"] [aria-label="Show Slide Title 2"]\')); frame++) {
+            await new Promise(requestAnimationFrame);
+        }
+        card.click();
         const article = document.querySelector(\'article[data-slide="1"]\');
         for (let frame = 0; frame < 60 && article.offsetParent === null; frame++) {
             await new Promise(requestAnimationFrame);
