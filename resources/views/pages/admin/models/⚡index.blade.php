@@ -16,11 +16,14 @@ new #[Title('Models')] class extends Component {
     /** The pipelines an admin can start: name and icon. */
     private const PIPELINES = [
         'item-cf' => ['Readers also read', 'arrow-path'],
+        'als' => ['Similar readers', 'users'],
         'lsa' => ['Text similarity', 'document-text'],
         'popularity' => ['Popularity', 'fire'],
         'embed' => ['Embeddings and summaries', 'sparkles'],
         'embedding-similarities' => ['Semantic similarity', 'light-bulb'],
         'dewey-classifier' => ['Dewey classifier', 'book-open'],
+        'ltr' => ['Learned ranking', 'chart-bar'],
+        'ltr-scores' => ['Score learned ranking', 'calculator'],
     ];
 
     public function boot(): void
@@ -124,7 +127,7 @@ new #[Title('Models')] class extends Component {
     </div>
 
     <h2 class="mt-10 text-section tracking-tight text-ink">{{ __('Run now') }}</h2>
-    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity, embeddings and summaries hourly, readers also read and semantic similarity nightly, text similarity and the Dewey classifier weekly.') }}</p>
+    <p class="mt-1 text-meta text-ink-subtle">{{ __('These also run on a schedule: popularity, embeddings and summaries hourly, readers also read, similar readers and semantic similarity nightly, text similarity, the Dewey classifier and the learned ranking weekly. Learned ranking is scored nightly after its candidates are exported.') }}</p>
 
     <div class="mt-4 flex flex-wrap gap-2">
         @foreach ($this->pipelines as $key => [$name, $icon])
@@ -140,8 +143,13 @@ new #[Title('Models')] class extends Component {
         @endforeach
     </div>
 
-    <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('Model versions') }}</h2>
-    <p class="mt-1 text-meta text-ink-subtle">{{ __('Newest first. Only the active version of each name serves readers.') }}</p>
+    <div class="mt-12 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div>
+            <h2 class="text-section tracking-tight text-ink">{{ __('Model versions') }}</h2>
+            <p class="mt-1 text-meta text-ink-subtle">{{ __('Newest first. Only the active version of each name serves readers.') }}</p>
+        </div>
+        <flux:button variant="filled" size="sm" class="focus-ring min-h-11" icon="chart-bar" icon:variant="outline" :href="route('admin.models.compare')" wire:navigate data-test="compare-versions">{{ __('Compare versions') }}</flux:button>
+    </div>
 
     <x-admin-table :label="__('Model versions')" class="mt-4">
         <flux:table>

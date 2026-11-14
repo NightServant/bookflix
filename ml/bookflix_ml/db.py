@@ -90,6 +90,17 @@ def fetch_interactions(conn: Conn) -> Iterator[tuple[int, int, str, float | None
             yield int(r[0]), int(r[1]), str(r[2]), None if r[3] is None else float(r[3]), r[4]
 
 
+def fetch_media_genres(conn: Conn, media_ids: set[int]) -> dict[int, set[int]]:
+    """The genre ids of each of `media_ids` that has any."""
+    genres: dict[int, set[int]] = {}
+    for media_id, genre_id in conn.execute(
+        "select media_id, genre_id from media_genres where media_id = any(%s)", (sorted(media_ids),)
+    ).fetchall():
+        genres.setdefault(int(media_id), set()).add(int(genre_id))
+
+    return genres
+
+
 def fetch_interaction_weights(conn: Conn) -> dict[str, Any]:
     """The active `interaction-weights` version's parameters over the built-in defaults (a key it lacks keeps its default)."""
     row = conn.execute(

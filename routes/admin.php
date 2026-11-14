@@ -14,5 +14,6 @@ Route::middleware(['auth', 'verified', 'can:access-admin'])
         Route::livewire('classifications', 'pages::admin.classifications.index')->name('classifications');
         Route::livewire('staff-picks', 'pages::admin.staff-picks.index')->name('staff-picks');
         Route::livewire('models', 'pages::admin.models.index')->name('models');
+        Route::livewire('models/compare/{name?}', 'pages::admin.models.compare')->name('models.compare');
         Route::livewire('users', 'pages::admin.users.index')->name('users');
     });

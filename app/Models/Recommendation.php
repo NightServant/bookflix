@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property int $media_id
  * @property string $shelf
+ * @property int|null $position
  * @property float $score
  * @property ReasonType $reason_type
  * @property int|null $reason_media_id
@@ -29,7 +30,7 @@ use Illuminate\Support\Carbon;
  * @property int $model_version_id
  * @property Carbon $generated_at
  */
-#[Fillable(['user_id', 'media_id', 'shelf', 'score', 'reason_type', 'reason_media_id', 'reason_payload', 'model_version_id', 'generated_at'])]
+#[Fillable(['user_id', 'media_id', 'shelf', 'position', 'score', 'reason_type', 'reason_media_id', 'reason_payload', 'model_version_id', 'generated_at'])]
 class Recommendation extends Model
 {
     /** @use HasFactory<RecommendationFactory> */

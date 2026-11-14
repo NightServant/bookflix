@@ -89,7 +89,7 @@ test('run now is refused with a message while that pipeline is running, and its 
         ->call('runNow', 'lsa')->assertDispatched('toast-show', fn (string $event, array $params) => str_contains(json_encode($params), 'already running'));
     Bus::assertDispatchedTimes(RunMlJob::class, 1);
 
-    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'lsa' => true, 'popularity' => false, 'embed' => false, 'embedding-similarities' => false, 'dewey-classifier' => false]);
+    expect(Livewire::test('pages::admin.models.index')->instance()->running)->toBe(['item-cf' => false, 'als' => false, 'lsa' => true, 'popularity' => false, 'embed' => false, 'embedding-similarities' => false, 'dewey-classifier' => false, 'ltr' => false, 'ltr-scores' => false]);
 });
 
 test('run now is refused once the reader is no longer an admin', function () {
@@ -125,4 +125,23 @@ test('a run that skipped for too little data shows why', function () {
     Livewire::test('pages::admin.models.index')
         ->assertSee('Skipped: too few accepted primaries (40 of 100)')
         ->assertDontSee('Skipped: embedding');
+});
+
+test('run now queues the als pipeline with its data gate', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Similar readers')->call('runNow', 'als');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'train-als' && $job->params === ['min_interactions' => 5000, 'min_users' => 200] && $job->pipeline === 'als');
+});
+
+test('run now queues the learned ranking pipelines', function () {
+    Bus::fake([RunMlJob::class]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.models.index')->assertSee('Run Learned ranking')->call('runNow', 'ltr')->call('runNow', 'ltr-scores');
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'train-ltr' && $job->params === ['min_labeled' => 50000] && $job->pipeline === 'ltr');
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'score-ltr' && $job->pipeline === 'ltr-scores');
 });

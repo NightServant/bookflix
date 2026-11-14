@@ -6,20 +6,25 @@ import threading
 import uuid
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import numpy as np
+import pandas as pd
 from psycopg.types.json import Jsonb
 
 from app.settings import get_settings
 from bookflix_ml import (
+    als,
     artifacts,
     db,
     dewey,
     embeddings,
     evaluate,
+    impressions,
     item_cf,
     lsa,
+    ltr,
     popularity,
     registry,
     similarities,
@@ -184,8 +189,220 @@ def run_train_item_cf(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     return {**counts, "n_items_with_neighbors": len(neighbors), "version_id": version_id}
 
 
+def run_train_als(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Fit ALS item factors on the eligible readers' decayed interactions and store them as a `candidate` `als` version.
+
+    The data gate (`min_interactions` and `min_users` params) runs before any version exists: below it the job succeeds with `skipped`
+    (reason, have, need) and creates nothing, and Laravel keeps serving what it did. Hyper-parameters are `als`'s defaults, recorded in
+    the version's parameters with the counts. Only the artifact is written here; the neighbors reach `media_similarities` in
+    `build-similarities`. A failure retires the version.
+    """
+    weights = db.fetch_interaction_weights(conn)
+    scores = item_cf.interaction_scores(db.fetch_interactions(conn), weights, datetime.now(UTC))
+    try:
+        als.check_gates(
+            scores,
+            int(params.get("min_interactions", als.MIN_INTERACTIONS)),
+            int(params.get("min_users", als.MIN_USERS)),
+        )
+    except als.NotEnoughData as e:
+        return {"skipped": e.skipped}
+
+    counts = {
+        "n_users": len({u for u, _ in scores}),
+        "n_items": len({i for _, i in scores}),
+        "n_interactions": len(scores),
+    }
+    parameters = {
+        "weights": weights,
+        "factors": als.FACTORS,
+        "regularization": als.REGULARIZATION,
+        "iterations": als.ITERATIONS,
+        "seed": als.SEED,
+        **counts,
+    }
+    version_id, version = registry.create_version(
+        conn, "als", "als", parameters, "user_interactions:eligible"
+    )
+    conn.commit()
+
+    try:
+        model = als.train(scores, als.FACTORS, als.REGULARIZATION, als.ITERATIONS, als.SEED)
+        uri = artifacts.save(
+            {"item_ids": model.item_ids, "item_factors": model.item_factors}, "als", version
+        )
+        registry.finish_version(conn, version_id, "candidate", counts, uri)
+        conn.commit()
+    except BaseException as e:
+        conn.rollback()
+        registry.finish_version(conn, version_id, "retired", {"error": str(e) or type(e).__name__})
+        conn.commit()
+        raise
+
+    return {**counts, "version_id": version_id}
+
+
+def run_train_ltr(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Train the LambdaMART ranker on the labeled impressions of eligible readers and store it as a `candidate` `ltr` version.
+
+    The data gate (`min_labeled` param, default `ltr.MIN_LABELED`) counts the impressions left after `ltr.clean` drops the ones with a missing
+    feature, so training never runs on fewer than the gate; it runs before any version exists, and so does the check that the
+    impressions can be split in time: either failing makes the job succeed with `skipped` (reason, have, need) and create nothing. Promotion
+    is `evaluate`'s: nothing is promoted here. A failure retires the version.
+    """
+    frame = impressions.fetch_labeled(conn)
+    try:
+        usable = ltr.clean(frame)[0]
+        ltr.check_gates(len(usable), int(params.get("min_labeled", ltr.MIN_LABELED)))
+        ltr.split(usable)
+    except ltr.NotEnoughData as e:
+        return {"skipped": e.skipped}
+
+    parameters = {
+        **{k: v for k, v in ltr.PARAMS.items() if k != "eval_at"},
+        "rounds": ltr.ROUNDS,
+        "window_days": impressions.WINDOW_DAYS,
+        "features": ltr.MODEL_FEATURES,
+        "n_labeled": len(frame),
+    }
+    version_id, version = registry.create_version(
+        conn, "ltr", "ltr", parameters, "recommendations:labeled"
+    )
+    conn.commit()
+
+    try:
+        model = ltr.train(frame)
+        uri = artifacts.save(ltr.to_artifact(model), "ltr", version)
+        metrics = {
+            "n_labeled": len(frame),
+            "n_train": model.n_train,
+            "n_validation": model.n_validation,
+            "n_dropped": model.n_dropped,
+        }
+        registry.finish_version(conn, version_id, "candidate", metrics, uri)
+        conn.commit()
+    except BaseException as e:
+        conn.rollback()
+        registry.finish_version(conn, version_id, "retired", {"error": str(e) or type(e).__name__})
+        conn.commit()
+        raise
+
+    return {**metrics, "version_id": version_id}
+
+
+SCORE_CHUNK = 500
+
+
+def run_score_ltr(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
+    """Score the exported candidates of the readers who have fresh ones with the active `ltr` version, into `ltr_scores`.
+
+    Only candidates newer than `ltr.FRESH_HOURS` are read. The position of every row is set to one constant, so it cannot influence the
+    order. A reader's rows are replaced as a whole, in chunks of readers; scores of readers who are no longer eligible (deactivated, or
+    personalization off) and scores of any other version go. With no active version nothing is scored and every score goes.
+    """
+    active = registry.active_version(conn, "ltr")
+    if active is None:
+        removed = conn.execute("delete from ltr_scores").rowcount
+        conn.commit()
+
+        return {"scored": 0, "removed": removed, "reason": "no active version"}
+
+    row = conn.execute(
+        "select artifact_uri from model_versions where id = %s", (active[0],)
+    ).fetchone()
+    if row is None or row[0] is None:
+        raise RuntimeError("The active ltr version has no artifact.")
+    model = ltr.from_artifact(artifacts.load(row[0]))
+
+    cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=ltr.FRESH_HOURS)
+    candidates = conn.execute(
+        """
+        select c.user_id, c.media_id, c.features
+        from ltr_candidates c
+        join users u on u.id = c.user_id
+        left join profiles p on p.user_id = u.id
+        join media m on m.id = c.media_id
+        where c.generated_at >= %s and u.deactivated_at is null and coalesce(p.personalization_enabled, true)
+            and m.deleted_at is null and m.merged_into_id is null
+        order by c.user_id, c.media_id
+        """,
+        (cutoff,),
+    ).fetchall()
+
+    by_user: dict[int, list[tuple[int, dict[str, Any]]]] = {}
+    for user_id, media_id, features in candidates:
+        by_user.setdefault(int(user_id), []).append((int(media_id), features or {}))
+
+    scored = skipped = 0
+    users = list(by_user)
+    for start in range(0, len(users), SCORE_CHUNK):
+        chunk = users[start : start + SCORE_CHUNK]
+        flat = [(u, m, f) for u in chunk for m, f in by_user[u]]
+        frame = pd.DataFrame(
+            [
+                {name: _number(f.get(name)) for name in impressions.FEATURES} | {"position": 0.0}
+                for _, _, f in flat
+            ],
+            columns=ltr.MODEL_FEATURES,
+        )
+        finite = np.isfinite(frame.to_numpy(dtype=float)).all(axis=1)
+        skipped += int((~finite).sum())
+        values = ltr.score(model, frame[finite]) if finite.any() else np.empty(0)
+        rows = [
+            (flat[i][0], flat[i][1], float(v), active[0])
+            for i, v in zip(np.flatnonzero(finite), values, strict=True)
+        ]
+
+        try:
+            conn.execute("delete from ltr_scores where user_id = any(%s)", (chunk,))
+            with conn.cursor() as cur:
+                cur.executemany(
+                    "insert into ltr_scores (user_id, media_id, score, model_version_id, generated_at) values (%s, %s, %s, %s, now() at time zone 'utc')",
+                    rows,
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        scored += len(rows)
+
+    removed = conn.execute(
+        """
+        delete from ltr_scores s
+        where s.model_version_id <> %s
+            or not exists (
+                select 1 from users u left join profiles p on p.user_id = u.id
+                where u.id = s.user_id and u.deactivated_at is null and coalesce(p.personalization_enabled, true)
+            )
+        """,
+        (active[0],),
+    ).rowcount
+    conn.commit()
+
+    return {
+        "scored": scored,
+        "readers": len(users),
+        "skipped_rows": skipped,
+        "removed": removed,
+        "version_id": active[0],
+    }
+
+
+def _number(value: Any) -> float:
+    return (
+        float(value)
+        if isinstance(value, int | float) and not isinstance(value, bool)
+        else float("nan")
+    )
+
+
 # The `model_versions.name` each similarity method's rows are built from.
-SIMILARITY_VERSIONS = {"lsa": "lsa", "item_cf": "item-cf", "embedding": "embedding"}
+SIMILARITY_VERSIONS = {
+    "lsa": "lsa",
+    "item_cf": "item-cf",
+    "embedding": "embedding",
+    "als": "als",
+}
 
 
 def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
@@ -236,6 +453,14 @@ def run_build_similarities(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
                 fetch = db.fetch_lsa_vectors if method == "lsa" else db.fetch_embedding_vectors
                 ids, vectors = fetch(conn, version_id)
                 neighbors = similarities.top_k_cosine(ids, vectors, 50)
+            elif method == "als":
+                if uri is None:
+                    raise RuntimeError("The als version has no artifact.")
+                stored_model = artifacts.load(uri)
+                neighbors = als.neighbors(
+                    als.AlsModel(stored_model["item_ids"], stored_model["item_factors"]),
+                    db.fetch_live_media_ids(conn),
+                )
             else:
                 if uri is None:
                     raise RuntimeError("The item-cf version has no artifact.")
@@ -510,7 +735,9 @@ def run_refresh_popularity(conn: Conn, params: dict[str, Any]) -> dict[str, Any]
     return {"media": int(row[0]) if row else 0}
 
 
-EVAL_KINDS = {"item_cf": "item-cf", "lsa": "lsa"}
+EVAL_KINDS = {"item_cf": "item-cf", "lsa": "lsa", "als": "als", "ltr": "ltr"}
+# The kinds scored on neighbors refitted in memory on the training split; the others read their stored rows.
+REFIT_KINDS = {"item_cf", "als"}
 EVAL_K = 10
 # A single held-out reader says nothing about a model, so below this the evaluation records "not enough data" and promotes nothing.
 MIN_EVAL_USERS = 2
@@ -554,27 +781,75 @@ def _neighbors_of(
     needed: set[int],
     fallback: tuple[dict[str, Any], int],
 ) -> dict[int, list[tuple[int, float]]]:
-    """The neighbors one version is scored on: `item_cf` refits in memory on the training split with the version's own weights and `k`
-    (`fallback` when it stored none), `lsa` reads the version's stored rows, only those of the `needed` source items."""
-    if kind != "item_cf":
+    """The neighbors one version is scored on: `item_cf` and `als` refit in memory on the training split with the version's own weights
+    (and `k`, or its factors, regularization, iterations and seed; `fallback` when it stored none), `lsa` reads the version's stored
+    rows, only those of the `needed` source items."""
+    if kind not in REFIT_KINDS:
         return db.fetch_similarity_rows(conn, version_id, method, media_ids=needed)
 
     positive = positive_for(parameters.get("weights") or fallback[0])
+    if kind == "als":
+        training = {key: s for key, s in positive.items() if held.get(key[0]) != key[1]}
+        model = als.train(
+            training,
+            int(parameters.get("factors", als.FACTORS)),
+            float(parameters.get("regularization", als.REGULARIZATION)),
+            int(parameters.get("iterations", als.ITERATIONS)),
+            int(parameters.get("seed", als.SEED)),
+        )
+
+        return als.neighbors(model, db.fetch_live_media_ids(conn))
 
     return _held_out_neighbors(conn, positive, held, int(parameters.get("k", fallback[1])))
+
+
+def _evaluate_ltr(conn: Conn, version_id: int) -> dict[str, Any]:
+    """Score an `ltr` candidate against the hybrid order on the impressions it was not trained on (P8-R3).
+
+    It is promoted only on evidence: its NDCG@10 must be higher than the hybrid order's NDCG@10 on the same held-out lists. This is the one
+    kind for which thin data does not promote the newer version, since the hybrid ranker is always there to fall back on: with fewer than
+    `ltr.MIN_EVAL_LISTS` held-out lists that have something relevant in them the candidate is retired, and so is one that does not beat
+    the hybrid order. Its stored scores go with it (a candidate has none until `score-ltr` runs).
+    """
+    row = conn.execute(
+        "select artifact_uri from model_versions where id = %s", (version_id,)
+    ).fetchone()
+    if row is None or row[0] is None:
+        raise RuntimeError("The ltr version has no artifact.")
+
+    model = ltr.from_artifact(artifacts.load(row[0]))
+    outcome: dict[str, Any] = ltr.compare(model, impressions.fetch_labeled(conn))
+    if outcome["n_eval_lists"] < ltr.MIN_EVAL_LISTS:
+        promote = False
+        reason = f"not enough held-out impressions to evaluate ({outcome['n_eval_lists']} of {ltr.MIN_EVAL_LISTS} lists)"
+    elif outcome["ndcg@10"] > outcome["hybrid_ndcg@10"]:
+        promote, reason = True, "NDCG@10 is above the hybrid order"
+    else:
+        promote, reason = False, "NDCG@10 is not above the hybrid order"
+
+    outcome["ndcg_delta"] = outcome["ndcg@10"] - outcome["hybrid_ndcg@10"]
+    outcome |= {"promoted": promote, "reason": reason}
+    registry.record_metrics(conn, version_id, outcome)
+    if promote:
+        registry.promote(conn, version_id)
+    else:
+        registry.retire(conn, version_id)
+    conn.commit()
+
+    return outcome
 
 
 def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
     """Score the `candidate` of `kind` (the one `version_id` names, else the newest) against each eligible reader's last positive item
     and promote it if the gate allows.
 
-    Interactions come from the same eligible-reader export as training. An `item_cf` model is scored on neighbors trained in memory
-    on the leave-last-out training split only, with its own weights and `k`, so a held-out item never helped build the neighbors it is
+    Interactions come from the same eligible-reader export as training. An `item_cf` or `als` model is scored on neighbors trained in
+    memory on the leave-last-out training split only, with its own weights and `k` or factors, so a held-out item never helped build the neighbors it is
     scored on; nothing is written to `media_similarities` for that (promotion still uses the stored candidate). `lsa` learns from item
     text, not interactions, so it cannot leak a held-out interaction and is ranked from its stored `media_similarities` rows (so
     `build-similarities` must have run).
 
-    The gate compares against the active version scored now, on the same split in the same run (item_cf refit with the active version's
+    The gate compares against the active version scored now, on the same split in the same run (item_cf and als refit with the active version's
     parameters, lsa from its stored rows), never against metrics recorded at some earlier time. Both metric sets, `promoted` and `reason`
     are stored on the candidate, and the promotion goes in that same transaction. A candidate with no `media_similarities` rows is never
     promoted. With too little data (fewer than two readers with two positive items, or no neighbors) nothing can be compared, so the
@@ -596,6 +871,13 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
         version_id, method = found
     else:
         version_id, method, _ = registry.require_candidate(conn, pinned, EVAL_KINDS[kind])
+
+    if kind == "ltr":
+        try:
+            return _evaluate_ltr(conn, version_id)
+        except BaseException:
+            conn.rollback()
+            raise
 
     try:
         parameters = registry.version_parameters(conn, version_id)
@@ -655,9 +937,12 @@ def run_evaluate(conn: Conn, params: dict[str, Any]) -> dict[str, Any]:
                 item_pop=item_pop,
                 item_sim=lambda a, b: max(lookup.get((a, b), 0.0), lookup.get((b, a), 0.0)),
                 n_users=n_users,
+                item_genres=db.fetch_media_genres(
+                    conn, {item for items in recommended.values() for item in items}
+                ),
             )
 
-        stored_rows = kind != "item_cf"
+        stored_rows = kind not in REFIT_KINDS
         neighbors = _neighbors_of(
             conn, kind, version_id, method, parameters, positive_for, held, needed, (weights, k)
         )
@@ -743,6 +1028,9 @@ def _with_connection(
 JOBS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "train-lsa": _with_connection(run_train_lsa),
     "train-item-cf": _with_connection(run_train_item_cf),
+    "train-als": _with_connection(run_train_als),
+    "train-ltr": _with_connection(run_train_ltr),
+    "score-ltr": _with_connection(run_score_ltr),
     "build-similarities": _with_connection(run_build_similarities),
     "refresh-popularity": _with_connection(run_refresh_popularity),
     "evaluate": _with_connection(run_evaluate),

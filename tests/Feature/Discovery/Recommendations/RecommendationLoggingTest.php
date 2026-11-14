@@ -136,3 +136,22 @@ test('a dismissed recommendation is not pruned however old, so its title stays o
     expect(Recommendation::pluck('id')->all())->toBe([$dismissed->id])
         ->and(RecommendationEvent::where('recommendation_id', $dismissed->id)->count())->toBe(1);
 });
+
+test('each served title is logged with its place in its shelf, counted from zero', function () {
+    $user = User::factory()->create();
+    $version = activeVersion('hybrid-weights');
+    $media = Media::factory()->count(5)->create();
+    $served = [
+        new ServedItem('trending', $media[0]->id, 0.9, ReasonType::Trending),
+        new ServedItem('recommended', $media[1]->id, 0.8, ReasonType::Trending),
+        new ServedItem('trending', $media[2]->id, 0.7, ReasonType::Trending),
+        new ServedItem('recommended', $media[3]->id, 0.6, ReasonType::Trending),
+        new ServedItem('trending', $media[4]->id, 0.5, ReasonType::Trending),
+    ];
+
+    app(RecommendationLogger::class)->log($user, $served, $version);
+
+    expect(Recommendation::orderBy('id')->pluck('position', 'media_id')->all())->toBe([
+        $media[0]->id => 0, $media[1]->id => 0, $media[2]->id => 1, $media[3]->id => 1, $media[4]->id => 2,
+    ]);
+});

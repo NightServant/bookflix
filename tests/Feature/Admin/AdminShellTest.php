@@ -25,6 +25,7 @@ dataset('admin shell pages', [
     'admin.classifications' => ['admin.classifications', fn () => [], 'Classification'],
     'admin.staff-picks' => ['admin.staff-picks', fn () => [], 'Staff picks'],
     'admin.models' => ['admin.models', fn () => [], 'Models'],
+    'admin.models.compare' => ['admin.models.compare', fn () => [], 'Models'],
     'admin.users' => ['admin.users', fn () => [], 'Users'],
 ]);
 

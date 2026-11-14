@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Discovery\Recommendations\CandidatePool;
 use App\Discovery\Recommendations\SeedItems;
+use App\Discovery\Recommendations\Sources\AlsSource;
 use App\Discovery\Recommendations\Sources\CollaborativeSource;
 use App\Discovery\Recommendations\Sources\ContentSimilarSource;
 use App\Discovery\Recommendations\Sources\DeweySimilarSource;
@@ -31,6 +32,7 @@ class RecommendationServiceProvider extends ServiceProvider
         $this->app->tag([
             ContentSimilarSource::class,
             CollaborativeSource::class,
+            AlsSource::class,
             DeweySimilarSource::class,
             SemanticSimilarSource::class,
             TrendingSource::class,

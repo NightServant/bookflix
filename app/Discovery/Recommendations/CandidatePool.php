@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 class CandidatePool
 {
     /** The sources that read the reader's own history or taste; they are skipped for a reader who opted out. */
-    public const PERSONALIZED = ['content_similar', 'collaborative', 'dewey_similar', 'semantic_similar', 'popular_in_genres', 'exploration'];
+    public const PERSONALIZED = ['content_similar', 'collaborative', 'als', 'dewey_similar', 'semantic_similar', 'popular_in_genres', 'exploration'];
 
     /**
      * @param  iterable<CandidateSource>  $sources

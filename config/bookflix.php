@@ -86,7 +86,7 @@ return [
             ['label' => 'Staff picks', 'icon' => 'star', 'route' => 'admin.staff-picks', 'active' => ['admin.staff-picks']],
         ]],
         ['group' => 'Intelligence', 'items' => [
-            ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models']],
+            ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models', 'admin.models.*']],
         ]],
         ['group' => 'People', 'items' => [
             ['label' => 'Users', 'icon' => 'users', 'route' => 'admin.users', 'active' => ['admin.users']],
@@ -448,6 +448,8 @@ return [
         'cache_minutes' => 10,
         'cold_start_min_interactions' => 5,
         'epsilon' => 0.10,
+        // Order Similar To, Popular in Your Genres and Discover Something New by Thompson sampling of their click rates once each has enough impressions.
+        'bandit_enabled' => false,
         // A shelf of candidates that the shelves before it left with fewer titles than this is not shown.
         'min_shelf_size' => 4,
         'trending_weight' => 0.05,

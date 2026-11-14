@@ -18,13 +18,19 @@ class CollaborativeSource extends Source
         return 'collaborative';
     }
 
+    /** The similarity method whose active version the neighbors are read from. */
+    protected function method(): string
+    {
+        return 'item_cf';
+    }
+
     protected function gather(User $user, int $limit): Collection
     {
         $seeds = $this->seedsOf($user);
         $total = [];
         $top = [];
 
-        foreach ($this->neighborsOf($user, $seeds, 'item_cf') as $row) {
+        foreach ($this->neighborsOf($user, $seeds, $this->method()) as $row) {
             $part = $row->score * $seeds[$row->media_id];
             $total[$row->similar_media_id] = ($total[$row->similar_media_id] ?? 0.0) + $part;
 

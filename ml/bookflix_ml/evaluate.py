@@ -20,12 +20,15 @@ def metrics_at_k(
     item_pop: dict[int, int] | None = None,
     item_sim: Callable[[int, int], float] | None = None,
     n_users: int = 0,
+    item_genres: dict[int, set[int]] | None = None,
 ) -> dict[str, float]:
     """Mean ranking metrics over the users who have relevant items; every value is finite, 0.0 when there is nothing to average.
 
     A user with relevant items but no list counts as a miss. Precision divides by the list length (at most `k`). Coverage is distinct
     recommended items over the catalog, diversity one minus the mean pairwise similarity inside a list (0.0 without `item_sim`), and
     novelty the mean `-log2(popularity / n_users)` of the recommended items that have a popularity (0.0 without `item_pop`).
+    `genre_diversity` is the mean pairwise Jaccard distance of the genre sets inside a list (0.0 without `item_genres`); a title with no genres
+    is left out of its list's pairs, so missing data never counts as distance.
     """
     precision, recall, hit, average_precision, ndcg = [], [], [], [], []
     for user, wanted in relevant.items():
@@ -64,6 +67,7 @@ def metrics_at_k(
         "coverage": len(distinct) / catalog_size if catalog_size > 0 else 0.0,
         "diversity": _diversity(lists, item_sim),
         "novelty": _novelty(lists, item_pop, n_users or len(recommended)),
+        "genre_diversity": _genre_diversity(lists, item_genres),
     }
 
 
@@ -80,6 +84,20 @@ def _diversity(lists: list[list[int]], item_sim: Callable[[int, int], float] | N
         for items in lists
         if len(items) >= 2
     ]
+
+    return _mean(per_list)
+
+
+def _genre_diversity(lists: list[list[int]], item_genres: dict[int, set[int]] | None) -> float:
+    if not item_genres:
+        return 0.0
+
+    per_list = []
+    for items in lists:
+        sets = [item_genres[item] for item in items if item_genres.get(item)]
+        distances = [1 - len(a & b) / len(a | b) for a, b in combinations(sets, 2)]
+        if distances:
+            per_list.append(_mean(distances))
 
     return _mean(per_list)
 

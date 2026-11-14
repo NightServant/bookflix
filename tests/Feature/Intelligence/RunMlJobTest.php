@@ -347,3 +347,64 @@ test('a start job that dies after its row was created closes that row instead of
     expect(MlJobRun::count())->toBe(1)
         ->and($run->refresh())->status->toBe('failed')->error->toBe('redis down')->finished_at->not->toBeNull();
 });
+
+test('the als pipeline trains, builds and evaluates its own version, with the gate numbers from one place', function () {
+    expect(RunMlJob::PIPELINES['als'])->toBe([
+        ['train-als', ['min_interactions' => RunMlJob::ALS_MIN_INTERACTIONS, 'min_users' => RunMlJob::ALS_MIN_USERS]],
+        ['build-similarities', ['methods' => ['als']]],
+        ['evaluate', ['kind' => 'als']],
+    ])->and(RunMlJob::ALS_MIN_INTERACTIONS)->toBe(5000)->and(RunMlJob::ALS_MIN_USERS)->toBe(200);
+
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['version_id' => 42]);
+    $run = MlJobRun::factory()->create(['name' => 'train-als', 'run_id' => 'r1', 'status' => 'running']);
+    $then = array_slice(RunMlJob::PIPELINES['als'], 1);
+
+    runOnce(new RunMlJob('train-als', [], $then, $run->id, pipeline: 'als'));
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'build-similarities' && $job->params === ['methods' => ['als'], 'version_id' => 42]);
+});
+
+test('an als run below its data gate skips cleanly: no failed row, no later step, the pipeline is freed', function () {
+    Bus::fake([RunMlJob::class]);
+    $skipped = ['skipped' => ['reason' => 'too few interactions', 'have' => 120, 'need' => 5000]];
+    mlFake(['succeeded'], metrics: $skipped);
+    expect(RunMlJob::dispatchPipeline('als'))->toBeTrue();
+    Bus::fake([RunMlJob::class]);
+    $run = MlJobRun::factory()->create(['name' => 'train-als', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-als', [], array_slice(RunMlJob::PIPELINES['als'], 1), $run->id, pipeline: 'als'));
+
+    Bus::assertNotDispatched(RunMlJob::class);
+    expect($run->refresh()->status)->toBe('succeeded')->and($run->metrics)->toEqual($skipped)
+        ->and(MlJobRun::where('status', 'failed')->count())->toBe(0)
+        ->and(RunMlJob::isRunning('als'))->toBeFalse();
+});
+
+test('the ltr pipelines train and evaluate with the gate from one place, and scoring stands alone', function () {
+    expect(RunMlJob::PIPELINES['ltr'])->toBe([['train-ltr', ['min_labeled' => RunMlJob::LTR_MIN_LABELED]], ['evaluate', ['kind' => 'ltr']]])
+        ->and(RunMlJob::PIPELINES['ltr-scores'])->toBe([['score-ltr', []]]);
+
+    Bus::fake([RunMlJob::class]);
+    mlFake(['succeeded'], metrics: ['version_id' => 7]);
+    $run = MlJobRun::factory()->create(['name' => 'train-ltr', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-ltr', [], array_slice(RunMlJob::PIPELINES['ltr'], 1), $run->id, pipeline: 'ltr'));
+
+    Bus::assertDispatched(RunMlJob::class, fn (RunMlJob $job) => $job->name === 'evaluate' && $job->params === ['kind' => 'ltr', 'version_id' => 7]);
+});
+
+test('an ltr run below its data gate skips cleanly: no failed row, no evaluation, the pipeline is freed', function () {
+    Bus::fake([RunMlJob::class]);
+    $skipped = ['skipped' => ['reason' => 'too few labeled impressions', 'have' => 120, 'need' => 50000]];
+    mlFake(['succeeded'], metrics: $skipped);
+    expect(RunMlJob::dispatchPipeline('ltr'))->toBeTrue();
+    Bus::fake([RunMlJob::class]);
+    $run = MlJobRun::factory()->create(['name' => 'train-ltr', 'run_id' => 'r1', 'status' => 'running']);
+
+    runOnce(new RunMlJob('train-ltr', [], array_slice(RunMlJob::PIPELINES['ltr'], 1), $run->id, pipeline: 'ltr'));
+
+    Bus::assertNotDispatched(RunMlJob::class);
+    expect($run->refresh()->status)->toBe('succeeded')->and(MlJobRun::where('status', 'failed')->count())->toBe(0)
+        ->and(RunMlJob::isRunning('ltr'))->toBeFalse();
+});

@@ -53,6 +53,40 @@ create table model_versions (
 );
 create unique index model_versions_one_active on model_versions (name) where status = 'active';
 
+create table recommendations (
+    id bigserial primary key,
+    user_id bigint not null references users (id) on delete cascade,
+    media_id bigint not null references media (id) on delete cascade,
+    shelf varchar(255) not null,
+    position smallint,
+    score double precision not null default 0,
+    reason_payload jsonb not null default '{}',
+    model_version_id bigint references model_versions (id),
+    generated_at timestamp not null
+);
+create table recommendation_events (
+    id bigserial primary key,
+    recommendation_id bigint not null references recommendations (id) on delete cascade,
+    event varchar(255) not null,
+    occurred_at timestamp not null
+);
+
+create table ltr_candidates (
+    user_id bigint not null references users (id) on delete cascade,
+    media_id bigint not null references media (id) on delete cascade,
+    features jsonb not null default '{}',
+    generated_at timestamp not null,
+    primary key (user_id, media_id)
+);
+create table ltr_scores (
+    user_id bigint not null references users (id) on delete cascade,
+    media_id bigint not null references media (id) on delete cascade,
+    score real not null,
+    model_version_id bigint not null references model_versions (id) on delete cascade,
+    generated_at timestamp not null,
+    primary key (user_id, media_id)
+);
+
 create table media_features (
     media_id bigint not null references media (id) on delete cascade,
     model_version_id bigint not null references model_versions (id) on delete cascade,

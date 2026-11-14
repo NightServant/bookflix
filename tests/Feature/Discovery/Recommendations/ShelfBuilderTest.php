@@ -563,3 +563,27 @@ test('with no active embedding version, or one without rows, every shelf is what
     expect($now)->toBe($before)->and($emptyVersion)->toBe($before)
         ->and(collect($now)->pluck(0)->all())->toContain('recommended', 'because-you-read', 'similar-to');
 });
+
+test('with no active als version every shelf and the recommended ranking are what they are without als rows', function () {
+    [$user, $catalog] = richReader();
+    $fixed = fn () => app()->bind(Randomizer::class, fn () => new Randomizer(new Mt19937(3)));
+    $snapshot = function () use ($user, $fixed): array {
+        Cache::flush();
+        $fixed();
+
+        return homeShelves($user)->map(fn ($shelf) => [$shelf->key, $shelf->items->map(fn ($item) => [$item->id, $item->reason_label])->all()])->all();
+    };
+    $before = $snapshot();
+
+    // Als neighbors that would reshape the shelves if they counted, under versions nobody serves.
+    foreach (['candidate', 'retired'] as $status) {
+        $stale = ModelVersion::factory()->create(['name' => 'als', 'kind' => 'als', 'status' => $status]);
+        foreach ($catalog->slice(12, 6) as $neighbor) {
+            similar($catalog[0], $neighbor, 'als', 0.97, $stale);
+            similar($catalog[7], $neighbor, 'als', 0.97, $stale);
+        }
+    }
+
+    expect($snapshot())->toBe($before)
+        ->and(collect($before)->firstWhere(0, 'recommended')[1])->not->toBeEmpty();
+});
