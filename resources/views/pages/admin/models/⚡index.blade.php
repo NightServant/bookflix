@@ -143,8 +143,13 @@ new #[Title('Models')] class extends Component {
         @endforeach
     </div>
 
-    <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('Model versions') }}</h2>
-    <p class="mt-1 text-meta text-ink-subtle">{{ __('Newest first. Only the active version of each name serves readers.') }}</p>
+    <div class="mt-12 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div>
+            <h2 class="text-section tracking-tight text-ink">{{ __('Model versions') }}</h2>
+            <p class="mt-1 text-meta text-ink-subtle">{{ __('Newest first. Only the active version of each name serves readers.') }}</p>
+        </div>
+        <flux:button variant="filled" size="sm" class="focus-ring min-h-11" icon="chart-bar" icon:variant="outline" :href="route('admin.models.compare')" wire:navigate data-test="compare-versions">{{ __('Compare versions') }}</flux:button>
+    </div>
 
     <x-admin-table :label="__('Model versions')" class="mt-4">
         <flux:table>

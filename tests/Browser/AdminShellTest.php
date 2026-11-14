@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\ModelKind;
+use App\Enums\ModelStatus;
 use App\Models\Collection;
 use App\Models\DuplicateCandidate;
 use App\Models\Media;
+use App\Models\ModelVersion;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Illuminate\Support\Facades\Http;
@@ -53,4 +56,23 @@ test('the admin pages pass the audit with no console errors, on desktop and on a
         visit($path, $this->viewports[$viewport])->wait(1)
             ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
     }
+})->with(['desktop', 'phone']);
+
+test('the model comparison draws its chart from a lazily loaded chunk and passes the audit, on desktop and on a phone', function (string $viewport) {
+    foreach (['2026-09-27 03:00' => true, '2026-10-04 03:00' => false, '2026-10-11 03:00' => true] as $trained => $promoted) {
+        ModelVersion::factory()->create([
+            'name' => 'item-cf', 'kind' => ModelKind::ItemCf, 'trained_at' => $trained,
+            'status' => $trained === '2026-10-11 03:00' ? ModelStatus::Active : ModelStatus::Retired,
+            'metrics' => ['ndcg@10' => 0.15, 'coverage' => 0.4, 'genre_diversity' => 0.6, 'novelty' => 8.1, 'promoted' => $promoted],
+        ]);
+    }
+
+    $page = visit('/admin/models/compare', $this->viewports[$viewport])->wait(2)
+        ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues()
+        ->assertScript('document.querySelector("[data-test=version-chart] canvas").width > 0', true);
+
+    // Switching the metric redraws in place and marks the pressed chip.
+    $page->click('Coverage')->wait(0.5)
+        ->assertScript('document.querySelector("[role=group] button[aria-pressed=true]").textContent.trim()', 'Coverage')
+        ->assertNoJavaScriptErrors();
 })->with(['desktop', 'phone']);

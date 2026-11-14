@@ -86,7 +86,7 @@ return [
             ['label' => 'Staff picks', 'icon' => 'star', 'route' => 'admin.staff-picks', 'active' => ['admin.staff-picks']],
         ]],
         ['group' => 'Intelligence', 'items' => [
-            ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models']],
+            ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models', 'admin.models.*']],
         ]],
         ['group' => 'People', 'items' => [
             ['label' => 'Users', 'icon' => 'users', 'route' => 'admin.users', 'active' => ['admin.users']],

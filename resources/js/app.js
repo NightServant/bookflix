@@ -9,6 +9,7 @@ import filterPanel from './filter-panel';
 import book3d from './book-3d';
 import bookScene from './book-scene';
 import landing from './landing';
+import versionChart from './version-chart';
 
 // Plugins must be registered before Livewire.start() boots Alpine.
 Alpine.plugin(ui);
@@ -18,5 +19,6 @@ Alpine.plugin(filterPanel);
 Alpine.plugin(book3d);
 Alpine.plugin(bookScene);
 Alpine.plugin(landing);
+Alpine.plugin(versionChart);
 
 Livewire.start();
