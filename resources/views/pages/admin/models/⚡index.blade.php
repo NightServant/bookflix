@@ -108,29 +108,21 @@ new #[Title('Models')] class extends Component {
     }
 
     /**
-     * The numbers worth a glance in the table: the evaluation's NDCG@10 and coverage, when the version has them.
+     * One evaluation figure of a version (NDCG@10, coverage) to three places, or a dash when the version has none.
      *
      * @param  array<string, mixed>  $metrics
      */
-    public function keyMetrics(array $metrics): string
+    public function metric(array $metrics, string $key): string
     {
-        $parts = [];
-
-        foreach (['ndcg@10' => 'NDCG@10', 'coverage' => __('Coverage')] as $key => $label) {
-            if (isset($metrics[$key]) && is_numeric($metrics[$key])) {
-                $parts[] = $label.' '.number_format((float) $metrics[$key], 3);
-            }
-        }
-
-        return $parts === [] ? '—' : implode(', ', $parts);
+        return isset($metrics[$key]) && is_numeric($metrics[$key]) ? number_format((float) $metrics[$key], 3) : '—';
     }
 }; ?>
 
 <section class="py-8">
-    <x-admin-header :back="route('admin.index')" :title="__('Models')" :description="__('The versions the recommendations are built from, and the jobs that train them. A new version only becomes active after it passes the evaluation.')" />
+    <x-admin-header :title="__('Models')" :description="__('The versions the recommendations are built from, and the jobs that train them. A new version only becomes active after it passes the evaluation.')" />
 
     <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-body text-ink">
-        <flux:badge size="sm" :color="$this->healthy ? 'green' : 'amber'" data-test="ml-health">{{ $this->healthy ? __('ML service: healthy') : __('ML service: unavailable') }}</flux:badge>
+        <flux:badge size="sm" :color="$this->healthy ? 'green' : 'amber'" :icon="$this->healthy ? 'check-circle' : 'exclamation-triangle'" data-test="ml-health">{{ $this->healthy ? __('ML service: healthy') : __('ML service: unavailable') }}</flux:badge>
         <span class="text-meta text-ink-subtle">{{ trans_choice(':count job waiting in the queue|:count jobs waiting in the queue', $this->backlog, ['count' => $this->backlog]) }}</span>
     </div>
 
@@ -140,11 +132,11 @@ new #[Title('Models')] class extends Component {
     <div class="mt-4 flex flex-wrap gap-2">
         @foreach ($this->pipelines as $key => [$name, $icon])
             @if ($this->running[$key])
-                <flux:button variant="filled" icon="arrow-path" icon:variant="outline" disabled data-test="run-now-{{ $key }}">
+                <flux:button variant="filled" class="min-h-11" icon="arrow-path" icon:variant="outline" disabled data-test="run-now-{{ $key }}">
                     {{ __(':name: running', ['name' => __($name)]) }}
                 </flux:button>
             @else
-                <flux:button variant="filled" :icon="$icon" icon:variant="outline" wire:click="runNow('{{ $key }}')" data-test="run-now-{{ $key }}">
+                <flux:button variant="filled" class="min-h-11" :icon="$icon" icon:variant="outline" wire:click="runNow('{{ $key }}')" data-test="run-now-{{ $key }}">
                     {{ __('Run :name', ['name' => __($name)]) }}
                 </flux:button>
             @endif
@@ -154,67 +146,78 @@ new #[Title('Models')] class extends Component {
     <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('Model versions') }}</h2>
     <p class="mt-1 text-meta text-ink-subtle">{{ __('Newest first. Only the active version of each name serves readers.') }}</p>
 
-    <flux:table class="mt-4">
-        <flux:table.columns>
-            <flux:table.column>{{ __('Name') }}</flux:table.column>
-            <flux:table.column>{{ __('Version') }}</flux:table.column>
-            <flux:table.column>{{ __('Kind') }}</flux:table.column>
-            <flux:table.column>{{ __('Status') }}</flux:table.column>
-            <flux:table.column>{{ __('Trained') }}</flux:table.column>
-            <flux:table.column>{{ __('Metrics') }}</flux:table.column>
-        </flux:table.columns>
+    <x-admin-table :label="__('Model versions')" class="mt-4">
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>{{ __('Name') }}</flux:table.column>
+                <flux:table.column>{{ __('Version') }}</flux:table.column>
+                <flux:table.column>{{ __('Kind') }}</flux:table.column>
+                <flux:table.column>{{ __('Status') }}</flux:table.column>
+                <flux:table.column>{{ __('Trained') }}</flux:table.column>
+                <flux:table.column>{{ __('NDCG@10') }}</flux:table.column>
+                <flux:table.column>{{ __('Coverage') }}</flux:table.column>
+            </flux:table.columns>
 
-        <flux:table.rows>
-            @forelse ($this->versions as $version)
-                <flux:table.row wire:key="version-{{ $version->id }}">
-                    <flux:table.cell variant="strong">{{ $version->name }}</flux:table.cell>
-                    <flux:table.cell>{{ $version->version }}</flux:table.cell>
-                    <flux:table.cell>{{ $version->kind->value }}</flux:table.cell>
-                    <flux:table.cell>
-                        <flux:badge size="sm" :color="match ($version->status->value) { 'active' => 'green', 'candidate' => 'amber', default => 'zinc' }">{{ $version->status->value }}</flux:badge>
-                    </flux:table.cell>
-                    <flux:table.cell>{{ $version->trained_at?->diffForHumans() ?? __('Never') }}</flux:table.cell>
-                    <flux:table.cell>{{ $this->keyMetrics($version->metrics) }}</flux:table.cell>
-                </flux:table.row>
-            @empty
-                <flux:table.row>
-                    <flux:table.cell colspan="6"><x-admin-empty icon="cpu-chip" :title="__('No versions yet')" :description="__('Run a pipeline above to train the first one.')" /></flux:table.cell>
-                </flux:table.row>
-            @endforelse
-        </flux:table.rows>
-    </flux:table>
+            <flux:table.rows>
+                @forelse ($this->versions as $version)
+                    <flux:table.row wire:key="version-{{ $version->id }}">
+                        <flux:table.cell variant="strong">{{ $version->name }}</flux:table.cell>
+                        <flux:table.cell>{{ $version->version }}</flux:table.cell>
+                        <flux:table.cell>{{ $version->kind->value }}</flux:table.cell>
+                        <flux:table.cell>
+                            <flux:badge size="sm" class="capitalize" :color="match ($version->status->value) { 'active' => 'green', 'candidate' => 'amber', default => 'zinc' }" :icon="match ($version->status->value) { 'active' => 'check-circle', 'candidate' => 'clock', default => 'minus-circle' }">{{ $version->status->value }}</flux:badge>
+                        </flux:table.cell>
+                        <flux:table.cell>{{ $version->trained_at?->diffForHumans() ?? __('Never') }}</flux:table.cell>
+                        <flux:table.cell class="tabular-nums">{{ $this->metric($version->metrics, 'ndcg@10') }}</flux:table.cell>
+                        <flux:table.cell class="tabular-nums">{{ $this->metric($version->metrics, 'coverage') }}</flux:table.cell>
+                    </flux:table.row>
+                @empty
+                    <flux:table.row>
+                        <flux:table.cell colspan="7"><x-admin-empty icon="cpu-chip" :title="__('No versions yet')" :description="__('Run a pipeline above to train the first one.')" /></flux:table.cell>
+                    </flux:table.row>
+                @endforelse
+            </flux:table.rows>
+        </flux:table>
+    </x-admin-table>
 
     <h2 class="mt-12 text-section tracking-tight text-ink">{{ __('Recent job runs') }}</h2>
     <p class="mt-1 text-meta text-ink-subtle">{{ __('The last 20 steps, newest first. A failed step stops the rest of its pipeline.') }}</p>
 
-    <flux:table class="mt-4">
-        <flux:table.columns>
-            <flux:table.column>{{ __('Job') }}</flux:table.column>
-            <flux:table.column>{{ __('Status') }}</flux:table.column>
-            <flux:table.column>{{ __('Started') }}</flux:table.column>
-            <flux:table.column>{{ __('Finished') }}</flux:table.column>
-        </flux:table.columns>
+    <x-admin-table :label="__('Recent job runs')" class="mt-4">
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>{{ __('Job') }}</flux:table.column>
+                <flux:table.column>{{ __('Status') }}</flux:table.column>
+                <flux:table.column>{{ __('Started') }}</flux:table.column>
+                <flux:table.column>{{ __('Finished') }}</flux:table.column>
+                <flux:table.column>{{ __('Outcome') }}</flux:table.column>
+            </flux:table.columns>
 
-        <flux:table.rows>
-            @forelse ($this->runs as $run)
-                <flux:table.row wire:key="run-{{ $run->id }}">
-                    <flux:table.cell variant="strong">{{ $run->name }}</flux:table.cell>
-                    <flux:table.cell>
-                        <flux:badge size="sm" :color="match ($run->status) { 'succeeded' => 'green', 'failed' => 'red', 'running' => 'sky', default => 'zinc' }">{{ $run->status }}</flux:badge>
-                        @if ($run->error)
-                            <span class="ms-2 text-meta text-ink-subtle">{{ $run->error }}</span>
-                        @elseif ($skipped = RunMlJob::skipped($run->metrics))
-                            <span class="ms-2 text-meta text-ink-subtle">{{ __('Skipped: :reason (:have of :need)', $skipped) }}</span>
-                        @endif
-                    </flux:table.cell>
-                    <flux:table.cell>{{ $run->started_at->diffForHumans() }}</flux:table.cell>
-                    <flux:table.cell>{{ $run->finished_at?->diffForHumans() ?? '—' }}</flux:table.cell>
-                </flux:table.row>
-            @empty
-                <flux:table.row>
-                    <flux:table.cell colspan="4"><x-admin-empty icon="cpu-chip" :title="__('No runs yet')" :description="__('Choose a pipeline above, or wait for the schedule.')" /></flux:table.cell>
-                </flux:table.row>
-            @endforelse
-        </flux:table.rows>
-    </flux:table>
+            <flux:table.rows>
+                @forelse ($this->runs as $run)
+                    <flux:table.row wire:key="run-{{ $run->id }}">
+                        <flux:table.cell variant="strong">{{ $run->name }}</flux:table.cell>
+                        @php($skipped = $run->error ? null : RunMlJob::skipped($run->metrics))
+                        <flux:table.cell>
+                            @if ($skipped)
+                                <flux:badge size="sm" color="zinc" icon="minus-circle">{{ __('Skipped') }}</flux:badge>
+                            @else
+                                <flux:badge size="sm" class="capitalize" :color="match ($run->status) { 'succeeded' => 'green', 'failed' => 'red', 'running' => 'blue', default => 'zinc' }" :icon="match ($run->status) { 'succeeded' => 'check-circle', 'failed' => 'x-circle', 'running' => 'arrow-path', default => 'clock' }">{{ $run->status }}</flux:badge>
+                            @endif
+                        </flux:table.cell>
+                        <flux:table.cell>{{ $run->started_at->diffForHumans() }}</flux:table.cell>
+                        <flux:table.cell>{{ $run->finished_at?->diffForHumans() ?? '—' }}</flux:table.cell>
+                        <flux:table.cell>
+                            @php($outcome = $run->error ?: ($skipped ? __('Skipped: :reason (:have of :need)', $skipped) : '—'))
+                            <span class="block max-w-sm truncate" tabindex="0" title="{{ $outcome }}">{{ $outcome }}</span>
+                        </flux:table.cell>
+                    </flux:table.row>
+                @empty
+                    <flux:table.row>
+                        <flux:table.cell colspan="5"><x-admin-empty icon="cpu-chip" :title="__('No runs yet')" :description="__('Choose a pipeline above, or wait for the schedule.')" /></flux:table.cell>
+                    </flux:table.row>
+                @endforelse
+            </flux:table.rows>
+        </flux:table>
+    </x-admin-table>
 </section>

@@ -45,48 +45,56 @@ new #[Title('Users')] class extends Component {
 }; ?>
 
 <section class="py-8">
-    <x-admin-header :back="route('admin.index')" :title="__('Users')" :description="__('Everyone with an account. Search by name or email to find a person.')" />
+    <x-admin-header :title="__('Users')" :description="__('Everyone with an account. Search by name or email to find a person.')" />
 
     <x-admin-toolbar>
         <flux:input class="max-w-sm" type="search" icon="magnifying-glass" icon:variant="outline" wire:model.live.debounce.300ms="search" :placeholder="__('Search name or email')" :aria-label="__('Search name or email')" />
     </x-admin-toolbar>
 
-    <flux:table class="mt-6" :paginate="$this->users">
-        <flux:table.columns>
-            <flux:table.column>{{ __('Name') }}</flux:table.column>
-            <flux:table.column>{{ __('Email') }}</flux:table.column>
-            <flux:table.column>{{ __('Joined') }}</flux:table.column>
-            <flux:table.column>{{ __('Verified') }}</flux:table.column>
-            <flux:table.column>{{ __('Role') }}</flux:table.column>
-            <flux:table.column>{{ __('Status') }}</flux:table.column>
-        </flux:table.columns>
+    <x-admin-table :label="__('Users')" class="mt-6">
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>{{ __('Name') }}</flux:table.column>
+                <flux:table.column>{{ __('Email') }}</flux:table.column>
+                <flux:table.column>{{ __('Joined') }}</flux:table.column>
+                <flux:table.column>{{ __('Verified') }}</flux:table.column>
+                <flux:table.column>{{ __('Role') }}</flux:table.column>
+                <flux:table.column>{{ __('Status') }}</flux:table.column>
+            </flux:table.columns>
 
-        <flux:table.rows>
-            @forelse ($this->users as $user)
-                <flux:table.row wire:key="user-{{ $user->id }}">
-                    <flux:table.cell variant="strong">{{ $user->name }}</flux:table.cell>
-                    <flux:table.cell>{{ $user->email }}</flux:table.cell>
-                    <flux:table.cell>{{ $user->created_at->toFormattedDateString() }}</flux:table.cell>
-                    <flux:table.cell>{{ $user->email_verified_at ? __('Yes') : __('No') }}</flux:table.cell>
-                    <flux:table.cell>
-                        @if ($user->is_admin)
-                            <flux:badge size="sm" color="blue">{{ __('Admin') }}</flux:badge>
-                        @endif
-                    </flux:table.cell>
-                    <flux:table.cell>
-                        @if ($user->deactivated_at)
-                            <flux:badge size="sm" color="zinc">{{ __('Deactivated') }}</flux:badge>
-                            <span class="ms-2 text-meta text-ink-subtle">{{ $user->deactivated_at->toFormattedDateString() }}</span>
-                        @else
-                            <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
-                        @endif
-                    </flux:table.cell>
-                </flux:table.row>
-            @empty
-                <flux:table.row>
-                    <flux:table.cell colspan="6"><x-admin-empty icon="users" :title="__('No users found')" :description="__('Try a different name or email.')" /></flux:table.cell>
-                </flux:table.row>
-            @endforelse
-        </flux:table.rows>
-    </flux:table>
+            <flux:table.rows>
+                @forelse ($this->users as $user)
+                    <flux:table.row wire:key="user-{{ $user->id }}">
+                        <flux:table.cell variant="strong">{{ $user->name }}</flux:table.cell>
+                        <flux:table.cell>{{ $user->email }}</flux:table.cell>
+                        <flux:table.cell>{{ $user->created_at->toFormattedDateString() }}</flux:table.cell>
+                        <flux:table.cell>{{ $user->email_verified_at ? __('Yes') : __('No') }}</flux:table.cell>
+                        <flux:table.cell>
+                            @if ($user->is_admin)
+                                <flux:badge size="sm" color="blue">{{ __('Admin') }}</flux:badge>
+                            @endif
+                        </flux:table.cell>
+                        <flux:table.cell>
+                            @if ($user->deactivated_at)
+                                <flux:badge size="sm" color="zinc">{{ __('Deactivated') }}</flux:badge>
+                                <span class="ms-2 text-meta text-ink-subtle">{{ $user->deactivated_at->toFormattedDateString() }}</span>
+                            @else
+                                <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
+                            @endif
+                        </flux:table.cell>
+                    </flux:table.row>
+                @empty
+                    <flux:table.row>
+                        <flux:table.cell colspan="6"><x-admin-empty icon="users" :title="__('No users found')" :description="__('Try a different name or email.')" /></flux:table.cell>
+                    </flux:table.row>
+                @endforelse
+            </flux:table.rows>
+        </flux:table>
+    </x-admin-table>
+
+    {{-- Its own count line: the table's built-in one calls every row a story. --}}
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-meta text-ink-subtle">{{ trans_choice(':count account|:count accounts', $this->users->total(), ['count' => Number::format($this->users->total())]) }}</p>
+        <x-pager :paginator="$this->users" class="justify-end" />
+    </div>
 </section>

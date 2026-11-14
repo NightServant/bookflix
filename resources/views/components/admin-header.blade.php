@@ -1,10 +1,13 @@
-@props(['title', 'description', 'back', 'backLabel' => null, 'eyebrow' => null])
+@props(['title', 'description', 'back' => null, 'backLabel' => null, 'eyebrow' => null])
 
-{{-- The head of every admin page under the dashboard: a quiet way back, then the page header with the page's buttons on the right. --}}
+{{-- The head of every admin page: the page header with the page's buttons on the right. The sidebar is the way between pages, so only a page that sits
+     under another (a record's edit page) passes `back` for a quiet way up. --}}
 <div>
-    <flux:button variant="ghost" size="sm" icon="arrow-left" icon:variant="outline" class="-ms-2" :href="$back" wire:navigate>{{ $backLabel ?? __('Admin') }}</flux:button>
+    @if ($back)
+        <flux:button variant="ghost" size="sm" icon="arrow-left" icon:variant="outline" class="-ms-2 min-h-11" :href="$back" wire:navigate>{{ $backLabel }}</flux:button>
+    @endif
 
-    <x-page-header class="mt-2" :eyebrow="$eyebrow" :title="$title" :description="$description">
+    <x-page-header :class="$back ? 'mt-2' : ''" :eyebrow="$eyebrow" :title="$title" :description="$description">
         @isset($actions)
             <x-slot:actions>{{ $actions }}</x-slot:actions>
         @endisset

@@ -7,7 +7,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 
 /**
- * The public landing page: guests see it, readers who are signed in go straight home.
+ * The public landing page: guests see it, signed-in users go straight home (an admin to the admin dashboard).
  */
 class LandingController extends Controller
 {
@@ -18,8 +18,8 @@ class LandingController extends Controller
 
     public function show(LandingShowcase $showcase): View|RedirectResponse
     {
-        if (auth()->check()) {
-            return redirect()->route('home');
+        if ($user = auth()->user()) {
+            return redirect($user->homePath());
         }
 
         $books = $showcase->random(self::HERO_BOOKS + self::CARD_COVERS);

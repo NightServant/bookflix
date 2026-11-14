@@ -9,6 +9,11 @@
         ['route' => 'privacy.edit', 'icon' => 'eye', 'label' => __('Privacy')],
         ['route' => 'security.edit', 'icon' => 'shield-check', 'label' => __('Security')],
     ];
+
+    // Reading preferences and the data export are a reader's; an admin keeps the profile and security pages.
+    if (auth()->user()?->can('access-admin')) {
+        $items = array_values(array_filter($items, fn (array $item): bool => in_array($item['route'], ['profile.edit', 'security.edit'], true)));
+    }
 @endphp
 
 <div class="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-12">

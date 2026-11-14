@@ -109,8 +109,30 @@ test('a merged away slug answers 301 to the winner and unknown slugs 404', funct
     $this->actingAs(User::factory()->admin()->create());
     Livewire::test('pages::admin.duplicates.index')->call('merge', $candidate->id);
 
+    $this->actingAs(User::factory()->create());
     $this->get(route('stories.show', $loser->slug))
         ->assertStatus(301)
         ->assertRedirect(route('stories.show', $winner->slug));
     $this->get(route('stories.show', 'no-such-story'))->assertNotFound();
+});
+
+test('every row button names the records it acts on, each cell names its column, and the compare panel is named by its heading', function () {
+    $candidate = DuplicateCandidate::factory()->create([
+        'media_id' => Media::factory()->create(['title' => 'Othello']),
+        'duplicate_media_id' => Media::factory()->create(['title' => 'Othello Deluxe']),
+    ]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    $page = Livewire::test('pages::admin.duplicates.index');
+
+    expect($page->html())
+        ->toContain('aria-label="Keep the first record, Othello"')
+        ->toContain('aria-label="Keep the second record, Othello Deluxe"')
+        ->toContain('aria-label="Othello and Othello Deluxe are not duplicates"')
+        ->toContain('aria-label="Compare Othello with Othello Deluxe"')
+        ->toContain('data-label="Similarity"')
+        ->toContain('data-label="First record"')
+        ->toContain('data-label="Second record"');
+
+    expect($page->call('compare', $candidate->id)->html())->toContain('role="group" aria-labelledby="compare-title"')->toContain('id="compare-title"');
 });

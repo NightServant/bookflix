@@ -47,15 +47,11 @@ test('an empty catalog still renders an empty state without errors', function ()
     $this->actingAs(User::factory()->create())->get(route('home'))->assertOk()->assertSee('The catalog is empty')->assertSee('Discover');
 });
 
-test('a reader with an empty catalog gets the explanation, an admin also the sync', function () {
+test('a reader with an empty catalog gets the explanation and the way to their profile', function () {
     $this->actingAs(User::factory()->create())->get(route('home'))
         ->assertSee('Stories appear here once the catalog has been synced')
         ->assertDontSee('Sync providers')
         ->assertSee(route('profile.edit'));
-
-    $this->actingAs(User::factory()->admin()->create())->get(route('home'))
-        ->assertSee('Sync providers')
-        ->assertSee(route('admin.providers'));
 });
 
 test('the empty state has the one h1 of the page and no shelves', function () {

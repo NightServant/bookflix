@@ -21,7 +21,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Livewire\Component;
+
+use function Livewire\on;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -31,6 +35,9 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(QueryParser::class, RuleBasedQueryParser::class);
+
+        // Registered here, not in boot, so the guard is on Livewire's list before any of its own hooks.
+        $this->guardReaderComponentsFromAdmins();
     }
 
     /**
@@ -51,6 +58,9 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
+
+        // An admin account runs the catalog and has no reader side (see EnsureReaderAccount); the same line guards the reader writes an admin could still call straight through Livewire.
+        Gate::define('use-reader-side', fn (User $user): bool => ! $user->is_admin);
 
         // A reader's library is theirs; others (guests too) may see it only when its owner made it public and is still active. Phase 10 builds the public page on this.
         Gate::define('view-library', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
@@ -87,5 +97,30 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    /**
+     * An admin cannot open a reader page, but a Livewire request does not pass through the route's middleware: the library listener sits in the shared layout,
+     * and a reader page left open from before the account was promoted keeps its snapshot. So every request from an admin to a component outside the admin
+     * pages and the account pages is refused as the component is restored, before a method call, a property update or a render can read or write reader data.
+     */
+    private function guardReaderComponentsFromAdmins(): void
+    {
+        $adminSide = ['pages::admin.', 'pages::settings.'];
+        $readerSettings = ['pages::settings.preferences', 'pages::settings.privacy'];
+
+        on('hydrate', function (Component $component) use ($adminSide, $readerSettings): void {
+            $user = auth()->user();
+
+            if ($user === null || Gate::forUser($user)->allows('use-reader-side')) {
+                return;
+            }
+
+            $name = $component->getName();
+
+            $allowed = Str::startsWith($name, $adminSide) && ! Str::startsWith($name, $readerSettings);
+
+            abort_unless($allowed, 403);
+        });
     }
 }
