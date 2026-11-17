@@ -16,6 +16,6 @@
     </div>
 
     @if (isset($actions) && $actions->isNotEmpty())
-        <div class="flex shrink-0 flex-wrap items-center gap-3">{{ $actions }}</div>
+        <div class="flex max-w-full shrink-0 flex-wrap items-center gap-3">{{ $actions }}</div>
     @endif
 </header>

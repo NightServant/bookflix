@@ -342,6 +342,7 @@ new #[Title('Library')] class extends Component {
     <header class="bg-surface-deep px-gutter py-8 lg:py-12">
         <x-page-header :title="__('Library')" :description="__('Everything you have saved, with where you are in each. Filter by status or format, switch the layout, and open a story to update it.')">
             <x-slot:actions>
+                <x-cta variant="secondary" icon="arrow-up-tray" :href="route('library.upload')" wire:navigate>{{ __('Add your own file') }}</x-cta>
                 <x-cta variant="secondary" icon="compass" :href="route('discover')" wire:navigate>{{ __('Browse Discover') }}</x-cta>
             </x-slot:actions>
         </x-page-header>
