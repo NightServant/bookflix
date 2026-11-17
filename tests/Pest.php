@@ -11,6 +11,7 @@ use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
 use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
+use App\Enums\ContentFormat;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
 use App\Enums\InteractionEvent;
@@ -726,6 +727,86 @@ function epubSource(?string $bytes = null): ContentSource
 
     $bytes ??= tinyEpub();
     $source = ContentSource::factory()->for(Media::factory()->novel()->create(['title' => 'The Open Book']))->publicDomain()->verified()->ready()->create();
+    Storage::disk(ContentSource::disk())->put($source->storage_path, $bytes);
+    $source->update(['byte_size' => strlen($bytes)]);
+
+    return $source;
+}
+
+/**
+ * A small valid PDF by hand: `$pages` Letter pages, each saying "Page n of N" in Helvetica, a correct xref table, and no newline after the final
+ * `%%EOF` (the browser-test server trims trailing whitespace from a streamed body, and the Content-Length with it). With `$encrypted` the
+ * trailer has an /Encrypt dictionary (standard handler, revision 2) whose user entry matches no password, so opening it asks for one.
+ */
+function tinyPdf(int $pages = 3, bool $encrypted = false): string
+{
+    $objects = [1 => '<< /Type /Catalog /Pages 2 0 R >>', 3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+    $kids = [];
+
+    for ($n = 1; $n <= $pages; $n++) {
+        $page = 4 + ($n - 1) * 2;
+        $text = "BT /F1 36 Tf 72 700 Td (Page {$n} of {$pages}) Tj ET";
+        $kids[] = "{$page} 0 R";
+        $objects[$page] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents '.($page + 1).' 0 R >>';
+        $objects[$page + 1] = '<< /Length '.strlen($text)." >>\nstream\n{$text}\nendstream";
+    }
+
+    $objects[2] = '<< /Type /Pages /Count '.$pages.' /Kids ['.implode(' ', $kids).'] >>';
+    $encrypt = null;
+
+    if ($encrypted) {
+        $encrypt = 4 + $pages * 2;
+        $objects[$encrypt] = '<< /Filter /Standard /V 1 /R 2 /P -4 /O <'.str_repeat('ab', 32).'> /U <'.str_repeat('cd', 32).'> >>';
+    }
+
+    ksort($objects);
+
+    // The test server trims trailing whitespace from every streamed body, a range of a file too: a range of 64 KB must not end in whitespace.
+    // A comment line ahead of the text that would end one moves it by a byte, until none does.
+    $ends = fn (string $text, int $from): bool => (function () use ($text, $from): bool {
+        for ($i = 0, $n = strlen($text); $i < $n; $i++) {
+            if (($from + $i + 1) % 65536 === 0 && strpbrk($text[$i], " \n\r\t\0\f\v") !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    })();
+    $body = "%PDF-1.4\n";
+    $offsets = [];
+
+    foreach ($objects as $number => $object) {
+        $text = "{$number} 0 obj\n{$object}\nendobj\n";
+
+        for ($shift = 0; $ends(str_repeat('%', $shift).($shift > 0 ? "\n" : '').$text, strlen($body)); $shift++);
+
+        $body .= ($shift > 0 ? str_repeat('%', $shift)."\n" : '');
+        $offsets[$number] = strlen($body);
+        $body .= $text;
+    }
+
+    $trailer = '/Size '.(count($objects) + 1).' /Root 1 0 R'.($encrypt === null ? '' : " /Encrypt {$encrypt} 0 R /ID [<".str_repeat('01', 16).'> <'.str_repeat('01', 16).'>]');
+    $table = "xref\n0 ".(count($objects) + 1)."\n0000000000 65535 f \n".implode('', array_map(fn (int $offset) => sprintf("%010d 00000 n \n", $offset), $offsets))."trailer\n<< {$trailer} >>\n";
+
+    for ($shift = 0; ; $shift++) {
+        $pad = $shift > 0 ? str_repeat('%', $shift)."\n" : '';
+        $tail = $pad.$table."startxref\n".(strlen($body) + strlen($pad))."\n%%EOF";
+
+        if (! $ends($tail, strlen($body))) {
+            return $body.$tail;
+        }
+    }
+}
+
+/**
+ * A verified public-domain PDF source whose file is `$bytes` (the 3-page one by default), on a fresh story, on the faked reader disk.
+ */
+function pdfSource(?string $bytes = null): ContentSource
+{
+    Storage::fake(ContentSource::disk());
+
+    $bytes ??= tinyPdf();
+    $source = ContentSource::factory()->for(Media::factory()->novel()->create(['title' => 'The Open Page']))->publicDomain()->verified()->ready()->create(['format' => ContentFormat::Pdf, 'mime_type' => 'application/pdf']);
     Storage::disk(ContentSource::disk())->put($source->storage_path, $bytes);
     $source->update(['byte_size' => strlen($bytes)]);
 

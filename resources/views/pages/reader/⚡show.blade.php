@@ -254,6 +254,8 @@ new #[Layout('layouts::reader')] class extends Component {
             'chapterOf' => __('Chapter :n of :total', ['n' => ':n', 'total' => ':total']),
             'pageOf' => __('page :n of :total', ['n' => ':n', 'total' => ':total']),
             'pageOfFirst' => __('Page :n of :total', ['n' => ':n', 'total' => ':total']),
+            'pageLabel' => __('Page :n', ['n' => ':n']),
+            'pdfSubtitle' => __('PDF · :n pages', ['n' => ':n']),
         ]),
     ], fn ($value) => $value !== null);
 

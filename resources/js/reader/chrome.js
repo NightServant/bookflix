@@ -3,7 +3,7 @@ import startProgress from './progress';
 /**
  * `readerChrome`: the state and behaviour of the reader page's own interface, for every format (resources/views/pages/reader/⚡show.blade.php).
  * The engines (EPUB now; PDF and comics next) talk to it only through events on the window, so it never touches a book:
- *   in:  `reader:ready` { format, toc, total, direction? }, `reader:relocate` { percent, locator, chapter, chapterHref?, label, atEnd },
+ *   in:  `reader:ready` { format, toc, total, direction?, subtitle? }, `reader:relocate` { percent, locator, chapter, chapterHref?, label, atEnd },
  *        `reader:error` { kind: 'corrupt' | 'password' | 'unavailable' | 'network' }, `reader:activity` (input inside a book's iframe),
  *        `reader:tap` { x } (a touch tap inside it, as a fraction of the window's width).
  *   out: `reader:next`, `reader:prev`, `reader:goto` { href | percent | page }, `reader:settings` { ...settings }, `reader:retry`.
@@ -104,11 +104,13 @@ export default function readerChrome(Alpine) {
 
         // The engine's own code is loaded only on the reader page, and only for the format that is open.
         start() {
-            if (this.state === 'corrupt' || this.engine !== 'epub') {
+            if (this.state === 'corrupt' || (this.engine !== 'epub' && this.engine !== 'pdf')) {
                 return;
             }
 
-            import('./epub').then((module) => module.default(this.container, { settings: { ...this.settings } })).catch(() => this.onError({ kind: 'corrupt' }));
+            const load = this.engine === 'pdf' ? import('./pdf') : import('./epub');
+
+            load.then((module) => this.cleanups.push(module.default(this.container, { settings: { ...this.settings } }))).catch(() => this.onError({ kind: 'corrupt' }));
         },
 
         // ---- settings, on this device ----
@@ -155,6 +157,11 @@ export default function readerChrome(Alpine) {
 
         onReady(detail) {
             this.toc = Array.isArray(detail.toc) ? detail.toc : [];
+
+            // An engine may name the book's kind and size ("PDF · 248 pages") where the chapter would be.
+            if (typeof detail.subtitle === 'string') {
+                this.subtitle = detail.subtitle;
+            }
 
             if (detail.direction === 'rtl' || detail.direction === 'ltr') {
                 this.direction = detail.direction;

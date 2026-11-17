@@ -16,6 +16,7 @@
         "laravel-vite-plugin": "^3.1",
         "motion": "12.43.0",
         "nouislider": "15.8.1",
+        "pdfjs-dist": "6.5.438",
         "tailwindcss": "^4.0.7",
         "three": "0.186.1",
         "vite": "^8.0.0",

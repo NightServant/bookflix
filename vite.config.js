@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import laravel from 'laravel-vite-plugin';
 import { bunny } from 'laravel-vite-plugin/fonts';
@@ -27,6 +29,25 @@ const foliateSandbox = () => ({
     },
 });
 
+/**
+ * pdf.js loads its optional data on demand: the WebAssembly decoders (JPEG 2000, JBIG2, ICC colour), the CJK character maps and the standard fonts.
+ * They are copied to `build/pdfjs/` under their own names (pdf.js asks for them by name, so no hashes), next to the worker, same origin.
+ */
+const pdfjsData = () => ({
+    name: 'bookflix:pdfjs-data',
+    generateBundle() {
+        for (const dir of ['wasm', 'cmaps', 'standard_fonts']) {
+            const from = path.resolve('node_modules/pdfjs-dist', dir);
+
+            for (const name of fs.readdirSync(from)) {
+                if (!name.startsWith('LICENSE') && !name.startsWith('quickjs')) {
+                    this.emitFile({ type: 'asset', fileName: `pdfjs/${dir}/${name}`, source: fs.readFileSync(path.join(from, name)) });
+                }
+            }
+        }
+    },
+});
+
 export default defineConfig({
     plugins: lazyPlugins(() => [
         laravel({
@@ -44,6 +65,7 @@ export default defineConfig({
         }),
         tailwindcss(),
         foliateSandbox(),
+        pdfjsData(),
     ]),
     server: {
         cors: true,
