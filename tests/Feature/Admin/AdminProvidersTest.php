@@ -87,7 +87,7 @@ test('the synthetic isbn source is hidden and cannot be enabled', function () {
     $this->actingAs(User::factory()->admin()->create());
 
     $page = Livewire::test('pages::admin.providers.index')->assertSee('Open Library')->assertDontSee('data-test="sync-now-isbn"', false);
-    expect($page->instance()->sources->pluck('key')->all())->toBe(['openlibrary']);
+    expect($page->instance()->sources->pluck('key')->all())->toEqualCanonicalizing(['gutenberg', 'openlibrary', 'standardebooks']);
 
     $page->call('toggleEnabled', $isbn->id)->assertNotFound();
 
@@ -100,7 +100,7 @@ test('the synthetic bookflix readers source is hidden and cannot be enabled eith
     $this->actingAs(User::factory()->admin()->create());
 
     $page = Livewire::test('pages::admin.providers.index')->assertDontSee('Bookflix readers');
-    expect($page->instance()->sources->pluck('key')->all())->toBe(['openlibrary']);
+    expect($page->instance()->sources->pluck('key')->all())->toEqualCanonicalizing(['gutenberg', 'openlibrary', 'standardebooks']);
 
     $page->call('toggleEnabled', $readers->id)->assertNotFound();
 

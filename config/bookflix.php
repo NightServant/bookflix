@@ -2,11 +2,13 @@
 
 use App\Catalog\Providers\AniList\AniListProvider;
 use App\Catalog\Providers\ComicVine\ComicVineProvider;
+use App\Catalog\Providers\Gutenberg\GutenbergProvider;
 use App\Catalog\Providers\Hardcover\HardcoverProvider;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
 use App\Catalog\Providers\Metron\MetronProvider;
 use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
+use App\Catalog\Providers\StandardEbooks\StandardEbooksProvider;
 
 return [
 
@@ -277,6 +279,24 @@ return [
             'rate_per_minute' => 30,
             'max_pages_per_run' => 20,
             'allowed_hosts' => ['hardcover.app', 'api.hardcover.app', 'assets.hardcover.app'],
+        ],
+
+        'gutenberg' => [
+            'class' => GutenbergProvider::class,
+            'enabled' => (bool) env('BOOKFLIX_GUTENBERG_ENABLED', false),
+            // The catalogue is one CSV read from a local copy, so a page costs no request; the rate only paces the pages.
+            'rate_per_minute' => 10,
+            'max_pages_per_run' => 20,
+            'page_size' => 500,
+            'allowed_hosts' => ['www.gutenberg.org', 'gutenberg.org'],
+        ],
+
+        'standardebooks' => [
+            'class' => StandardEbooksProvider::class,
+            'enabled' => (bool) env('BOOKFLIX_STANDARDEBOOKS_ENABLED', false),
+            'rate_per_minute' => 6,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['standardebooks.org'],
         ],
 
         'wikidata' => [
