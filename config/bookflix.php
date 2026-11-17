@@ -84,6 +84,7 @@ return [
             ['label' => 'Duplicates', 'icon' => 'square-2-stack', 'route' => 'admin.duplicates', 'active' => ['admin.duplicates'], 'count' => 'duplicates'],
             ['label' => 'Classification', 'icon' => 'rectangle-group', 'route' => 'admin.classifications', 'active' => ['admin.classifications'], 'count' => 'classifications'],
             ['label' => 'Staff picks', 'icon' => 'star', 'route' => 'admin.staff-picks', 'active' => ['admin.staff-picks']],
+            ['label' => 'Reading files', 'icon' => 'document-check', 'route' => 'admin.content', 'active' => ['admin.content']],
         ]],
         ['group' => 'Intelligence', 'items' => [
             ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models', 'admin.models.*']],
@@ -91,6 +92,46 @@ return [
         ['group' => 'People', 'items' => [
             ['label' => 'Users', 'icon' => 'users', 'route' => 'admin.users', 'active' => ['admin.users']],
         ]],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reader
+    |--------------------------------------------------------------------------
+    |
+    | Reading files (Phase 9). `disk` is private (storage/app/private by default):
+    | files are only reachable through signed URLs that last `url_ttl_minutes`.
+    | `archive` bounds what an EPUB or CBZ may unpack to (entries, total size,
+    | and the ratio to its compressed size) so a zip bomb cannot harm the server.
+    | `upload` caps a reader's own files (megabytes per format, a total quota and
+    | uploads per hour). `cbr` names the tools that unpack RAR comics, run with a
+    | timeout. `fetch` caps a public-domain file downloaded from a provider.
+    |
+    */
+
+    'reader' => [
+        'disk' => env('BOOKFLIX_READER_DISK', 'local'),
+        'url_ttl_minutes' => 10,
+        'archive' => [
+            'max_entries' => 2000,
+            'max_uncompressed_mb' => 1024,
+            'max_ratio' => 100,
+        ],
+        'upload' => [
+            'epub_mb' => 100,
+            'pdf_mb' => 200,
+            'cbz_mb' => 500,
+            'quota_mb' => 2048,
+            'per_hour' => 10,
+        ],
+        'cbr' => [
+            'unar_path' => env('BOOKFLIX_UNAR_PATH', 'unar'),
+            'bsdtar_path' => env('BOOKFLIX_BSDTAR_PATH', 'bsdtar'),
+            'timeout_seconds' => 120,
+        ],
+        'fetch' => [
+            'max_mb' => 100,
+        ],
     ],
 
     /*

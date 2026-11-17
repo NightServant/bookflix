@@ -56,6 +56,7 @@ dataset('admin pages', [
     'admin.users' => ['admin.users', fn () => []],
     'admin.models.compare' => ['admin.models.compare', fn () => []],
     'admin.staff-picks' => ['admin.staff-picks', fn () => []],
+    'admin.content' => ['admin.content', fn () => []],
     'profile.edit' => ['profile.edit', fn () => []],
     'security.edit' => ['security.edit', fn () => []],
 ]);
