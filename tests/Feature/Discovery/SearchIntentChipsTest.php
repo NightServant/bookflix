@@ -139,9 +139,15 @@ test('a query that names nothing shows no chips and no extra rows', function () 
 });
 
 test('no suggestions are offered when nothing was found', function () {
-    $page = Livewire::test('pages::search.index')->set('q', 'zzzxxyy manga')->assertSee('No stories found');
+    $page = Livewire::test('pages::search.index')->set('q', 'zzzxxyy webcomic')->assertSee('No stories found');
 
     expect($page->html())->not->toContain('Narrow by')->not->toContain('From your search');
+});
+
+test('words that match nothing still list what the intent names, as an applied chip', function () {
+    $page = Livewire::test('pages::search.index')->set('q', 'zzzxxyy manga')->assertSee('Shadow Court')->assertDontSee('Bright Court');
+
+    expect($page->html())->toContain('From your search')->toContain("dismissIntent('mediaTypes', 'manga')");
 });
 
 test('a mature genre is never a chip for a guest or a gated reader, even when it is asked for', function (?User $reader) {

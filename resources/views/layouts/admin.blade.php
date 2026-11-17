@@ -18,8 +18,8 @@
             class="focus-ring fixed start-gutter top-2 z-50 flex -translate-y-20 opacity-0 focus:translate-y-0 focus:opacity-100 min-h-11 items-center rounded-control border border-hairline bg-surface-card px-4 text-meta text-ink shadow-lg"
         >{{ __('Skip to content') }}</a>
 
-        {{-- Escape closes the drawer (Flux closes it only from its buttons) and gives focus back to the menu button that opened it. --}}
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-hairline bg-surface-deep lg:bg-canvas" :aria-label="__('Admin')" x-on:keydown.escape.window="if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $el.querySelector('[data-flux-sidebar-collapse] button').click(); $nextTick(() => document.querySelector('[data-flux-sidebar-toggle]').focus()) }">
+        {{-- Escape closes the drawer (Flux closes it only from its buttons) and gives focus back to the menu button that opened it; opening moves focus to the first link. --}}
+        <flux:sidebar sticky collapsible="mobile" x-init="new MutationObserver(() => { if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $nextTick(() => $el.querySelector('nav a').focus()) } }).observe($el, { attributes: true, attributeFilter: ['data-flux-sidebar-collapsed-mobile'] })" class="border-e border-hairline bg-surface-deep lg:bg-canvas" :aria-label="__('Admin')" x-on:keydown.escape.window="if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $el.querySelector('[data-flux-sidebar-collapse] button').click(); $nextTick(() => document.querySelector('[data-flux-sidebar-toggle]').focus()) }">
             <flux:sidebar.header>
                 <span class="flex items-center gap-2">
                     <x-app-logo :href="route('admin.index')" wire:navigate />

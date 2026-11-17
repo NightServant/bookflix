@@ -72,12 +72,34 @@ test('a dewey intent applies like the filter', function () {
         ->and($results->appliedIntent)->toBe(['deweyCode' => '900']);
 });
 
-test('nothing is applied when the text finds nothing', function () {
-    $results = intentSearch('zeppelin', new QueryIntent(mediaTypes: ['manga']));
+test('nothing is applied when neither the text nor the intent finds anything', function () {
+    $results = intentSearch('zeppelin', new QueryIntent(mediaTypes: ['webcomic']));
 
     expect($results->total())->toBe(0)
         ->and($results->appliedIntent)->toBe([])
-        ->and($results->suggestedIntent)->toBe(['mediaTypes' => ['manga']]);
+        ->and($results->suggestedIntent)->toBe(['mediaTypes' => ['webcomic']]);
+});
+
+test('words that match no story still list the stories the intent matches', function () {
+    $results = intentSearch('zeppelin', new QueryIntent(mediaTypes: ['manga'], genres: ['dark-fantasy'], themes: ['political-intrigue']));
+
+    expect($results->pluck('title')->all())->toBe(['Shadow Court'])
+        ->and($results->appliedIntent)->toBe(['mediaTypes' => ['manga'], 'genres' => ['dark-fantasy'], 'themes' => ['political-intrigue']])
+        ->and($results->includesSemanticMatches)->toBeFalse();
+});
+
+test('the text-less listing still drops the last group when all of them leave nothing', function () {
+    $results = intentSearch('zeppelin', new QueryIntent(mediaTypes: ['manga'], themes: ['revenge']));
+
+    expect($results->pluck('title')->all())->toBe(['Shadow Court'])
+        ->and($results->appliedIntent)->toBe(['mediaTypes' => ['manga']])
+        ->and($results->suggestedIntent)->toBe(['themes' => ['revenge']]);
+});
+
+test('a query naming prohibited content never falls back to the intent listing', function () {
+    $results = intentSearch('lolicon zeppelin', new QueryIntent(mediaTypes: ['manga'], genres: ['dark-fantasy']));
+
+    expect($results->total())->toBe(0)->and($results->appliedIntent)->toBe([]);
 });
 
 test('the reader explicit filters win over intent', function () {
@@ -119,8 +141,8 @@ test('a parsed query feeds the original string to the keyword leg and its intent
     $withoutType = intentSearch('dark fantasy court', app(QueryParser::class)->parse('dark fantasy court'));
 
     expect($intent->mediaTypes)->toBe(['manga'])
-        ->and($withType->total())->toBe(0) // no story's text says "manga": the keyword leg reads the reader's words, not the intent's
-        ->and($withType->suggestedIntent)->toBe(['mediaTypes' => ['manga'], 'genres' => ['dark-fantasy']])
+        ->and($withType->pluck('title')->all())->toBe(['Shadow Court']) // no story's text says "manga": the text-less listing by the intent finds it
+        ->and($withType->appliedIntent)->toBe(['mediaTypes' => ['manga'], 'genres' => ['dark-fantasy']])
         ->and($withoutType->pluck('title')->all())->toBe(['Shadow Court'])
         ->and($withoutType->appliedIntent)->toBe(['genres' => ['dark-fantasy']]);
 });
