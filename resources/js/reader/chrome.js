@@ -13,12 +13,12 @@ import startProgress from './progress';
  */
 const HIDE_AFTER = 3000;
 const SETTINGS_KEY = 'bookflix.reader.settings';
-const DIRECTION_KEY = 'bookflix.reader.direction.';
+const COMIC_KEY = 'bookflix.reader.comic.';
 const FONT_SIZES = [90, 100, 115, 130, 150];
 
 const DEFAULTS = {
     epub: { fontSize: 100, lineHeight: '1.6', typeface: 'book', layout: 'paginated', theme: 'dark' },
-    pages: { fit: 'height', spread: 'one' },
+    pages: { fit: 'height', spread: 'one', direction: 'ltr' },
     webtoon: { fit: 'standard' },
     pdf: {},
 };
@@ -42,6 +42,9 @@ const write = (key, value) => {
 
 const percentText = (value) => `${Math.round((Number(value) || 0) * 10) / 10}`;
 
+// The bottom bar shows a whole number; the saved percent keeps its decimals.
+const wholeText = (value) => `${Math.round(Number(value) || 0)}`;
+
 export default function readerChrome(Alpine) {
     Alpine.data('readerChrome', (config) => ({
         engine: config.engine,
@@ -61,6 +64,7 @@ export default function readerChrome(Alpine) {
         fullscreen: false,
         strings: config.strings,
         atEnd: false,
+        running: false,
         hideTimer: null,
         cleanups: [],
 
@@ -104,21 +108,31 @@ export default function readerChrome(Alpine) {
 
         // The engine's own code is loaded only on the reader page, and only for the format that is open.
         start() {
-            if (this.state === 'corrupt' || (this.engine !== 'epub' && this.engine !== 'pdf')) {
+            if (this.state === 'corrupt') {
                 return;
             }
 
-            const load = this.engine === 'pdf' ? import('./pdf') : import('./epub');
+            const load = this.engine === 'pdf' ? import('./pdf') : this.engine === 'epub' ? import('./epub') : import('./pages');
+            const mode = this.engine === 'webtoon' ? 'webtoon' : 'pages';
 
-            load.then((module) => this.cleanups.push(module.default(this.container, { settings: { ...this.settings } }))).catch(() => this.onError({ kind: 'corrupt' }));
+            load.then((module) => {
+                this.running = true;
+                this.cleanups.push(module.default(this.container, { settings: { ...this.settings }, mode }));
+            }).catch(() => this.onError({ kind: 'corrupt' }));
         },
 
         // ---- settings, on this device ----
 
         loadSettings() {
             const defaults = { ...DEFAULTS[this.engine] };
-            const stored = read(SETTINGS_KEY) ?? {};
+            const comic = this.engine === 'pages' || this.engine === 'webtoon';
+            // A comic's choices are kept for the story; a book's for every book.
+            const stored = (comic ? read(COMIC_KEY + config.mediaId) : read(SETTINGS_KEY)) ?? {};
             const settings = { ...defaults };
+
+            if (this.engine === 'pages') {
+                settings.direction = config.direction;
+            }
 
             for (const key of Object.keys(defaults)) {
                 if (stored[key] !== undefined && typeof stored[key] === typeof defaults[key]) {
@@ -126,9 +140,11 @@ export default function readerChrome(Alpine) {
                 }
             }
 
+            if (settings.direction !== undefined && settings.direction !== 'rtl' && settings.direction !== 'ltr') {
+                settings.direction = config.direction;
+            }
+
             if (this.engine === 'pages') {
-                const direction = read(DIRECTION_KEY + config.mediaId);
-                settings.direction = direction === 'rtl' || direction === 'ltr' ? direction : config.direction;
                 this.direction = settings.direction;
             }
 
@@ -136,13 +152,14 @@ export default function readerChrome(Alpine) {
         },
 
         saveSettings() {
-            const { direction, ...rest } = this.settings;
+            if (this.engine === 'pages' || this.engine === 'webtoon') {
+                write(COMIC_KEY + config.mediaId, this.settings);
+            } else {
+                write(SETTINGS_KEY, { ...(read(SETTINGS_KEY) ?? {}), ...this.settings });
+            }
 
-            write(SETTINGS_KEY, { ...(read(SETTINGS_KEY) ?? {}), ...rest });
-
-            if (direction !== undefined) {
-                write(DIRECTION_KEY + config.mediaId, direction);
-                this.direction = direction;
+            if (this.settings.direction !== undefined) {
+                this.direction = this.settings.direction;
             }
 
             window.dispatchEvent(new CustomEvent('reader:settings', { detail: { ...this.settings } }));
@@ -184,7 +201,7 @@ export default function readerChrome(Alpine) {
             }
 
             // The card shows when the reader turns onto the last page, not when the book opens on it.
-            this.finished = Boolean(detail.atEnd) && !detail.initial;
+            this.finished = Boolean(detail.atEnd) && !detail.initial && (this.engine === 'epub' || this.engine === 'pdf');
             this.atEnd = Boolean(detail.atEnd);
         },
 
@@ -208,6 +225,13 @@ export default function readerChrome(Alpine) {
         },
 
         retry() {
+            // An archive the server could not read never started an engine: ask for the page again.
+            if (!this.running) {
+                window.location.reload();
+
+                return;
+            }
+
             this.state = 'opening';
             window.dispatchEvent(new CustomEvent('reader:retry'));
         },
@@ -215,7 +239,12 @@ export default function readerChrome(Alpine) {
         // ---- the numbers on the bars ----
 
         get percentLabel() {
-            return `${percentText(this.percent)}%`;
+            return `${wholeText(this.percent)}%`;
+        },
+
+        // PDF contents come from the file's outline: a document without one has no Contents button.
+        get hasContents() {
+            return this.engine !== 'pdf' || this.toc.length > 0;
         },
 
         get valueText() {
@@ -264,6 +293,15 @@ export default function readerChrome(Alpine) {
         // The reading direction of the page: a right-to-left comic or book turns the other way.
         get rtl() {
             return this.direction === 'rtl';
+        },
+
+        // The side buttons: the left one goes forward when the page turns right to left.
+        get forwardLeft() {
+            return this.rtl;
+        },
+
+        get forwardRight() {
+            return !this.rtl;
         },
 
         turn(forward) {
@@ -323,6 +361,8 @@ export default function readerChrome(Alpine) {
                 this.chrome ? this.hideNow() : this.wake();
             } else if (this.engine === 'epub' || this.engine === 'pages') {
                 this.turn((x >= 2 / 3) !== this.rtl);
+            } else if (this.engine === 'webtoon') {
+                this.chrome ? this.hideNow() : this.wake();
             }
         },
 
@@ -364,7 +404,7 @@ export default function readerChrome(Alpine) {
             if (key === 'f' || key === 'F') {
                 event.preventDefault();
                 this.toggleFullscreen();
-            } else if (key === '/' && this.engine === 'epub' && this.panel === null) {
+            } else if (key === '/' && this.hasContents && this.engine !== 'pages' && this.engine !== 'webtoon' && this.panel === null) {
                 event.preventDefault();
                 this.open('contents', this.$root.querySelector('[data-reader=contents-button]'));
             } else if (this.panel === null && !this.finished) {

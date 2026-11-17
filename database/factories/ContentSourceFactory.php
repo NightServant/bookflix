@@ -101,19 +101,25 @@ class ContentSourceFactory extends Factory
     }
 
     /**
-     * A ready comic: a real zip of tiny PNG pages (`01.png`, `02.png`, ...) written to the reader disk. Page n is n pixels wide, so each page has its own bytes.
+     * A ready comic: a real zip of tiny PNG pages (`01.png`, `02.png`, ...) written to the reader disk. By default page n is n pixels wide, so each page
+     * has its own bytes; with `$size` every page is a comic-looking page of that size in pixels, and `$sizes` gives single pages their own.
+     *
+     * @param  array{0: int<1, max>, 1: int<1, max>}|null  $size
+     * @param  array<int, array{0: int<1, max>, 1: int<1, max>}>  $sizes
      */
-    public function cbz(int $pages = 3): static
+    public function cbz(int $pages = 3, ?array $size = null, array $sizes = []): static
     {
-        return $this->state(function (array $attributes) use ($pages): array {
+        return $this->state(function (array $attributes) use ($pages, $size, $sizes): array {
             $temp = (string) tempnam(sys_get_temp_dir(), 'cbz');
             $zip = new ZipArchive;
             $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
             for ($n = 1; $n <= $pages; $n++) {
-                $zip->addFromString(sprintf('%02d.png', $n), self::png($n));
+                $zip->addFromString(sprintf('%02d.png', $n), $size === null && ! isset($sizes[$n]) ? self::png($n) : self::page(...($sizes[$n] ?? $size)));
             }
 
+            // A zip normally ends in NUL bytes, which the browser-test server's trimming of a streamed body would cut off: a comment ends it in text.
+            $zip->setArchiveComment('bookflix test fixture');
             $zip->close();
 
             $path = 'content/factory/'.Str::ulid();
@@ -129,6 +135,37 @@ class ContentSourceFactory extends Factory
                 'status' => ContentStatus::Ready,
             ];
         });
+    }
+
+    /**
+     * The bytes of a small PNG that looks like a comic page, `$width` by `$height` pixels: a light sheet with three dark-edged panels.
+     *
+     * @param  int<1, max>  $width
+     * @param  int<1, max>  $height
+     */
+    public static function page(int $width, int $height): string
+    {
+        $image = imagecreatetruecolor($width, $height);
+        $sheet = (int) imagecolorallocate($image, 236, 236, 232);
+        $panel = (int) imagecolorallocate($image, 120, 120, 128);
+        $edge = (int) imagecolorallocate($image, 20, 20, 20);
+
+        imagefill($image, 0, 0, $sheet);
+
+        $m = max(2, intdiv($width, 20));
+        $third = intdiv($height - $m * 4, 3);
+
+        foreach ([0, 1, 2] as $i) {
+            $top = $m + $i * ($third + $m);
+
+            imagefilledrectangle($image, $m, $top, $width - $m - 1, $top + $third, $edge);
+            imagefilledrectangle($image, $m + 1, $top + 1, $width - $m - 2, $top + $third - 1, $panel);
+        }
+
+        ob_start();
+        imagepng($image);
+
+        return (string) ob_get_clean();
     }
 
     /**

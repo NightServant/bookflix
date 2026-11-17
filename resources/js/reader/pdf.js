@@ -24,6 +24,10 @@ const CHUNK = 65536;
 // Ask for a new address when the one held has less than this long to live.
 const REFRESH_MARGIN = 90;
 const MAX_CANVAS_PIXELS = 16_000_000;
+// From this window width the file opens at fit page.
+const WIDE = 1024;
+// The most outline entries the Contents list holds.
+const MAX_OUTLINE = 500;
 
 const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
 
@@ -64,6 +68,7 @@ export default function startPdf(container) {
     let frame = 0;
     let layoutKey = '';
     let initial = true;
+    let outline = [];
     const live = new Map();
 
     const scroller = document.createElement('div');
@@ -186,10 +191,16 @@ export default function startPdf(container) {
 
         ui('page-total').forEach((element) => (element.textContent = String(count)));
 
-        // Fit width on a phone is the 100% of the column; elsewhere 100% is the comfortable column.
-        zoom = 1;
+        // A phone opens at fit width (the 100% of the column); a wide screen at fit page: the whole first page between the bars.
+        zoom = window.innerWidth >= WIDE ? Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, fitPageZoom())) : 1;
         measure();
-        emit('reader:ready', { format: 'pdf', toc: [], total: count, subtitle: fill(strings.pdfSubtitle, { n: count }) });
+        outline = await readOutline();
+
+        if (!alive) {
+            return;
+        }
+
+        emit('reader:ready', { format: 'pdf', toc: outline.map(({ label, href, level }) => ({ label, href, level })), total: count, subtitle: fill(strings.pdfSubtitle, { n: count }) });
         updateZoomUi();
 
         const wanted = Number.isInteger(resume?.page) ? resume.page : Math.round((resumePercent / 100) * count);
@@ -199,7 +210,66 @@ export default function startPdf(container) {
         initial = false;
     }
 
+    // ---- the file's outline (Contents) ----
+
+    // The page a destination of the outline points at (1-based), or null when it can't be told.
+    async function pageOf(dest) {
+        try {
+            const target = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
+            const ref = Array.isArray(target) ? target[0] : null;
+
+            if (Number.isInteger(ref)) {
+                return ref + 1;
+            }
+
+            return ref ? (await doc.getPageIndex(ref)) + 1 : null;
+        } catch {
+            return null;
+        }
+    }
+
+    // The outline flattened in reading order (label, href `outline-n`, level, page); an entry that points nowhere is left out.
+    async function readOutline() {
+        try {
+            const tree = (await doc.getOutline()) ?? [];
+            const flat = [];
+            const walk = async (items, level) => {
+                for (const item of items) {
+                    if (flat.length >= MAX_OUTLINE) {
+                        return;
+                    }
+
+                    const label = String(item.title ?? '').trim();
+                    const page = label && item.dest ? await pageOf(item.dest) : null;
+
+                    if (page !== null && page >= 1 && page <= count) {
+                        flat.push({ label, level: Math.min(level, 3), page, href: `outline-${flat.length}` });
+                    }
+
+                    await walk(item.items ?? [], level + 1);
+                }
+            };
+
+            await walk(tree, 0);
+
+            return flat;
+        } catch {
+            return [];
+        }
+    }
+
+    // The entry of the outline the reader is in: the last one that starts on this page or before it.
+    const sectionAt = (page) => outline.reduce((found, entry) => (entry.page <= page ? entry : found), null);
+
     // ---- layout ----
+
+    // The zoom at which one whole page fits between the bars, with the column's padding above and below it.
+    function fitPageZoom() {
+        const g = geometry();
+        const height = Math.max(1, scroller.clientHeight - PAD * 2);
+
+        return Math.min(g.avail, height / ratio) / g.base;
+    }
 
     function geometry() {
         const gutter = scroller.clientWidth < 640 ? 16 : 24;
@@ -376,6 +446,7 @@ export default function startPdf(container) {
             percent: Math.round((page / count) * 10000) / 100,
             locator: { page },
             chapter: null,
+            chapterHref: sectionAt(page)?.href,
             label: fill(strings.pageOfFirst, { n: page, total: count }),
             atEnd: page === count,
             initial,
@@ -495,7 +566,11 @@ export default function startPdf(container) {
                 return;
             }
 
-            if (typeof detail?.page === 'number') {
+            if (typeof detail?.href === 'string') {
+                const entry = outline.find((item) => item.href === detail.href);
+
+                entry && goTo(entry.page);
+            } else if (typeof detail?.page === 'number') {
                 goTo(detail.page);
             } else if (typeof detail?.percent === 'number') {
                 goTo(Math.max(1, Math.round((detail.percent / 100) * count)));

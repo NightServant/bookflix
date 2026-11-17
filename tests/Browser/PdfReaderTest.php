@@ -26,13 +26,21 @@ test('it renders page 1 on a sheet and shows where the reader is', function () {
         ->assertScript('document.querySelector("[data-reader=page-input]").value', '1')
         ->assertSeeIn('[data-reader=page-total]', '3')
         ->assertSeeIn('[data-reader=meta]', 'Page 1 of 3')
-        ->assertSeeIn('[data-reader=percent]', '33.3%')
-        ->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '100%')
+        ->assertSeeIn('[data-reader=percent]', '33%')
+        ->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '75%')
         ->assertScript(($this->painted)(1))
         ->assertScript('document.querySelector("canvas[data-page=\"1\"]").getAttribute("role")', 'img')
         ->assertScript('document.querySelector("canvas[data-page=\"1\"]").getAttribute("aria-label")', 'Page 1')
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs();
+});
+
+test('on a desktop it opens at fit page: the whole first page between the bars, labelled with its real percentage', function () {
+    visit(($this->read)(), $this->desktop)->waitForText('PDF · 3 pages')->wait(0.8)
+        ->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '75%')
+        ->assertScript('(() => { const r = document.querySelector("canvas[data-page=\"1\"]").getBoundingClientRect(); return r.top >= 64 && r.bottom <= 900 - 88 && Math.round(r.height) === 700; })()')
+        ->assertScript('Math.round(document.querySelector("canvas[data-page=\"1\"]").getBoundingClientRect().width)', 541)
+        ->assertNoJavaScriptErrors();
 });
 
 test('the arrow and page keys turn the pages', function () {
@@ -93,11 +101,11 @@ test('the page is saved with a page locator and a reload resumes on it', functio
 test('the zoom controls work from the keyboard', function () {
     $page = visit(($this->read)(), $this->desktop)->waitForText('PDF · 3 pages')->wait(0.8);
 
-    $page->keys('[data-reader=toolbar] [data-reader=zoom-in]', 'Enter')->wait(0.4)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '125%')
-        ->keys('[data-reader=toolbar] [data-reader=zoom-in]', 'Space')->wait(0.4)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '150%')
-        ->keys('[data-reader=toolbar] [data-reader=zoom-out]', 'Enter')->wait(0.4)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '125%')
-        ->keys(':root', '-')->wait(0.3)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '100%')
-        ->keys(':root', '+')->wait(0.3)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '125%')
+    $page->keys('[data-reader=toolbar] [data-reader=zoom-in]', 'Enter')->wait(0.4)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '100%')
+        ->keys('[data-reader=toolbar] [data-reader=zoom-in]', 'Space')->wait(0.4)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '125%')
+        ->keys('[data-reader=toolbar] [data-reader=zoom-out]', 'Enter')->wait(0.4)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '100%')
+        ->keys(':root', '-')->wait(0.3)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '75%')
+        ->keys(':root', '+')->wait(0.3)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '100%')
         ->keys('[data-reader=toolbar] [data-reader=fit-width]', 'Enter')->wait(0.5)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '193%')
         ->assertScript('Math.round(document.querySelector("canvas[data-page=\"1\"]").getBoundingClientRect().width)', 1392)
         ->assertScript(($this->painted)(1))
@@ -110,6 +118,38 @@ test('the zoom controls work from the keyboard', function () {
     $page->wait(0.4)->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '50%')
         ->assertScript('document.querySelector("[data-reader=zoom-out]").getAttribute("aria-disabled")', 'true')
         ->assertScript('Math.round(document.querySelector("canvas[data-page=\"1\"]").getBoundingClientRect().width)', 360)
+        ->assertNoJavaScriptErrors();
+});
+
+test('a PDF with an outline lists it in Contents, which goes to the page and keeps the current section', function () {
+    $source = pdfSource(tinyPdf(5, outline: ['Introduction' => 1, 'The second part' => 3, 'Appendix' => 5]));
+    $page = visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('PDF · 5 pages')->wait(0.8);
+
+    $page->assertVisible('[data-reader=contents-button]')
+        ->click('[data-reader=contents-button]')->wait(0.3)
+        ->assertSeeIn('#reader-contents nav', 'Introduction')
+        ->assertSeeIn('#reader-contents nav', 'The second part')
+        ->assertSeeIn('#reader-contents nav', 'Appendix')
+        ->assertAttribute('[data-reader=chapter][aria-current=true]', 'aria-current', 'true')
+        ->assertSeeIn('[data-reader=chapter][aria-current=true]', 'Introduction')
+        ->click('#reader-contents li:nth-of-type(2) button')->wait(0.8)
+        ->assertSeeIn('[data-reader=meta]', 'Page 3 of 5')
+        ->assertScript('document.querySelector("[data-reader=page-input]").value', '3')
+        ->assertScript('document.querySelector("#reader-contents") === null || getComputedStyle(document.querySelector("#reader-contents")).display === "none"')
+        ->assertNoJavaScriptErrors();
+});
+
+test('a PDF with no outline has no Contents button, on a desktop and on a phone', function (string $size) {
+    visit(($this->read)(), $this->{$size})->waitForText('PDF · 3 pages')->wait(0.8)
+        ->assertScript('document.querySelector("[data-reader=contents-button]").offsetParent === null')
+        ->assertNoJavaScriptErrors();
+})->with(['desktop', 'phone']);
+
+test('a PDF with an outline has the Contents button on a phone too', function () {
+    $source = pdfSource(tinyPdf(5, outline: ['Introduction' => 1, 'Appendix' => 5]));
+
+    visit(route('reader.show', $source->media->slug), $this->phone)->waitForText('PDF · 5 pages')->wait(0.8)
+        ->assertScript('document.querySelector("[data-reader=contents-button]").offsetParent !== null')
         ->assertNoJavaScriptErrors();
 });
 
@@ -139,15 +179,15 @@ test('a book of 1,000 pages opens at once and keeps only a few canvases', functi
     $page = visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('PDF · 1000 pages')->wait(1);
 
     $page->assertSeeIn('[data-reader=meta]', 'Page 1 of 1000')
-        ->assertScript('document.querySelectorAll("canvas").length <= 4')
+        ->assertScript('document.querySelectorAll("canvas").length <= 5')
         ->type('[data-reader=page-input]', '640')->keys('[data-reader=page-input]', 'Enter')->wait(1.2)
         ->assertSeeIn('[data-reader=meta]', 'Page 640 of 1000')
-        ->assertScript('document.querySelectorAll("canvas").length <= 4')
+        ->assertScript('document.querySelectorAll("canvas").length <= 5')
         ->assertScript('document.querySelector("canvas[data-page=\"640\"]") !== null')
         ->assertScript('document.querySelector("canvas[data-page=\"1\"]") === null')
         ->assertScript(($this->painted)(640))
         ->keys(':root', 'End')->wait(1)
-        ->assertScript('document.querySelectorAll("canvas").length <= 4')
+        ->assertScript('document.querySelectorAll("canvas").length <= 5')
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs();
 });

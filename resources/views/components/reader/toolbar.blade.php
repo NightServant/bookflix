@@ -23,7 +23,7 @@
 
     <div class="min-w-0 flex-1">
         <h1 class="truncate text-body font-medium text-ink">{{ $title }}</h1>
-        <p class="truncate text-legal text-ink-subtle"><span data-reader="subtitle" x-text="subtitle">{{ $subtitle }}</span>@if ($format === 'pages' && $direction === 'rtl')<span class="sm:hidden"> · {{ __('right to left') }}</span>@endif</p>
+        <p class="truncate text-legal text-ink-subtle"><span data-reader="subtitle" x-text="subtitle">{{ $subtitle }}</span>@if ($format === 'pages')<span x-show="rtl" @if ($direction !== 'rtl') style="display: none" @endif class="sm:hidden"><span x-show="subtitle" @if (! filled($subtitle)) style="display: none" @endif> · </span>{{ __('right to left') }}</span>@endif</p>
     </div>
 
     <div class="flex shrink-0 items-center gap-1">
@@ -64,7 +64,7 @@
                 >
                     <span class="inline-flex items-center gap-2 rounded-full bg-surface-input px-3 py-1.5 text-legal text-ink">
                         <flux:icon name="arrows-right-left" variant="outline" class="size-4" />
-                        <span data-reader="direction-label">{{ $chipLabel }}</span>
+                        <span data-reader="direction-label" x-text="rtl ? strings.rtl : strings.ltr">{{ $chipLabel }}</span>
                     </span>
                 </button>
             @else
@@ -75,7 +75,7 @@
             @endif
         @endif
 
-        {{-- Contents: the book's chapters. On a phone every format has the button (the signed-off phone frames), on a desktop only an EPUB does. --}}
+        {{-- Contents: the book's chapters. On a phone every format has the button (the signed-off phone frames), on a desktop an EPUB does, and a PDF when it has an outline. --}}
         <button
             type="button"
             id="reader-contents-button"
@@ -86,7 +86,9 @@
             aria-expanded="false"
             :aria-expanded="panel === 'contents'"
             @click="panel === 'contents' ? (panel = null) : open('contents', $el)"
-            @class([$iconButton, 'lg:hidden' => $format !== 'epub'])
+            x-show="hasContents"
+            @if ($format === 'pdf') style="display: none" @endif
+            @class([$iconButton, 'lg:hidden' => ! in_array($format, ['epub', 'pdf'], true)])
         ><flux:icon name="list-bullet" variant="outline" class="size-6" /></button>
 
         @if ($format !== 'pdf')

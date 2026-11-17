@@ -277,6 +277,12 @@ new #[Layout('layouts::reader')] class extends Component {
             'noteIn' => __('You are in :chapter · :percent% of the book read', ['chapter' => ':chapter', 'percent' => ':percent']),
             'next' => __('Next chapter'),
             'last' => __('Last chapter'),
+            'rtl' => __('Right to left'),
+            'ltr' => __('Left to right'),
+            'nextPage' => __('Next page'),
+            'prevPage' => __('Previous page'),
+            'nextCaption' => __('Next'),
+            'prevCaption' => __('Previous'),
         ],
     ];
 @endphp
@@ -297,50 +303,43 @@ new #[Layout('layouts::reader')] class extends Component {
 
         @if ($engine === 'pages')
             <p aria-hidden="true" class="pointer-events-none absolute inset-x-0 bottom-3 text-center text-meta text-ink-muted md:hidden">
-                {{ $direction === 'rtl' ? __('Tap the left side for the next page') : __('Tap the right side for the next page') }}
+                <span x-show="rtl" @if ($direction !== 'rtl') style="display: none" @endif>{{ __('Tap the left side for the next page') }}</span>
+                <span x-show="!rtl" @if ($direction === 'rtl') style="display: none" @endif>{{ __('Tap the right side for the next page') }}</span>
             </p>
         @endif
     </main>
 
     @if ($engine === 'webtoon')
-        <div aria-hidden="true" class="fixed inset-x-0 top-16 z-40 h-0.75 bg-ink-muted/35"><div data-reader="webtoon-progress" class="h-full bg-ink" style="width: {{ $percentLabel }}%"></div></div>
+        <div aria-hidden="true" class="fixed inset-x-0 top-16 z-40 h-0.75 bg-ink-muted/35"><div data-reader="webtoon-progress" class="h-full bg-ink" style="width: {{ $percentLabel }}%" :style="'width: ' + percent + '%'"></div></div>
 
-        <p data-reader="page-pill" role="status" class="fixed bottom-6 start-6 z-30 rounded-full bg-surface-card px-3 py-1.5 text-legal text-ink">{{ $meta }}</p>
+        <p data-reader="page-pill" role="status" x-text="meta" class="fixed bottom-6 start-6 z-30 rounded-full bg-surface-card px-3 py-1.5 text-legal text-ink">{{ $meta }}</p>
 
-        @if ($next)
-            <a
-                data-reader="next-episode"
-                href="{{ $next['readable'] ? route('reader.show', $next['media']->slug) : route('stories.show', $next['media']->slug) }}"
-                x-show="finished"
-                style="display: none"
-                class="focus-ring fixed end-6 bottom-6 z-30 inline-flex min-h-11 items-center gap-2 rounded-control border border-hairline bg-surface-deep ps-4 pe-3 text-body font-medium text-ink hover:bg-surface-card"
-            >{{ __('Next episode') }} <flux:icon name="chevron-right" variant="outline" class="size-5" /></a>
-        @endif
+        {{-- At the end of the strip: the next episode when the series has one, otherwise a way back to the story. --}}
+        <a
+            data-reader="{{ $next ? 'next-episode' : 'strip-back' }}"
+            href="{{ $next ? ($next['readable'] ? route('reader.show', $next['media']->slug) : route('stories.show', $next['media']->slug)) : $backUrl }}"
+            x-show="atEnd"
+            style="display: none"
+            class="focus-ring fixed end-6 bottom-6 z-30 inline-flex min-h-11 items-center gap-2 rounded-control border border-hairline bg-surface-deep ps-4 pe-3 text-body font-medium text-ink hover:bg-surface-card"
+        >@if ($next){{ __('Next episode') }} <flux:icon name="chevron-right" variant="outline" class="size-5" />@else{{ __('Back to the story') }}@endif</a>
     @else
         <x-reader.bottom-bar :format="$engine" :percent="$percent" :meta="$meta" :direction="$direction === 'rtl' ? 'rtl' : 'ltr'" />
     @endif
 
     @if ($paged)
-        @php
-            // A right-to-left comic turns the other way: the left button goes forward, with a caption.
-            $rtl = $direction === 'rtl';
-            $sides = [
-                'left' => [$rtl ? 'next' : 'prev', 'chevron-left'],
-                'right' => [$rtl ? 'prev' : 'next', 'chevron-right'],
-            ];
-        @endphp
-        @foreach ($sides as $side => [$command, $icon])
+        {{-- A right-to-left book turns the other way: the left button goes forward, with a caption. The direction can change while reading (settings), so the buttons follow it. --}}
+        @foreach (['left' => 'chevron-left', 'right' => 'chevron-right'] as $side => $icon)
             <div @class(['reader-chrome fixed top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-1 max-md:hidden', 'left-6' => $side === 'left', 'right-6' => $side === 'right']) :class="chrome || panel ? 'opacity-100' : 'pointer-events-none opacity-0'">
                 <button
                     type="button"
-                    data-reader="{{ $command }}-page"
-                    @click="turn({{ $command === 'next' ? 'true' : 'false' }})"
-                    aria-label="{{ $command === 'next' ? __('Next page') : __('Previous page') }}"
+                    data-reader="{{ ($side === 'left') === ($direction === 'rtl') ? 'next' : 'prev' }}-page"
+                    :data-reader="forward{{ ucfirst($side) }} ? 'next-page' : 'prev-page'"
+                    @click="turn(forward{{ ucfirst($side) }})"
+                    :aria-label="forward{{ ucfirst($side) }} ? strings.nextPage : strings.prevPage"
+                    aria-label="{{ ($side === 'left') === ($direction === 'rtl') ? __('Next page') : __('Previous page') }}"
                     class="focus-ring inline-flex size-11 items-center justify-center rounded-control bg-surface-card/80 text-ink hover:bg-surface-card"
                 ><flux:icon :name="$icon" variant="outline" class="size-6" /></button>
-                @if ($rtl)
-                    <span aria-hidden="true" class="text-legal text-ink-muted">{{ $command === 'next' ? __('Next') : __('Previous') }}</span>
-                @endif
+                <span aria-hidden="true" x-show="rtl" @if ($direction !== 'rtl') style="display: none" @endif x-text="forward{{ ucfirst($side) }} ? strings.nextCaption : strings.prevCaption" class="text-legal text-ink-muted">{{ ($side === 'left') ? __('Next') : __('Previous') }}</span>
             </div>
         @endforeach
     @endif

@@ -738,7 +738,7 @@ function epubSource(?string $bytes = null): ContentSource
  * `%%EOF` (the browser-test server trims trailing whitespace from a streamed body, and the Content-Length with it). With `$encrypted` the
  * trailer has an /Encrypt dictionary (standard handler, revision 2) whose user entry matches no password, so opening it asks for one.
  */
-function tinyPdf(int $pages = 3, bool $encrypted = false): string
+function tinyPdf(int $pages = 3, bool $encrypted = false, array $outline = []): string
 {
     $objects = [1 => '<< /Type /Catalog /Pages 2 0 R >>', 3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
     $kids = [];
@@ -753,6 +753,24 @@ function tinyPdf(int $pages = 3, bool $encrypted = false): string
 
     $objects[2] = '<< /Type /Pages /Count '.$pages.' /Kids ['.implode(' ', $kids).'] >>';
     $encrypt = null;
+
+    // An outline (title => page, in order): the root, then one item per entry, each pointing at its page with an explicit destination.
+    if ($outline !== []) {
+        $root = 4 + $pages * 2 + ($encrypted ? 1 : 0);
+        $items = [];
+        $n = 0;
+
+        foreach ($outline as $title => $target) {
+            $id = $root + 1 + $n;
+            $items[] = $id;
+            $links = ($n > 0 ? '/Prev '.($id - 1).' 0 R ' : '').($n < count($outline) - 1 ? '/Next '.($id + 1).' 0 R ' : '');
+            $objects[$id] = '<< /Title ('.$title.') /Parent '.$root.' 0 R '.$links.'/Dest ['.(4 + ($target - 1) * 2).' 0 R /Fit] >>';
+            $n++;
+        }
+
+        $objects[$root] = '<< /Type /Outlines /First '.$items[0].' 0 R /Last '.end($items).' 0 R /Count '.count($items).' >>';
+        $objects[1] = '<< /Type /Catalog /Pages 2 0 R /Outlines '.$root.' 0 R >>';
+    }
 
     if ($encrypted) {
         $encrypt = 4 + $pages * 2;
@@ -811,4 +829,22 @@ function pdfSource(?string $bytes = null): ContentSource
     $source->update(['byte_size' => strlen($bytes)]);
 
     return $source;
+}
+
+/**
+ * A verified public-domain comic source (CBZ of `$pages` small pages, `$size` pixels each unless `$sizes` says otherwise for a page) on a fresh story
+ * of `$type` (`manga` from Japan reads right to left; `webcomic` is a vertical strip), on the faked reader disk.
+ *
+ * @param  array{0: int, 1: int}  $size
+ * @param  array<int, array{0: int, 1: int}>  $sizes
+ */
+function comicSource(string $type = 'manga', int $pages = 5, array $size = [40, 60], array $sizes = [], ?string $title = null): ContentSource
+{
+    Storage::fake(ContentSource::disk());
+
+    $media = $type === 'manga'
+        ? Media::factory()->manga()->create(['title' => $title ?? 'Vagabond Tides', 'country_of_origin' => 'JP'])
+        : Media::factory()->ofType($type)->create(['title' => $title ?? 'Harbour Lights', 'country_of_origin' => 'KR']);
+
+    return ContentSource::factory()->for($media)->publicDomain()->verified()->cbz($pages, $size, $sizes)->create();
 }

@@ -3,6 +3,7 @@
 @php
     $value = number_format((float) $percent, 1, '.', '');
     $label = fn ($n) => rtrim(rtrim(number_format((float) $n, 1, '.', ''), '0'), '.');
+    $whole = (string) round((float) $percent);
 @endphp
 
 {{--
@@ -19,6 +20,7 @@
         step="0.1"
         value="{{ $value }}"
         @if ($direction === 'rtl') dir="rtl" @endif
+        :dir="rtl ? 'rtl' : null"
         aria-label="{{ __('Reading progress') }}"
         aria-valuetext="{{ __(':percent% read', ['percent' => $label($percent)]) }}"
         style="--reader-progress: {{ $label($percent) }}%"
@@ -34,9 +36,9 @@
         <p data-reader="meta" x-text="meta" class="min-w-0 truncate text-meta text-ink-muted">{{ $meta }}</p>
 
         <div class="flex shrink-0 items-center gap-4">
-            <p data-reader="percent" x-text="percentLabel" class="text-meta font-medium text-ink">{{ $label($percent) }}%</p>
+            <p data-reader="percent" x-text="percentLabel" class="text-meta font-medium text-ink">{{ $whole }}%</p>
 
-            @if ($format !== 'pdf')
+            @if (! in_array($format, ['pdf', 'pages'], true))
                 <button
                     type="button"
                     data-reader="next-chapter"
