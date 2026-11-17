@@ -637,7 +637,8 @@ select:focus[data-flux-control] {
     --reader-fill: linear-gradient(to right, var(--color-ink) var(--reader-progress, 0%), var(--reader-track) var(--reader-progress, 0%));
 }
 
-.reader-range:dir(rtl) {
+/* An attribute, not :dir(rtl): the CSS build lowers :dir() to a list of right-to-left languages, which never matches a manga's dir="rtl". */
+.reader-range[dir='rtl'] {
     --reader-fill: linear-gradient(to left, var(--color-ink) var(--reader-progress, 0%), var(--reader-track) var(--reader-progress, 0%));
 }
 

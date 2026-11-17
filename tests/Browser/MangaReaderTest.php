@@ -33,6 +33,8 @@ test('it opens on page 1 right to left, with the left button going forward', fun
         ->assertScript('document.querySelector("[data-reader=prev-page]").getBoundingClientRect().left > innerWidth / 2')
         ->assertSeeIn('[data-reader=next-page] + span', 'Next')
         ->assertScript('document.querySelector("[data-reader=progress]").getAttribute("dir")', 'rtl')
+        // The read part of the bar fills from the right edge (the CSS build once lowered :dir(rtl) to a language list that never matched).
+        ->assertScript('getComputedStyle(document.querySelector("[data-reader=progress]")).getPropertyValue("--reader-fill").includes("to left")')
         ->assertSeeIn('[data-reader=percent]', '20%')
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs();

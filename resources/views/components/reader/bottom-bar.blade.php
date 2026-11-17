@@ -11,7 +11,7 @@
     where the reader is on the left, the percent (or the chapter) and Next chapter on the right. At the end of the book the button reads "Last chapter"
     and is disabled with aria-disabled (the script flips it); a right-to-left comic fills the track from the right.
 --}}
-<div data-reader="bottom-bar" {{ $attributes->class('reader-chrome fixed inset-x-0 bottom-0 z-40 h-22 border-t border-hairline bg-surface-deep/92 px-4 lg:px-6') }} :class="chrome || panel ? 'opacity-100' : 'pointer-events-none opacity-0'">
+<div data-reader="bottom-bar" {{ $attributes->class('reader-chrome fixed inset-x-0 bottom-0 z-40 h-22 border-t border-hairline bg-surface-deep px-4 lg:px-6') }} :class="chrome || panel ? 'opacity-100' : 'pointer-events-none opacity-0'">
     <input
         type="range"
         data-reader="progress"
