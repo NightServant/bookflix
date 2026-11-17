@@ -32,7 +32,7 @@ class CbzExtractor
         $index = Cache::get($key);
 
         if (! $index instanceof CbzPageIndex) {
-            $index = $this->withLocalFile($source, fn (string $path): CbzPageIndex => $this->build($path));
+            $index = $this->withLocalFile($source, fn (string $path): CbzPageIndex => $this->indexFile($path));
             Cache::put($key, $index, now()->addDay());
         }
 
@@ -109,9 +109,11 @@ class CbzExtractor
     }
 
     /**
+     * The pages of a zip on this machine, in reading order. Public so an upload is judged by the very rules a stored comic is read with.
+     *
      * @throws UnsafeArchive
      */
-    private function build(string $path): CbzPageIndex
+    public function indexFile(string $path): CbzPageIndex
     {
         $entries = array_filter($this->guard->inspect($path)->entries, $this->isPage(...));
 

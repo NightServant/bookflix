@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Actions\Ratings\RecalculateRatedMedia;
+use App\Enums\AccessType;
 use App\Library\ExportStorage;
+use App\Models\ContentSource;
 use App\Models\User;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -29,6 +31,12 @@ class PurgeDeactivatedAccounts extends Command
                 if ($user->profile->avatar_path) {
                     Storage::disk(config('bookflix.avatar_disk'))->delete($user->profile->avatar_path);
                 }
+
+                // Their uploaded books go one by one through the model, so each file leaves the reader disk with its row.
+                ContentSource::query()
+                    ->where('access_type', AccessType::UserOwned)
+                    ->where('owner_user_id', $user->id)
+                    ->each(fn (ContentSource $source) => $source->delete());
 
                 // The account's scores go with it. Its stories are refreshed first: a reader deactivated before that was wired never refreshed them.
                 $ratings->handle($user);
