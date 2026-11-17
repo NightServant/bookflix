@@ -3,6 +3,8 @@
 namespace App\Actions\Reader;
 
 use App\Enums\AccessType;
+use App\Enums\ContentStatus;
+use App\Jobs\FetchContentFile;
 use App\Models\ContentSource;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
@@ -10,6 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * An admin vouches that Bookflix may offer this source: they record the license text and the rights holder, and stamp themselves and the time.
+ * Verifying a public-domain source that still has no file queues its download.
  * A reader's own upload is never verified here (it is private and verified for its owner by the upload).
  */
 class VerifyContentSource
@@ -34,5 +37,10 @@ class VerifyContentSource
             'verified_by' => $admin->id,
             'verified_at' => now(),
         ])->save();
+
+        // A public-domain source with an address but no file yet is fetched now; saving a failed one again is how an admin retries it.
+        if ($source->access_type === AccessType::PublicDomain && $source->url !== null && $source->status !== ContentStatus::Ready) {
+            FetchContentFile::dispatch($source->id)->afterCommit();
+        }
     }
 }

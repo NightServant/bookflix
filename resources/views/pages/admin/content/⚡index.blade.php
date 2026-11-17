@@ -59,13 +59,23 @@ new #[Title('Reading files')] class extends Component {
     public function sources(): LengthAwarePaginator
     {
         return $this->listed()
-            ->when($this->show === 'unverified', fn (Builder $query) => $query->whereNull('verified_at'))
-            ->when($this->show === 'verified', fn (Builder $query) => $query->whereNotNull('verified_at'))
+            ->when($this->show === 'unverified', fn (Builder $query) => $query->whereNot(fn (Builder $verified) => $this->verified($verified)))
+            ->when($this->show === 'verified', fn (Builder $query) => $query->where(fn (Builder $verified) => $this->verified($verified)))
             ->when($this->show === 'failed', fn (Builder $query) => $query->where('status', ContentStatus::Failed->value))
             ->select(['id', 'media_id', 'access_type', 'format', 'license', 'verified_by', 'verified_at', 'status', 'failure_reason', 'created_at'])
             ->with(['media' => fn ($query) => $query->withTrashed()->select(['id', 'title', 'deleted_at'])])
             ->orderByDesc('created_at')->orderByDesc('id')
             ->paginate(25);
+    }
+
+    /**
+     * The rows `ContentSource::isVerified()` accepts: an admin stamped them (the list never holds a reader's own upload, which needs no admin).
+     *
+     * @param  Builder<ContentSource>  $query
+     */
+    protected function verified(Builder $query): void
+    {
+        $query->whereNotNull('verified_at')->whereNotNull('verified_by');
     }
 
     /**

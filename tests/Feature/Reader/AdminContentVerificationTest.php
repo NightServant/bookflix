@@ -3,6 +3,7 @@
 use App\Actions\Reader\UnverifyContentSource;
 use App\Actions\Reader\VerifyContentSource;
 use App\Models\ContentSource;
+use App\Models\Media;
 use App\Models\User;
 use App\Reader\ContentAccessGate;
 use Illuminate\Support\Facades\Storage;
@@ -161,4 +162,15 @@ test('the page links to the story and carries named controls', function () {
     expect($html)->toContain(route('admin.media.edit', $source->media))
         ->and($html)->toContain('aria-label="Verify '.e($source->media->title).'"')
         ->and($html)->toContain('data-label="License"');
+});
+
+test('the verified filter matches what counts as verified', function () {
+    $admin = User::factory()->admin()->create();
+    ContentSource::factory()->verified()->for(Media::factory()->state(['title' => 'Vouched Tale']))->create();
+    // Stamped with a time but no admin: not verified, so it belongs under Unverified.
+    ContentSource::factory()->for(Media::factory()->state(['title' => 'Half Stamped Tale']))->create(['verified_at' => now()]);
+
+    $page = Livewire::actingAs($admin)->test('pages::admin.content.index');
+    $page->set('show', 'verified')->assertSee('Vouched Tale')->assertDontSee('Half Stamped Tale');
+    $page->set('show', 'unverified')->assertSee('Half Stamped Tale')->assertDontSee('Vouched Tale');
 });
