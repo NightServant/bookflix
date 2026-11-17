@@ -38,7 +38,11 @@ Plan: `2026-10-23-phase-9-reader.md` on `claude/phase-plans-7d02cb` (PR #3, docs
 | P9-R12 | Uploads (9.7): `UploadContentSource::handle(User, Media, UploadedFile)` checks the type with `finfo` plus magic bytes (EPUB: a zip whose first entry is an uncompressed `mimetype` of `application/epub+zip`, with `META-INF/container.xml`; PDF: `%PDF-`; CBZ: a zip with at least one image page), the per-format size caps, the 2 GB per-user quota (sum of `byte_size`), and that the media is visible to the user. It stores the file at `content/{user_id}/{ulid}` on `reader.disk` (private by default), keeping the client name only in `original_name`. Rate limit: 10 uploads an hour per user. Deleting a source deletes its file; the purge command deletes a user's uploaded sources and files before the user. The Livewire upload rule and PHP's upload limits must allow the caps; the screen, its route and the Livewire config come with the signed-off design. | Large uploads need `upload_max_filesize` and `post_max_size` raised at deploy. |
 | P9-R13 | Progress (with 9.3): readers save through a `ProgressWriter` that calls `LogProgress` with the source. To keep a reader from flooding the history and interactions, a save within 10 minutes of the last one for the same source extends that session instead of appending one, and `reading_progress` is recorded at most once per session. This changes `LogProgress`'s signature (an optional source), not its manual-log behaviour. It is decided in detail with 9.3. | Session lengths are approximate within the 10-minute window. |
 | P9-R14 | pdf.js range requests outlive a 10-minute URL. The PDF reader asks the page for a fresh signed URL before the old one expires (9.4). | A tab left open past expiry needs one refresh request. |
-| P9-R15 | New dependencies: none for the backend. Readers: `foliate-js` 1.0.1 (MIT, npm) and `pdfjs-dist` (Apache-2.0), both named in the plan; versions pinned and licences recorded in G2 with 9.3 and 9.4. | None. |
+| P9-R15 | New dependencies: none for the backend. Readers: `foliate-js` 1.0.1 (MIT, npm) and `pdfjs-dist` 6.5.438 (Apache-2.0, released 2026-11-01), both named in the plan, pinned exactly. | None. |
+| P9-R16 | foliate-js sets `sandbox="allow-same-origin allow-scripts"` on its iframes (`paginator.js`, `fixed-layout.js`) because of WebKit bug 218086. The user's rule is a sandbox without `allow-scripts`, so a small Vite transform in `vite.config.js` rewrites both to `allow-same-origin` at build time (no new dependency), and a browser test asserts it. The page's CSP, which the blob documents inherit, is the second layer. | On Safari, links inside a book (footnotes, in-text links) don't respond. Paging, the keyboard, contents and settings run in the page, outside the iframe, and work everywhere. |
+| P9-R17 | The reader page (`reader.show`) adds `blob:` to style-src and font-src (EPUB stylesheets and fonts are blob URLs in the iframe) and, only if pdf.js needs it, `'wasm-unsafe-eval'` to script-src. pdf.js runs with `isEvalSupported: false` and its worker from `/build` (same origin). | A wider policy on one route. |
+| P9-R18 | Uploads up to 500 MB go through Livewire's temporary upload on the private local disk; `config/livewire.php` carries the full `temporary_file_upload` block with that size. PHP `upload_max_filesize` and `post_max_size` must allow it at deploy. | Large uploads fail with PHP's limit until the server allows them. |
+| P9-R19 | `FetchContentFile` follows no redirects. Standard Ebooks serves feed downloads directly (checked 2026-11-17: 200, `application/epub+zip`); Gutenberg's `/cache/epub/` files are served directly too. | A provider that starts redirecting fails with "The file is no longer at its address." until the rule is revisited. |
 
 ## Settled with the user (2026-11-17)
 
@@ -56,4 +60,13 @@ Plan: `2026-10-23-phase-9-reader.md` on `claude/phase-plans-7d02cb` (PR #3, docs
 
 | Task | Commits | Status | Deviations and open findings |
 |---|---|---|---|
-| Scan and ledger | | done | |
+| Scan and ledger | 6785926 | done | Q11, the Gutenberg scope, Standard Ebooks and the CSP were settled with the user. |
+| 9.1 sources, gate, admin verification | f4de963 | done | `isVerified()` needs `verified_by` too for admin-verified types. |
+| 9.1 public-domain importer | ef96675 | done | Gutenberg's `since` keeps rows issued on or after the cursor's day (idempotent re-import). |
+| 9.1 archive guard and file fetching | b7e8082 | done | Ratio checks apply above 1 MB; no redirects (P9-R19). |
+| 9.2 signed streaming and CSP | 4697282 | done | `@fluxAppearance` needed the nonce passed by hand. |
+| 9.5 CBZ page index and page route (backend) | ea705fb | done | |
+| 9.6 CBR to CBZ (unar or bsdtar) | c434eaf | done | `lsar` (beside unar) lists the archive before extraction. |
+| 9.7 uploads, deletion, purge (backend) | 57583b8 | done | A deactivated user is refused even though `use-reader-side` only checks `is_admin`. |
+| Review fixes | cadb4f5 | done | `/code-review` (10 findings) and the security review (no high-confidence findings; 2 low notes) all fixed: wrapped size refusals, cache of plain arrays, merges move sources, CBR failures and live size cap, purge paging, page memory cap (`max_page_mb` 50), typed archive refusals, Gutenberg byte-offset pages, shared helpers, verified URLs frozen, preview URL bound to the admin. |
+| Gate on 4697282 | | passed | `composer test` (lint, PHPStan, Unit and Feature): 2706 passed. |
