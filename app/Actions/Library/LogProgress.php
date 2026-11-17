@@ -6,6 +6,7 @@ use App\Discovery\Recommendations\InteractionRecorder;
 use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
 use App\Events\LibraryChanged;
+use App\Models\ContentSource;
 use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\ReadingProgress;
@@ -25,6 +26,10 @@ use Illuminate\Validation\ValidationException;
  * Signals: `reading_start` on the first log of a story that was not yet Reading (one already set to Reading by hand had its start stamped then),
  * `reading_progress` on every log with the distance moved (never negative), and `reading_complete`. An opted-out reader records none of them
  * (see InteractionRecorder) but keeps progress and history. Two logs of one story at once are serialized on the library row.
+ *
+ * The reader (Phase 9, P9-R13) passes the `$source` it is reading, which is remembered on the place, and `$continueSession`: a save within
+ * `reader.session_gap_minutes` of the end of the last history row extends that row (more seconds, a new end and a new `to_percent`) instead of
+ * appending one, and records no `reading_progress` signal, so one reading session is one row and one signal. Manual logs pass neither.
  */
 class LogProgress
 {
@@ -43,7 +48,7 @@ class LogProgress
      *
      * @throws ValidationException when the percent is not a number from 0 to 100, or the page, chapter or time is out of range
      */
-    public function handle(User $user, Media $media, float $percent, ?int $page = null, ?string $chapter = null, ?array $locator = null, int $seconds = 0): ReadingProgress
+    public function handle(User $user, Media $media, float $percent, ?int $page = null, ?string $chapter = null, ?array $locator = null, int $seconds = 0, ?ContentSource $source = null, bool $continueSession = false): ReadingProgress
     {
         $this->validate($percent, $page, $chapter, $seconds);
 
@@ -52,23 +57,31 @@ class LogProgress
 
         $events = [];
 
-        $progress = DB::transaction(function () use ($user, $media, $to, $page, $chapter, $locator, $seconds, &$events): ReadingProgress {
+        $progress = DB::transaction(function () use ($user, $media, $to, $page, $chapter, $locator, $seconds, $source, $continueSession, &$events): ReadingProgress {
             $entry = LibraryEntry::where('user_id', $user->id)->where('media_id', $media->id)->lockForUpdate()->firstOrFail();
             $previous = ReadingProgress::where('user_id', $user->id)->where('media_id', $media->id)->first();
             $from = $previous === null ? 0.0 : (float) $previous->percent;
 
             $progress = $previous ?? new ReadingProgress(['user_id' => $user->id, 'media_id' => $media->id]);
-            $progress->fill(['page' => $page, 'chapter' => $chapter, 'locator' => $locator, 'percent' => $to, 'last_read_at' => now()])->save();
+            $progress->fill(['page' => $page, 'chapter' => $chapter, 'locator' => $locator, 'percent' => $to, 'last_read_at' => now()]);
+            $source === null || $progress->content_source_id = $source->id;
+            $progress->save();
 
-            ReadingSession::create([
-                'user_id' => $user->id,
-                'media_id' => $media->id,
-                'started_at' => now()->subSeconds($seconds),
-                'ended_at' => now(),
-                'seconds' => $seconds,
-                'from_percent' => $from,
-                'to_percent' => $to,
-            ]);
+            $session = $continueSession ? $this->openSession($user, $media) : null;
+
+            if ($session === null) {
+                ReadingSession::create([
+                    'user_id' => $user->id,
+                    'media_id' => $media->id,
+                    'started_at' => now()->subSeconds($seconds),
+                    'ended_at' => now(),
+                    'seconds' => $seconds,
+                    'from_percent' => $from,
+                    'to_percent' => $to,
+                ]);
+            } else {
+                $session->update(['ended_at' => now(), 'seconds' => min(self::MAX_SECONDS, $session->seconds + $seconds), 'to_percent' => $to]);
+            }
 
             $picksUp = in_array($entry->status, [ReadingStatus::WantToRead, ReadingStatus::Paused, ReadingStatus::Abandoned], true);
 
@@ -76,7 +89,8 @@ class LogProgress
                 $events[] = [InteractionEvent::ReadingStart, null];
             }
 
-            $events[] = [InteractionEvent::ReadingProgress, round(max(0.0, $to - $from), 2)];
+            // One `reading_progress` per session when the reader keeps saving; the distance of a session's later saves is not added up.
+            $session === null && $events[] = [InteractionEvent::ReadingProgress, round(max(0.0, $to - $from), 2)];
 
             if ($to >= 100.0) {
                 // Not for a reader already at 100: the entry may be new (the story was taken out of the library and put back), but the story was finished before.
@@ -97,6 +111,16 @@ class LogProgress
         LibraryChanged::dispatch($user, $media);
 
         return $progress;
+    }
+
+    /**
+     * The last history row of this reader and story, when it ended within the session gap.
+     */
+    private function openSession(User $user, Media $media): ?ReadingSession
+    {
+        return ReadingSession::where('user_id', $user->id)->where('media_id', $media->id)
+            ->where('ended_at', '>=', now()->subMinutes((int) config('bookflix.reader.session_gap_minutes')))
+            ->latest('ended_at')->latest('id')->first();
     }
 
     private function validate(float $percent, ?int $page, ?string $chapter, int $seconds): void

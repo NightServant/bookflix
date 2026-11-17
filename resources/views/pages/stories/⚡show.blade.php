@@ -9,7 +9,11 @@ use App\Models\DeweyClass;
 use App\Models\ExternalSource;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
+use App\Models\ReadingProgress;
 use App\Models\Series;
+use App\Reader\SourceChooser;
+use App\Enums\AccessType;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
@@ -178,6 +182,61 @@ new #[Title('Story')] class extends Component {
     }
 
     /**
+     * The file this reader opens from the story: their own upload first, else a verified public-domain or licensed one. Null when there is none, and
+     * always for an account with no reader side (an admin).
+     */
+    #[Computed]
+    public function readSource(): ?\App\Models\ContentSource
+    {
+        $user = auth()->user();
+
+        return $user === null || ! Gate::forUser($user)->allows('use-reader-side') ? null : app(SourceChooser::class)->for($user, $this->media);
+    }
+
+    /**
+     * The red action's label: "Read your copy" for their own upload, else "Start reading", and "Continue reading · 42%" once they are part way through that file.
+     *
+     * @return array{label: string, own: bool}|null
+     */
+    #[Computed]
+    public function readAction(): ?array
+    {
+        $source = $this->readSource;
+
+        if ($source === null) {
+            return null;
+        }
+
+        $progress = ReadingProgress::query()->where('user_id', auth()->id())->where('media_id', $this->mediaId)->where('content_source_id', $source->id)->first();
+        $percent = $progress === null ? 0.0 : (float) $progress->percent;
+        $own = $source->access_type === AccessType::UserOwned;
+
+        return [
+            'own' => $own,
+            'label' => $percent > 0 && $percent < 100
+                ? __('Continue reading · :percent%', ['percent' => ReadingProgress::label(floor($percent))])
+                : ($own ? __('Read your copy') : __('Start reading')),
+        ];
+    }
+
+    /**
+     * The verified links to read the story elsewhere, only while Bookflix has nothing this reader can open (and only for an account with a reader side).
+     *
+     * @return Collection<int, \App\Models\ContentSource>
+     */
+    #[Computed]
+    public function whereToRead(): Collection
+    {
+        $user = auth()->user();
+
+        if ($user === null || ! Gate::forUser($user)->allows('use-reader-side') || $this->readSource !== null) {
+            return new Collection;
+        }
+
+        return app(SourceChooser::class)->links($this->media);
+    }
+
+    /**
      * @return Collection<int, Media>
      */
     #[Computed]
@@ -285,12 +344,20 @@ new #[Title('Story')] class extends Component {
                     @endif
 
                     <div class="mt-6 flex flex-wrap gap-3">
+                        @if ($this->readAction)
+                            <x-cta icon="book-open" :href="route('reader.show', $media->slug)" data-test="read-action">{{ $this->readAction['label'] }}</x-cta>
+                        @endif
+
                         <livewire:library-controls :media="$media" />
 
                         @if ($neighbours && $linkSeries)
                             <x-cta variant="secondary" icon="rectangle-stack" :href="route('series.show', $neighbours['series']->slug)" wire:navigate>{{ __('See the series') }}</x-cta>
                         @endif
                     </div>
+
+                    @if ($this->readAction && $this->readAction['own'])
+                        <p class="mt-3 text-meta text-ink-muted">{{ __('Your uploaded copy. Only you can read it.') }}</p>
+                    @endif
 
                     @if ($neighbours)
                         @unless ($linkSeries)
@@ -316,6 +383,10 @@ new #[Title('Story')] class extends Component {
                         @endif
                     @endif
                 </div>
+
+                @if ($this->whereToRead->isNotEmpty())
+                    <x-where-to-read :links="$this->whereToRead" :media="$media" />
+                @endif
             </div>
         </div>
     </header>

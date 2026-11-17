@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Reader\PageController;
+use App\Http\Controllers\Reader\ProgressController;
 use App\Http\Controllers\Reader\StreamContentController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,3 +16,14 @@ Route::get('reader/{source}/page/{page}', PageController::class)
     ->middleware(['auth', 'verified', 'reader', 'signed:relative', 'throttle:reader-stream'])
     ->whereNumber(['source', 'page'])
     ->name('reader.page');
+
+// The reader's place, saved while they read (and by a beacon as the tab closes): their own bucket, per person.
+Route::post('reader/{source}/progress', ProgressController::class)
+    ->middleware(['auth', 'verified', 'reader', 'throttle:reader-progress'])
+    ->whereNumber('source')
+    ->name('reader.progress');
+
+// The reader itself: a full-screen page of its own, one engine per format.
+Route::livewire('read/{slug}', 'pages::reader.show')
+    ->middleware(['auth', 'verified', 'reader'])
+    ->name('reader.show');

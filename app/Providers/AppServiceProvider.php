@@ -68,6 +68,8 @@ class AppServiceProvider extends ServiceProvider
             || ($owner->profile->library_visibility === Visibility::Public && ! $owner->isDeactivated()));
 
         // pdf.js reads a file in many small ranges, so a reader gets a roomy allowance (per person, not per address).
+        // One save every couple of seconds while reading, plus the beacons; a person, not an address.
+        RateLimiter::for('reader-progress', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
         RateLimiter::for('reader-stream', fn (Request $request): Limit => Limit::perMinute(600)->by($request->user()?->id ?: $request->ip()));
 
         foreach (config('bookflix.providers') as $key => $provider) {

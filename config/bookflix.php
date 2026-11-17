@@ -109,12 +109,15 @@ return [
     | `upload` caps a reader's own files (megabytes per format, a total quota and
     | uploads per hour). `cbr` names the tools that unpack RAR comics, run with a
     | timeout. `fetch` caps a public-domain file downloaded from a provider.
+    | `session_gap_minutes` is how long after a save the reader's next one still
+    | belongs to the same reading session (one history row, one signal).
     |
     */
 
     'reader' => [
         'disk' => env('BOOKFLIX_READER_DISK', 'local'),
         'url_ttl_minutes' => 10,
+        'session_gap_minutes' => 10,
         'archive' => [
             'max_entries' => 2000,
             'max_uncompressed_mb' => 1024,
