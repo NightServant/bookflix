@@ -42,7 +42,8 @@ class HybridSearch
      * leg reads the intent's `semanticText` when an intent is given (none when it is empty), otherwise the query. The semantic leg falls silent, never fails, when the ML service does (see SemanticLeg).
      * When the query is the title of a work the reader may see and the intent would hide that work ("Fantasy Island", a thriller), the reader
      * named a title, not a taxonomy: no group is applied and every group is suggested. The intent is untrusted input and is cleaned first
-     * (QueryIntent::fromArray).
+     * (QueryIntent::fromArray). When no text leg finds anything, even without the intent (the whole sentence matches no title or summary), the
+     * stories the intent's groups match are listed instead, most rated first, as keyword hits with the groups applied; no semantic matches are claimed.
      *
      * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
      */
@@ -153,6 +154,7 @@ class HybridSearch
     /**
      * Every leg's ids with as many intent groups applied as still leave a result, and the groups that were.
      * One run when the whole intent fits, two when even the reader's own filters find nothing, at most one more per dropped group otherwise.
+     * When no text leg finds anything at all, the groups still apply as a text-less listing (see listing()), the last group dropped until it finds some.
      * The semantic leg embeds its text and fetches its neighbours on the first run only; later runs filter the same neighbours.
      *
      * @param  array<string, list<string>|string>  $groups
@@ -184,7 +186,32 @@ class HybridSearch
             }
         }
 
+        // No text leg finds anything, even without the intent: list the stories the filters and the intent's groups match, relaxing the same way.
+        // Never for a query naming prohibited content: it gets keyword results only, so here none.
+        while (! $found($plain) && $groups !== [] && ! ProhibitedContent::matches($query)) {
+            $ids = $this->listing(new SearchFilters(...[...get_object_vars($filters), ...$groups]))->limit(self::LEG_LIMIT)->pluck('media.id')->map(fn ($id): int => (int) $id)->values()->all();
+
+            if ($ids !== []) {
+                return [[array_values($ids), [], []], $groups];
+            }
+
+            array_pop($groups);
+        }
+
         return [$plain, []];
+    }
+
+    /**
+     * The stories the filters match, as the Discover page orders them: the most rated first, newest breaking ties. The access gate is the caller's.
+     *
+     * @return Builder<Media>
+     */
+    private function listing(SearchFilters $filters): Builder
+    {
+        return $filters->apply(Media::query()->unmerged())
+            ->orderByDesc('media.ratings_count')
+            ->orderByRaw('media.published_on desc nulls last')
+            ->orderByDesc('media.id');
     }
 
     /**
@@ -195,11 +222,7 @@ class HybridSearch
      */
     public function browse(SearchFilters $filters, int $perPage = 24, ?User $viewer = null): LengthAwarePaginator
     {
-        return $filters->forViewer($viewer)->apply(Media::query()->unmerged())
-            ->orderByDesc('media.ratings_count')
-            ->orderByRaw('media.published_on desc nulls last')
-            ->orderByDesc('media.id')
-            ->paginate($perPage);
+        return $this->listing($filters->forViewer($viewer))->paginate($perPage);
     }
 
     /**

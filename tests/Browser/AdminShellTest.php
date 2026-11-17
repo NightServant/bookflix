@@ -32,7 +32,8 @@ test('the sidebar drawer opens from the menu button and closes by keyboard, trap
         ->script('document.querySelector(\'button[aria-label="Open menu"]\').focus()');
 
     $page->keys(':focus', 'Enter')->wait(0.6)
-        ->assertScript('document.querySelector("[data-flux-sidebar]").getBoundingClientRect().left >= 0', true);
+        ->assertScript('document.querySelector("[data-flux-sidebar]").getBoundingClientRect().left >= 0', true)
+        ->assertScript($inDrawer, true);
 
     // Focus stays inside the open drawer however far the person tabs.
     foreach (range(1, 14) as $step) {
