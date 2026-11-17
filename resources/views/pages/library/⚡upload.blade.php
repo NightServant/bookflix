@@ -310,10 +310,14 @@ new #[Title('Add your own file')] class extends Component {
                     {{ __('Confirm') }}
                 </h2>
                 <div class="mt-4">
-                    <flux:checkbox wire:model="own" error:bag="none" :label="__('This is my own copy, and it has no DRM.')" />
-                    <p class="mt-2 text-meta text-ink-subtle">{{ __('Bookflix stores the file privately for you. It\'s never shared or shown to anyone else.') }}</p>
+                    {{-- The native box drawn like the filter checkboxes: it fills white when checked, never red (red is for calls to action only). --}}
+                    <label class="inline-flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink">
+                        <input type="checkbox" wire:model="own" class="filter-check" aria-describedby="upload-own-note" @error('own') aria-invalid="true" aria-errormessage="upload-own-error" @enderror>
+                        <span>{{ __('This is my own copy, and it has no DRM.') }}</span>
+                    </label>
+                    <p id="upload-own-note" class="mt-1 text-meta text-ink-subtle">{{ __('Bookflix stores the file privately for you. It\'s never shared or shown to anyone else.') }}</p>
                     @error('own')
-                        <p role="alert" class="mt-2 text-meta text-ink">{{ $message }}</p>
+                        <p id="upload-own-error" role="alert" class="mt-2 text-meta text-ink">{{ $message }}</p>
                     @enderror
                 </div>
             </section>
