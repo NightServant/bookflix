@@ -22,6 +22,7 @@ use App\Enums\RecommendationEventType;
 use App\Enums\ReviewStatus;
 use App\Models\Collection as StoryCollection;
 use App\Models\CollectionItem;
+use App\Models\ContentSource;
 use App\Models\ContentWarning;
 use App\Models\Creator;
 use App\Models\DeweyClass;
@@ -53,6 +54,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
 use Pest\Browser\Api\AwaitableWebpage;
@@ -652,4 +654,80 @@ function richReader(): array
     }
 
     return [$user, $catalog];
+}
+
+/**
+ * A tiny valid EPUB 3 with two chapters ("Down the Rabbit-Hole" and "The Pool of Tears"): the stored `mimetype` first, `container.xml`, the package
+ * document, a nav and one XHTML file per chapter, each with `$paragraphs` paragraphs so a chapter spans several pages.
+ */
+function tinyEpub(int $paragraphs = 30): string
+{
+    $zip = new ZipArchive;
+    $temp = (string) tempnam(sys_get_temp_dir(), 'epub');
+    $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+    $zip->addFromString('mimetype', 'application/epub+zip');
+    $zip->setCompressionName('mimetype', ZipArchive::CM_STORE);
+    $zip->addFromString('META-INF/container.xml', <<<'XML'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+        </container>
+        XML);
+    $zip->addFromString('OEBPS/content.opf', <<<'XML'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+          <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <dc:identifier id="id">urn:uuid:3f2b8c1e-0000-4000-8000-000000000001</dc:identifier>
+            <dc:title>The Open Book</dc:title>
+            <dc:language>en</dc:language>
+            <meta property="dcterms:modified">2026-11-17T00:00:00Z</meta>
+          </metadata>
+          <manifest>
+            <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+            <item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="c1"/><itemref idref="c2"/></spine>
+        </package>
+        XML);
+    $zip->addFromString('OEBPS/nav.xhtml', <<<'XML'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head>
+        <body><nav epub:type="toc"><ol>
+          <li><a href="ch1.xhtml">I. Down the Rabbit-Hole</a></li>
+          <li><a href="ch2.xhtml">II. The Pool of Tears</a></li>
+        </ol></nav></body></html>
+        XML);
+
+    $chapters = ['ch1.xhtml' => ['Chapter I.', 'Down the Rabbit-Hole', 'Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading.'], 'ch2.xhtml' => ['Chapter II.', 'The Pool of Tears', 'Curiouser and curiouser, cried Alice, she was so much surprised that for the moment she quite forgot how to speak good English, and the garden grew very strange.']];
+
+    foreach ($chapters as $file => [$eyebrow, $title, $sentence]) {
+        $body = implode("\n", array_map(fn (int $n) => "<p>{$sentence} ({$n})</p>", range(1, $paragraphs)));
+
+        $zip->addFromString("OEBPS/{$file}", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>{$title}</title></head><body><h1>{$title}</h1><p>{$eyebrow}</p>{$body}</body></html>");
+    }
+
+    // A zip normally ends in NUL bytes, which the browser-test server's `mb_trim` of a streamed body would cut off (and the Content-Length with them): a comment ends it in text.
+    $zip->setArchiveComment('bookflix test fixture');
+    $zip->close();
+    $bytes = (string) file_get_contents($temp);
+    unlink($temp);
+
+    return $bytes;
+}
+
+/**
+ * A verified public-domain EPUB source whose file is `$bytes` (the tiny book by default), on a fresh story, on the faked reader disk.
+ */
+function epubSource(?string $bytes = null): ContentSource
+{
+    Storage::fake(ContentSource::disk());
+
+    $bytes ??= tinyEpub();
+    $source = ContentSource::factory()->for(Media::factory()->novel()->create(['title' => 'The Open Book']))->publicDomain()->verified()->ready()->create();
+    Storage::disk(ContentSource::disk())->put($source->storage_path, $bytes);
+    $source->update(['byte_size' => strlen($bytes)]);
+
+    return $source;
 }

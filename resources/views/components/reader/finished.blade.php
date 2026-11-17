@@ -23,7 +23,7 @@
     {{ $attributes->class('fixed inset-x-0 top-16 bottom-22 z-30 flex items-center justify-center bg-canvas/60 p-4') }}
 >
     <div class="w-full max-w-140 rounded-card border border-hairline bg-surface-card p-8">
-        <p class="text-meta text-ink-muted">{{ __('You finished') }}</p>
+        <p class="text-meta text-ink-subtle">{{ __('You finished') }}</p>
         <h2 id="reader-finished-title" class="mt-4 text-section text-ink text-balance">{{ $title }}</h2>
         <p class="mt-6 text-body text-ink-subtle">{{ __('Marked as completed in your library.') }}</p>
 
@@ -39,10 +39,10 @@
                     @endif
                 </span>
                 <div class="min-w-0">
-                    <p class="text-legal text-ink-muted">{{ __('Next in the series') }}</p>
+                    <p class="text-legal text-ink-subtle">{{ __('Next in the series') }}</p>
                     <p class="text-lead text-ink">{{ $next->title }}</p>
                     @if ($meta !== '')
-                        <p class="text-meta text-ink-muted">{{ $meta }}</p>
+                        <p class="text-meta text-ink-subtle">{{ $meta }}</p>
                     @endif
                 </div>
             </div>

@@ -632,7 +632,7 @@ select:focus[data-flux-control] {
  * `--reader-progress`; it fills from the right for a right-to-left comic (`dir="rtl"`). Never red.
  */
 .reader-range {
-    @apply m-0 block h-11 w-full cursor-pointer appearance-none bg-transparent outline-hidden;
+    @apply mx-0 mt-0 -mb-2 block h-11 w-full cursor-pointer appearance-none bg-transparent outline-hidden;
     --reader-track: color-mix(in srgb, var(--color-ink-muted) 35%, transparent);
     --reader-fill: linear-gradient(to right, var(--color-ink) var(--reader-progress, 0%), var(--reader-track) var(--reader-progress, 0%));
 }

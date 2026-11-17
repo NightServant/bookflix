@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * What a reader's browser saves while it reads (P9-R13). The payload is checked closely, since it comes from a page the reader controls: a locator of
  * known keys only, a percent from 0 to 100, a chapter name, the seconds read since the last save and the browser's own clock in milliseconds. A payload
- * older than the stored place (by that clock) is a retry that arrived late, and is dropped. The rest goes to LogProgress, which keeps one history row
+ * whose clock is not newer than the one stored with the place is a retry that arrived late, and is dropped. The rest goes to LogProgress, which keeps one history row
  * and one signal per reading session. The caller has already asked the access gate.
  */
 class ProgressWriter
@@ -46,7 +46,8 @@ class ProgressWriter
 
         $stored = ReadingProgress::where('user_id', $user->id)->where('media_id', $source->media_id)->first();
 
-        if ($stored !== null && (int) $data['client_ts'] < $stored->last_read_at->getTimestampMs()) {
+        // Ordered by the browser's own clock, never against the server's: a device whose clock is far off still saves, and a late retry never wins.
+        if ($stored?->client_ts !== null && (int) $data['client_ts'] <= $stored->client_ts) {
             return null;
         }
 
@@ -63,6 +64,7 @@ class ProgressWriter
             seconds: (int) ($data['seconds'] ?? 0),
             source: $source,
             continueSession: true,
+            clientTs: (int) $data['client_ts'],
         );
     }
 }

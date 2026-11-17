@@ -250,25 +250,36 @@ new #[Layout('layouts::reader')] class extends Component {
         'data-direction' => $direction,
         'data-page-count' => $pageCount,
         'data-reading-mode' => $media->mediaType->reading_mode->value,
+        'data-strings' => json_encode([
+            'chapterOf' => __('Chapter :n of :total', ['n' => ':n', 'total' => ':total']),
+            'pageOf' => __('page :n of :total', ['n' => ':n', 'total' => ':total']),
+            'pageOfFirst' => __('Page :n of :total', ['n' => ':n', 'total' => ':total']),
+        ]),
     ], fn ($value) => $value !== null);
 
     // A comic whose archive can't be read opens on the "couldn't open" card at once.
     $initial = in_array($engine, ['pages', 'webtoon'], true) && $pageCount === null ? 'corrupt' : 'opening';
+
+    // The state of the page's Alpine component (resources/js/reader/chrome.js): the numbers it shows before an engine says anything, and its words.
+    $chrome = [
+        'engine' => $engine,
+        'state' => $initial,
+        'percent' => $percent,
+        'subtitle' => (string) $subtitle,
+        'meta' => (string) $meta,
+        'direction' => $direction,
+        'mediaId' => $this->mediaId,
+        'strings' => [
+            'read' => __(':percent% read', ['percent' => ':percent']),
+            'note' => __(':percent% of the book read', ['percent' => ':percent']),
+            'noteIn' => __('You are in :chapter · :percent% of the book read', ['chapter' => ':chapter', 'percent' => ':percent']),
+            'next' => __('Next chapter'),
+            'last' => __('Last chapter'),
+        ],
+    ];
 @endphp
 
-<div
-    x-data="{
-        panel: null,
-        state: @js($initial),
-        finished: false,
-        chrome: true,
-        toc: [],
-        current: null,
-        contentsNote: @js(__(':percent% of the book read', ['percent' => $percentLabel])),
-    }"
-    @keydown.escape.window="panel = null"
-    class="fixed inset-0 bg-canvas"
->
+<div x-data="readerChrome(@js($chrome))" class="fixed inset-0 bg-canvas">
     <x-reader.toolbar :format="$engine" :title="$media->title" :subtitle="$subtitle" :back-url="$backUrl" :direction="$direction" :page-count="$pageCount" :page="$page" />
 
     <main id="main" tabindex="-1" aria-label="{{ $media->title }}" @class(['absolute inset-x-0 outline-none', 'inset-y-0' => $engine === 'webtoon', 'top-16 bottom-22' => $engine !== 'webtoon'])>
@@ -321,7 +332,7 @@ new #[Layout('layouts::reader')] class extends Component {
                 <button
                     type="button"
                     data-reader="{{ $command }}-page"
-                    @click="$dispatch('reader:{{ $command }}')"
+                    @click="turn({{ $command === 'next' ? 'true' : 'false' }})"
                     aria-label="{{ $command === 'next' ? __('Next page') : __('Previous page') }}"
                     class="focus-ring inline-flex size-11 items-center justify-center rounded-control bg-surface-card/80 text-ink hover:bg-surface-card"
                 ><flux:icon :name="$icon" variant="outline" class="size-6" /></button>
@@ -337,7 +348,7 @@ new #[Layout('layouts::reader')] class extends Component {
     @if ($engine === 'epub')
         <x-reader.settings-panel variant="book" />
     @elseif ($engine === 'pages')
-        <x-reader.settings-panel variant="pages" :direction="$direction" />
+        <x-reader.settings-panel variant="pages" />
     @elseif ($engine === 'webtoon')
         <x-reader.settings-panel variant="strip" />
     @endif

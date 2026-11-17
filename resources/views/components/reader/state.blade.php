@@ -29,7 +29,7 @@
                 <p class="mt-2 text-meta text-ink-subtle text-pretty">{{ __('It may be damaged, or in a form Bookflix can\'t read. Your place in the story is saved.') }}</p>
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
                     <a href="{{ $backUrl }}" class="{{ $secondary }}">{{ __('Back to the story') }}</a>
-                    <button type="button" data-reader="retry" class="{{ $primary }}">{{ __('Try again') }}</button>
+                    <button type="button" data-reader="retry" @click="retry()" class="{{ $primary }}">{{ __('Try again') }}</button>
                 </div>
             </div>
             @break

@@ -22,22 +22,29 @@
         aria-label="{{ __('Reading progress') }}"
         aria-valuetext="{{ __(':percent% read', ['percent' => $label($percent)]) }}"
         style="--reader-progress: {{ $label($percent) }}%"
-        class="reader-range -mt-0.5"
+        :value="percent"
+        :style="'--reader-progress: ' + percent + '%'"
+        :aria-valuetext="valueText"
+        @input="scrub($event.target.value)"
+        @change="seek($event.target.value)"
+        class="reader-range"
     >
 
     <div class="flex items-center justify-between gap-4">
-        <p data-reader="meta" class="min-w-0 truncate text-meta text-ink-muted">{{ $meta }}</p>
+        <p data-reader="meta" x-text="meta" class="min-w-0 truncate text-meta text-ink-muted">{{ $meta }}</p>
 
         <div class="flex shrink-0 items-center gap-4">
-            <p data-reader="percent" class="text-meta font-medium text-ink">{{ $label($percent) }}%</p>
+            <p data-reader="percent" x-text="percentLabel" class="text-meta font-medium text-ink">{{ $label($percent) }}%</p>
 
             @if ($format !== 'pdf')
                 <button
                     type="button"
                     data-reader="next-chapter"
-                    class="focus-ring inline-flex min-h-10 items-center gap-1 rounded-control bg-surface-card ps-3 pe-2 text-meta font-medium text-ink hover:bg-surface-input aria-disabled:pointer-events-none aria-disabled:opacity-40 max-sm:hidden"
+                    @click="nextChapter()"
+                    :aria-disabled="lastChapter ? 'true' : null"
+                    class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control bg-surface-card ps-3 pe-2 text-meta font-medium text-ink hover:bg-surface-input aria-disabled:pointer-events-none aria-disabled:opacity-40 max-sm:hidden"
                 >
-                    <span data-reader="next-chapter-label">{{ __('Next chapter') }}</span>
+                    <span data-reader="next-chapter-label" x-text="lastChapter ? strings.last : strings.next">{{ __('Next chapter') }}</span>
                     <flux:icon name="chevron-right" variant="outline" class="size-4" />
                 </button>
             @endif

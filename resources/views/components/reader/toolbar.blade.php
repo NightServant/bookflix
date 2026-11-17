@@ -13,7 +13,7 @@
 
 {{--
     The top bar (64px, signed-off frames d01, d05, d06, d07). Left: Back to the story, the title and a one-line subtitle. Right: the controls of the format.
-    The panels it opens (reading settings, contents) are the page's: `panel` is the Alpine state of the page root, which the chrome script (UI-1b) replaces.
+    The panels it opens (reading settings, contents) are the page's: `panel` is the Alpine state of the page root (resources/js/reader/chrome.js).
     A hook for the scripts is a `data-reader` attribute; nothing here depends on a class.
 --}}
 <header data-reader="toolbar" {{ $attributes->class('reader-chrome fixed inset-x-0 top-0 z-40 flex h-16 items-center gap-3 border-b border-hairline bg-surface-deep/92 ps-2 pe-2 lg:ps-6 lg:pe-6') }} :class="chrome || panel ? 'opacity-100' : 'pointer-events-none opacity-0'">
@@ -23,7 +23,7 @@
 
     <div class="min-w-0 flex-1">
         <h1 class="truncate text-body font-medium text-ink">{{ $title }}</h1>
-        <p class="truncate text-legal text-ink-subtle"><span data-reader="subtitle">{{ $subtitle }}</span>@if ($format === 'pages' && $direction === 'rtl')<span class="sm:hidden"> · {{ __('right to left') }}</span>@endif</p>
+        <p class="truncate text-legal text-ink-subtle"><span data-reader="subtitle" x-text="subtitle">{{ $subtitle }}</span>@if ($format === 'pages' && $direction === 'rtl')<span class="sm:hidden"> · {{ __('right to left') }}</span>@endif</p>
     </div>
 
     <div class="flex shrink-0 items-center gap-1">
@@ -59,7 +59,7 @@
                     data-reader="direction"
                     aria-haspopup="dialog"
                     aria-controls="reader-settings"
-                    @click="panel = 'settings'"
+                    @click="panel === 'settings' ? (panel = null) : open('settings', $el)"
                     class="focus-ring inline-flex min-h-11 items-center rounded-full max-sm:hidden"
                 >
                     <span class="inline-flex items-center gap-2 rounded-full bg-surface-input px-3 py-1.5 text-legal text-ink">
@@ -85,7 +85,7 @@
             aria-controls="reader-contents"
             aria-expanded="false"
             :aria-expanded="panel === 'contents'"
-            @click="panel = panel === 'contents' ? null : 'contents'"
+            @click="panel === 'contents' ? (panel = null) : open('contents', $el)"
             @class([$iconButton, 'lg:hidden' => $format !== 'epub'])
         ><flux:icon name="list-bullet" variant="outline" class="size-6" /></button>
 
@@ -99,13 +99,14 @@
                 aria-controls="reader-settings"
                 aria-expanded="false"
                 :aria-expanded="panel === 'settings'"
-                @click="panel = panel === 'settings' ? null : 'settings'"
+                @click="panel === 'settings' ? (panel = null) : open('settings', $el)"
                 class="{{ $textButton }}"
             ><span aria-hidden="true">Aa</span></button>
         @endif
 
-        <button type="button" data-reader="fullscreen" aria-label="{{ __('Full screen') }}" class="{{ $iconButton }} max-lg:hidden">
-            <flux:icon name="arrows-pointing-out" variant="outline" class="size-6" />
+        <button type="button" data-reader="fullscreen" aria-label="{{ __('Full screen') }}" aria-pressed="false" :aria-pressed="fullscreen" x-show="canFullscreen" style="display: none" @click="toggleFullscreen()" class="{{ $iconButton }} max-lg:hidden">
+            <flux:icon x-show="!fullscreen" name="arrows-pointing-out" variant="outline" class="size-6" />
+            <flux:icon x-show="fullscreen" style="display: none" name="arrows-pointing-in" variant="outline" class="size-6" />
         </button>
     </div>
 </header>

@@ -22,8 +22,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $chapter
  * @property string $percent
  * @property Carbon $last_read_at
+ * @property int|null $client_ts the browser's own clock (ms) at the save that wrote this place; saves are ordered by it
  */
-#[Fillable(['user_id', 'media_id', 'content_source_id', 'locator', 'page', 'chapter', 'percent', 'last_read_at'])]
+#[Fillable(['user_id', 'media_id', 'content_source_id', 'locator', 'page', 'chapter', 'percent', 'last_read_at', 'client_ts'])]
 class ReadingProgress extends Model
 {
     /** @use HasFactory<ReadingProgressFactory> */
@@ -49,6 +50,7 @@ class ReadingProgress extends Model
             'page' => 'integer',
             'percent' => 'decimal:2',
             'last_read_at' => 'datetime',
+            'client_ts' => 'integer',
         ];
     }
 

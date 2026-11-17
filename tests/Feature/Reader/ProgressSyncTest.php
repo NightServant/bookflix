@@ -44,13 +44,29 @@ test('a page locator also fills the page', function () {
     expect(ReadingProgress::sole()->page)->toBe(7);
 });
 
-test('a payload older than the stored place is ignored, and still answers 204', function () {
-    ($this->save)(['percent' => 40])->assertNoContent();
-    $stored = ReadingProgress::sole()->last_read_at;
+test('an older client_ts after a newer one is ignored, and still answers 204', function () {
+    $at = now()->getTimestampMs();
 
-    ($this->save)(['percent' => 10, 'client_ts' => $stored->getTimestampMs() - 5000])->assertNoContent();
+    ($this->save)(['percent' => 40, 'client_ts' => $at])->assertNoContent();
 
-    expect(ReadingProgress::sole()->percent)->toBe('40.00')->and(ReadingSession::count())->toBe(1);
+    ($this->save)(['percent' => 10, 'client_ts' => $at - 5000])->assertNoContent();
+    ($this->save)(['percent' => 10, 'client_ts' => $at])->assertNoContent();
+
+    expect(ReadingProgress::sole()->percent)->toBe('40.00')->and(ReadingProgress::sole()->client_ts)->toBe($at)->and(ReadingSession::count())->toBe(1);
+
+    ($this->save)(['percent' => 50, 'client_ts' => $at + 1])->assertNoContent();
+
+    expect(ReadingProgress::sole()->percent)->toBe('50.00')->and(ReadingProgress::sole()->client_ts)->toBe($at + 1);
+});
+
+test('a client clock far behind the server still saves, and its own order is kept', function () {
+    $behind = now()->subYears(3)->getTimestampMs();
+
+    ($this->save)(['percent' => 20, 'client_ts' => $behind])->assertNoContent();
+    ($this->save)(['percent' => 30, 'client_ts' => $behind + 4000])->assertNoContent();
+    ($this->save)(['percent' => 5, 'client_ts' => $behind + 2000])->assertNoContent();
+
+    expect(ReadingProgress::sole()->percent)->toBe('30.00')->and(ReadingProgress::sole()->client_ts)->toBe($behind + 4000);
 });
 
 test('a bad payload is 422 and writes nothing', function (array $payload) {

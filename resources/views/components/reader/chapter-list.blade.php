@@ -16,10 +16,10 @@
     x-trap="panel === 'contents'"
     x-cloak
     style="display: none"
-    {{ $attributes->class('fixed inset-x-0 top-16 bottom-0 z-30 flex') }}
+    {{ $attributes->class('fixed inset-x-0 top-16 bottom-0 z-50 flex') }}
 >
     <div class="flex w-full flex-col overflow-y-auto bg-surface-card lg:w-100 lg:border-e lg:border-hairline">
-        <div class="flex items-center justify-between gap-4 px-6 pt-6 pb-3">
+        <div class="flex items-center justify-between gap-4 px-6 pt-4 pb-2">
             <h2 id="reader-contents-title" class="text-section text-ink">{{ __('Contents') }}</h2>
             <button type="button" @click="panel = null" aria-label="{{ __('Close contents') }}" class="focus-ring -me-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink hover:bg-surface-input">
                 <flux:icon name="x-mark" variant="outline" class="size-6" />
@@ -33,7 +33,7 @@
                         <button
                             type="button"
                             data-reader="chapter"
-                            @click="$dispatch('reader:goto', { href: item.href }); panel = null"
+                            @click="command('goto', { href: item.href }); panel = null"
                             :aria-current="current === item.href ? 'true' : null"
                             :class="current === item.href ? 'bg-surface-input font-medium text-ink' : 'text-ink-subtle hover:bg-surface-input'"
                             :style="'padding-inline-start: ' + (2.5 + (item.level || 0) * 1) + 'rem'"
@@ -45,10 +45,10 @@
                     </li>
                 </template>
             </ol>
-            <p x-show="toc.length === 0" style="display: none" class="px-2 py-3 text-meta text-ink-muted">{{ __('This book has no list of chapters.') }}</p>
+            <p x-show="toc.length === 0" style="display: none" class="px-2 py-3 text-meta text-ink-subtle">{{ __('This book has no list of chapters.') }}</p>
         </nav>
 
-        <p data-reader="contents-footer" class="px-6 py-4 text-legal text-ink-muted" x-text="contentsNote">{{ __(':percent% of the book read', ['percent' => rtrim(rtrim(number_format((float) $percent, 1, '.', ''), '0'), '.')]) }}</p>
+        <p data-reader="contents-footer" class="px-6 py-4 text-legal text-ink-subtle" x-text="contentsNote">{{ __(':percent% of the book read', ['percent' => rtrim(rtrim(number_format((float) $percent, 1, '.', ''), '0'), '.')]) }}</p>
     </div>
 
     {{-- The rest of the page, dimmed; a click on it closes the sheet (a phone's sheet covers all of it). --}}

@@ -29,7 +29,8 @@ use Illuminate\Validation\ValidationException;
  *
  * The reader (Phase 9, P9-R13) passes the `$source` it is reading, which is remembered on the place, and `$continueSession`: a save within
  * `reader.session_gap_minutes` of the end of the last history row extends that row (more seconds, a new end and a new `to_percent`) instead of
- * appending one, and records no `reading_progress` signal, so one reading session is one row and one signal. Manual logs pass neither.
+ * appending one, and records no `reading_progress` signal, so one reading session is one row and one signal. It also passes the browser's own
+ * clock (`$clientTs`, milliseconds), which is kept on the place so saves can be ordered without the server's clock. Manual logs pass none of these.
  */
 class LogProgress
 {
@@ -48,7 +49,7 @@ class LogProgress
      *
      * @throws ValidationException when the percent is not a number from 0 to 100, or the page, chapter or time is out of range
      */
-    public function handle(User $user, Media $media, float $percent, ?int $page = null, ?string $chapter = null, ?array $locator = null, int $seconds = 0, ?ContentSource $source = null, bool $continueSession = false): ReadingProgress
+    public function handle(User $user, Media $media, float $percent, ?int $page = null, ?string $chapter = null, ?array $locator = null, int $seconds = 0, ?ContentSource $source = null, bool $continueSession = false, ?int $clientTs = null): ReadingProgress
     {
         $this->validate($percent, $page, $chapter, $seconds);
 
@@ -57,13 +58,13 @@ class LogProgress
 
         $events = [];
 
-        $progress = DB::transaction(function () use ($user, $media, $to, $page, $chapter, $locator, $seconds, $source, $continueSession, &$events): ReadingProgress {
+        $progress = DB::transaction(function () use ($user, $media, $to, $page, $chapter, $locator, $seconds, $source, $continueSession, $clientTs, &$events): ReadingProgress {
             $entry = LibraryEntry::where('user_id', $user->id)->where('media_id', $media->id)->lockForUpdate()->firstOrFail();
             $previous = ReadingProgress::where('user_id', $user->id)->where('media_id', $media->id)->first();
             $from = $previous === null ? 0.0 : (float) $previous->percent;
 
             $progress = $previous ?? new ReadingProgress(['user_id' => $user->id, 'media_id' => $media->id]);
-            $progress->fill(['page' => $page, 'chapter' => $chapter, 'locator' => $locator, 'percent' => $to, 'last_read_at' => now()]);
+            $progress->fill(['page' => $page, 'chapter' => $chapter, 'locator' => $locator, 'percent' => $to, 'last_read_at' => now(), 'client_ts' => $clientTs]);
             $source === null || $progress->content_source_id = $source->id;
             $progress->save();
 
