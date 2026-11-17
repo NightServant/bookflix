@@ -204,7 +204,7 @@ new #[Title('Reading files')] class extends Component {
                                             <flux:button variant="filled" class="min-h-11 min-w-11" icon="ellipsis-horizontal" icon:variant="outline" aria-label="{{ __('More actions for :title', ['title' => $title]) }}" />
                                             <flux:menu class="shadow-overlay!">
                                                 @if ($source->has_file)
-                                                    <flux:menu.item :href="\Illuminate\Support\Facades\URL::temporarySignedRoute('admin.content.preview', now()->addMinutes(10), ['source' => $source->id], absolute: false)" target="_blank" icon="arrow-top-right-on-square" class="min-h-11! pe-4!" data-test="preview-{{ $source->id }}">{{ __('Preview file') }}</flux:menu.item>
+                                                    <flux:menu.item :href="\App\Reader\ContentUrl::preview(auth()->user(), $source)" target="_blank" icon="arrow-top-right-on-square" class="min-h-11! pe-4!" data-test="preview-{{ $source->id }}">{{ __('Preview file') }}</flux:menu.item>
                                                 @endif
                                                 @if ($source->isVerified())
                                                 <flux:menu.item wire:click="unverify({{ $source->id }})" icon="x-circle" class="min-h-11! pe-4!" data-test="unverify-{{ $source->id }}">{{ __('Unverify') }}</flux:menu.item>

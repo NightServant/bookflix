@@ -10,8 +10,28 @@ use RuntimeException;
  */
 class UnsafeArchive extends RuntimeException
 {
+    /**
+     * `$hostile` tells an archive that is dangerous (bad names, links, bombs) from one that is merely not what was expected (no pages, not an
+     * EPUB), so callers branch on the kind and never on the wording of the message.
+     */
+    public function __construct(string $message = '', public readonly bool $hostile = false)
+    {
+        parent::__construct($message);
+    }
+
+    /**
+     * A dangerous archive.
+     */
     public static function because(string $reason): self
     {
-        return new self(__('This file is not a safe archive: :reason', ['reason' => $reason]));
+        return new self(__('This file is not a safe archive: :reason', ['reason' => $reason]), hostile: true);
+    }
+
+    /**
+     * An archive that is not dangerous but is not a comic (or EPUB) either.
+     */
+    public static function notAComic(string $message): self
+    {
+        return new self($message, hostile: false);
     }
 }

@@ -21,4 +21,17 @@ class ContentUrl
             absolute: false,
         );
     }
+
+    /**
+     * The admin's own address to a file awaiting verification, bound to the admin the same way a reader's is.
+     */
+    public static function preview(User $admin, ContentSource $source): string
+    {
+        return URL::temporarySignedRoute(
+            'admin.content.preview',
+            now()->addMinutes((int) config('bookflix.reader.url_ttl_minutes')),
+            ['source' => $source->id, 'user' => $admin->id],
+            absolute: false,
+        );
+    }
 }

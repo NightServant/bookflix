@@ -104,7 +104,8 @@ return [
     | Reading files (Phase 9). `disk` is private (storage/app/private by default):
     | files are only reachable through signed URLs that last `url_ttl_minutes`.
     | `archive` bounds what an EPUB or CBZ may unpack to (entries, total size,
-    | and the ratio to its compressed size) so a zip bomb cannot harm the server.
+    | and the ratio to its compressed size) so a zip bomb cannot harm the server;
+    | `max_page_mb` refuses a single comic page whose declared size is above it.
     | `upload` caps a reader's own files (megabytes per format, a total quota and
     | uploads per hour). `cbr` names the tools that unpack RAR comics, run with a
     | timeout. `fetch` caps a public-domain file downloaded from a provider.
@@ -118,6 +119,7 @@ return [
             'max_entries' => 2000,
             'max_uncompressed_mb' => 1024,
             'max_ratio' => 100,
+            'max_page_mb' => 50,
         ],
         'upload' => [
             'epub_mb' => 100,

@@ -158,3 +158,18 @@ test('a replaced file is not served from a stale index', function () {
 
     expect(app(CbzExtractor::class)->index($source->fresh())->count())->toBe(5);
 });
+
+it('caches the page list so a store that serializes still hits', function () {
+    // The default stores of tests do not serialize; `file` does, and `cache.serializable_classes` is false, so an object would come back incomplete.
+    config(['cache.default' => 'file', 'cache.stores.file.path' => sys_get_temp_dir().'/bookflix-cache-'.uniqid()]);
+    Cache::flush();
+    $source = cbzSource(['2.png' => 'b', '10.png' => 'c', '1.png' => 'a']);
+    $extractor = app(CbzExtractor::class);
+
+    $first = $extractor->index($source);
+    Storage::disk(ContentSource::disk())->delete($source->storage_path);
+    $second = $extractor->index($source);
+
+    expect($second)->toEqual($first)->and($second->count())->toBe(3)->and($second->page(1)?->name)->toBe('1.png');
+    Cache::flush();
+});

@@ -5,6 +5,8 @@ use App\Enums\ContentStatus;
 use App\Jobs\FetchContentFile;
 use App\Models\ContentSource;
 use App\Models\User;
+use App\Reader\ContentFetchRefused;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -105,6 +107,17 @@ test('an oversize file is refused', function () {
 
     expect($source->refresh()->status)->toBe(ContentStatus::Failed)->and($source->failure_reason)->toBe('The file is too large.')->and($source->storage_path)->toBeNull();
     expect(Storage::disk(ContentSource::disk())->allFiles())->toBe([]);
+});
+
+test('a size refusal thrown inside the transfer fails the source at once instead of being retried', function () {
+    // Guzzle wraps whatever a hook throws, and Laravel wraps that again as a connection error.
+    $wrapped = new ConnectionException('cURL error 23', 0, new RuntimeException('hook failed', 0, new ContentFetchRefused('The file is too large.')));
+    Http::fake([RDF_URL => Http::response(rdf('Public domain in the USA.')), EPUB_URL => fn () => throw $wrapped]);
+    $source = pdSource();
+
+    (new FetchContentFile($source->id))->handle();
+
+    expect($source->refresh()->status)->toBe(ContentStatus::Failed)->and($source->failure_reason)->toBe('The file is too large.');
 });
 
 test('a declared content length above the cap is refused', function () {

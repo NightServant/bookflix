@@ -11,7 +11,7 @@ use App\Models\MediaExternalId;
 
 /**
  * Keeps one content source per file a provider offers. The source is always created unverified: only an admin vouches for a license.
- * A re-import may move the source to another media or another URL, but never touches the license or the verification, so an admin's decision
+ * A re-import may move the source to another media, and (until it is verified) to another URL, but never touches the license or the verification, so an admin's decision
  * survives every sync.
  */
 class RecordContentFile
@@ -41,7 +41,8 @@ class RecordContentFile
             ]);
         }
 
-        $content->update(['media_id' => $mediaId, 'url' => $offer->url]);
+        // Once an admin has verified the source, the file they vouched for is the one at its address: a re-import may only follow the media.
+        $content->update($content->isVerified() ? ['media_id' => $mediaId] : ['media_id' => $mediaId, 'url' => $offer->url]);
 
         return $content;
     }

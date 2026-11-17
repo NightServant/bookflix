@@ -281,18 +281,35 @@ class FetchContentFile implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Run a request, turning an unreachable host and a server error into an outage the queue retries.
+     * Run a request, turning an unreachable host and a server error into an outage the queue retries. A refusal thrown from inside the transfer
+     * (the size hooks) comes back wrapped by Guzzle and Laravel, so the previous-exception chain is searched for it and it is rethrown as itself:
+     * a file that is too large must fail at once with its own reason, not be retried as an outage.
+     *
+     * The trait `SendsProviderRequests` is not used here on purpose: it maps every 4xx to an outage and a 429 to a provider rate limit, while a
+     * file host's 403 or a redirect has to reach `download()` as a response so it fails the source instead of being retried.
      *
      * @param  callable(): Response  $request
      *
+     * @throws ContentFetchRefused
+     * @throws UnsafeArchive
      * @throws ProviderUnavailable
      */
     private function send(callable $request): Response
     {
         try {
             $response = $request();
-        } catch (ConnectionException $exception) {
-            throw new ProviderUnavailable($exception->getMessage(), previous: $exception);
+        } catch (Throwable $exception) {
+            for ($found = $exception; $found !== null; $found = $found->getPrevious()) {
+                if ($found instanceof ContentFetchRefused || $found instanceof UnsafeArchive) {
+                    throw $found;
+                }
+            }
+
+            if ($exception instanceof ConnectionException) {
+                throw new ProviderUnavailable($exception->getMessage(), previous: $exception);
+            }
+
+            throw $exception;
         }
 
         if ($response->status() === 429 || $response->serverError()) {

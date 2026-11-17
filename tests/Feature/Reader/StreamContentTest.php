@@ -150,7 +150,7 @@ describe('admin preview', function () {
     beforeEach(function () {
         $this->admin = User::factory()->admin()->create();
         $this->unverified = ContentSource::factory()->publicDomain()->ready()->create(['storage_path' => 'content/test/book', 'byte_size' => 1000]);
-        $this->preview = fn (ContentSource $source) => URL::temporarySignedRoute('admin.content.preview', now()->addMinutes(10), ['source' => $source->id], absolute: false);
+        $this->preview = fn (ContentSource $source, ?User $for = null) => ContentUrl::preview($for ?? $this->admin, $source);
     });
 
     test('an admin previews an unverified file with the same response and ranges', function () {
@@ -175,6 +175,16 @@ describe('admin preview', function () {
 
     test('readers are refused', function () {
         $this->actingAs($this->reader)->get(($this->preview)($this->unverified))->assertForbidden();
+    });
+
+    test('an address signed for one admin is refused for another, and one without a user is refused', function () {
+        $other = User::factory()->admin()->create();
+        $unbound = URL::temporarySignedRoute('admin.content.preview', now()->addMinutes(10), ['source' => $this->unverified->id], absolute: false);
+
+        $this->actingAs($other)->get(($this->preview)($this->unverified))->assertForbidden();
+        $this->actingAs($this->admin)->get($unbound)->assertForbidden();
+        $this->actingAs($this->admin)->get(($this->preview)($this->unverified, $other))->assertForbidden();
+        $this->actingAs($this->admin)->get(($this->preview)($this->unverified))->assertSuccessful();
     });
 
     test('an unsigned address is refused', function () {

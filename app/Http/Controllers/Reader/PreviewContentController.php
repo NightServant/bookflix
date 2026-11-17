@@ -18,6 +18,8 @@ class PreviewContentController extends Controller
 {
     public function __invoke(Request $request, ContentAccessGate $gate, ContentSource $source): Response
     {
+        // The signed `user` must be the admin signed in, so a copied address is of no use to anyone else.
+        abort_unless((string) $request->query('user') === (string) $request->user()->id, 403);
         abort_unless($gate->preview($request->user(), $source), 403);
 
         if (! Storage::disk(ContentSource::disk())->exists((string) $source->storage_path)) {

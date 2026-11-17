@@ -32,10 +32,12 @@ class PurgeDeactivatedAccounts extends Command
                     Storage::disk(config('bookflix.avatar_disk'))->delete($user->profile->avatar_path);
                 }
 
-                // Their uploaded books go one by one through the model, so each file leaves the reader disk with its row.
+                // Their uploaded books go one by one through the model, so each file leaves the reader disk with its row. The walk is by id, not by
+                // offset: an offset chunk would skip rows as the ones before them are deleted.
                 ContentSource::query()
                     ->where('access_type', AccessType::UserOwned)
                     ->where('owner_user_id', $user->id)
+                    ->lazyById(500)
                     ->each(fn (ContentSource $source) => $source->delete());
 
                 // The account's scores go with it. Its stories are refreshed first: a reader deactivated before that was wired never refreshed them.

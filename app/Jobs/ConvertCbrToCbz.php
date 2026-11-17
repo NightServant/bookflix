@@ -3,11 +3,13 @@
 namespace App\Jobs;
 
 use App\Enums\ContentFormat;
+use App\Enums\ContentStatus;
 use App\Models\ContentSource;
 use App\Reader\Cbz\CbrConverter;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Throwable;
 
 /**
  * Converts a stored CBR into a CBZ in the background. It does nothing once the source is no longer a CBR with a file, so running it twice is
@@ -41,5 +43,17 @@ class ConvertCbrToCbz implements ShouldBeUnique, ShouldQueue
         }
 
         $converter->convert($source);
+    }
+
+    /**
+     * The job died outside the converter's own handling (a killed worker, a timeout): leave the source failed instead of pending forever.
+     */
+    public function failed(Throwable $exception): void
+    {
+        $source = ContentSource::find($this->contentSourceId);
+
+        if ($source !== null && $source->status === ContentStatus::Pending) {
+            app(CbrConverter::class)->fail($source, __(CbrConverter::CONVERSION_FAILED_MESSAGE));
+        }
     }
 }

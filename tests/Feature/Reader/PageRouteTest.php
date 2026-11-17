@@ -30,9 +30,9 @@ test('page one streams the right bytes with an image type and safe headers', fun
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     expect($response->headers->get('Cache-Control'))->toContain('no-store')->toContain('private')
-        ->and($response->getContent())->toBe(ContentSourceFactory::png(1));
+        ->and($response->streamedContent())->toBe(ContentSourceFactory::png(1));
 
-    expect($this->actingAs($this->reader)->get(($this->page)(3))->getContent())->toBe(ContentSourceFactory::png(3));
+    expect($this->actingAs($this->reader)->get(($this->page)(3))->streamedContent())->toBe(ContentSourceFactory::png(3));
 });
 
 test('a page out of range is 404', function (int $n) {
@@ -56,6 +56,27 @@ test('a jpg entry whose bytes are html is 404', function () {
     unlink($temp);
 
     $this->actingAs($this->reader)->get(($this->page)(1, $source))->assertNotFound();
+});
+
+test('a page above the size cap is 404 and one within it is streamed whole', function () {
+    $png = ContentSourceFactory::png(1).random_bytes(1500000);
+    $temp = tempnam(sys_get_temp_dir(), 'pg');
+    $zip = new ZipArchive;
+    $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('1.png', $png);
+    $zip->setCompressionName('1.png', ZipArchive::CM_STORE);
+    $zip->close();
+    $source = ContentSource::factory()->publicDomain()->verified()->cbz(1)->create();
+    Storage::disk(ContentSource::disk())->put($source->storage_path, file_get_contents($temp));
+    unlink($temp);
+
+    config(['bookflix.reader.archive.max_page_mb' => 1]);
+    $refused = $this->actingAs($this->reader)->get(($this->page)(1, $source))->assertNotFound();
+    expect($refused->getContent())->toBe('This page is not available.');
+
+    config(['bookflix.reader.archive.max_page_mb' => 2]);
+    $response = $this->actingAs($this->reader)->get(($this->page)(1, $source))->assertOk()->assertHeader('Content-Type', 'image/png');
+    expect($response->streamedContent())->toBe($png)->and($response->headers->get('Content-Length'))->toBe((string) strlen($png));
 });
 
 test('a damaged archive is 404 with a short plain body', function () {

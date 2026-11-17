@@ -3,12 +3,11 @@
 namespace App\Reader\Cbz;
 
 use App\Models\ContentSource;
+use App\Reader\Archives\LocalFile;
 use App\Reader\Archives\UnsafeArchive;
 use App\Reader\Archives\ZipEntry;
 use App\Reader\Archives\ZipGuard;
-use Illuminate\Filesystem\LocalFilesystemAdapter;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 
 /**
@@ -29,19 +28,26 @@ class CbzExtractor
     {
         $key = 'reader:cbz-index:'.$source->id.':'.hash('xxh128', $source->storage_path.'|'.$source->checksum);
 
-        $index = Cache::get($key);
+        $cached = Cache::get($key);
 
-        if (! $index instanceof CbzPageIndex) {
-            $index = $this->withLocalFile($source, fn (string $path): CbzPageIndex => $this->indexFile($path));
-            Cache::put($key, $index, now()->addDay());
+        if (is_array($cached) && $cached !== []) {
+            return new CbzPageIndex(array_map(
+                fn (array $page): CbzPage => new CbzPage((int) $page['index'], (string) $page['name'], (int) $page['size']),
+                array_values($cached),
+            ));
         }
+
+        $index = LocalFile::with((string) $source->storage_path, fn (string $path): CbzPageIndex => $this->indexFile($path));
+
+        // Plain arrays, not the objects: `cache.serializable_classes` is false, so a store that serializes (redis, database) would hand objects back
+        // as incomplete classes and the cache would never hit.
+        Cache::put($key, array_map(fn (CbzPage $page): array => ['index' => $page->index, 'name' => $page->name, 'size' => $page->size], $index->pages), now()->addDay());
 
         return $index;
     }
 
     /**
-     * Open the stored zip for reading and hand it to `$callback`. A disk that is not on this machine is copied to a temporary file first, which is
-     * removed afterwards.
+     * Open the stored zip for reading and hand it to `$callback`.
      *
      * @template T
      *
@@ -52,7 +58,7 @@ class CbzExtractor
      */
     public function open(ContentSource $source, callable $callback): mixed
     {
-        return $this->withLocalFile($source, function (string $path) use ($callback) {
+        return LocalFile::with((string) $source->storage_path, function (string $path) use ($callback) {
             $zip = new ZipArchive;
 
             if ($zip->open($path, ZipArchive::RDONLY) !== true) {
@@ -68,47 +74,6 @@ class CbzExtractor
     }
 
     /**
-     * @template T
-     *
-     * @param  callable(string): T  $callback
-     * @return T
-     *
-     * @throws UnsafeArchive
-     */
-    private function withLocalFile(ContentSource $source, callable $callback): mixed
-    {
-        $disk = Storage::disk(ContentSource::disk());
-        $stored = (string) $source->storage_path;
-
-        if ($stored === '' || ! $disk->exists($stored)) {
-            throw UnsafeArchive::because(__('the file is no longer available.'));
-        }
-
-        if ($disk instanceof LocalFilesystemAdapter) {
-            return $callback($disk->path($stored));
-        }
-
-        $temp = (string) tempnam(sys_get_temp_dir(), 'cbz');
-
-        try {
-            $stream = $disk->readStream($stored);
-            $target = fopen($temp, 'wb');
-
-            if (! is_resource($stream) || $target === false) {
-                throw UnsafeArchive::because(__('the file could not be read.'));
-            }
-
-            stream_copy_to_stream($stream, $target);
-            fclose($stream);
-            fclose($target);
-
-            return $callback($temp);
-        } finally {
-            @unlink($temp);
-        }
-    }
-
-    /**
      * The pages of a zip on this machine, in reading order. Public so an upload is judged by the very rules a stored comic is read with.
      *
      * @throws UnsafeArchive
@@ -120,7 +85,7 @@ class CbzExtractor
         usort($entries, fn (ZipEntry $a, ZipEntry $b): int => strnatcasecmp($a->name, $b->name));
 
         if ($entries === []) {
-            throw new UnsafeArchive(__('This comic has no pages.'));
+            throw UnsafeArchive::notAComic(__('This comic has no pages.'));
         }
 
         return new CbzPageIndex(array_map(fn (ZipEntry $e): CbzPage => new CbzPage($e->index, $e->name, $e->size), $entries));

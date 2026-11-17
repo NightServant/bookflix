@@ -21,8 +21,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Project Gutenberg through its official CSV catalogue, never its pages. The file is downloaded once and kept on the private disk, so the
- * pages of a run read slices of the local copy instead of fetching it again. A page token is a row offset into the file.
+ * Project Gutenberg through its official CSV catalogue, never its pages. The file is downloaded once and kept on the private disk, together with
+ * an uncompressed copy, so the pages of a run read slices of the local copy instead of fetching it again, and a page seeks straight to where
+ * the last one stopped instead of decompressing and parsing the file from the top. A page token is a byte offset into the uncompressed copy.
  */
 class GutenbergProvider implements MetadataProvider, OffersContentFiles
 {
@@ -35,6 +36,8 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
     private const DIRECTORY = 'catalog-feeds/gutenberg';
 
     private const FILE = self::DIRECTORY.'/pg_catalog.csv.gz';
+
+    private const CSV = self::DIRECTORY.'/pg_catalog.csv';
 
     /**
      * Hours a downloaded catalogue is reused. Gutenberg regenerates it daily, so a run always starts from a recent copy.
@@ -58,31 +61,38 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
      * A slice of `page_size` catalogue rows starting at the token's offset. The Text rows among them issued since the cursor are the records:
      * the cursor is a date, and a book issued on the cursor's own day is kept, because the cursor carries the time of the last walk and a book
      * released later that day would otherwise never be seen.
+     *
+     * The token is the byte offset where the next row starts. A token that is not a valid offset (the row offsets older runs left behind are
+     * smaller than the header line, and anything past the end of the file is stale) restarts the walk from the first row: re-importing books is
+     * idempotent, so a run that was mid-flight at deploy only repeats work.
      */
     public function page(?CarbonImmutable $since, ?string $pageToken): ProviderPage
     {
-        $offset = max(0, (int) $pageToken);
         $size = max(1, (int) config('bookflix.providers.gutenberg.page_size', 500));
         $this->ensureCatalog();
 
         $records = [];
-        $row = 0;
+        $taken = 0;
+        $next = null;
         $more = false;
 
-        foreach ($this->rows() as $data) {
-            if ($row >= $offset + $size) {
+        foreach ($this->rows(ctype_digit((string) $pageToken) ? (int) $pageToken : null) as $end => $data) {
+            if ($taken >= $size) {
                 $more = true;
                 break;
             }
 
-            if ($row++ < $offset || $data === null || ! $this->isText($data) || ! $this->issuedSince($data, $since)) {
+            $taken++;
+            $next = $end;
+
+            if ($data === null || ! $this->isText($data) || ! $this->issuedSince($data, $since)) {
                 continue;
             }
 
             $records[] = $this->record($data);
         }
 
-        return new ProviderPage($records, $more ? (string) ($offset + $size) : null, null);
+        return new ProviderPage($records, $more ? (string) $next : null, null);
     }
 
     public function find(string $externalId): ?ProviderRecord
@@ -136,8 +146,8 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
     }
 
     /**
-     * Download the catalogue unless a copy younger than MAX_AGE_HOURS is on the private disk. It is streamed to a temporary file and moved
-     * into place, so a failed download never replaces a good copy.
+     * Download the catalogue unless a copy younger than MAX_AGE_HOURS is on the private disk. It is streamed to a temporary file, unpacked beside
+     * it and both are moved into place (the compressed file last, since its age decides), so a failed download never replaces a good copy.
      *
      * @throws RateLimitedByProvider
      * @throws ProviderUnavailable
@@ -146,30 +156,51 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
     {
         $disk = Storage::disk('local');
 
-        if ($disk->exists(self::FILE) && $disk->lastModified(self::FILE) > now()->subHours(self::MAX_AGE_HOURS)->getTimestamp()) {
+        if ($disk->exists(self::FILE) && $disk->exists(self::CSV) && $disk->lastModified(self::FILE) > now()->subHours(self::MAX_AGE_HOURS)->getTimestamp()) {
             return;
         }
 
         $disk->makeDirectory(self::DIRECTORY);
-        $temporary = self::DIRECTORY.'/pg_catalog.'.bin2hex(random_bytes(6)).'.part';
+        $suffix = bin2hex(random_bytes(6));
+        $temporary = self::DIRECTORY."/pg_catalog.{$suffix}.part";
+        $unpacked = self::DIRECTORY."/pg_catalog.{$suffix}.csv.part";
 
         try {
             $this->send(fn () => $this->client()->timeout(600)->withOptions(['sink' => $disk->path($temporary)])->get(self::CATALOG_URL));
+            $this->unpack($disk->path($temporary), $disk->path($unpacked));
+            $disk->move($unpacked, self::CSV);
             $disk->move($temporary, self::FILE);
         } finally {
-            $disk->delete($temporary);
+            $disk->delete([$temporary, $unpacked]);
         }
     }
 
     /**
-     * The catalogue rows keyed by column, one at a time, straight from the compressed file. A malformed row is logged and yielded as null so it still
-     * takes its place in the offsets and one bad line cannot move the pages after it.
+     * @throws ProviderUnavailable
+     */
+    private function unpack(string $gzip, string $target): void
+    {
+        $source = @fopen('compress.zlib://'.$gzip, 'rb');
+        $out = $source === false ? false : fopen($target, 'wb');
+
+        if ($source === false || $out === false || stream_copy_to_stream($source, $out) === false) {
+            throw new ProviderUnavailable('The Project Gutenberg catalogue could not be unpacked.');
+        }
+
+        fclose($source);
+        fclose($out);
+    }
+
+    /**
+     * The catalogue rows keyed by column, one at a time, from the uncompressed copy, starting at byte `$from` when that is a row boundary the
+     * caller got from an earlier page (otherwise from the first row). Each row is yielded under the byte offset where the next one starts. A
+     * malformed row is logged and yielded as null so it still takes its place and one bad line cannot move the pages after it.
      *
      * @return Generator<int, array<string, string>|null>
      */
-    private function rows(): Generator
+    private function rows(?int $from = null): Generator
     {
-        $handle = @fopen('compress.zlib://'.Storage::disk('local')->path(self::FILE), 'rb');
+        $handle = @fopen(Storage::disk('local')->path(self::CSV), 'rb');
 
         if ($handle === false) {
             throw new ProviderUnavailable('The Project Gutenberg catalogue could not be opened.');
@@ -183,19 +214,27 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
                 throw new ProviderUnavailable('The Project Gutenberg catalogue does not have the expected columns.');
             }
 
+            $start = (int) ftell($handle);
+
+            if ($from !== null && $from >= $start && $from <= (int) filesize(Storage::disk('local')->path(self::CSV))) {
+                fseek($handle, $from);
+            }
+
             while (($line = fgetcsv($handle, escape: '')) !== false) {
                 if ($line === [null]) {
                     continue;
                 }
 
+                $end = (int) ftell($handle);
+
                 if (count($line) !== count($header) || ! ctype_digit(trim((string) $line[array_search('Text#', $header, true)]))) {
                     Log::warning('A Project Gutenberg catalogue row was skipped because it is malformed.', ['provider' => 'gutenberg', 'row' => mb_substr(implode(',', array_map('strval', $line)), 0, 200)]);
-                    yield null;
+                    yield $end => null;
 
                     continue;
                 }
 
-                yield array_map(fn ($value) => (string) $value, array_combine($header, $line));
+                yield $end => array_map(fn ($value) => (string) $value, array_combine($header, $line));
             }
         } finally {
             fclose($handle);

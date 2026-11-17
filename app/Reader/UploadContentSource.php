@@ -185,7 +185,7 @@ class UploadContentSource
 
             return ContentFormat::Cbz;
         } catch (UnsafeArchive $e) {
-            if (str_starts_with($e->getMessage(), (string) __('This file is not a safe archive'))) {
+            if ($e->hostile) {
                 throw $this->refuse($e->getMessage());
             }
 

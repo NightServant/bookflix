@@ -107,7 +107,7 @@ class ZipGuard
             $size = (int) $stat['size'];
             $compressed = (int) $stat['comp_size'];
 
-            $this->checkName($name);
+            self::checkName($name);
             $this->checkNotSymlink($zip, $index);
 
             if ($size > self::RATIO_FLOOR_BYTES && $size / max($compressed, 1) > $maxRatio) {
@@ -132,9 +132,11 @@ class ZipGuard
     }
 
     /**
+     * Refuse a name that could climb out of its folder. Public and static because a RAR listing is held to the very same rule.
+     *
      * @throws UnsafeArchive
      */
-    private function checkName(string $name): void
+    public static function checkName(string $name): void
     {
         $unsafe = $name === ''
             || str_contains($name, "\0")

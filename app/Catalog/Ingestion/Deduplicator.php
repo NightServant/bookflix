@@ -220,6 +220,10 @@ class Deduplicator
 
         DB::table('reading_history')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
         DB::table('user_interactions')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
+
+        // Readable files go with the story: uploads would otherwise sit on a deleted row where their owner cannot open them, and a verified
+        // source would stop working. Nothing in the app unmerges, so the files stay with the winner.
+        DB::table('content_sources')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
         DB::table('media_metrics')->where('media_id', $loser->id)
             ->whereIn('external_source_id', ExternalSource::query()->where('key', ExternalSource::READERS)->select('id'))
             ->delete();

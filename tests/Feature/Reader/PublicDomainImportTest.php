@@ -185,7 +185,7 @@ test('the since cursor keeps books issued on or after its day', function () {
     expect(collect($newer->records)->pluck('externalId')->all())->toBe(['3000']);
 });
 
-test('pages are slices of rows and the token is the offset', function () {
+test('pages are slices of rows and the token is a byte offset into the unpacked catalogue', function () {
     fakeGutenberg();
     config(['bookflix.providers.gutenberg.page_size' => 2]);
     $provider = app(GutenbergProvider::class);
@@ -194,12 +194,26 @@ test('pages are slices of rows and the token is the offset', function () {
     $second = $provider->page(null, $first->nextPageToken);
     $third = $provider->page(null, $second->nextPageToken);
 
-    expect($first->nextPageToken)->toBe('2')
+    $csv = (string) Storage::disk('local')->get('catalog-feeds/gutenberg/pg_catalog.csv');
+    $secondStart = strpos($csv, "\n5,Sound") + 1;
+
+    expect($first->nextPageToken)->toBe((string) $secondStart)
         ->and(collect($first->records)->pluck('externalId')->all())->toBe(['11', '1342'])
-        ->and($second->nextPageToken)->toBe('4')
+        ->and($second->nextPageToken)->toBeNumeric()
         ->and(collect($second->records)->pluck('externalId')->all())->toBe(['2009'])
         ->and(collect($third->records)->pluck('externalId')->all())->toBe(['3000'])
         ->and($third->nextPageToken)->toBeNull();
+});
+
+test('a token that is not a byte offset restarts the walk from the first row', function () {
+    fakeGutenberg();
+    config(['bookflix.providers.gutenberg.page_size' => 2]);
+    $provider = app(GutenbergProvider::class);
+
+    // '2' is what an older run left behind (a row offset, smaller than the header line); the second is past the end of the file.
+    foreach (['2', '99999999', 'junk'] as $token) {
+        expect(collect($provider->page(null, $token)->records)->pluck('externalId')->all())->toBe(['11', '1342']);
+    }
 });
 
 test('the catalogue is downloaded once per run and again when it is old', function () {
@@ -207,14 +221,15 @@ test('the catalogue is downloaded once per run and again when it is old', functi
     config(['bookflix.providers.gutenberg.page_size' => 2]);
     $provider = app(GutenbergProvider::class);
 
-    $provider->page(null, null);
-    $provider->page(null, '2');
-    $provider->page(null, '4');
+    $first = $provider->page(null, null);
+    $second = $provider->page(null, $first->nextPageToken);
+    $provider->page(null, $second->nextPageToken);
     $provider->find('3000');
 
     Http::assertSentCount(1);
     Storage::disk('local')->assertExists('catalog-feeds/gutenberg/pg_catalog.csv.gz');
-    expect(Storage::disk('local')->allFiles('catalog-feeds/gutenberg'))->toHaveCount(1);
+    Storage::disk('local')->assertExists('catalog-feeds/gutenberg/pg_catalog.csv');
+    expect(Storage::disk('local')->allFiles('catalog-feeds/gutenberg'))->toHaveCount(2);
 
     touch(Storage::disk('local')->path('catalog-feeds/gutenberg/pg_catalog.csv.gz'), now()->subHours(21)->getTimestamp());
     $provider->page(null, null);
@@ -315,7 +330,7 @@ test('only the feed hosts are requested', function () {
     expect(Http::recorded()->every(fn ($pair) => in_array(parse_url($pair[0]->url(), PHP_URL_HOST), ['www.gutenberg.org', 'standardebooks.org'], true)))->toBeTrue();
 });
 
-test('a verified source keeps its license and verification when the book is imported again', function () {
+test('a verified source keeps its license, verification and url when the book is imported again', function () {
     fakeGutenberg();
     runProvider('gutenberg');
 
@@ -330,6 +345,6 @@ test('a verified source keeps its license and verification when the book is impo
         ->and($source->rights_holder)->toBe('Nobody')
         ->and($source->verified_by)->toBe($admin->id)
         ->and($source->verified_at)->not->toBeNull()
-        ->and($source->url)->toBe('https://www.gutenberg.org/cache/epub/11/pg11-images-3.epub')
+        ->and($source->url)->toBe('https://www.gutenberg.org/old.epub')
         ->and(ContentSource::count())->toBe(4);
 });

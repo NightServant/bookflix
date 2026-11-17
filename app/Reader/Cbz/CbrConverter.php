@@ -5,11 +5,11 @@ namespace App\Reader\Cbz;
 use App\Enums\ContentFormat;
 use App\Enums\ContentStatus;
 use App\Models\ContentSource;
+use App\Reader\Archives\LocalFile;
 use App\Reader\Archives\UnsafeArchive;
 use App\Reader\Archives\ZipGuard;
 use FilesystemIterator;
 use finfo;
-use Illuminate\Filesystem\LocalFilesystemAdapter;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -20,6 +20,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Process\ExecutableFinder;
+use Throwable;
 use ZipArchive;
 
 /**
@@ -31,6 +32,8 @@ use ZipArchive;
  */
 class CbrConverter
 {
+    public const CONVERSION_FAILED_MESSAGE = 'The CBR file could not be converted. Try uploading it again.';
+
     public const UNAVAILABLE_MESSAGE = 'This server reads CBZ, not CBR. Convert the file to CBZ and upload it again.';
 
     /** What finfo may say about a page, and the extension each is saved with. */
@@ -40,6 +43,11 @@ class CbrConverter
         'image/webp' => 'webp',
         'image/gif' => 'gif',
     ];
+
+    /**
+     * How long extraction is left alone between size checks. A property so a test need not wait.
+     */
+    public int $pollMicroseconds = 250_000;
 
     public function __construct(private readonly ZipGuard $guard) {}
 
@@ -68,7 +76,6 @@ class CbrConverter
         $stored = (string) $source->storage_path;
         $tool = $this->tool();
         $dir = storage_path('app/private/tmp/cbr-'.Str::ulid());
-        $localCopy = null;
         $zipPath = null;
 
         try {
@@ -80,29 +87,34 @@ class CbrConverter
                 throw new UnsafeArchive(__(self::UNAVAILABLE_MESSAGE));
             }
 
-            [$file, $localCopy] = $this->localFile($stored);
+            $pages = LocalFile::with($stored, function (string $file) use ($source, $tool, $dir, $stored, $disk, &$zipPath): int {
+                $this->checkListing($tool, $file);
 
-            $this->checkListing($tool, $file);
+                File::ensureDirectoryExists($dir, 0700);
+                $this->extract($tool, $file, $dir);
 
-            File::ensureDirectoryExists($dir, 0700);
-            $this->extract($tool, $file, $dir);
+                $zipPath = (string) tempnam(sys_get_temp_dir(), 'cbr-zip');
+                $pages = $this->buildZip($dir, $zipPath);
+                $this->guard->inspect($zipPath);
 
-            $zipPath = (string) tempnam(sys_get_temp_dir(), 'cbr-zip');
-            $pages = $this->buildZip($dir, $zipPath);
-            $this->guard->inspect($zipPath);
+                $this->store($source, $zipPath, $stored, $disk);
 
-            $this->store($source, $zipPath, $stored, $disk);
+                return $pages;
+            });
 
             Log::info('CBR converted to CBZ.', ['content_source' => $source->id, 'pages' => $pages, 'tool' => $tool]);
         } catch (UnsafeArchive $refusal) {
             $this->fail($source, $refusal->getMessage());
+        } catch (Throwable $exception) {
+            // A disk or process failure is not the file's fault, but the source must not stay pending forever: the reason is short and plain,
+            // the detail goes to the log.
+            report($exception);
+            $this->fail($source, __(self::CONVERSION_FAILED_MESSAGE));
         } finally {
             File::deleteDirectory($dir);
 
-            foreach ([$localCopy, $zipPath] as $leftover) {
-                if ($leftover !== null) {
-                    @unlink($leftover);
-                }
+            if ($zipPath !== null) {
+                @unlink($zipPath);
             }
         }
 
@@ -154,38 +166,6 @@ class CbrConverter
     }
 
     /**
-     * The stored file as a path on this machine; a disk that is not local is copied to a temporary file, returned second so it can be removed.
-     *
-     * @return array{0: string, 1: string|null}
-     *
-     * @throws UnsafeArchive
-     */
-    private function localFile(string $stored): array
-    {
-        $disk = Storage::disk(ContentSource::disk());
-
-        if ($disk instanceof LocalFilesystemAdapter) {
-            return [$disk->path($stored), null];
-        }
-
-        $temp = (string) tempnam(sys_get_temp_dir(), 'cbr');
-        $stream = $disk->readStream($stored);
-        $target = fopen($temp, 'wb');
-
-        if (! is_resource($stream) || $target === false) {
-            @unlink($temp);
-
-            throw new UnsafeArchive(__('The CBR file could not be read.'));
-        }
-
-        stream_copy_to_stream($stream, $target);
-        fclose($stream);
-        fclose($target);
-
-        return [$temp, $temp];
-    }
-
-    /**
      * Run a tool as an array command (no shell) with the configured timeout.
      *
      * @param  list<string>  $command
@@ -234,7 +214,7 @@ class CbrConverter
         $total = 0;
 
         foreach ($entries as $entry) {
-            $this->checkName($entry['name']);
+            ZipGuard::checkName($entry['name']);
 
             if ($entry['link']) {
                 throw UnsafeArchive::because(__('it holds a link.'));
@@ -312,32 +292,63 @@ class CbrConverter
     }
 
     /**
-     * The same name rules as ZipGuard.
+     * Unpack into `$dir` as a running process and, while it runs, measure what is really on disk. The listing can lie about sizes, so a RAR that
+     * claims to be small could fill the disk long before the check after extraction; here the process is stopped the moment the tree passes the
+     * uncompressed cap.
      *
-     * @throws UnsafeArchive
-     */
-    private function checkName(string $name): void
-    {
-        $unsafe = $name === ''
-            || str_contains($name, "\0")
-            || str_contains($name, '\\')
-            || str_starts_with($name, '/')
-            || preg_match('/^[A-Za-z]:/', $name) === 1
-            || in_array('..', explode('/', $name), true);
-
-        if ($unsafe) {
-            throw UnsafeArchive::because(__('it holds a file with an unsafe name.'));
-        }
-    }
-
-    /**
      * @throws UnsafeArchive
      */
     private function extract(string $tool, string $file, string $dir): void
     {
-        $this->run($tool === 'unar'
+        $command = $tool === 'unar'
             ? [(string) $this->unar(), '-q', '-f', '-D', '-o', $dir, $file]
-            : [(string) $this->bsdtar(), '-xf', $file, '-C', $dir, '--no-same-owner', '--no-same-permissions']);
+            : [(string) $this->bsdtar(), '-xf', $file, '-C', $dir, '--no-same-owner', '--no-same-permissions'];
+        $maxBytes = (int) config('bookflix.reader.archive.max_uncompressed_mb') * 1048576;
+
+        try {
+            $process = Process::timeout((int) config('bookflix.reader.cbr.timeout_seconds'))->start($command);
+
+            while ($process->running()) {
+                if ($this->treeBytes($dir) > $maxBytes) {
+                    $process->stop();
+                    Log::info('CBR extraction stopped because it grew past the size limit.', ['limit_bytes' => $maxBytes]);
+
+                    throw UnsafeArchive::because(__('it unpacks to too much data.'));
+                }
+
+                usleep($this->pollMicroseconds);
+            }
+
+            $result = $process->wait();
+        } catch (ProcessTimedOutException) {
+            throw new UnsafeArchive(__('Unpacking the CBR file took too long.'));
+        }
+
+        if ($result->failed()) {
+            throw new UnsafeArchive(__('The CBR file could not be unpacked. It may be damaged or use a format this server cannot read.'));
+        }
+    }
+
+    /**
+     * The real size of every file under `$dir` right now, links not followed. Public so the limit can be tested directly.
+     */
+    public function treeBytes(string $dir): int
+    {
+        if (! is_dir($dir)) {
+            return 0;
+        }
+
+        $total = 0;
+        $walk = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+
+        /** @var SplFileInfo $item */
+        foreach ($walk as $item) {
+            if ($item->isFile() && ! $item->isLink()) {
+                $total += (int) $item->getSize();
+            }
+        }
+
+        return $total;
     }
 
     /**
@@ -472,7 +483,10 @@ class CbrConverter
         $disk->delete($oldPath);
     }
 
-    private function fail(ContentSource $source, string $reason): void
+    /**
+     * Mark the source failed with a short reason. Public so the queued job can do the same when it gives up.
+     */
+    public function fail(ContentSource $source, string $reason): void
     {
         Log::info('CBR conversion refused.', ['content_source' => $source->id, 'reason' => $reason]);
 

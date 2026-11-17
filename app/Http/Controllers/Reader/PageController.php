@@ -6,24 +6,30 @@ use App\Enums\ContentFormat;
 use App\Http\Controllers\Controller;
 use App\Models\ContentSource;
 use App\Reader\Archives\UnsafeArchive;
-use App\Reader\Archives\ZipGuard;
 use App\Reader\Cbz\CbzExtractor;
 use App\Reader\Cbz\CbzPage;
 use App\Reader\ContentAccessGate;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use ZipArchive;
 
 /**
  * Serves one page of a comic. Like the stream route, the address is signed but not trusted on its own: the signed `user` must be the person signed
- * in and the access gate is asked again. The image is read out of the zip in memory (never extracted to disk) with the size the archive declares as
- * the cap, and its type comes from its own bytes: an entry named `.jpg` that holds HTML is refused, not served.
+ * in and the access gate is asked again. The image is streamed out of the zip in chunks (never extracted to disk, never held whole in memory). A page
+ * whose declared size is above `reader.archive.max_page_mb` is refused, the first 64 KB name its type from its own bytes (an entry named `.jpg`
+ * that holds HTML is refused, not served), and the stream stops at the declared size.
  */
 class PageController extends Controller
 {
     private const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-    public function __invoke(Request $request, ContentAccessGate $gate, CbzExtractor $extractor, ZipGuard $guard, ContentSource $source, int $page): Response
+    /** How much of a page is read to name its type. */
+    private const SNIFF_BYTES = 65536;
+
+    private const CHUNK_BYTES = 65536;
+
+    public function __invoke(Request $request, ContentAccessGate $gate, CbzExtractor $extractor, ContentSource $source, int $page): Response
     {
         $user = $request->user();
 
@@ -35,31 +41,117 @@ class PageController extends Controller
             $entry = $extractor->index($source)->page($page);
             abort_if($entry === null, 404);
 
-            $bytes = $extractor->open($source, fn (ZipArchive $zip): string => $this->read($zip, $guard, $entry));
+            [$type, $size] = $extractor->open($source, fn (ZipArchive $zip): array => $this->sniff($zip, $entry));
         } catch (UnsafeArchive) {
             return $this->unavailable();
         }
 
-        $type = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
-
-        if (! in_array($type, self::IMAGE_TYPES, true)) {
+        if ($type === null) {
             return $this->unavailable();
         }
 
-        return new Response($bytes, 200, [
+        $headers = [
             'Content-Type' => $type,
-            'Content-Length' => (string) strlen($bytes),
+            'Content-Length' => (string) $size,
             'Content-Disposition' => 'inline',
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
             'Content-Security-Policy' => "default-src 'none'; sandbox",
-        ]);
+        ];
+
+        // The zip is opened again inside the callback: it must outlive this method, and the first look only read enough to name the type.
+        return new StreamedResponse(function () use ($extractor, $source, $entry, $size): void {
+            try {
+                $extractor->open($source, fn (ZipArchive $zip) => $this->copy($zip, $entry, $size));
+            } catch (UnsafeArchive) {
+                // The headers are out already: the reader's browser gets a broken image, nothing more can be said.
+            }
+        }, 200, $headers);
     }
 
     /**
+     * Look at the first 64 KB of the entry to name its type, without reading the rest. A page whose declared size is above the cap is refused here,
+     * before a byte is sent. Returns the type (null when it is not an image) and the declared size.
+     *
+     * @return array{0: string|null, 1: int}
+     *
      * @throws UnsafeArchive
      */
-    private function read(ZipArchive $zip, ZipGuard $guard, CbzPage $entry): string
+    private function sniff(ZipArchive $zip, CbzPage $entry): array
+    {
+        $stat = $this->stat($zip, $entry);
+        $size = (int) $stat['size'];
+
+        if ($size > (int) config('bookflix.reader.archive.max_page_mb') * 1048576) {
+            throw UnsafeArchive::because(__('a page is larger than this server serves.'));
+        }
+
+        $stream = $zip->getStreamIndex($entry->index);
+
+        if ($stream === false) {
+            throw UnsafeArchive::because(__('an entry could not be read.'));
+        }
+
+        try {
+            $head = '';
+
+            while (strlen($head) < self::SNIFF_BYTES && ! feof($stream)) {
+                $chunk = fread($stream, self::SNIFF_BYTES - strlen($head));
+
+                if ($chunk === false) {
+                    throw UnsafeArchive::because(__('an entry could not be read.'));
+                }
+
+                $head .= $chunk;
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        $type = (new \finfo(FILEINFO_MIME_TYPE))->buffer($head);
+
+        return [in_array($type, self::IMAGE_TYPES, true) ? $type : null, $size];
+    }
+
+    /**
+     * Send the entry in chunks, never holding more than one in memory, and stop at the declared size even if the archive holds more.
+     *
+     * @throws UnsafeArchive
+     */
+    private function copy(ZipArchive $zip, CbzPage $entry, int $size): void
+    {
+        $this->stat($zip, $entry);
+        $stream = $zip->getStreamIndex($entry->index);
+
+        if ($stream === false) {
+            throw UnsafeArchive::because(__('an entry could not be read.'));
+        }
+
+        try {
+            $sent = 0;
+
+            while ($sent < $size && ! feof($stream)) {
+                $chunk = fread($stream, max(1, min(self::CHUNK_BYTES, $size - $sent)));
+
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+
+                echo $chunk;
+                flush();
+                $sent += strlen($chunk);
+            }
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws UnsafeArchive
+     */
+    private function stat(ZipArchive $zip, CbzPage $entry): array
     {
         $stat = $zip->statIndex($entry->index);
 
@@ -68,7 +160,7 @@ class PageController extends Controller
             throw UnsafeArchive::because(__('an entry could not be found.'));
         }
 
-        return $guard->readEntry($zip, $entry->index, $entry->size);
+        return $stat;
     }
 
     private function unavailable(): Response

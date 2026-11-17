@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeout;
@@ -320,4 +321,87 @@ it('runs the job once per source and only for a cbr with a file', function () {
     $path = $cbr->fresh()->storage_path;
     (new ConvertCbrToCbz($cbr->id))->handle(app(CbrConverter::class));
     expect($cbr->fresh()->storage_path)->toBe($path);
+});
+
+it('fails the source with a plain reason when the tool crashes, and removes its temp directory', function () {
+    $source = cbrSource();
+    Process::fake(function (PendingProcess $process) {
+        if (in_array('-j', $process->command, true)) {
+            return Process::result(lsarJson([lsarEntry('1.png')]));
+        }
+
+        throw new RuntimeException('exec failed: /secret/path');
+    });
+
+    app(CbrConverter::class)->convert($source);
+
+    $source->refresh();
+    expect($source->status)->toBe(ContentStatus::Failed)
+        ->and($source->failure_reason)->toBe(CbrConverter::CONVERSION_FAILED_MESSAGE)
+        ->and($source->format)->toBe(ContentFormat::Cbr)
+        ->and(Storage::disk(ContentSource::disk())->exists('content/factory/old.cbr'))->toBeTrue();
+});
+
+it('fails the source when the disk breaks while the converted file is stored', function () {
+    $source = cbrSource();
+    fakeTools(lsarJson([lsarEntry('1.png')]), ['1.png' => pngBytes(1)]);
+    $disk = Mockery::mock(Storage::disk(ContentSource::disk()))->makePartial();
+    $disk->shouldReceive('put')->andThrow(new RuntimeException('disk full'));
+    Storage::set(ContentSource::disk(), $disk);
+
+    app(CbrConverter::class)->convert($source);
+
+    expect($source->fresh()->status)->toBe(ContentStatus::Failed)->and($source->fresh()->failure_reason)->toBe(CbrConverter::CONVERSION_FAILED_MESSAGE);
+});
+
+it('leaves a failed source when the job itself gives up', function () {
+    $source = cbrSource();
+
+    (new ConvertCbrToCbz($source->id))->failed(new RuntimeException('worker killed'));
+
+    expect($source->fresh()->status)->toBe(ContentStatus::Failed)->and($source->fresh()->failure_reason)->toBe(CbrConverter::CONVERSION_FAILED_MESSAGE);
+
+    $ready = ContentSource::factory()->cbz()->create();
+    (new ConvertCbrToCbz($ready->id))->failed(new RuntimeException('late'));
+    expect($ready->fresh()->status)->not->toBe(ContentStatus::Failed);
+});
+
+it('stops extraction and fails the source when the real size passes the cap while the process runs', function () {
+    config(['bookflix.reader.archive.max_uncompressed_mb' => 1]);
+    $source = cbrSource();
+    Log::spy();
+    Process::fake(function (PendingProcess $process) {
+        $command = $process->command;
+
+        if (in_array('-j', $command, true)) {
+            // The listing claims a few bytes, the way a lying RAR would.
+            return Process::result(lsarJson([lsarEntry('1.png', 10)]));
+        }
+
+        $dir = $command[array_search('-o', $command, true) + 1];
+        @mkdir($dir, 0777, true);
+        file_put_contents("{$dir}/1.png", str_repeat('x', 2 * 1048576));
+
+        return Process::describe()->output('')->runsFor(iterations: 50)->exitCode(0);
+    });
+    $converter = app(CbrConverter::class);
+    $converter->pollMicroseconds = 0;
+
+    $converter->convert($source);
+
+    expect($source->fresh()->status)->toBe(ContentStatus::Failed)
+        ->and($source->fresh()->failure_reason)->toContain('too much data')
+        ->and(Storage::disk(ContentSource::disk())->exists('content/factory/old.cbr'))->toBeTrue();
+    Log::shouldHaveReceived('info')->with('CBR extraction stopped because it grew past the size limit.', Mockery::any())->once();
+});
+
+it('measures the real size of a tree without following links', function () {
+    $dir = sys_get_temp_dir().'/cbr-tree-'.uniqid();
+    mkdir("{$dir}/a", 0777, true);
+    file_put_contents("{$dir}/a/one", str_repeat('x', 100));
+    file_put_contents("{$dir}/two", str_repeat('x', 50));
+    symlink('/etc/passwd', "{$dir}/link");
+
+    expect(app(CbrConverter::class)->treeBytes($dir))->toBe(150)->and(app(CbrConverter::class)->treeBytes("{$dir}/missing"))->toBe(0);
+    File::deleteDirectory($dir);
 });
