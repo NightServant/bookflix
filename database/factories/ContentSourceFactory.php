@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use ZipArchive;
 
 /**
  * @extends Factory<ContentSource>
@@ -97,5 +98,49 @@ class ContentSourceFactory extends Factory
                 'status' => ContentStatus::Ready,
             ];
         });
+    }
+
+    /**
+     * A ready comic: a real zip of tiny PNG pages (`01.png`, `02.png`, ...) written to the reader disk. Page n is n pixels wide, so each page has its own bytes.
+     */
+    public function cbz(int $pages = 3): static
+    {
+        return $this->state(function (array $attributes) use ($pages): array {
+            $temp = (string) tempnam(sys_get_temp_dir(), 'cbz');
+            $zip = new ZipArchive;
+            $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+            for ($n = 1; $n <= $pages; $n++) {
+                $zip->addFromString(sprintf('%02d.png', $n), self::png($n));
+            }
+
+            $zip->close();
+
+            $path = 'content/factory/'.Str::ulid();
+            $body = (string) file_get_contents($temp);
+            unlink($temp);
+            Storage::disk(ContentSource::disk())->put($path, $body);
+
+            return [
+                'format' => ContentFormat::Cbz,
+                'storage_path' => $path,
+                'byte_size' => strlen($body),
+                'checksum' => hash('sha256', $body),
+                'status' => ContentStatus::Ready,
+            ];
+        });
+    }
+
+    /**
+     * The bytes of a valid PNG that is `$width` pixels wide and one high.
+     */
+    public static function png(int $width = 1): string
+    {
+        $image = imagecreatetruecolor(max($width, 1), 1);
+
+        ob_start();
+        imagepng($image);
+
+        return (string) ob_get_clean();
     }
 }
