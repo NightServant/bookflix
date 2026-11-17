@@ -174,3 +174,15 @@ test('the verified filter matches what counts as verified', function () {
     $page->set('show', 'verified')->assertSee('Vouched Tale')->assertDontSee('Half Stamped Tale');
     $page->set('show', 'unverified')->assertSee('Half Stamped Tale')->assertDontSee('Vouched Tale');
 });
+
+test('a stored file gets a preview link in the row menu, a source without one does not', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $withFile = ContentSource::factory()->ready()->create();
+    $without = ContentSource::factory()->create();
+
+    $html = Livewire::test('pages::admin.content.index')->html();
+
+    expect($html)->toContain('data-test="preview-'.$withFile->id.'"')
+        ->and($html)->toContain('/admin/content/'.$withFile->id.'/preview?')
+        ->and($html)->not->toContain('data-test="preview-'.$without->id.'"');
+});

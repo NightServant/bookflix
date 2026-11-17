@@ -16,6 +16,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -65,6 +66,9 @@ class AppServiceProvider extends ServiceProvider
         // A reader's library is theirs; others (guests too) may see it only when its owner made it public and is still active. Phase 10 builds the public page on this.
         Gate::define('view-library', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
             || ($owner->profile->library_visibility === Visibility::Public && ! $owner->isDeactivated()));
+
+        // pdf.js reads a file in many small ranges, so a reader gets a roomy allowance (per person, not per address).
+        RateLimiter::for('reader-stream', fn (Request $request): Limit => Limit::perMinute(600)->by($request->user()?->id ?: $request->ip()));
 
         foreach (config('bookflix.providers') as $key => $provider) {
             if ($provider['class'] === null) {

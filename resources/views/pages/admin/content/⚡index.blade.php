@@ -51,7 +51,7 @@ new #[Title('Reading files')] class extends Component {
     }
 
     /**
-     * Newest first. The story is named (its title is all that is read), the file path and checksum never leave the database.
+     * Newest first. The story is named (its title is all that is read), the file path and checksum never leave the database (a list only learns whether a file is stored).
      *
      * @return LengthAwarePaginator<int, ContentSource>
      */
@@ -63,6 +63,7 @@ new #[Title('Reading files')] class extends Component {
             ->when($this->show === 'verified', fn (Builder $query) => $query->where(fn (Builder $verified) => $this->verified($verified)))
             ->when($this->show === 'failed', fn (Builder $query) => $query->where('status', ContentStatus::Failed->value))
             ->select(['id', 'media_id', 'access_type', 'format', 'license', 'verified_by', 'verified_at', 'status', 'failure_reason', 'created_at'])
+            ->selectRaw('(storage_path is not null) as has_file')
             ->with(['media' => fn ($query) => $query->withTrashed()->select(['id', 'title', 'deleted_at'])])
             ->orderByDesc('created_at')->orderByDesc('id')
             ->paginate(25);
@@ -198,11 +199,16 @@ new #[Title('Reading files')] class extends Component {
                             <flux:table.cell data-label="{{ __('Actions') }}" class="{{ $cell }} max-md:items-center">
                                 <div class="flex items-center gap-2 md:justify-end max-md:flex-1 max-md:justify-end">
                                     <flux:button variant="filled" class="min-h-11" icon="shield-check" icon:variant="outline" wire:click="edit({{ $source->id }})" aria-label="{{ __('Verify :title', ['title' => $title]) }}" data-test="verify-{{ $source->id }}">{{ $source->isVerified() ? __('Edit') : __('Verify') }}</flux:button>
-                                    @if ($source->isVerified())
+                                    @if ($source->isVerified() || $source->has_file)
                                         <flux:dropdown position="bottom" align="end">
                                             <flux:button variant="filled" class="min-h-11 min-w-11" icon="ellipsis-horizontal" icon:variant="outline" aria-label="{{ __('More actions for :title', ['title' => $title]) }}" />
                                             <flux:menu class="shadow-overlay!">
+                                                @if ($source->has_file)
+                                                    <flux:menu.item :href="\Illuminate\Support\Facades\URL::temporarySignedRoute('admin.content.preview', now()->addMinutes(10), ['source' => $source->id], absolute: false)" target="_blank" icon="arrow-top-right-on-square" class="min-h-11! pe-4!" data-test="preview-{{ $source->id }}">{{ __('Preview file') }}</flux:menu.item>
+                                                @endif
+                                                @if ($source->isVerified())
                                                 <flux:menu.item wire:click="unverify({{ $source->id }})" icon="x-circle" class="min-h-11! pe-4!" data-test="unverify-{{ $source->id }}">{{ __('Unverify') }}</flux:menu.item>
+                                                @endif
                                             </flux:menu>
                                         </flux:dropdown>
                                     @endif

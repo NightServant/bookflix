@@ -12,5 +12,6 @@
 @fonts
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
-<script>window.localStorage.setItem('flux.appearance', 'dark')</script>
-@fluxAppearance
+<script nonce="{{ Vite::cspNonce() }}">window.localStorage.setItem('flux.appearance', 'dark')</script>
+{{-- Flux's appearance script is inline, so it is given this request's nonce explicitly. --}}
+@fluxAppearance(['nonce' => Vite::cspNonce()])

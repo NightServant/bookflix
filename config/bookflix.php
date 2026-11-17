@@ -167,6 +167,23 @@ return [
         'writes_per_minute' => 60,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Content Security Policy
+    |--------------------------------------------------------------------------
+    |
+    | Every page answers with a policy that allows only this site's own scripts
+    | (plus a per-request nonce) and blocks framing. `enabled` turns it off, and
+    | `report_only` sends it as a report-only header, so a browser logs what it
+    | would block without blocking it; use that to try a change safely.
+    |
+    */
+
+    'csp' => [
+        'enabled' => env('BOOKFLIX_CSP_ENABLED', true),
+        'report_only' => env('BOOKFLIX_CSP_REPORT_ONLY', false),
+    ],
+
     'privacy' => [
 
         /*

@@ -47,5 +47,6 @@ Route::get('exports/{user}/{file}', [ExportDownloadController::class, 'show'])
     ->where(['user' => '[0-9]+', 'file' => ExportStorage::FILE_PATTERN])
     ->name('exports.download');
 
+require __DIR__.'/reader.php';
 require __DIR__.'/settings.php';
 require __DIR__.'/admin.php';
