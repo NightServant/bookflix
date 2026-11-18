@@ -65,6 +65,7 @@ class ExportUserData implements ShouldQueue
                 'history.json' => $this->history($user),
                 'interactions.json' => $this->interactions($user),
                 'searches.json' => $this->searches($user),
+                'following.json' => $this->following($user),
             ];
 
             foreach ($lists as $name => $rows) {
@@ -345,6 +346,28 @@ class ExportUserData implements ShouldQueue
                 'results_count' => $row->results_count,
                 'created_at' => $this->time($row->created_at),
             ];
+        }
+    }
+
+    /**
+     * The handles of the readers they follow, newest first. Only those still viewable (active, public, not hidden) appear: a follow of someone
+     * who went private or was deactivated stays stored but names a reader the exporting reader can no longer see.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function following(User $user): Generator
+    {
+        $rows = $user->listedFollowing()
+            ->join('profiles', 'profiles.user_id', '=', 'users.id')
+            ->join('follows', fn ($join) => $join->on('follows.followed_id', '=', 'users.id')->where('follows.follower_id', $user->id))
+            ->whereNotNull('profiles.handle')
+            ->orderByDesc('follows.created_at')->orderBy('users.id')
+            ->select('profiles.handle', 'follows.created_at')
+            ->toBase()
+            ->get();
+
+        foreach ($rows as $row) {
+            yield ['handle' => $row->handle, 'followed_at' => $this->time($row->created_at)];
         }
     }
 

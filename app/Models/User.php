@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -138,6 +139,46 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * The readers who follow this one, as stored (see App\Actions\Social for the only writers). Lists and counts shown to anyone use listedFollowers().
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function followers(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'follows', 'followed_id', 'follower_id')->withPivot('created_at');
+    }
+
+    /**
+     * The readers this one follows, as stored. Lists and counts shown to anyone use listedFollowing().
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function following(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'follows', 'follower_id', 'followed_id')->withPivot('created_at');
+    }
+
+    /**
+     * Followers who may be shown (P10-R4): active, non-admin, public and not moderator-hidden, for every viewer including the owner.
+     *
+     * @return Builder<User>
+     */
+    public function listedFollowers(): Builder
+    {
+        return self::query()->listed()->whereIn('users.id', Follow::query()->select('follower_id')->where('followed_id', $this->id));
+    }
+
+    /**
+     * Followed readers who may be shown (P10-R4), by the same rule as listedFollowers().
+     *
+     * @return Builder<User>
+     */
+    public function listedFollowing(): Builder
+    {
+        return self::query()->listed()->whereIn('users.id', Follow::query()->select('followed_id')->where('follower_id', $this->id));
+    }
+
+    /**
      * Where a signed-in user is sent "home": the admin dashboard for an admin, Fortify's home path (Home) for a reader.
      */
     public function homePath(): string
@@ -158,6 +199,22 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function scopeActive(Builder $query): void
     {
         $query->whereNull('deactivated_at');
+    }
+
+    /**
+     * Limit the query to readers who may be listed publicly: active, not an admin, with a public profile that moderators have not hidden.
+     * The same test as the `view-profile` gate, in SQL.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeListed(Builder $query): void
+    {
+        $query->active()
+            ->where('users.is_admin', false)
+            ->whereExists(fn ($profiles) => $profiles->selectRaw('1')->from('profiles')
+                ->whereColumn('profiles.user_id', 'users.id')
+                ->where('profiles.profile_visibility', Visibility::Public->value)
+                ->whereNull('profiles.moderation_hidden_at'));
     }
 
     /**

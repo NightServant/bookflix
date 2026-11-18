@@ -46,6 +46,24 @@ new #[Title('Privacy settings')] class extends Component {
             'personalizationEnabled' => ['boolean'],
         ]);
 
+        $profile = Auth::user()->profile;
+        $hidden = $profile->moderation_hidden_at !== null;
+
+        // A public profile needs a handle for its URL, and a profile moderators hid stays private until they restore it.
+        if ($validated['profileVisibility'] === Visibility::Public->value && $hidden) {
+            $this->addError('profileVisibility', __('Moderators have hidden your profile, so it stays private.'));
+        } elseif ($validated['profileVisibility'] === Visibility::Public->value && blank($profile->handle)) {
+            $this->addError('profileVisibility', __('Choose a handle on your profile first.'));
+        }
+
+        if ($validated['libraryVisibility'] === Visibility::Public->value && $hidden) {
+            $this->addError('libraryVisibility', __('Moderators have hidden your profile, so it stays private.'));
+        }
+
+        if ($this->getErrorBag()->isNotEmpty()) {
+            return;
+        }
+
         Auth::user()->profile()->updateOrCreate([], [
             'profile_visibility' => $validated['profileVisibility'],
             'library_visibility' => $validated['libraryVisibility'],

@@ -63,9 +63,20 @@ class AppServiceProvider extends ServiceProvider
         // An admin account runs the catalog and has no reader side (see EnsureReaderAccount); the same line guards the reader writes an admin could still call straight through Livewire.
         Gate::define('use-reader-side', fn (User $user): bool => ! $user->is_admin);
 
-        // A reader's library is theirs; others (guests too) may see it only when its owner made it public and is still active. Phase 10 builds the public page on this.
+        // One seam for who may see a reader's public side (P10-R3): the owner, or an active, non-admin owner with a public profile that moderators have not hidden.
+        // Callers answer a refusal with 404, never 403, so a private profile's existence doesn't leak.
+        Gate::define('view-profile', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
+            || (! $owner->is_admin
+                && ! $owner->isDeactivated()
+                && $owner->profile->profile_visibility === Visibility::Public
+                && $owner->profile->moderation_hidden_at === null));
+
+        // A reader's library is theirs; others may see it only when the profile is viewable and the owner made the library public.
         Gate::define('view-library', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
-            || ($owner->profile->library_visibility === Visibility::Public && ! $owner->isDeactivated()));
+            || (Gate::forUser($viewer)->allows('view-profile', $owner) && $owner->profile->library_visibility === Visibility::Public));
+
+        // Named so it is tuned in one place; FollowUser applies it, so Livewire calls count too.
+        RateLimiter::for('follows', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.follows_per_hour'))->by($user->id));
 
         // pdf.js reads a file in many small ranges, so a reader gets a roomy allowance (per person, not per address).
         // One save every couple of seconds while reading, plus the beacons; a person, not an address.

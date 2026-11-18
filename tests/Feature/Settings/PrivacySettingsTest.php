@@ -19,6 +19,7 @@ test('privacy defaults are private with personalization on', function () {
 
 test('privacy settings can be updated', function () {
     $this->actingAs($user = User::factory()->create());
+    $user->profile()->updateOrCreate([], ['handle' => 'a_reader']);
 
     Livewire::test('pages::settings.privacy')
         ->set('profileVisibility', 'public')
