@@ -10,6 +10,7 @@ use App\Models\Profile;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
+use App\Social\ReviewSummaries;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -21,6 +22,8 @@ class HideReportedContent
 {
     use ModeratesReports;
 
+    public function __construct(private readonly ReviewSummaries $summaries) {}
+
     public function handle(User $moderator, Report $report): Report
     {
         $this->authorizeModerator($moderator);
@@ -30,7 +33,7 @@ class HideReportedContent
 
             if ($target instanceof Review) {
                 $target->forceFill(['status' => ReviewState::Hidden])->save();
-                // 10.5 seam: the story's review summary is invalidated here (a ReviewSummaryInvalidated call).
+                $this->summaries->invalidate($target->media_id);
             } elseif ($target instanceof Collection) {
                 $target->forceFill(['visibility' => Visibility::Private, 'moderation_hidden_at' => now()])->save();
             } elseif ($target instanceof Profile) {

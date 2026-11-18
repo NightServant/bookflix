@@ -4,6 +4,7 @@ namespace App\Actions\Social;
 
 use App\Models\Review;
 use App\Models\User;
+use App\Social\ReviewSummaries;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -11,12 +12,14 @@ use Illuminate\Support\Facades\Gate;
  */
 class DeleteReview
 {
+    public function __construct(private readonly ReviewSummaries $summaries) {}
+
     public function handle(User $user, Review $review): void
     {
         Gate::forUser($user)->authorize('delete', $review);
 
         $review->delete();
 
-        // 10.5 seam: the story's review summary is invalidated here (a ReviewSummaryInvalidated call), as it is where a review is hidden.
+        $this->summaries->invalidate($review->media_id);
     }
 }

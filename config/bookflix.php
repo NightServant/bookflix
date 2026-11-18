@@ -239,6 +239,9 @@ return [
         'follows_per_hour' => 60,
         'reviews_per_hour' => 10,
         'reports_per_hour' => 10,
+        // A story's "What readers say" summary needs this many qualifying reviews, and is rebuilt this long after the first change (a burst makes one job).
+        'review_summary_min_reviews' => 5,
+        'review_summary_delay_minutes' => 10,
     ],
 
     /*

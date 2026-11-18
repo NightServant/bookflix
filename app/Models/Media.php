@@ -588,6 +588,16 @@ class Media extends Model
     }
 
     /**
+     * What readers say: the extractive summary of the story's published reviews, when the summarize job has written one (see ReviewSummary).
+     *
+     * @return HasOne<ReviewSummary, $this>
+     */
+    public function reviewSummary(): HasOne
+    {
+        return $this->hasOne(ReviewSummary::class);
+    }
+
+    /**
      * The extractive summary of the description, when the summarize job has written one (see MediaSummary).
      *
      * @return HasOne<MediaSummary, $this>

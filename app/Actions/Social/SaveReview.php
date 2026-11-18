@@ -7,6 +7,7 @@ use App\Enums\InteractionEvent;
 use App\Models\Media;
 use App\Models\Review;
 use App\Models\User;
+use App\Social\ReviewSummaries;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
@@ -21,7 +22,7 @@ class SaveReview
 {
     public const MAX_BODY = 5000;
 
-    public function __construct(private readonly InteractionRecorder $interactions) {}
+    public function __construct(private readonly InteractionRecorder $interactions, private readonly ReviewSummaries $summaries) {}
 
     public function handle(User $user, Media $media, string $body, bool $hasSpoilers): Review
     {
@@ -54,6 +55,7 @@ class SaveReview
             try {
                 $review = Review::query()->create(['user_id' => $user->id, 'media_id' => $media->id, 'body' => $body, 'has_spoilers' => $hasSpoilers]);
                 $this->interactions->record($user, InteractionEvent::Review, $media);
+                $this->summaries->queue($media);
 
                 return $review;
             } catch (UniqueConstraintViolationException) {
@@ -62,7 +64,12 @@ class SaveReview
             }
         }
 
-        $review->fill(['body' => $body, 'has_spoilers' => $hasSpoilers])->save();
+        $review->fill(['body' => $body, 'has_spoilers' => $hasSpoilers]);
+        // An edit that turns a review into a spoiler takes its words out of the summary at once; any other edit waits for the rebuild.
+        $nowSpoiler = $review->isDirty('has_spoilers') && $hasSpoilers;
+        $review->save();
+
+        $nowSpoiler ? $this->summaries->invalidate($media) : $this->summaries->queue($media);
 
         return $review;
     }

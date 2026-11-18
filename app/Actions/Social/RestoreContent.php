@@ -8,6 +8,7 @@ use App\Models\Profile;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
+use App\Social\ReviewSummaries;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -18,6 +19,8 @@ class RestoreContent
 {
     use ModeratesReports;
 
+    public function __construct(private readonly ReviewSummaries $summaries) {}
+
     public function handle(User $moderator, Report $report): Report
     {
         $this->authorizeModerator($moderator);
@@ -27,6 +30,7 @@ class RestoreContent
 
             if ($target instanceof Review) {
                 $target->forceFill(['status' => ReviewState::Published])->save();
+                $this->summaries->queue($target->media_id);
             } elseif ($target instanceof Collection || $target instanceof Profile) {
                 $target->forceFill(['moderation_hidden_at' => null])->save();
             }
