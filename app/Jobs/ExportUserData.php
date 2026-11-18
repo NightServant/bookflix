@@ -66,6 +66,7 @@ class ExportUserData implements ShouldQueue
                 'interactions.json' => $this->interactions($user),
                 'searches.json' => $this->searches($user),
                 'following.json' => $this->following($user),
+                'reviews.json' => $this->reviews($user),
             ];
 
             foreach ($lists as $name => $rows) {
@@ -368,6 +369,33 @@ class ExportUserData implements ShouldQueue
 
         foreach ($rows as $row) {
             yield ['handle' => $row->handle, 'followed_at' => $this->time($row->created_at)];
+        }
+    }
+
+    /**
+     * The reviews the reader wrote and still has, with their status (a hidden one says so). Deleted reviews are gone.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function reviews(User $user): Generator
+    {
+        $rows = DB::table('reviews')
+            ->join('media', 'media.id', '=', 'reviews.media_id')
+            ->where('reviews.user_id', $user->id)
+            ->whereNull('reviews.deleted_at')
+            ->select('reviews.id', 'media.title', 'media.slug', 'reviews.body', 'reviews.has_spoilers', 'reviews.status', 'reviews.created_at', 'reviews.updated_at')
+            ->lazyById(self::CHUNK, 'reviews.id', 'id');
+
+        foreach ($rows as $row) {
+            yield [
+                'title' => $row->title,
+                'slug' => $row->slug,
+                'body' => $row->body,
+                'has_spoilers' => (bool) $row->has_spoilers,
+                'status' => $row->status,
+                'created_at' => $this->time($row->created_at),
+                'updated_at' => $this->time($row->updated_at),
+            ];
         }
     }
 

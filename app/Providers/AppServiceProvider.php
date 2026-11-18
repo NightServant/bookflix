@@ -78,6 +78,8 @@ class AppServiceProvider extends ServiceProvider
         // Named so it is tuned in one place; FollowUser applies it, so Livewire calls count too.
         RateLimiter::for('follows', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.follows_per_hour'))->by($user->id));
 
+        RateLimiter::for('reviews', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reviews_per_hour'))->by($user->id));
+
         // pdf.js reads a file in many small ranges, so a reader gets a roomy allowance (per person, not per address).
         // One save every couple of seconds while reading, plus the beacons; a person, not an address.
         RateLimiter::for('reader-progress', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));

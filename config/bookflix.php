@@ -237,6 +237,7 @@ return [
             'onboarding', 'login', 'register', 'logout', 'exports', 'covers', 'recommendations', 'user', 'email', 'password', 'two-factor', 'livewire',
         ],
         'follows_per_hour' => 60,
+        'reviews_per_hour' => 10,
     ],
 
     /*
