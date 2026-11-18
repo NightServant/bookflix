@@ -242,6 +242,7 @@ return [
         // A story's "What readers say" summary needs this many qualifying reviews, and is rebuilt this long after the first change (a burst makes one job).
         'review_summary_min_reviews' => 5,
         'review_summary_delay_minutes' => 10,
+        'collection_clones_per_hour' => 10,
     ],
 
     /*
