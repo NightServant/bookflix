@@ -352,17 +352,21 @@ new #[Title('Add your own file')] class extends Component {
             @if ($this->files->isNotEmpty())
                 <ul class="mt-4 divide-y divide-hairline">
                     @foreach ($this->files as $source)
+                        @php
+                            // A story deleted since the upload leaves the file: it is listed as removed, with Delete and no Read link.
+                            $title = $source->media?->title ?? __('Story removed');
+                        @endphp
                         <li wire:key="file-{{ $source->id }}" class="flex items-center gap-2 py-3">
                             <div class="min-w-0 flex-1">
-                                <p class="truncate text-body text-ink">{{ $source->media->title }}</p>
+                                <p @class(['truncate text-body', 'text-ink' => $source->media !== null, 'text-ink-subtle' => $source->media === null])>{{ $title }}</p>
                                 <p class="text-meta text-ink-subtle">{{ $source->format->label() }} · {{ $size((int) $source->byte_size) }}@if ($source->status->value === 'pending') · {{ __('Converting') }}@elseif ($source->status->value === 'failed') · {{ __('Could not be converted') }}@endif</p>
                             </div>
-                            @if ($source->status->value === 'ready')
-                                <a href="{{ route('reader.show', ['slug' => $source->media->slug, 'source' => $source->id]) }}" aria-label="{{ __('Read :title', ['title' => $source->media->title]) }}" class="focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-control text-ink hover:bg-surface-input">
+                            @if ($source->status->value === 'ready' && $source->media !== null)
+                                <a href="{{ route('reader.show', ['slug' => $source->media->slug, 'source' => $source->id]) }}" aria-label="{{ __('Read :title', ['title' => $title]) }}" class="focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-control text-ink hover:bg-surface-input">
                                     <flux:icon name="book-open" variant="outline" class="size-6" />
                                 </a>
                             @endif
-                            <button type="button" wire:click="delete({{ $source->id }})" wire:confirm="{{ __('Delete this file? Your place in the story is kept.') }}" aria-label="{{ __('Delete :title', ['title' => $source->media->title]) }}" class="focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-control text-ink hover:bg-surface-input">
+                            <button type="button" wire:click="delete({{ $source->id }})" wire:confirm="{{ __('Delete this file? Your place in the story is kept.') }}" aria-label="{{ __('Delete :title', ['title' => $title]) }}" class="focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-control text-ink hover:bg-surface-input">
                                 <flux:icon name="trash" variant="outline" class="size-6" />
                             </button>
                         </li>

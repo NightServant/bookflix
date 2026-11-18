@@ -29,8 +29,10 @@ use Illuminate\Validation\ValidationException;
  *
  * The reader (Phase 9, P9-R13) passes the `$source` it is reading, which is remembered on the place, and `$continueSession`: a save within
  * `reader.session_gap_minutes` of the end of the last history row extends that row (more seconds, a new end and a new `to_percent`) instead of
- * appending one, and records no `reading_progress` signal, so one reading session is one row and one signal. It also passes the browser's own
- * clock (`$clientTs`, milliseconds), which is kept on the place so saves can be ordered without the server's clock. Manual logs pass none of these.
+ * appending one, and records no `reading_progress` signal, so one reading session is one row and one signal. It also passes a random id for the
+ * page load (`$clientSession`) and a number that only goes up within it (`$clientSeq`), which are kept on the place. Under the lock, a save from the same
+ * page load whose number is not above the stored one is a late retry and changes nothing; a save from another page load (another tab or device) is accepted,
+ * so the latest arrival wins across them, and no clock is read. Manual logs pass none of these and leave the stored pair as it is.
  */
 class LogProgress
 {
@@ -49,7 +51,7 @@ class LogProgress
      *
      * @throws ValidationException when the percent is not a number from 0 to 100, or the page, chapter or time is out of range
      */
-    public function handle(User $user, Media $media, float $percent, ?int $page = null, ?string $chapter = null, ?array $locator = null, int $seconds = 0, ?ContentSource $source = null, bool $continueSession = false, ?int $clientTs = null): ReadingProgress
+    public function handle(User $user, Media $media, float $percent, ?int $page = null, ?string $chapter = null, ?array $locator = null, int $seconds = 0, ?ContentSource $source = null, bool $continueSession = false, ?string $clientSession = null, ?int $clientSeq = null): ReadingProgress
     {
         $this->validate($percent, $page, $chapter, $seconds);
 
@@ -57,18 +59,26 @@ class LogProgress
         $this->add->handle($user, $media);
 
         $events = [];
+        $ignored = false;
 
-        $progress = DB::transaction(function () use ($user, $media, $to, $page, $chapter, $locator, $seconds, $source, $continueSession, $clientTs, &$events): ReadingProgress {
+        $progress = DB::transaction(function () use ($user, $media, $to, $page, $chapter, $locator, $seconds, $source, $continueSession, $clientSession, $clientSeq, &$events, &$ignored): ReadingProgress {
             $entry = LibraryEntry::where('user_id', $user->id)->where('media_id', $media->id)->lockForUpdate()->firstOrFail();
             $previous = ReadingProgress::where('user_id', $user->id)->where('media_id', $media->id)->first();
             $from = $previous === null ? 0.0 : (float) $previous->percent;
 
+            if ($previous !== null && $clientSession !== null && $clientSeq !== null && $previous->client_session === $clientSession && $previous->client_seq !== null && $clientSeq <= $previous->client_seq) {
+                $ignored = true;
+
+                return $previous;
+            }
+
             $progress = $previous ?? new ReadingProgress(['user_id' => $user->id, 'media_id' => $media->id]);
-            $progress->fill(['page' => $page, 'chapter' => $chapter, 'locator' => $locator, 'percent' => $to, 'last_read_at' => now(), 'client_ts' => $clientTs]);
+            $progress->fill(['page' => $page, 'chapter' => $chapter, 'locator' => $locator, 'percent' => $to, 'last_read_at' => now()]);
+            $clientSession === null || $progress->fill(['client_session' => $clientSession, 'client_seq' => $clientSeq]);
             $source === null || $progress->content_source_id = $source->id;
             $progress->save();
 
-            $session = $continueSession ? $this->openSession($user, $media) : null;
+            $session = $continueSession ? $this->openSession($user, $media, $source) : null;
 
             if ($session === null) {
                 ReadingSession::create([
@@ -79,6 +89,7 @@ class LogProgress
                     'seconds' => $seconds,
                     'from_percent' => $from,
                     'to_percent' => $to,
+                    'content_source_id' => $source?->id,
                 ]);
             } else {
                 $session->update(['ended_at' => now(), 'seconds' => min(self::MAX_SECONDS, $session->seconds + $seconds), 'to_percent' => $to]);
@@ -105,6 +116,10 @@ class LogProgress
             return $progress;
         });
 
+        if ($ignored) {
+            return $progress;
+        }
+
         foreach ($events as [$event, $value]) {
             $this->interactions->record($user, $event, $media, value: $value);
         }
@@ -115,13 +130,16 @@ class LogProgress
     }
 
     /**
-     * The last history row of this reader and story, when it ended within the session gap.
+     * The reader's latest history row for this story, when it was written by a reader save of this same source and ended within the session gap.
+     * A manual log's row (no source) is never extended, and neither is one from another file of the story.
      */
-    private function openSession(User $user, Media $media): ?ReadingSession
+    private function openSession(User $user, Media $media, ?ContentSource $source): ?ReadingSession
     {
-        return ReadingSession::where('user_id', $user->id)->where('media_id', $media->id)
+        $latest = ReadingSession::where('user_id', $user->id)->where('media_id', $media->id)
             ->where('ended_at', '>=', now()->subMinutes((int) config('bookflix.reader.session_gap_minutes')))
             ->latest('ended_at')->latest('id')->first();
+
+        return $latest !== null && $source !== null && $latest->content_source_id === $source->id ? $latest : null;
     }
 
     private function validate(float $percent, ?int $page, ?string $chapter, int $seconds): void

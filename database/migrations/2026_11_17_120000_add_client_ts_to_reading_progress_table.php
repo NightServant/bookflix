@@ -9,13 +9,14 @@ return new class extends Migration
     /**
      * Run the migrations.
      *
-     * The reader's browser stamps each save with its own clock in milliseconds (P9-R13). Saves are ordered by that stamp against the one stored here,
-     * never against the server's clock, so a device whose clock is wrong still saves and a late retry can't overwrite a newer place.
+     * The reader's browser makes a random id for each page load and numbers its saves 1, 2, 3 within it (P9-R13). Saves of one page load are ordered by that
+     * number, so a late retry can't overwrite a newer place; saves of different page loads are ordered by arrival. No clock is read, so a wrong one can't matter.
      */
     public function up(): void
     {
         Schema::table('reading_progress', function (Blueprint $table) {
-            $table->unsignedBigInteger('client_ts')->nullable();
+            $table->string('client_session', 64)->nullable();
+            $table->unsignedBigInteger('client_seq')->nullable();
         });
     }
 
@@ -25,7 +26,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('reading_progress', function (Blueprint $table) {
-            $table->dropColumn('client_ts');
+            $table->dropColumn(['client_session', 'client_seq']);
         });
     }
 };

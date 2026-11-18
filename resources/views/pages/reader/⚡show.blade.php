@@ -255,6 +255,7 @@ new #[Layout('layouts::reader')] class extends Component {
             'pageOf' => __('page :n of :total', ['n' => ':n', 'total' => ':total']),
             'pageOfFirst' => __('Page :n of :total', ['n' => ':n', 'total' => ':total']),
             'pageLabel' => __('Page :n', ['n' => ':n']),
+            'bookText' => __('Book text'),
             'pdfSubtitle' => __('PDF · :n pages', ['n' => ':n']),
         ]),
     ], fn ($value) => $value !== null);
@@ -288,6 +289,9 @@ new #[Layout('layouts::reader')] class extends Component {
 @endphp
 
 <div x-data="readerChrome(@js($chrome))" class="fixed inset-0 bg-canvas">
+    {{-- Said to screen readers once a move has settled (WCAG 4.1.3); the visible numbers are on the bars. --}}
+    <div data-reader="announce" class="sr-only" role="status" aria-live="polite" x-text="announcement"></div>
+
     <x-reader.toolbar :format="$engine" :title="$media->title" :subtitle="$subtitle" :back-url="$backUrl" :direction="$direction" :page-count="$pageCount" :page="$page" />
 
     <main id="main" tabindex="-1" aria-label="{{ $media->title }}" @class(['absolute inset-x-0 outline-none', 'inset-y-0' => $engine === 'webtoon', 'top-16 bottom-22' => $engine !== 'webtoon'])>
@@ -296,7 +300,7 @@ new #[Layout('layouts::reader')] class extends Component {
 
         {{-- One state at a time over the page; the engine's events pick it. --}}
         <div role="presentation" class="absolute inset-0 z-10 bg-canvas" x-show="state !== 'ready'">
-            @foreach (['opening', 'corrupt', 'withdrawn', 'password'] as $kind)
+            @foreach (['opening', 'corrupt', 'network', 'withdrawn', 'password'] as $kind)
                 <x-reader.state :kind="$kind" :back-url="$backUrl" :percent="$percent" x-show="state === '{{ $kind }}'" :style="$kind !== $initial ? 'display: none' : null" />
             @endforeach
         </div>
@@ -344,7 +348,7 @@ new #[Layout('layouts::reader')] class extends Component {
         @endforeach
     @endif
 
-    <x-reader.chapter-list :percent="$percent" />
+    <x-reader.chapter-list :percent="$percent" :format="$engine" />
 
     @if ($engine === 'epub')
         <x-reader.settings-panel variant="book" />

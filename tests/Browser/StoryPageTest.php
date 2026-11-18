@@ -3,6 +3,7 @@
 use App\Catalog\Ingestion\Deduplicator;
 use App\Enums\ReadingStatus;
 use App\Models\Collection;
+use App\Models\ContentSource;
 use App\Models\LibraryEntry;
 use App\Models\Media;
 use App\Models\MediaSummary;
@@ -225,5 +226,20 @@ test('a current summary leads the story, the full description opens and closes i
             ->assertScript($expanded, 'false')
             ->assertScript($visible, false)
             ->assertNoJavaScriptErrors();
+    }
+});
+
+test('the Where to read card and the Start reading button pass the audit at every level', function () {
+    $linked = Media::factory()->novel()->create(['title' => 'Linked Tale', 'description' => 'A story that lives on a publisher\'s site.']);
+    ContentSource::factory()->for($linked)->licensed()->verified()->externalLink()->create();
+    $own = Media::factory()->novel()->create(['title' => 'Readable Tale', 'description' => 'A story that can be read here.']);
+    ContentSource::factory()->for($own)->publicDomain()->verified()->ready()->create();
+
+    foreach ([$this->desktop, $this->phone] as $viewport) {
+        visit(route('stories.show', $linked->slug), $viewport)->wait(1)
+            ->assertSee('Where to read')->assertNoJavaScriptErrors()->assertNoConsoleLogs()->assertNoAccessibilityIssues(3);
+
+        visit(route('stories.show', $own->slug), $viewport)->wait(1)
+            ->assertSee('Start reading')->assertNoJavaScriptErrors()->assertNoConsoleLogs()->assertNoAccessibilityIssues(3);
     }
 });

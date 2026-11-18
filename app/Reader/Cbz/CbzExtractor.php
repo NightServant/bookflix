@@ -74,6 +74,26 @@ class CbzExtractor
     }
 
     /**
+     * Open the stored zip and keep it open until the caller closes it: for a response that sniffs the entry and then streams it from the same open
+     * archive, so a disk that is not local is copied once per request, not twice.
+     *
+     * @throws UnsafeArchive
+     */
+    public function openLeased(ContentSource $source): OpenedZip
+    {
+        $lease = LocalFile::lease((string) $source->storage_path);
+        $zip = new ZipArchive;
+
+        if ($zip->open($lease->path, ZipArchive::RDONLY) !== true) {
+            $lease->release();
+
+            throw UnsafeArchive::because(__('it is damaged or is not a zip.'));
+        }
+
+        return new OpenedZip($zip, $lease);
+    }
+
+    /**
      * The pages of a zip on this machine, in reading order. Public so an upload is judged by the very rules a stored comic is read with.
      *
      * @throws UnsafeArchive

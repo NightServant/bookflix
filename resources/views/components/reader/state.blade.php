@@ -9,8 +9,8 @@
 @endphp
 
 {{--
-    The four states of the reader, one centered card each (frames d08, m08; copy as signed off). Every one keeps "Back to the story". The page shows
-    one at a time through its Alpine `state` ('opening', 'corrupt', 'withdrawn', 'password'; an engine's `reader:error` picks it). The primary button
+    The states of the reader, one centered card each (frames d08, m08; copy as signed off). Every one keeps "Back to the story". The page shows
+    one at a time through its Alpine `state` ('opening', 'corrupt', 'network', 'withdrawn', 'password'; an engine's `reader:error` picks it). The primary button
     of a state is white: red is for calls to action, and nothing here is one.
 --}}
 <div data-reader-state="{{ $kind }}" {{ $attributes->class('flex size-full items-center justify-center p-4') }}>
@@ -27,6 +27,18 @@
                 <span class="{{ $circle }}"><flux:icon name="exclamation-triangle" variant="outline" class="size-6" /></span>
                 <h2 class="mt-5 text-lead text-ink">{{ __('This file couldn\'t be opened') }}</h2>
                 <p class="mt-2 text-meta text-ink-subtle text-pretty">{{ __('It may be damaged, or in a form Bookflix can\'t read. Your place in the story is saved.') }}</p>
+                <div class="mt-6 flex flex-wrap justify-center gap-3">
+                    <a href="{{ $backUrl }}" class="{{ $secondary }}">{{ __('Back to the story') }}</a>
+                    <button type="button" data-reader="retry" @click="retry()" class="{{ $primary }}">{{ __('Try again') }}</button>
+                </div>
+            </div>
+            @break
+
+        @case('network')
+            <div class="{{ $card }}" role="alert">
+                <span class="{{ $circle }}"><flux:icon name="signal-slash" variant="outline" class="size-6" /></span>
+                <h2 class="mt-5 text-lead text-ink">{{ __('The connection dropped') }}</h2>
+                <p class="mt-2 text-meta text-ink-subtle text-pretty">{{ __('Check your connection and try again. Your place is saved.') }}</p>
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
                     <a href="{{ $backUrl }}" class="{{ $secondary }}">{{ __('Back to the story') }}</a>
                     <button type="button" data-reader="retry" @click="retry()" class="{{ $primary }}">{{ __('Try again') }}</button>

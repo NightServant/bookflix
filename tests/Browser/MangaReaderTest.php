@@ -208,7 +208,7 @@ test('an archive the server can\'t read shows the couldn\'t-open card', function
     visit(($this->read)(), $this->desktop)
         ->waitForText('This file couldn\'t be opened')
         ->assertVisible('[data-reader-state=corrupt] a[href="'.route('stories.show', $this->source->media->slug).'"]')
-        ->assertVisible('[data-reader=retry]')
+        ->assertVisible('[data-reader-state=corrupt] [data-reader=retry]')
         ->assertNoJavaScriptErrors();
 });
 
@@ -226,5 +226,5 @@ test('the reader runs clean and passes the accessibility audit on a desktop and 
     visit(($this->read)(), $this->{$size})->waitForText('Page 1 of 5')->wait(0.8)
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs()
-        ->assertNoAccessibilityIssues();
+        ->assertNoAccessibilityIssues(3);
 })->with(['desktop', 'phone']);

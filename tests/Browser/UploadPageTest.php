@@ -53,7 +53,7 @@ test('the page passes the shared checks on a desktop and on a phone', function (
         visit(route('library.upload', ['story' => $this->media->slug]), $viewport)->wait(1)
             ->assertSee('Add your own file')->assertSee('Your files')->assertSee('Choose a file')
             ->assertScript('document.documentElement.scrollWidth <= window.innerWidth', true)
-            ->assertNoJavaScriptErrors()->assertNoConsoleLogs()->assertNoAccessibilityIssues();
+            ->assertNoJavaScriptErrors()->assertNoConsoleLogs()->assertNoAccessibilityIssues(3);
     }
 });
 
@@ -62,7 +62,7 @@ test('a file picked through the native input shows its row, and can be removed',
         ->attach('#upload-file', $this->filePath)->wait(1.5)
         ->assertSeeIn('[data-chosen-file]', 'alice-in-wonderland.pdf')
         ->assertSeeIn('[data-chosen-file]', 'PDF ·')
-        ->assertNoJavaScriptErrors()->assertNoConsoleLogs()->assertNoAccessibilityIssues()
+        ->assertNoJavaScriptErrors()->assertNoConsoleLogs()->assertNoAccessibilityIssues(3)
         ->click('[data-chosen-file] button')->wait(0.8)
         ->assertMissing('[data-chosen-file]');
 });

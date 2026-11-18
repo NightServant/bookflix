@@ -16,7 +16,7 @@ use ZipArchive;
 
 /**
  * Serves one page of a comic. Like the stream route, the address is signed but not trusted on its own: the signed `user` must be the person signed
- * in and the access gate is asked again. The image is streamed out of the zip in chunks (never extracted to disk, never held whole in memory). A page
+ * in and the access gate is asked again. The image is streamed out of the zip in chunks (never extracted to disk, never held whole in memory), from the one open archive of the request: a disk that is not local is copied once, and the copy goes when the stream ends. A page
  * whose declared size is above `reader.archive.max_page_mb` is refused, the first 64 KB name its type from its own bytes (an entry named `.jpg`
  * that holds HTML is refused, not served), and the stream stops at the declared size.
  */
@@ -37,16 +37,24 @@ class PageController extends Controller
         abort_unless($gate->allows($user, $source), 403);
         abort_unless($source->format === ContentFormat::Cbz, 404);
 
+        // The archive is opened once: sniffed here, streamed from the same open zip below.
+        $opened = null;
+
         try {
             $entry = $extractor->index($source)->page($page);
             abort_if($entry === null, 404);
 
-            [$type, $size] = $extractor->open($source, fn (ZipArchive $zip): array => $this->sniff($zip, $entry));
+            $opened = $extractor->openLeased($source);
+            [$type, $size] = $this->sniff($opened->zip, $entry);
         } catch (UnsafeArchive) {
+            $opened?->close();
+
             return $this->unavailable();
         }
 
         if ($type === null) {
+            $opened->close();
+
             return $this->unavailable();
         }
 
@@ -59,12 +67,14 @@ class PageController extends Controller
             'Content-Security-Policy' => "default-src 'none'; sandbox",
         ];
 
-        // The zip is opened again inside the callback: it must outlive this method, and the first look only read enough to name the type.
-        return new StreamedResponse(function () use ($extractor, $source, $entry, $size): void {
+        // The open zip outlives this method; it (and a temporary copy from a disk that is not local) is closed when the stream ends.
+        return new StreamedResponse(function () use ($opened, $entry, $size): void {
             try {
-                $extractor->open($source, fn (ZipArchive $zip) => $this->copy($zip, $entry, $size));
+                $this->copy($opened->zip, $entry, $size);
             } catch (UnsafeArchive) {
                 // The headers are out already: the reader's browser gets a broken image, nothing more can be said.
+            } finally {
+                $opened->close();
             }
         }, 200, $headers);
     }

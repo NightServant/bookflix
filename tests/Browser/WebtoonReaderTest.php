@@ -156,5 +156,5 @@ test('the reader runs clean and passes the accessibility audit on a desktop and 
     visit(($this->read)(), $this->{$size})->waitForText('Page 1 of 60')->wait(0.9)
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs()
-        ->assertNoAccessibilityIssues();
+        ->assertNoAccessibilityIssues(3);
 })->with(['desktop', 'phone']);

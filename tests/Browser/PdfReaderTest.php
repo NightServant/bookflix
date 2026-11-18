@@ -29,8 +29,8 @@ test('it renders page 1 on a sheet and shows where the reader is', function () {
         ->assertSeeIn('[data-reader=percent]', '33%')
         ->assertSeeIn('[data-reader=toolbar] [data-reader=zoom-value]', '75%')
         ->assertScript(($this->painted)(1))
-        ->assertScript('document.querySelector("canvas[data-page=\"1\"]").getAttribute("role")', 'img')
-        ->assertScript('document.querySelector("canvas[data-page=\"1\"]").getAttribute("aria-label")', 'Page 1')
+        ->assertScript('document.querySelector("canvas[data-page=\"1\"]").getAttribute("aria-hidden")', 'true')
+        ->assertScript('document.querySelector("[data-pdf-page=\"1\"]").getAttribute("aria-label")', 'Page 1')
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs();
 });
@@ -139,11 +139,96 @@ test('a PDF with an outline lists it in Contents, which goes to the page and kee
         ->assertNoJavaScriptErrors();
 });
 
-test('a PDF with no outline has no Contents button, on a desktop and on a phone', function (string $size) {
-    visit(($this->read)(), $this->{$size})->waitForText('PDF · 3 pages')->wait(0.8)
+test('a PDF with no outline has no Contents button on a desktop', function () {
+    visit(($this->read)(), $this->desktop)->waitForText('PDF · 3 pages')->wait(0.8)
         ->assertScript('document.querySelector("[data-reader=contents-button]").offsetParent === null')
         ->assertNoJavaScriptErrors();
-})->with(['desktop', 'phone']);
+});
+
+test('on a phone the Contents button is there for any PDF, and its sheet starts with a Go to page field', function () {
+    $page = visit(($this->read)(), $this->phone)->waitForText('PDF · 3 pages')->wait(0.8);
+
+    $page->assertScript('document.querySelector("[data-reader=contents-button]").offsetParent !== null')
+        ->click('[data-reader=contents-button]')->wait(0.3)
+        ->assertVisible('[data-reader=contents-page]')
+        ->assertScript('document.querySelector("label[for=reader-contents-page]").textContent.trim()', 'Go to page')
+        // Above the outline (here there is none, so above the nav).
+        ->assertScript('Boolean(document.querySelector("#reader-contents form").compareDocumentPosition(document.querySelector("#reader-contents nav")) & Node.DOCUMENT_POSITION_FOLLOWING)')
+        ->type('[data-reader=contents-page]', '3')->keys('[data-reader=contents-page]', 'Enter')->wait(0.8)
+        ->assertSeeIn('[data-reader=meta]', 'Page 3 of 3')
+        ->assertScript('getComputedStyle(document.querySelector("#reader-contents")).display', 'none')
+        ->assertNoJavaScriptErrors();
+});
+
+test('on a phone with an outline the field is above it, and on a desktop the sheet has no such field', function () {
+    $source = pdfSource(tinyPdf(5, outline: ['Introduction' => 1, 'Appendix' => 5]));
+    $url = route('reader.show', $source->media->slug);
+
+    visit($url, $this->phone)->waitForText('PDF · 5 pages')->wait(0.8)
+        ->click('[data-reader=contents-button]')->wait(0.3)
+        ->assertScript('Boolean(document.querySelector("#reader-contents form").compareDocumentPosition(document.querySelector("#reader-contents ol")) & Node.DOCUMENT_POSITION_FOLLOWING)');
+
+    visit($url, $this->desktop)->waitForText('PDF · 5 pages')->wait(0.8)
+        ->click('[data-reader=contents-button]')->wait(0.3)
+        ->assertScript('document.querySelector("[data-reader=contents-page]").offsetParent === null');
+});
+
+test('the text of the page is in the DOM as a text layer, over a canvas hidden from assistive technology', function () {
+    $page = visit(($this->read)(), $this->desktop)->waitForText('PDF · 3 pages')->wait(1);
+
+    $page->assertScript('document.querySelector("[data-pdf-page=\"1\"] .pdf-text-layer").textContent.includes("Page 1 of 3")')
+        ->assertScript('document.querySelector("[data-pdf-page=\"1\"]").getAttribute("role")', 'group')
+        ->assertScript('document.querySelector("[data-pdf-page=\"1\"] canvas").getAttribute("aria-hidden")', 'true')
+        // Selectable: the spans take the mouse and are not user-select: none.
+        ->assertScript('getComputedStyle(document.querySelector("[data-pdf-page=\"1\"] .pdf-text-layer span")).userSelect', 'text')
+        ->assertNoJavaScriptErrors()
+        ->assertNoConsoleLogs();
+});
+
+test('a page with no text stays an image labelled Page n', function () {
+    $source = pdfSource(tinyPdf(2, blank: true));
+
+    visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('PDF · 2 pages')->wait(1)
+        ->assertScript('document.querySelector("[data-pdf-page=\"1\"]").getAttribute("role")', 'img')
+        ->assertScript('document.querySelector("[data-pdf-page=\"1\"]").getAttribute("aria-label")', 'Page 1')
+        ->assertScript('document.querySelector("[data-pdf-page=\"1\"] .pdf-text-layer") === null')
+        ->assertNoJavaScriptErrors();
+});
+
+test('a range that answers 503 is retried with backoff and only then is the connection-dropped card shown, not the could-not-open one', function () {
+    $source = pdfSource(tinyPdf(1000));
+    $page = visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('PDF · 1000 pages')->wait(1);
+
+    // The server starts answering 503 to every range; the engine is asked to open the file again.
+    $page->script('window.__tries = []; const real = window.fetch; window.fetch = (input, init) => { if (init?.headers?.Range) { window.__tries.push(Date.now()); return Promise.resolve(new Response("", { status: 503 })); } return real(input, init); }; window.dispatchEvent(new CustomEvent("reader:retry"));');
+    $page->wait(8)
+        ->assertSee('The connection dropped')
+        ->assertSee('Check your connection and try again. Your place is saved.')
+        ->assertDontSee('This file couldn\'t be opened')
+        ->assertSeeIn('[data-reader-state=network]', 'Back to the story')
+        ->assertVisible('[data-reader-state=network] button[data-reader=retry]');
+
+    $tries = $page->script('window.__tries');
+
+    expect(count($tries))->toBe(4)
+        ->and($tries[1] - $tries[0])->toBeGreaterThanOrEqual(450)
+        ->and($tries[2] - $tries[1])->toBeGreaterThanOrEqual(1400)
+        ->and($tries[3] - $tries[2])->toBeGreaterThanOrEqual(3900);
+});
+
+test('a range that answers 429 once, with Retry-After, and then works carries on without any card', function () {
+    $source = pdfSource(tinyPdf(1000));
+    $page = visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('PDF · 1000 pages')->wait(1);
+
+    $page->script('window.__tries = 0; const real = window.fetch; window.fetch = (input, init) => { if (init?.headers?.Range && window.__tries++ < 1) { return Promise.resolve(new Response("", { status: 429, headers: { "Retry-After": "1" } })); } return real(input, init); }; window.dispatchEvent(new CustomEvent("reader:retry"));');
+    $page->wait(3.5)
+        ->assertSeeIn('[data-reader=meta]', 'Page 1 of 1000')
+        ->assertDontSee('The connection dropped')
+        ->assertDontSee('This file couldn\'t be opened')
+        ->assertScript('window.__tries >= 2')
+        ->assertScript(($this->painted)(1))
+        ->assertNoJavaScriptErrors();
+});
 
 test('a PDF with an outline has the Contents button on a phone too', function () {
     $source = pdfSource(tinyPdf(5, outline: ['Introduction' => 1, 'Appendix' => 5]));
@@ -169,7 +254,7 @@ test('a file that is not a PDF shows the couldn\'t-open card', function () {
 
     visit(route('reader.show', $source->media->slug), $this->desktop)
         ->waitForText('This file couldn\'t be opened')
-        ->assertVisible('[data-reader=retry]')
+        ->assertVisible('[data-reader-state=corrupt] [data-reader=retry]')
         ->assertNoJavaScriptErrors();
 });
 
@@ -179,15 +264,15 @@ test('a book of 1,000 pages opens at once and keeps only a few canvases', functi
     $page = visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('PDF · 1000 pages')->wait(1);
 
     $page->assertSeeIn('[data-reader=meta]', 'Page 1 of 1000')
-        ->assertScript('document.querySelectorAll("canvas").length <= 5')
+        ->assertScript('document.querySelectorAll("canvas[data-page]").length <= 5')
         ->type('[data-reader=page-input]', '640')->keys('[data-reader=page-input]', 'Enter')->wait(1.2)
         ->assertSeeIn('[data-reader=meta]', 'Page 640 of 1000')
-        ->assertScript('document.querySelectorAll("canvas").length <= 5')
+        ->assertScript('document.querySelectorAll("canvas[data-page]").length <= 5')
         ->assertScript('document.querySelector("canvas[data-page=\"640\"]") !== null')
         ->assertScript('document.querySelector("canvas[data-page=\"1\"]") === null')
         ->assertScript(($this->painted)(640))
         ->keys(':root', 'End')->wait(1)
-        ->assertScript('document.querySelectorAll("canvas").length <= 5')
+        ->assertScript('document.querySelectorAll("canvas[data-page]").length <= 5')
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs();
 });
@@ -222,7 +307,7 @@ test('the reader runs clean and passes the accessibility audit on a desktop and 
     visit(($this->read)(), $this->{$size})->waitForText('PDF · 3 pages')->wait(0.9)
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs()
-        ->assertNoAccessibilityIssues();
+        ->assertNoAccessibilityIssues(3);
 })->with(['desktop', 'phone']);
 
 test('on a phone the zoom floats over the page and the page field stays out of the bar', function () {

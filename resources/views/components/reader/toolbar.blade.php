@@ -115,7 +115,7 @@
 
 @if ($format === 'pdf')
     {{-- On a phone the zoom floats over the page, above the bottom bar. --}}
-    <div data-reader="zoom-float" role="group" aria-label="{{ __('Zoom') }}" :class="chrome || panel ? 'opacity-100' : 'pointer-events-none opacity-0'" class="reader-chrome fixed end-4 bottom-26 z-30 flex items-center rounded-card border border-hairline bg-surface-deep lg:hidden">
+    <div data-reader="zoom-float" role="region" aria-label="{{ __('Zoom') }}" :class="chrome || panel ? 'opacity-100' : 'pointer-events-none opacity-0'" class="reader-chrome fixed end-4 bottom-26 z-30 flex items-center rounded-card border border-hairline bg-surface-deep lg:hidden">
         <button type="button" data-reader="zoom-out" aria-label="{{ __('Zoom out') }}" class="{{ $iconButton }}"><flux:icon name="magnifying-glass-minus" variant="outline" class="size-6" /></button>
         <button type="button" data-reader="zoom-in" aria-label="{{ __('Zoom in') }}" class="{{ $iconButton }}"><flux:icon name="magnifying-glass-plus" variant="outline" class="size-6" /></button>
     </div>

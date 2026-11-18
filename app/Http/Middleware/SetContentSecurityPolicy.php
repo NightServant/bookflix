@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * The page-wide Content Security Policy (P9-R9). Scripts run only from this site or with this request's nonce, which Livewire, Flux and the head
  * snippet read from Vite. `'unsafe-eval'` stays because Alpine's standard build evaluates its expressions. Nothing may frame the site, and the
- * reader's file iframe is same-origin or a blob. A response that already carries a policy (the file stream's own) keeps it. The reader page alone also allows `blob:` styles and fonts (P9-R17).
+ * reader's file iframe is same-origin or a blob. A response that already carries a policy (the file stream's own) keeps it. The reader page alone also allows `blob:` styles and fonts (P9-R17), and takes no remote images.
  */
 class SetContentSecurityPolicy
 {
@@ -46,12 +46,14 @@ class SetContentSecurityPolicy
         $script = "'self' 'nonce-{$nonce}' 'unsafe-eval'".$dev['http'];
         // The reader page only (P9-R17): an EPUB's stylesheets and fonts are blob URLs inside its sandboxed iframe, which inherits this policy.
         $blob = $reader ? ' blob:' : '';
+        // The reader page's images are the book's own (a blob from the EPUB, or the signed page route): a remote image in a book must not reach another host.
+        $images = $reader ? "'self' data: blob:" : "'self' data: blob: https:";
 
         return implode('; ', [
             "default-src 'self'",
             "script-src {$script}",
             "style-src 'self' 'unsafe-inline'{$blob}".$dev['http'],
-            "img-src 'self' data: blob: https:".$dev['http'],
+            "img-src {$images}".$dev['http'],
             "font-src 'self' data:{$blob}".$dev['http'],
             "connect-src 'self'".$dev['http'].$dev['socket'],
             "media-src 'self'",

@@ -659,9 +659,9 @@ function richReader(): array
 
 /**
  * A tiny valid EPUB 3 with two chapters ("Down the Rabbit-Hole" and "The Pool of Tears"): the stored `mimetype` first, `container.xml`, the package
- * document, a nav and one XHTML file per chapter, each with `$paragraphs` paragraphs so a chapter spans several pages.
+ * document, a nav and one XHTML file per chapter, each with `$paragraphs` paragraphs so a chapter spans several pages. `$extraHtml` goes at the top of chapter 1.
  */
-function tinyEpub(int $paragraphs = 30): string
+function tinyEpub(int $paragraphs = 30, string $extraHtml = ''): string
 {
     $zip = new ZipArchive;
     $temp = (string) tempnam(sys_get_temp_dir(), 'epub');
@@ -706,7 +706,7 @@ function tinyEpub(int $paragraphs = 30): string
     foreach ($chapters as $file => [$eyebrow, $title, $sentence]) {
         $body = implode("\n", array_map(fn (int $n) => "<p>{$sentence} ({$n})</p>", range(1, $paragraphs)));
 
-        $zip->addFromString("OEBPS/{$file}", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>{$title}</title></head><body><h1>{$title}</h1><p>{$eyebrow}</p>{$body}</body></html>");
+        $zip->addFromString("OEBPS/{$file}", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>{$title}</title></head><body><h1>{$title}</h1><p>{$eyebrow}</p>".($file === 'ch1.xhtml' ? $extraHtml : '')."{$body}</body></html>");
     }
 
     // A zip normally ends in NUL bytes, which the browser-test server's `mb_trim` of a streamed body would cut off (and the Content-Length with them): a comment ends it in text.
@@ -738,14 +738,14 @@ function epubSource(?string $bytes = null): ContentSource
  * `%%EOF` (the browser-test server trims trailing whitespace from a streamed body, and the Content-Length with it). With `$encrypted` the
  * trailer has an /Encrypt dictionary (standard handler, revision 2) whose user entry matches no password, so opening it asks for one.
  */
-function tinyPdf(int $pages = 3, bool $encrypted = false, array $outline = []): string
+function tinyPdf(int $pages = 3, bool $encrypted = false, array $outline = [], bool $blank = false): string
 {
     $objects = [1 => '<< /Type /Catalog /Pages 2 0 R >>', 3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
     $kids = [];
 
     for ($n = 1; $n <= $pages; $n++) {
         $page = 4 + ($n - 1) * 2;
-        $text = "BT /F1 36 Tf 72 700 Td (Page {$n} of {$pages}) Tj ET";
+        $text = $blank ? '0 0 10 10 re f' : "BT /F1 36 Tf 72 700 Td (Page {$n} of {$pages}) Tj ET";
         $kids[] = "{$page} 0 R";
         $objects[$page] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents '.($page + 1).' 0 R >>';
         $objects[$page + 1] = '<< /Length '.strlen($text)." >>\nstream\n{$text}\nendstream";

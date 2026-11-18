@@ -1,0 +1,56 @@
+/*
+ * The text layer of the PDF reader: the page's words as real, selectable text laid over the canvas, transparent, so a screen reader can read them and the
+ * reader can select and copy them. These are the `.textLayer` rules of pdf.js (pdfjs-dist/web/pdf_viewer.css, Apache-2.0) without the rest of the viewer.
+ * `--total-scale-factor` is set on the page box by resources/js/reader/pdf.js.
+ */
+.pdf-text-layer {
+    color-scheme: only light;
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    text-align: initial;
+    opacity: 1;
+    line-height: 1;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-size-adjust: none;
+    forced-color-adjust: none;
+    transform-origin: 0 0;
+    caret-color: CanvasText;
+    z-index: 1;
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.pdf-text-layer :is(span, br) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+    user-select: text;
+}
+
+.pdf-text-layer > :not(.markedContent),
+.pdf-text-layer .markedContent span:not(.markedContent) {
+    z-index: 1;
+    --font-height: 0;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    --scale-x: 1;
+    --rotate: 0deg;
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.pdf-text-layer .markedContent {
+    display: contents;
+}
+
+.pdf-text-layer span[role='img'] {
+    user-select: none;
+    cursor: default;
+}
+
+.pdf-text-layer ::selection {
+    background: rgb(0 100 255 / 0.3);
+}

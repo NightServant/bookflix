@@ -1,3 +1,5 @@
+import { emit, fill, Unavailable, NetworkError, expiryOf, REFRESH_MARGIN, BACKOFF, sleep, waitFor, transient } from './util.js';
+
 /**
  * The comic engines (one file, two modes). Contract: resources/js/reader/chrome.js.
  *
@@ -13,7 +15,6 @@
  * (the access gate says no) or from a page is the file withdrawn: `reader:error` says `unavailable` and the place on screen is kept.
  */
 const BATCH = 50;
-const REFRESH_MARGIN = 90;
 const BEHIND = 2;
 const AHEAD = 3;
 const WIDE = 1024;
@@ -21,18 +22,7 @@ const STRIP_WIDTH = 720;
 const BAR = 64;
 const FOOT = 88;
 
-const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
-const fill = (text, values) => Object.entries(values).reduce((out, [key, value]) => out.replace(`:${key}`, value), text ?? '');
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-class Unavailable extends Error {}
-
-// The address's own expiry (Laravel signs `expires`, a unix time), or null when it has none.
-const expiryOf = (url) => {
-    const expires = Number(new URL(url, window.location.href).searchParams.get('expires'));
-
-    return Number.isFinite(expires) && expires > 0 ? expires : null;
-};
 
 const isLoaded = (img) => Boolean(img?.getAttribute('src')) && img.complete && img.naturalWidth > 0;
 
@@ -173,15 +163,42 @@ export default function startPages(container, { settings, mode }) {
             return loaded(img);
         }
 
-        try {
-            const response = await fetch(img.getAttribute('src'), { method: 'HEAD', credentials: 'same-origin' });
+        // Asks the page itself why it failed. Gone (403, 404) is the file withdrawn; a 429, a 5xx or a dropped connection is tried again after
+        // 0.5 s, 1.5 s and 4 s (or the server's Retry-After), and only then is it a network error.
+        for (let attempt = 0; attempt <= BACKOFF.length; attempt++) {
+            let response = null;
 
-            if (response.status === 403 || response.status === 404) {
+            try {
+                response = await fetch(img.getAttribute('src'), { method: 'HEAD', credentials: 'same-origin' });
+            } catch {
+                // The connection dropped: tried again below.
+            }
+
+            if (response && (response.status === 403 || response.status === 404)) {
                 throw new Unavailable();
             }
-        } catch (error) {
-            if (error instanceof Unavailable) {
-                throw error;
+
+            if (response && !transient(response.status)) {
+                return false;
+            }
+
+            if (attempt === BACKOFF.length) {
+                throw new NetworkError();
+            }
+
+            await sleep(waitFor(response, BACKOFF[attempt]));
+
+            if (!img.isConnected) {
+                return false;
+            }
+
+            // Reload the image on the same address.
+            const src = img.getAttribute('src');
+            img.removeAttribute('src');
+            img.src = src;
+
+            if (await loaded(img)) {
+                return true;
             }
         }
 
@@ -422,7 +439,7 @@ export default function startPages(container, { settings, mode }) {
                 address(n);
             }
         } catch (error) {
-            error instanceof Unavailable && fail(error);
+            (error instanceof Unavailable || error instanceof NetworkError) && fail(error);
         }
     }
 

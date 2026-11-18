@@ -7,7 +7,7 @@
 --}}
 <section aria-labelledby="where-to-read" {{ $attributes->class('w-full shrink-0 rounded-card border border-hairline bg-surface-card p-6 lg:w-[23rem] lg:self-start') }}>
     <h2 id="where-to-read" class="text-lead text-ink">{{ __('Where to read') }}</h2>
-    <p class="mt-3 text-meta text-ink-muted">{{ __('Bookflix doesn\'t host this story. These links go to its publishers.') }}</p>
+    <p class="mt-3 text-meta text-ink-subtle">{{ __('Bookflix doesn\'t host this story. These links go to its publishers.') }}</p>
 
     <ul class="mt-4 flex flex-col gap-3">
         @foreach ($links as $link)
@@ -15,7 +15,7 @@
                 <a href="{{ $link->url }}" target="_blank" rel="noopener noreferrer" class="focus-ring flex min-h-11 items-center justify-between gap-3 rounded-control bg-surface-input px-4 py-3 text-ink hover:bg-surface-input/80">
                     <span class="min-w-0">
                         <span class="block truncate text-body">{{ $link->rights_holder ?: preg_replace('/^www\./', '', (string) parse_url((string) $link->url, PHP_URL_HOST)) }}</span>
-                        <span class="block truncate text-meta text-ink-muted">{{ \Illuminate\Support\Str::limit($link->license, 60) }}</span>
+                        <span class="block truncate text-meta text-ink-subtle">{{ \Illuminate\Support\Str::limit($link->license, 60) }}</span>
                     </span>
                     <flux:icon name="arrow-top-right-on-square" variant="outline" class="size-6 shrink-0" />
                     <span class="sr-only">{{ __('(opens in a new tab)') }}</span>

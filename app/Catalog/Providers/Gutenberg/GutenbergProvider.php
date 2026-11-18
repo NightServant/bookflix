@@ -23,7 +23,8 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Project Gutenberg through its official CSV catalogue, never its pages. The file is downloaded once and kept on the private disk, together with
  * an uncompressed copy, so the pages of a run read slices of the local copy instead of fetching it again, and a page seeks straight to where
- * the last one stopped instead of decompressing and parsing the file from the top. A page token is a byte offset into the uncompressed copy.
+ * the last one stopped instead of decompressing and parsing the file from the top. A page token is `{signature}:{offset}`: a byte offset into the uncompressed copy, with a short signature of that copy (its size and modification time),
+ * so a token made against a catalogue that has since been downloaded again is not trusted.
  */
 class GutenbergProvider implements MetadataProvider, OffersContentFiles
 {
@@ -62,9 +63,10 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
      * the cursor is a date, and a book issued on the cursor's own day is kept, because the cursor carries the time of the last walk and a book
      * released later that day would otherwise never be seen.
      *
-     * The token is the byte offset where the next row starts. A token that is not a valid offset (the row offsets older runs left behind are
-     * smaller than the header line, and anything past the end of the file is stale) restarts the walk from the first row: re-importing books is
-     * idempotent, so a run that was mid-flight at deploy only repeats work.
+     * The token is `{signature}:{offset}`, the byte offset where the next row starts. A token whose signature is not the current file's (the
+     * catalogue was downloaded again, so its offsets moved), one without a signature (older runs left bare offsets), or one whose offset is not a
+     * valid one (smaller than the header line, or past the end of the file) restarts the walk from the first row: re-importing books is
+     * idempotent, so a run that was mid-flight only repeats work.
      */
     public function page(?CarbonImmutable $since, ?string $pageToken): ProviderPage
     {
@@ -76,7 +78,9 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
         $next = null;
         $more = false;
 
-        foreach ($this->rows(ctype_digit((string) $pageToken) ? (int) $pageToken : null) as $end => $data) {
+        $signature = $this->signature();
+
+        foreach ($this->rows($this->offset($pageToken, $signature)) as $end => $data) {
             if ($taken >= $size) {
                 $more = true;
                 break;
@@ -92,7 +96,30 @@ class GutenbergProvider implements MetadataProvider, OffersContentFiles
             $records[] = $this->record($data);
         }
 
-        return new ProviderPage($records, $more ? (string) $next : null, null);
+        return new ProviderPage($records, $more ? $signature.':'.$next : null, null);
+    }
+
+    /**
+     * A short signature of the local catalogue: its size and modification time. It changes whenever the file is replaced.
+     */
+    private function signature(): string
+    {
+        $path = Storage::disk('local')->path(self::CSV);
+        clearstatcache(true, $path);
+
+        return substr(md5(filesize($path).'-'.filemtime($path)), 0, 10);
+    }
+
+    /**
+     * The offset a token holds, or null (start from the first row) when it is not `{signature}:{offset}` for the current file.
+     */
+    private function offset(?string $token, string $signature): ?int
+    {
+        if ($token === null || preg_match('/^([0-9a-f]{10}):(\d+)$/', $token, $match) !== 1 || $match[1] !== $signature) {
+            return null;
+        }
+
+        return (int) $match[2];
     }
 
     public function find(string $externalId): ?ProviderRecord

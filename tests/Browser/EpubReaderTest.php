@@ -41,7 +41,7 @@ test('ArrowRight turns the page, the place is saved, and a reload resumes it', f
     expect($saved->content_source_id)->toBe($this->source->id)
         ->and($saved->locator['cfi'])->toStartWith('epubcfi(')
         ->and((float) $saved->percent)->toBeGreaterThan(0.0)
-        ->and($saved->client_ts)->toBeInt();
+        ->and($saved->client_session)->toBeString()->and($saved->client_seq)->toBeInt();
 
     $label = round((float) $saved->percent).'%';
 
@@ -84,7 +84,7 @@ test('an EPUB that is not one shows the couldn\'t-open card and a way back', fun
         ->waitForText('This file couldn\'t be opened')
         ->assertSee('Your place in the story is saved.')
         ->assertVisible('[data-reader-state=corrupt] a[href="'.route('stories.show', $source->media->slug).'"]')
-        ->assertVisible('[data-reader=retry]')
+        ->assertVisible('[data-reader-state=corrupt] [data-reader=retry]')
         ->assertNoJavaScriptErrors();
 });
 
@@ -114,9 +114,51 @@ test('the iframe that holds the book is sandboxed without allow-scripts', functi
         ->assertNoConsoleLogs();
 });
 
+test('the iframe that holds the book has a title', function () {
+    visit(($this->read)(), $this->desktop)->waitForText('Chapter 1 of 2')->wait(0.4)
+        ->assertScript('document.querySelector("foliate-view").renderer.getContents()[0].doc.defaultView.frameElement.title', 'Book text')
+        ->assertNoConsoleLogs();
+});
+
+test('a link out of the book opens only web and mail addresses, in a new tab without an opener', function () {
+    $source = epubSource(tinyEpub(30, '<p><a id="js" href="javascript:window.top.__pwned=1">js</a> <a id="data" href="data:text/html,hi">data</a> <a id="file" href="file:///etc/passwd">file</a> <a id="web" href="https://example.com/a">web</a> <a id="mail" href="mailto:a@example.com">mail</a></p>'));
+
+    $page = visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('Chapter 1 of 2')->wait(0.6);
+
+    $page->script('window.__opened = []; window.open = (...args) => { typeof args[0] === "string" && window.__opened.push(args); return null; };');
+    $page->wait(0.4);
+    $page->script('const doc = document.querySelector("foliate-view").renderer.getContents()[0].doc; for (const id of ["js", "data", "file"]) { doc.getElementById(id).click(); }');
+    $page->wait(0.4);
+
+    $page
+        ->assertScript('JSON.stringify(window.__opened)', '[]')
+        ->assertScript('window.__pwned === undefined')
+        ->assertScript('document.querySelector("foliate-view").renderer.getContents()[0].doc.defaultView.location.href.startsWith("blob:")');
+
+    $page->script('const doc = document.querySelector("foliate-view").renderer.getContents()[0].doc; doc.getElementById("web").click(); doc.getElementById("mail").click();');
+    $page->wait(0.4)
+        ->assertScript('JSON.stringify(window.__opened)', json_encode([['https://example.com/a', '_blank', 'noopener,noreferrer'], ['mailto:a@example.com', '_blank', 'noopener,noreferrer']], JSON_UNESCAPED_SLASHES))
+        ->assertNoJavaScriptErrors();
+});
+
+test('a settled move is announced once in a polite live region, and a quick run only at its end', function () {
+    $page = visit(($this->read)(), $this->desktop)->waitForText('Chapter 1 of 2')->wait(0.9);
+
+    $page->assertScript('document.querySelector("[data-reader=announce]").getAttribute("aria-live")', 'polite')
+        ->assertScript('document.querySelector("[data-reader=announce]").textContent.trim()', '');
+
+    $page->script('window.__said = []; new MutationObserver(() => window.__said.push(document.querySelector("[data-reader=announce]").textContent)).observe(document.querySelector("[data-reader=announce]"), { childList: true, characterData: true, subtree: true });');
+    $page->keys(':root', 'ArrowRight')->wait(0.15)->keys(':root', 'ArrowRight')->wait(0.15)->keys(':root', 'ArrowRight')->wait(1.4);
+
+    $said = $page->script('window.__said');
+
+    expect($said)->toHaveCount(1)
+        ->and($said[0])->toMatch('/^Page \d+ of \d+, (I\. Down the Rabbit-Hole|II\. The Pool of Tears)$/');
+});
+
 test('the reader runs clean and passes the accessibility audit on a desktop and on a phone', function (string $size) {
     visit(($this->read)(), $this->{$size})->waitForText('Chapter 1 of 2')->wait(0.9)
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs()
-        ->assertNoAccessibilityIssues();
+        ->assertNoAccessibilityIssues(3);
 })->with(['desktop', 'phone']);

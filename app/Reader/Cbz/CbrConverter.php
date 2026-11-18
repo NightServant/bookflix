@@ -306,9 +306,19 @@ class CbrConverter
         $maxBytes = (int) config('bookflix.reader.archive.max_uncompressed_mb') * 1048576;
 
         try {
-            $process = Process::timeout((int) config('bookflix.reader.cbr.timeout_seconds'))->start($command);
+            $limit = (float) config('bookflix.reader.cbr.timeout_seconds');
+            $process = Process::timeout((int) $limit)->start($command);
+            $started = hrtime(true);
 
             while ($process->running()) {
+                // `running()` never checks the process's timeout, so the time is kept here.
+                if ($limit > 0 && (hrtime(true) - $started) / 1e9 > $limit) {
+                    $process->stop();
+                    Log::info('CBR extraction stopped because it ran past the time limit.', ['limit_seconds' => $limit]);
+
+                    throw new UnsafeArchive(__('Unpacking the CBR file took too long.'));
+                }
+
                 if ($this->treeBytes($dir) > $maxBytes) {
                     $process->stop();
                     Log::info('CBR extraction stopped because it grew past the size limit.', ['limit_bytes' => $maxBytes]);

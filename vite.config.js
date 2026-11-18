@@ -67,6 +67,10 @@ export default defineConfig({
         foliateSandbox(),
         pdfjsData(),
     ]),
+    // foliate-js must go through the sandbox transform above under `vite dev` too, so it is not pre-bundled.
+    optimizeDeps: {
+        exclude: ['foliate-js'],
+    },
     server: {
         cors: true,
         watch: {

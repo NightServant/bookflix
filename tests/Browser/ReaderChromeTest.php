@@ -227,8 +227,20 @@ test('both panels and the bars pass the accessibility audit on a desktop and on 
     $page = visit(($this->read)(), $this->{$size})->waitForText('Chapter 1 of 2')->wait(0.9)
         ->assertNoJavaScriptErrors()
         ->assertNoConsoleLogs()
-        ->assertNoAccessibilityIssues();
+        ->assertNoAccessibilityIssues(3);
 
-    $page->click('[data-reader=settings-button]')->wait(0.4)->assertNoAccessibilityIssues();
-    $page->keys(':root', 'Escape')->click('[data-reader=contents-button]')->wait(0.4)->assertNoAccessibilityIssues()->assertNoJavaScriptErrors()->assertNoConsoleLogs();
+    $page->click('[data-reader=settings-button]')->wait(0.4)->assertNoAccessibilityIssues(3);
+    $page->keys(':root', 'Escape')->click('[data-reader=contents-button]')->wait(0.4)->assertNoAccessibilityIssues(3)->assertNoJavaScriptErrors()->assertNoConsoleLogs();
+})->with(['desktop', 'phone']);
+
+test('each state card passes the audit at every level on a desktop and on a phone', function (string $size) {
+    $page = visit(($this->read)(), $this->{$size})->waitForText('Chapter 1 of 2')->wait(0.9);
+
+    foreach (['network', 'corrupt', 'password', 'unavailable'] as $kind) {
+        $page->script('window.dispatchEvent(new CustomEvent("reader:error", { detail: { kind: "'.$kind.'" } }))');
+        $page->wait(0.4)->assertVisible('[data-reader-state='.($kind === 'unavailable' ? 'withdrawn' : $kind).']')
+            ->assertSee('Back to the story')->assertNoAccessibilityIssues(3);
+    }
+
+    $page->assertNoJavaScriptErrors()->assertNoConsoleLogs();
 })->with(['desktop', 'phone']);

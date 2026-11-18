@@ -160,6 +160,21 @@ describe('your files', function () {
         Storage::disk(ContentSource::disk())->assertMissing($source->storage_path);
     });
 
+    test('a file of a story deleted since is listed as Story removed, with Delete and no Read link, and can be deleted', function () {
+        $source = ContentSource::factory()->for($this->media)->ready()->create(['access_type' => AccessType::UserOwned, 'owner_user_id' => $this->reader->id, 'storage_path' => 'content/1/x.epub']);
+        Storage::disk(ContentSource::disk())->put($source->storage_path, 'x');
+        $this->media->delete();
+
+        $page = ($this->upload)()->assertOk()->assertSee('Story removed')->assertSeeHtml('aria-label="Delete Story removed"')->assertDontSeeHtml('aria-label="Read Story removed"');
+
+        expect($page->html())->not->toContain('/read/');
+
+        $page->call('delete', $source->id);
+
+        expect(ContentSource::find($source->id))->toBeNull();
+        Storage::disk(ContentSource::disk())->assertMissing($source->storage_path);
+    });
+
     test('only the owner can delete a file', function () {
         $source = ContentSource::factory()->for($this->media)->create(['access_type' => AccessType::UserOwned, 'owner_user_id' => User::factory()->create()->id]);
         $public = ContentSource::factory()->for($this->media)->publicDomain()->verified()->ready()->create();
@@ -172,10 +187,11 @@ describe('your files', function () {
 });
 
 test('Livewire\'s temporary uploads never use a public disk', function () {
-    $name = config('livewire.temporary_file_upload.disk') ?? config('filesystems.default');
+    $name = config('livewire.temporary_file_upload.disk');
     $disk = config("filesystems.disks.{$name}");
 
-    expect($name)->not->toBe('public')
+    expect($name)->toBe('local')
+        ->and($name)->not->toBe('public')
         ->and($disk['visibility'] ?? 'private')->not->toBe('public')
         ->and($disk['root'] ?? '')->not->toContain('public')
         ->and(config('livewire.temporary_file_upload.rules'))->toContain('max:'.(500 * 1024))

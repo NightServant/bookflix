@@ -2,8 +2,8 @@
  * The reader's save (P9-R13). Every engine dispatches `reader:relocate` on the window; this listens, keeps the latest place, and saves it to the page's
  * progress route: 2 s after the reader stops moving (and at least every 15 s while they keep paging), at once when the tab is hidden or closing
  * (`navigator.sendBeacon`, which can only send a form), and again, with backoff, when the network failed. `seconds` is the time the tab was visible
- * since the last save that went through; `client_ts` is this browser's own clock in milliseconds and only ever goes up, which is what the server
- * orders saves by. A 403 or 404 means the file was withdrawn: saving stops, `reader:error` says `unavailable`, and the place on screen is kept.
+ * since the last save that went through; `client_session` is a random id made once per page load and `client_seq` a number that only goes up within
+ * it, which is what the server orders saves by (no clock is read). A 403 or 404 means the file was withdrawn: saving stops, `reader:error` says `unavailable`, and the place on screen is kept.
  */
 const DEBOUNCE = 2000;
 const MAX_WAIT = 15000;
@@ -23,7 +23,12 @@ export default function startProgress({ url }) {
     let firstMove = null;
     let retryDelay = RETRY_FROM;
     let lastKey = null;
-    let lastTs = 0;
+    let seq = 0;
+    const session = (() => {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+
+        return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    })();
 
     // Active time: the tab's visible seconds since the last save that went through.
     let visibleSince = document.visibilityState === 'visible' ? Date.now() : null;
@@ -36,8 +41,6 @@ export default function startProgress({ url }) {
         }
     };
 
-    const nextTs = () => (lastTs = Math.max(Date.now(), lastTs + 1));
-
     const payload = () => {
         settle();
 
@@ -46,7 +49,8 @@ export default function startProgress({ url }) {
             percent: latest.percent,
             ...(latest.chapter ? { chapter: String(latest.chapter).slice(0, 100) } : {}),
             seconds: Math.min(MAX_SECONDS, Math.round(accrued / 1000)),
-            client_ts: nextTs(),
+            client_session: session,
+            client_seq: ++seq,
         };
     };
 
@@ -93,7 +97,8 @@ export default function startProgress({ url }) {
                 throw new Error(String(response.status));
             }
 
-            saved = sending;
+            // Never backwards: a beacon may have saved a newer place while this older one was on its way.
+            saved = Math.max(saved, sending);
             accrued = Math.max(0, accrued - seconds);
             retryDelay = RETRY_FROM;
         } catch {

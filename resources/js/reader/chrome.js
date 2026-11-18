@@ -40,6 +40,9 @@ const write = (key, value) => {
     }
 };
 
+// How long the reader must rest on a place before it is announced to a screen reader.
+const ANNOUNCE_AFTER = 600;
+
 const percentText = (value) => `${Math.round((Number(value) || 0) * 10) / 10}`;
 
 // The bottom bar shows a whole number; the saved percent keeps its decimals.
@@ -67,6 +70,9 @@ export default function readerChrome(Alpine) {
         running: false,
         hideTimer: null,
         cleanups: [],
+        announcement: '',
+        announceTimer: null,
+        narrow: false,
 
         init() {
             this.settings = this.loadSettings();
@@ -89,6 +95,14 @@ export default function readerChrome(Alpine) {
             on(this.$root, 'pointerup', (event) => this.onPointerUp(event));
             on(document, 'fullscreenchange', () => (this.fullscreen = Boolean(document.fullscreenElement)));
 
+            // Below 1024px (a phone, or a desktop zoomed to 200%) the PDF's page field is not in the top bar: Contents holds it.
+            const small = window.matchMedia('(max-width: 1023.98px)');
+            const track = () => (this.narrow = small.matches);
+
+            track();
+            small.addEventListener('change', track);
+            this.cleanups.push(() => small.removeEventListener('change', track));
+
             this.wake();
 
             this.cleanups.push(startProgress({ url: this.container.dataset.progressUrl }));
@@ -98,6 +112,7 @@ export default function readerChrome(Alpine) {
 
         destroy() {
             clearTimeout(this.hideTimer);
+            clearTimeout(this.announceTimer);
             this.cleanups.forEach((cleanup) => cleanup());
             this.cleanups = [];
         },
@@ -200,6 +215,12 @@ export default function readerChrome(Alpine) {
                 this.meta = detail.label;
             }
 
+            // The place is said once the reader has stopped moving, not at every page of a quick run (a polite live region, WCAG 4.1.3).
+            if (!detail.initial) {
+                clearTimeout(this.announceTimer);
+                this.announceTimer = setTimeout(() => (this.announcement = detail.announce ?? detail.label ?? ''), ANNOUNCE_AFTER);
+            }
+
             // The card shows when the reader turns onto the last page, not when the book opens on it.
             this.finished = Boolean(detail.atEnd) && !detail.initial && (this.engine === 'epub' || this.engine === 'pdf');
             this.atEnd = Boolean(detail.atEnd);
@@ -215,6 +236,8 @@ export default function readerChrome(Alpine) {
                 }
             } else if (kind === 'password') {
                 this.state = 'password';
+            } else if (kind === 'network') {
+                this.state = 'network';
             } else {
                 this.state = 'corrupt';
             }
@@ -222,6 +245,16 @@ export default function readerChrome(Alpine) {
             this.finished = false;
             this.panel = null;
             this.chrome = true;
+        },
+
+        // The Contents sheet's own page field (a PDF on a small screen).
+        goToPage(value) {
+            const page = Number.parseInt(String(value).trim(), 10);
+
+            if (Number.isInteger(page) && page >= 1) {
+                this.command('goto', { page });
+                this.panel = null;
+            }
         },
 
         retry() {
@@ -244,7 +277,7 @@ export default function readerChrome(Alpine) {
 
         // PDF contents come from the file's outline: a document without one has no Contents button.
         get hasContents() {
-            return this.engine !== 'pdf' || this.toc.length > 0;
+            return this.engine !== 'pdf' || this.narrow || this.toc.length > 0;
         },
 
         get valueText() {

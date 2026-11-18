@@ -222,6 +222,14 @@ describe('content security policy', function () {
         expect($policy)->toContain("style-src 'self' 'unsafe-inline' blob:")->and($policy)->toContain("font-src 'self' data: blob:");
     });
 
+    test('the reader page takes images from itself, data and blob only, and no other route loses https', function () {
+        $reader = ($this->open)()->assertOk()->headers->get('Content-Security-Policy');
+        $other = $this->actingAs($this->reader)->get(route('search'))->assertOk()->headers->get('Content-Security-Policy');
+
+        expect($reader)->toContain("img-src 'self' data: blob:;")->not->toContain('https:')
+            ->and($other)->toContain("img-src 'self' data: blob: https:;");
+    });
+
     test('no other route does', function () {
         $policy = $this->actingAs($this->reader)->get(route('search'))->assertOk()->headers->get('Content-Security-Policy');
 

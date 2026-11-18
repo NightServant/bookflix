@@ -11,9 +11,9 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * What a reader's browser saves while it reads (P9-R13). The payload is checked closely, since it comes from a page the reader controls: a locator of
- * known keys only, a percent from 0 to 100, a chapter name, the seconds read since the last save and the browser's own clock in milliseconds. A payload
- * whose clock is not newer than the one stored with the place is a retry that arrived late, and is dropped. The rest goes to LogProgress, which keeps one history row
- * and one signal per reading session. The caller has already asked the access gate.
+ * known keys only, a percent from 0 to 100, a chapter name, the seconds read since the last save, a random id for the page load and a save number that only
+ * goes up within it. LogProgress orders by that pair under its lock (a late retry from the same page load is dropped; another tab or device wins by arrival), and keeps one
+ * history row and one signal per reading session. The caller has already asked the access gate.
  */
 class ProgressWriter
 {
@@ -24,11 +24,11 @@ class ProgressWriter
 
     /**
      * @param  array<string, mixed>  $payload
-     * @return ReadingProgress|null the saved place, or null when the payload was older than the one stored
+     * @return ReadingProgress the place now stored (unchanged when the save was a late retry)
      *
      * @throws ValidationException
      */
-    public function write(User $user, ContentSource $source, array $payload): ?ReadingProgress
+    public function write(User $user, ContentSource $source, array $payload): ReadingProgress
     {
         $data = Validator::make($payload, [
             'locator' => ['required', 'array', 'min:1', function (string $attribute, mixed $value, \Closure $fail): void {
@@ -41,15 +41,9 @@ class ProgressWriter
             'percent' => ['required', 'numeric', 'between:0,100'],
             'chapter' => ['nullable', 'string', 'max:100'],
             'seconds' => ['nullable', 'integer', 'between:0,86400'],
-            'client_ts' => ['required', 'integer', 'min:0'],
+            'client_session' => ['required', 'string', 'between:8,64', 'regex:/^[A-Za-z0-9_-]+$/'],
+            'client_seq' => ['required', 'integer', 'min:0'],
         ])->validate();
-
-        $stored = ReadingProgress::where('user_id', $user->id)->where('media_id', $source->media_id)->first();
-
-        // Ordered by the browser's own clock, never against the server's: a device whose clock is far off still saves, and a late retry never wins.
-        if ($stored?->client_ts !== null && (int) $data['client_ts'] <= $stored->client_ts) {
-            return null;
-        }
 
         // Keys the reader left out are not kept, so a CFI is never saved beside a page that belongs to another engine.
         $locator = array_filter($data['locator'], fn (mixed $value): bool => $value !== null);
@@ -64,7 +58,8 @@ class ProgressWriter
             seconds: (int) ($data['seconds'] ?? 0),
             source: $source,
             continueSession: true,
-            clientTs: (int) $data['client_ts'],
+            clientSession: $data['client_session'],
+            clientSeq: (int) $data['client_seq'],
         );
     }
 }

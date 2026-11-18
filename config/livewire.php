@@ -129,7 +129,7 @@ return [
     */
 
     'temporary_file_upload' => [
-        'disk' => null,                                       // The default disk: private local storage, never a public one (see LivewireConfigTest)
+        'disk' => 'local',                                    // The private disk, never a public one (see LivewireConfigTest)
         'rules' => ['required', 'file', 'max:'.(500 * 1024)],  // The largest own-file cap (500 MB, P9-R18); the real checks are in UploadContentSource
         'directory' => null,                                  // Example: 'tmp'                     | Default: 'livewire-tmp'
         'middleware' => null,                                 // Example: 'throttle:5,1'            | Default: 'throttle:60,1'

@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Library\LogProgress;
 use App\Enums\InteractionEvent;
 use App\Models\ContentSource;
 use App\Models\LibraryEntry;
@@ -21,7 +22,7 @@ beforeEach(function () {
     $this->source = ContentSource::factory()->publicDomain()->verified()->ready()->create();
     $this->save = fn (array $payload = [], ?ContentSource $source = null, ?User $as = null) => $this->actingAs($as ?? $this->reader)->postJson(
         route('reader.progress', $source ?? $this->source),
-        [...['locator' => ['cfi' => 'epubcfi(/6/8!/4/2)', 'fraction' => 0.25], 'percent' => 25.5, 'chapter' => 'Chapter I', 'seconds' => 30, 'client_ts' => now()->getTimestampMs()], ...$payload],
+        [...['locator' => ['cfi' => 'epubcfi(/6/8!/4/2)', 'fraction' => 0.25], 'percent' => 25.5, 'chapter' => 'Chapter I', 'seconds' => 30, 'client_session' => 'session-aaaa1111', 'client_seq' => 1], ...$payload],
     );
 });
 
@@ -44,29 +45,73 @@ test('a page locator also fills the page', function () {
     expect(ReadingProgress::sole()->page)->toBe(7);
 });
 
-test('an older client_ts after a newer one is ignored, and still answers 204', function () {
-    $at = now()->getTimestampMs();
+test('a late save from the same page load is ignored, and still answers 204', function () {
+    ($this->save)(['percent' => 40, 'client_seq' => 5])->assertNoContent();
 
-    ($this->save)(['percent' => 40, 'client_ts' => $at])->assertNoContent();
+    ($this->save)(['percent' => 10, 'client_seq' => 4])->assertNoContent();
+    ($this->save)(['percent' => 10, 'client_seq' => 5])->assertNoContent();
 
-    ($this->save)(['percent' => 10, 'client_ts' => $at - 5000])->assertNoContent();
-    ($this->save)(['percent' => 10, 'client_ts' => $at])->assertNoContent();
+    expect(ReadingProgress::sole()->percent)->toBe('40.00')->and(ReadingProgress::sole()->client_seq)->toBe(5)->and(ReadingSession::count())->toBe(1)
+        ->and(UserInteraction::where('event', InteractionEvent::ReadingProgress)->count())->toBe(1);
 
-    expect(ReadingProgress::sole()->percent)->toBe('40.00')->and(ReadingProgress::sole()->client_ts)->toBe($at)->and(ReadingSession::count())->toBe(1);
+    ($this->save)(['percent' => 50, 'client_seq' => 6])->assertNoContent();
 
-    ($this->save)(['percent' => 50, 'client_ts' => $at + 1])->assertNoContent();
-
-    expect(ReadingProgress::sole()->percent)->toBe('50.00')->and(ReadingProgress::sole()->client_ts)->toBe($at + 1);
+    expect(ReadingProgress::sole()->percent)->toBe('50.00')->and(ReadingProgress::sole()->client_seq)->toBe(6);
 });
 
-test('a client clock far behind the server still saves, and its own order is kept', function () {
-    $behind = now()->subYears(3)->getTimestampMs();
+test('no clock is read: a device with any clock saves, in its own order', function () {
+    $this->travelTo(now()->subYears(3));
 
-    ($this->save)(['percent' => 20, 'client_ts' => $behind])->assertNoContent();
-    ($this->save)(['percent' => 30, 'client_ts' => $behind + 4000])->assertNoContent();
-    ($this->save)(['percent' => 5, 'client_ts' => $behind + 2000])->assertNoContent();
+    ($this->save)(['percent' => 20, 'client_seq' => 1])->assertNoContent();
 
-    expect(ReadingProgress::sole()->percent)->toBe('30.00')->and(ReadingProgress::sole()->client_ts)->toBe($behind + 4000);
+    $this->travelBack();
+
+    ($this->save)(['percent' => 30, 'client_seq' => 2])->assertNoContent();
+    ($this->save)(['percent' => 5, 'client_seq' => 1])->assertNoContent();
+
+    expect(ReadingProgress::sole()->percent)->toBe('30.00')->and(ReadingProgress::sole()->client_seq)->toBe(2);
+});
+
+test('a save from a newer page load wins, whatever its number', function () {
+    ($this->save)(['percent' => 40, 'client_session' => 'session-tab-one', 'client_seq' => 90])->assertNoContent();
+    ($this->save)(['percent' => 15, 'client_session' => 'session-tab-two', 'client_seq' => 1])->assertNoContent();
+
+    expect(ReadingProgress::sole()->percent)->toBe('15.00')->and(ReadingProgress::sole()->client_session)->toBe('session-tab-two');
+
+    // The first tab's next save still counts against its own number only when it is the stored session again.
+    ($this->save)(['percent' => 45, 'client_session' => 'session-tab-one', 'client_seq' => 91])->assertNoContent();
+
+    expect(ReadingProgress::sole()->percent)->toBe('45.00');
+});
+
+test('a manual log leaves the pair alone and does not turn the check off', function () {
+    ($this->save)(['percent' => 40, 'client_seq' => 5])->assertNoContent();
+
+    app(LogProgress::class)->handle($this->reader, $this->source->media, 60.0);
+
+    expect(ReadingProgress::sole()->client_session)->toBe('session-aaaa1111')->and(ReadingProgress::sole()->client_seq)->toBe(5);
+
+    ($this->save)(['percent' => 10, 'client_seq' => 4])->assertNoContent();
+
+    expect(ReadingProgress::sole()->percent)->toBe('60.00');
+});
+
+test('a reader save never extends a manual log\'s history row, nor one of another file', function () {
+    app(LogProgress::class)->handle($this->reader, $this->source->media, 20.0, seconds: 100);
+
+    ($this->save)(['percent' => 30, 'client_seq' => 1])->assertNoContent();
+
+    expect(ReadingSession::count())->toBe(2)->and(ReadingSession::orderBy('id')->first()->content_source_id)->toBeNull();
+
+    ($this->save)(['percent' => 35, 'client_seq' => 2])->assertNoContent();
+
+    expect(ReadingSession::count())->toBe(2)->and(ReadingSession::orderByDesc('id')->first()->content_source_id)->toBe($this->source->id);
+
+    $other = ContentSource::factory()->publicDomain()->verified()->ready()->create(['media_id' => $this->source->media_id]);
+
+    ($this->save)(['percent' => 40, 'client_seq' => 3], $other)->assertNoContent();
+
+    expect(ReadingSession::count())->toBe(3);
 });
 
 test('a bad payload is 422 and writes nothing', function (array $payload) {
@@ -87,7 +132,9 @@ test('a bad payload is 422 and writes nothing', function (array $payload) {
     'locator not an array' => [['locator' => 'epubcfi(/6)']],
     'chapter too long' => [['chapter' => str_repeat('a', 101)]],
     'more than a day of seconds' => [['seconds' => 86401]],
-    'no client time' => [['client_ts' => null]],
+    'no page load id' => [['client_session' => null]],
+    'page load id with a bad character' => [['client_session' => 'abc def/ghi123']],
+    'no save number' => [['client_seq' => null]],
 ]);
 
 test('another reader\'s upload is 403', function () {
@@ -125,10 +172,8 @@ test('a guest is sent to sign in and an admin is refused', function () {
 });
 
 test('finishing completes the story once and finishing again records no second reading_complete', function () {
-    $at = now()->getTimestampMs();
-
-    ($this->save)(['percent' => 100, 'locator' => ['fraction' => 1], 'client_ts' => $at])->assertNoContent();
-    ($this->save)(['percent' => 100, 'locator' => ['fraction' => 1], 'client_ts' => $at + 1000])->assertNoContent();
+    ($this->save)(['percent' => 100, 'locator' => ['fraction' => 1], 'client_seq' => 1])->assertNoContent();
+    ($this->save)(['percent' => 100, 'locator' => ['fraction' => 1], 'client_seq' => 2])->assertNoContent();
 
     $entry = LibraryEntry::where('user_id', $this->reader->id)->sole();
 
@@ -154,13 +199,11 @@ test('the seconds feed the reading history', function () {
 });
 
 test('saves within the session gap extend one history row and record one reading_progress', function () {
-    $at = now()->getTimestampMs();
-
-    ($this->save)(['percent' => 10, 'seconds' => 60, 'client_ts' => $at])->assertNoContent();
+    ($this->save)(['percent' => 10, 'seconds' => 60, 'client_seq' => 1])->assertNoContent();
     $this->travel(4)->minutes();
-    ($this->save)(['percent' => 20, 'seconds' => 120, 'client_ts' => $at + 240_000])->assertNoContent();
+    ($this->save)(['percent' => 20, 'seconds' => 120, 'client_seq' => 2])->assertNoContent();
     $this->travel(4)->minutes();
-    ($this->save)(['percent' => 30, 'seconds' => 30, 'client_ts' => $at + 480_000])->assertNoContent();
+    ($this->save)(['percent' => 30, 'seconds' => 30, 'client_seq' => 3])->assertNoContent();
 
     $session = ReadingSession::sole();
 
@@ -172,17 +215,15 @@ test('saves within the session gap extend one history row and record one reading
 });
 
 test('a save after the gap starts a new history row and a new reading_progress', function () {
-    $at = now()->getTimestampMs();
-
-    ($this->save)(['percent' => 10, 'client_ts' => $at])->assertNoContent();
+    ($this->save)(['percent' => 10, 'client_seq' => 1])->assertNoContent();
     $this->travel(11)->minutes();
-    ($this->save)(['percent' => 20, 'client_ts' => $at + 660_000])->assertNoContent();
+    ($this->save)(['percent' => 20, 'client_seq' => 2])->assertNoContent();
 
     expect(ReadingSession::count())->toBe(2)->and(UserInteraction::where('event', InteractionEvent::ReadingProgress)->count())->toBe(2);
 });
 
 test('a beacon-style form payload field works', function () {
-    $payload = json_encode(['locator' => ['page' => 3], 'percent' => 12, 'client_ts' => now()->getTimestampMs()]);
+    $payload = json_encode(['locator' => ['page' => 3], 'percent' => 12, 'client_session' => 'session-aaaa1111', 'client_seq' => 1]);
 
     $this->actingAs($this->reader)->post(route('reader.progress', $this->source), ['payload' => $payload])->assertNoContent();
 

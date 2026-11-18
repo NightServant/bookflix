@@ -1,5 +1,6 @@
 import 'foliate-js/view.js';
 import * as CFI from 'foliate-js/epubcfi.js';
+import { emit, fill, Unavailable, NetworkError, signedStream } from './util.js';
 
 /**
  * The EPUB engine (foliate-js 1.0.1). `<foliate-view>` renders the book in sandboxed iframes (the build strips `allow-scripts`, see vite.config.js),
@@ -18,11 +19,7 @@ const BASE_SIZE = 1.125;
 
 const FAMILIES = { serif: 'ui-serif, Georgia, serif', sans: 'ui-sans-serif, system-ui, sans-serif' };
 
-const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
-
 const cssColor = ([name, fallback]) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-
-class Unavailable extends Error {}
 
 // What goes inside every section of the book: the reader's theme, size, line spacing and typeface over the book's own styles.
 function bookStyles(settings) {
@@ -57,8 +54,6 @@ export default function startEpub(container, { settings }) {
     let initial = true;
     let opened = 0;
 
-    const fill = (text, values) => Object.entries(values).reduce((out, [key, value]) => out.replace(`:${key}`, value), text ?? '');
-
     const layout = () => {
         const renderer = view?.renderer;
 
@@ -89,6 +84,24 @@ export default function startEpub(container, { settings }) {
         return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : Math.min(1, Math.max(0, detail.fraction ?? 0));
     };
 
+    // A link out of the book: foliate would open any address it holds in a new tab, `javascript:` and `data:` included. Only web and mail addresses open, without
+    // giving the new page a handle on this one; the rest do nothing.
+    const external = (event) => {
+        event.preventDefault();
+
+        let target = null;
+
+        try {
+            target = new URL(event.detail?.href ?? '', window.location.href);
+        } catch {
+            return;
+        }
+
+        if (['http:', 'https:', 'mailto:'].includes(target.protocol)) {
+            window.open(target.href, '_blank', 'noopener,noreferrer');
+        }
+    };
+
     const relocated = ({ detail }) => {
         const renderer = view.renderer;
         const atEnd = Boolean(renderer.atEnd) || (current.layout === 'scrolled' && renderer.viewSize - renderer.end <= 2);
@@ -97,6 +110,7 @@ export default function startEpub(container, { settings }) {
         const item = detail.tocItem;
         const location = detail.location;
         const parts = [];
+        let place = '';
 
         if (item && Number.isInteger(item.id) && flat.length > 0) {
             parts.push(fill(strings.chapterOf, { n: item.id + 1, total: flat.length }));
@@ -106,6 +120,7 @@ export default function startEpub(container, { settings }) {
             const text = parts.length > 0 ? strings.pageOf : strings.pageOfFirst;
 
             parts.push(fill(text, { n: atEnd ? location.total : Math.min(location.total, location.current + 1), total: location.total }));
+            place = fill(strings.pageOfFirst, { n: atEnd ? location.total : Math.min(location.total, location.current + 1), total: location.total });
         }
 
         emit('reader:relocate', {
@@ -114,6 +129,7 @@ export default function startEpub(container, { settings }) {
             chapter: item?.label ? String(item.label).trim() : null,
             chapterHref: item?.href ?? null,
             label: parts.join(' · '),
+            announce: [place, item?.label ? String(item.label).trim() : ''].filter(Boolean).join(', '),
             atEnd,
             initial,
         });
@@ -123,6 +139,9 @@ export default function startEpub(container, { settings }) {
     const forward = ({ detail: { doc } }) => {
         const frame = doc.defaultView?.frameElement;
         let down = null;
+
+        // The frame lives in foliate's shadow DOM and has no name of its own.
+        frame && (frame.title = strings.bookText ?? 'Book text');
 
         doc.addEventListener('keydown', (event) => {
             const copy = new KeyboardEvent('keydown', { key: event.key, code: event.code, shiftKey: event.shiftKey, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, bubbles: true, cancelable: true });
@@ -148,15 +167,7 @@ export default function startEpub(container, { settings }) {
         });
     };
 
-    const freshUrl = async () => {
-        try {
-            const url = await window.Livewire?.find(container.dataset.wireId)?.streamUrl();
-
-            return typeof url === 'string' ? url : container.dataset.streamUrl;
-        } catch {
-            return container.dataset.streamUrl;
-        }
-    };
+    const stream = signedStream(container);
 
     async function place() {
         if (resume?.cfi && CFI.isCFI.test(resume.cfi)) {
@@ -192,7 +203,9 @@ export default function startEpub(container, { settings }) {
         initial = true;
 
         try {
-            const response = await fetch(fresh ? await freshUrl() : container.dataset.streamUrl, { credentials: 'same-origin' });
+            fresh && (await stream.refresh());
+
+            const response = await fetch(await stream.current(), { credentials: 'same-origin' });
 
             if (response.status === 403 || response.status === 404) {
                 throw new Unavailable();
@@ -217,6 +230,7 @@ export default function startEpub(container, { settings }) {
             flat = flatten(view.book.toc);
             view.addEventListener('relocate', relocated);
             view.addEventListener('load', forward);
+            view.addEventListener('external-link', external);
             layout();
 
             // Ready first: the chapters and the keys work from the moment the first page is up. `initial` marks the moves made by opening at the saved place.
@@ -231,7 +245,7 @@ export default function startEpub(container, { settings }) {
             }
 
             close();
-            emit('reader:error', { kind: error instanceof Unavailable ? 'unavailable' : error instanceof TypeError ? 'network' : 'corrupt' });
+            emit('reader:error', { kind: error instanceof Unavailable ? 'unavailable' : error instanceof TypeError || error instanceof NetworkError ? 'network' : 'corrupt' });
         }
     }
 

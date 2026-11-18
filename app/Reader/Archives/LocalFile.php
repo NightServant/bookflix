@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Storage;
 class LocalFile
 {
     /**
+     * Run `$callback` with the file's path on this machine; a copy made for it is removed when it returns.
+     *
      * @template T
      *
      * @param  callable(string): T  $callback
@@ -22,6 +24,24 @@ class LocalFile
      */
     public static function with(string $stored, callable $callback): mixed
     {
+        $lease = self::lease($stored);
+
+        try {
+            return $callback($lease->path);
+        } finally {
+            $lease->release();
+        }
+    }
+
+    /**
+     * The file's path on this machine for as long as the caller keeps the lease: for a response that streams out of the file after the method that
+     * opened it has returned. A disk that is not local is copied once, and the copy is removed by `release()` (or, if that is forgotten, when the
+     * lease is garbage collected).
+     *
+     * @throws UnsafeArchive
+     */
+    public static function lease(string $stored): LocalFileLease
+    {
         $disk = Storage::disk(ContentSource::disk());
 
         if ($stored === '' || ! $disk->exists($stored)) {
@@ -29,7 +49,7 @@ class LocalFile
         }
 
         if ($disk instanceof LocalFilesystemAdapter) {
-            return $callback($disk->path($stored));
+            return new LocalFileLease($disk->path($stored), false);
         }
 
         $temp = (string) tempnam(sys_get_temp_dir(), 'bookflix-local-');
@@ -45,10 +65,12 @@ class LocalFile
             stream_copy_to_stream($stream, $target);
             fclose($stream);
             fclose($target);
-
-            return $callback($temp);
-        } finally {
+        } catch (\Throwable $exception) {
             @unlink($temp);
+
+            throw $exception;
         }
+
+        return new LocalFileLease($temp, true);
     }
 }

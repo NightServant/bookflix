@@ -395,6 +395,30 @@ it('stops extraction and fails the source when the real size passes the cap whil
     Log::shouldHaveReceived('info')->with('CBR extraction stopped because it grew past the size limit.', Mockery::any())->once();
 });
 
+it('stops a long-running extraction and fails the source with the timeout reason when the time limit passes', function () {
+    config(['bookflix.reader.cbr.timeout_seconds' => 0.05]);
+    $source = cbrSource();
+    Process::fake(function (PendingProcess $process) {
+        $command = $process->command;
+
+        if (in_array('-j', $command, true)) {
+            return Process::result(lsarJson([lsarEntry('1.png', 10)]));
+        }
+
+        return Process::describe()->output('')->runsFor(iterations: 1000)->exitCode(0);
+    });
+    $converter = app(CbrConverter::class);
+    $converter->pollMicroseconds = 5000;
+
+    $converter->convert($source);
+
+    $source->refresh();
+    expect($source->status)->toBe(ContentStatus::Failed)
+        ->and($source->failure_reason)->toContain('too long')
+        ->and($source->format)->toBe(ContentFormat::Cbr)
+        ->and(Storage::disk(ContentSource::disk())->exists('content/factory/old.cbr'))->toBeTrue();
+});
+
 it('measures the real size of a tree without following links', function () {
     $dir = sys_get_temp_dir().'/cbr-tree-'.uniqid();
     mkdir("{$dir}/a", 0777, true);

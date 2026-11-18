@@ -1,4 +1,4 @@
-@props(['percent' => 0])
+@props(['percent' => 0, 'format' => 'epub'])
 
 {{--
     Contents (signed-off frames d03 and m03): a side sheet 400px wide from the left under the top bar with a scrim over the rest on a desktop, the whole
@@ -26,6 +26,24 @@
             </button>
         </div>
 
+        @if ($format === 'pdf')
+            {{-- Below 1024px the top bar has no page field (a phone, or 200% zoom): it is here, above the outline. --}}
+            <form class="flex items-center gap-3 px-6 pb-3 lg:hidden" @submit.prevent="goToPage($refs.contentsPage.value)">
+                <label for="reader-contents-page" class="text-meta text-ink-subtle">{{ __('Go to page') }}</label>
+                <input
+                    id="reader-contents-page"
+                    x-ref="contentsPage"
+                    data-reader="contents-page"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    class="focus-ring h-11 w-24 rounded-control border border-border-input bg-surface-input text-center text-body text-ink"
+                >
+                <button type="submit" class="focus-ring inline-flex min-h-11 items-center justify-center rounded-control bg-surface-input px-4 text-body font-medium text-ink hover:bg-surface-input/80">{{ __('Go') }}</button>
+            </form>
+        @endif
+
         <nav aria-label="{{ __('Chapters') }}" class="px-4">
             <ol class="flex flex-col">
                 <template x-for="(item, i) in toc" :key="i">
@@ -45,7 +63,7 @@
                     </li>
                 </template>
             </ol>
-            <p x-show="toc.length === 0" style="display: none" class="px-2 py-3 text-meta text-ink-subtle">{{ __('This book has no list of chapters.') }}</p>
+            <p x-show="toc.length === 0 && '{{ $format }}' !== 'pdf'" style="display: none" class="px-2 py-3 text-meta text-ink-subtle">{{ __('This book has no list of chapters.') }}</p>
         </nav>
 
         <p data-reader="contents-footer" class="px-6 py-4 text-legal text-ink-subtle" x-text="contentsNote">{{ __(':percent% of the book read', ['percent' => rtrim(rtrim(number_format((float) $percent, 1, '.', ''), '0'), '.')]) }}</p>

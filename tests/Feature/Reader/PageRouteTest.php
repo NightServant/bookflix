@@ -4,9 +4,12 @@ use App\Models\ContentSource;
 use App\Models\User;
 use App\Reader\Cbz\CbzPageUrl;
 use Database\Factories\ContentSourceFactory;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use League\Flysystem\Filesystem;
+use League\Flysystem\Local\LocalFilesystemAdapter;
 
 /*
  * The signed, user-bound page route for comics: one image entry streamed from the zip, typed from its bytes.
@@ -133,4 +136,44 @@ test('the url is signed relative and lasts the configured minutes', function () 
     expect($url)->toStartWith('/reader/'.$this->source->id.'/page/2?')->and($url)->not->toContain('http');
     parse_str(parse_url($url, PHP_URL_QUERY), $query);
     expect((int) $query['expires'])->toBe(now()->addMinutes(10)->getTimestamp())->and($query['user'])->toBe((string) $this->reader->id);
+});
+
+test('a page on a disk that is not local copies the archive once, and removes the copy when the stream ends', function () {
+    // Not the plain local adapter, so every use of the file is a copy to a temporary one; it counts how often a file is read out of it.
+    $root = sys_get_temp_dir().'/page-route-'.uniqid();
+    $adapter = new LocalFilesystemAdapter($root);
+    $counting = new class(new Filesystem($adapter), $adapter, ['root' => $root]) extends FilesystemAdapter
+    {
+        public int $reads = 0;
+
+        public function readStream($path)
+        {
+            $this->reads++;
+
+            return parent::readStream($path);
+        }
+    };
+    Storage::set('counting', $counting);
+    config(['bookflix.reader.disk' => 'counting']);
+
+    $source = ContentSource::factory()->publicDomain()->verified()->cbz(2)->create();
+    Cache::flush();
+    $before = count(glob(sys_get_temp_dir().'/bookflix-local-*') ?: []);
+    $counting->reads = 0;
+
+    $response = $this->actingAs($this->reader)->get(($this->page)(2, $source))->assertOk();
+    $body = $response->streamedContent();
+
+    // One read to index the archive (not cached yet), one for the sniff and the stream together.
+    expect($body)->toBe(ContentSourceFactory::png(2))
+        ->and($counting->reads)->toBe(2)
+        ->and(count(glob(sys_get_temp_dir().'/bookflix-local-*') ?: []))->toBe($before);
+
+    $counting->reads = 0;
+    $this->actingAs($this->reader)->get(($this->page)(1, $source))->assertOk()->streamedContent();
+
+    // The index is cached now: the page is the only copy.
+    expect($counting->reads)->toBe(1);
+
+    (new Illuminate\Filesystem\Filesystem)->deleteDirectory($root);
 });

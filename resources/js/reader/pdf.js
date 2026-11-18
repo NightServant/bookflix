@@ -1,5 +1,7 @@
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import '../../css/pdf-text.css';
+import { emit, fill, Unavailable, NetworkError, signedStream, withBackoff } from './util.js';
 
 /**
  * The PDF engine (pdf.js, same-origin worker). Contract: resources/js/reader/chrome.js.
@@ -10,8 +12,9 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
  * (the `expires` it carries), so the transport simply keeps using the newest address. A 403 or 404 on a range means the file was withdrawn.
  *
  * Pages are one scroll column. The scroll height is computed (every page is laid out at the size of page 1), and only the pages in or next to the
- * viewport have a canvas: the others are dropped as the reader moves, so 1,000 pages cost a handful of canvases. Text selection is not offered (no
- * text layer): each canvas is an image labelled "Page n".
+ * viewport have a canvas: the others are dropped as the reader moves, so 1,000 pages cost a handful of canvases. Each drawn page is a box holding the
+ * canvas (hidden from assistive technology) and pdf.js's text layer, the page's words as transparent real text, so they can be read aloud, selected and
+ * copied. A page with no text (a scan) is an image labelled "Page n" instead.
  */
 const GAP = 24;
 const PAD = 24;
@@ -21,26 +24,11 @@ const MAX_ZOOM = 3;
 // At 100% the page is as wide as the column, up to this many CSS pixels (a comfortable reading size; "Fit width" goes beyond it on a wide screen).
 const BASE_WIDTH = 720;
 const CHUNK = 65536;
-// Ask for a new address when the one held has less than this long to live.
-const REFRESH_MARGIN = 90;
 const MAX_CANVAS_PIXELS = 16_000_000;
 // From this window width the file opens at fit page.
 const WIDE = 1024;
 // The most outline entries the Contents list holds.
 const MAX_OUTLINE = 500;
-
-const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
-
-class Unavailable extends Error {}
-
-// The address's own expiry (Laravel signs `expires`, a unix time), or null when it has none.
-const expiryOf = (url) => {
-    const expires = Number(new URL(url, window.location.href).searchParams.get('expires'));
-
-    return Number.isFinite(expires) && expires > 0 ? expires : null;
-};
-
-const fill = (text, values) => Object.entries(values).reduce((out, [key, value]) => out.replace(`:${key}`, value), text ?? '');
 
 // Where pdf.js finds its optional data: the build copies them next to the worker (vite.config.js); the dev server serves the package itself.
 const dataBase = () => (import.meta.env.DEV ? new URL('/node_modules/pdfjs-dist/', window.location.href) : new URL('../pdfjs/', new URL(workerUrl, window.location.href))).href;
@@ -57,8 +45,7 @@ export default function startPdf(container) {
     let doc = null;
     let task = null;
     let transport = null;
-    let url = container.dataset.streamUrl;
-    let refreshing = null;
+    const stream = signedStream(container);
     let ratio = 1.294; // height / width of page 1, until it is known
     let zoom = 1;
     let count = 0;
@@ -88,38 +75,9 @@ export default function startPdf(container) {
 
     // ---- the signed address ----
 
-    async function refresh() {
-        try {
-            const fresh = await window.Livewire?.find(wireId)?.streamUrl();
-
-            if (typeof fresh === 'string' && fresh !== '') {
-                url = fresh;
-                container.dataset.streamUrl = fresh;
-                container.dataset.urlRefreshes = String(Number(container.dataset.urlRefreshes ?? 0) + 1);
-            }
-        } catch {
-            // Keep the one held: if the file was withdrawn, the next range says so with its own 403.
-        } finally {
-            refreshing = null;
-        }
-    }
-
-    async function currentUrl() {
-        const expires = expiryOf(url);
-
-        if (expires !== null && expires - Date.now() / 1000 < REFRESH_MARGIN) {
-            await (refreshing ??= refresh());
-        }
-
-        return url;
-    }
-
+    // A 403 or 404 on a range means the file was withdrawn; a 429, a 5xx or a dropped connection is tried again (0.5 s, 1.5 s, 4 s) before it is a network error.
     async function fetchRange(begin, end) {
-        const response = await fetch(await currentUrl(), { credentials: 'same-origin', headers: { Range: `bytes=${begin}-${end - 1}` } });
-
-        if (response.status === 403 || response.status === 404) {
-            throw new Unavailable();
-        }
+        const response = await withBackoff(async () => fetch(await stream.current(), { credentials: 'same-origin', headers: { Range: `bytes=${begin}-${end - 1}` } }));
 
         if (!response.ok) {
             throw new Error(String(response.status));
@@ -148,7 +106,7 @@ export default function startPdf(container) {
             return;
         }
 
-        const kind = error instanceof Unavailable ? 'unavailable' : error instanceof pdfjs.PasswordException ? 'password' : error instanceof TypeError ? 'network' : 'corrupt';
+        const kind = error instanceof Unavailable ? 'unavailable' : error instanceof pdfjs.PasswordException ? 'password' : error instanceof TypeError || error instanceof NetworkError ? 'network' : 'corrupt';
 
         close();
         emit('reader:error', { kind });
@@ -312,15 +270,15 @@ export default function startPdf(container) {
         entry.css = { w, h };
         entry.left = (g.inner - w) / 2;
         entry.top = topOf(entry.n, g) + (g.height - h) / 2;
-        entry.canvas && position(entry.canvas, entry);
+        entry.box && position(entry.box, entry);
 
         if (entry.drawn !== Math.round(w)) {
             render(entry);
         }
     }
 
-    function position(canvas, entry) {
-        canvas.style.cssText = `position:absolute;left:${entry.left}px;top:${entry.top}px;width:${entry.css.w}px;height:${entry.css.h}px;`;
+    function position(box, entry) {
+        box.style.cssText = `position:absolute;left:${entry.left}px;top:${entry.top}px;width:${entry.css.w}px;height:${entry.css.h}px;`;
     }
 
     async function render(entry) {
@@ -352,11 +310,17 @@ export default function startPdf(container) {
             const canvas = document.createElement('canvas');
             canvas.width = Math.max(1, Math.floor(css.w * output));
             canvas.height = Math.max(1, Math.floor(css.h * output));
-            canvas.setAttribute('role', 'img');
-            canvas.setAttribute('aria-label', fill(strings.pageLabel ?? 'Page :n', { n: entry.n }));
+            canvas.setAttribute('aria-hidden', 'true');
             canvas.dataset.page = String(entry.n);
             canvas.className = 'bg-white shadow-lg';
-            position(canvas, entry);
+            canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+
+            const box = document.createElement('div');
+            box.dataset.pdfPage = String(entry.n);
+            box.style.setProperty('--total-scale-factor', String(base));
+            box.style.setProperty('--scale-factor', String(base));
+            box.append(canvas);
+            position(box, entry);
 
             entry.task = page.render({ canvas, viewport: page.getViewport({ scale: base * output }), background: '#ffffff' });
             await entry.task.promise;
@@ -365,10 +329,37 @@ export default function startPdf(container) {
                 return;
             }
 
-            entry.canvas?.remove();
-            entry.canvas = canvas;
+            entry.box?.remove();
+            entry.box = box;
             entry.drawn = Math.round(css.w);
-            sheet.append(canvas);
+            sheet.append(box);
+
+            // The words of the page, over the canvas. Without any, the box itself is the picture of the page.
+            const words = document.createElement('div');
+            words.className = 'pdf-text-layer';
+            box.append(words);
+            entry.text?.cancel();
+            entry.text = new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: words, viewport: page.getViewport({ scale: base }) });
+
+            try {
+                await entry.text.render();
+            } catch {
+                // A page whose text can't be read stays a picture.
+            }
+
+            if (!alive || token !== entry.token || !live.has(entry.n)) {
+                return;
+            }
+
+            if (words.textContent.trim() === '') {
+                words.remove();
+                box.setAttribute('role', 'img');
+                box.setAttribute('aria-label', fill(strings.pageLabel ?? 'Page :n', { n: entry.n }));
+            } else {
+                box.setAttribute('role', 'group');
+                box.setAttribute('aria-label', fill(strings.pageLabel ?? 'Page :n', { n: entry.n }));
+            }
+
         } catch (error) {
             if (error?.name !== 'RenderingCancelledException' && alive && !(error instanceof pdfjs.PasswordException) && error?.name !== 'AbortException') {
                 // One page that won't draw leaves its slot empty; the rest keep working.
@@ -381,7 +372,8 @@ export default function startPdf(container) {
 
         entry.token = (entry.token ?? 0) + 1;
         entry.task?.cancel();
-        entry.canvas?.remove();
+        entry.text?.cancel();
+        entry.box?.remove();
         live.delete(n);
         doc?.getPage(n).then((page) => page.cleanup()).catch(() => {});
     }
@@ -410,7 +402,7 @@ export default function startPdf(container) {
 
         for (let n = from; n <= to; n++) {
             if (!live.has(n)) {
-                const entry = { n, canvas: null, task: null, size: null, drawn: 0 };
+                const entry = { n, box: null, task: null, text: null, size: null, drawn: 0 };
                 live.set(n, entry);
                 place(entry, g);
             }
@@ -577,7 +569,7 @@ export default function startPdf(container) {
             }
         },
         // The address held may have run out while the card was up: ask for a new one first.
-        'reader:retry': () => (refreshing ??= refresh()).then(start),
+        'reader:retry': () => stream.refresh().then(start),
     };
 
     for (const [name, handler] of Object.entries(handlers)) {
@@ -618,7 +610,6 @@ export default function startPdf(container) {
         current = 0;
         initial = true;
         pinned = null;
-        url = container.dataset.streamUrl;
         open().catch(fail);
     }
 

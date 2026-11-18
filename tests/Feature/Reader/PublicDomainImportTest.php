@@ -197,9 +197,9 @@ test('pages are slices of rows and the token is a byte offset into the unpacked 
     $csv = (string) Storage::disk('local')->get('catalog-feeds/gutenberg/pg_catalog.csv');
     $secondStart = strpos($csv, "\n5,Sound") + 1;
 
-    expect($first->nextPageToken)->toBe((string) $secondStart)
+    expect($first->nextPageToken)->toMatch('/^[0-9a-f]{10}:'.$secondStart.'$/')
         ->and(collect($first->records)->pluck('externalId')->all())->toBe(['11', '1342'])
-        ->and($second->nextPageToken)->toBeNumeric()
+        ->and($second->nextPageToken)->toMatch('/^[0-9a-f]{10}:\d+$/')
         ->and(collect($second->records)->pluck('externalId')->all())->toBe(['2009'])
         ->and(collect($third->records)->pluck('externalId')->all())->toBe(['3000'])
         ->and($third->nextPageToken)->toBeNull();
@@ -210,10 +210,27 @@ test('a token that is not a byte offset restarts the walk from the first row', f
     config(['bookflix.providers.gutenberg.page_size' => 2]);
     $provider = app(GutenbergProvider::class);
 
-    // '2' is what an older run left behind (a row offset, smaller than the header line); the second is past the end of the file.
-    foreach (['2', '99999999', 'junk'] as $token) {
+    $signature = explode(':', (string) $provider->page(null, null)->nextPageToken)[0];
+
+    // '2' is what an older run left behind (a bare offset); the others have the right signature with a wrong offset, or are not tokens.
+    foreach (['2', "{$signature}:2", "{$signature}:99999999", 'junk'] as $token) {
         expect(collect($provider->page(null, $token)->records)->pluck('externalId')->all())->toBe(['11', '1342']);
     }
+});
+
+test('a token made before the catalogue was downloaded again restarts from the first row', function () {
+    fakeGutenberg();
+    config(['bookflix.providers.gutenberg.page_size' => 2]);
+    $provider = app(GutenbergProvider::class);
+
+    $first = $provider->page(null, null);
+
+    // The same file, as the next download would leave it: a new modification time and a new size.
+    $path = Storage::disk('local')->path('catalog-feeds/gutenberg/pg_catalog.csv');
+    file_put_contents($path, "\n", FILE_APPEND);
+    touch($path, time() + 60);
+
+    expect(collect($provider->page(null, $first->nextPageToken)->records)->pluck('externalId')->all())->toBe(['11', '1342']);
 });
 
 test('the catalogue is downloaded once per run and again when it is old', function () {
