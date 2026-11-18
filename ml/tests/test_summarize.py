@@ -198,3 +198,19 @@ def test_a_dotted_abbreviation_at_the_end_of_a_line_still_closes_the_sentence() 
         "The envoy was born in the U.S.",
         "The harbour town lies far away.",
     ]
+
+
+REVIEWS = "\n\n".join(
+    [
+        "The guild war plot is gripping, and Mara is a wonderful lead. The locksmith details feel researched.",
+        "Mara and the key make a great hook for the guild war. The pacing drags a little in the middle.",
+        "I loved how the guild war forces Mara to choose a side. The ending lands well.",
+        "A gripping story about guilds and a key that opens any door. Mara is easy to root for.",
+        "Great world, and the guild war is handled with care. Some secondary characters stay thin.",
+    ]
+)
+
+
+def test_description_summaries_are_unchanged_by_the_limit_parameter() -> None:
+    summarizer = LsaSummarizer()
+    assert summarizer.summarize(STORY) == summarizer.summarize(STORY, MAX_SENTENCES, MAX_CHARS)

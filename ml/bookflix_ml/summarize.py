@@ -18,6 +18,8 @@ from bookflix_ml.preprocess import tokenize
 # A lead for the story page: two or three sentences, never more than this many characters.
 MAX_SENTENCES = 3
 MAX_CHARS = 450
+# Several reviews joined together carry more than one description's worth of sentences.
+REVIEW_MAX_CHARS = 600
 # Fewer content words than this is a fragment ("Vol. 3."), not a sentence worth picking.
 MIN_TOKENS = 3
 TOPICS = 2
@@ -48,7 +50,9 @@ class Summarizer(Protocol):
 
     method: str
 
-    def summarize(self, text: str, max_sentences: int = MAX_SENTENCES) -> Summary | None: ...
+    def summarize(
+        self, text: str, max_sentences: int = MAX_SENTENCES, max_chars: int = MAX_CHARS
+    ) -> Summary | None: ...
 
 
 def plain_text(text: str) -> str:
@@ -118,8 +122,10 @@ def _scores(sentences: list[str]) -> list[float]:
 class LsaSummarizer:
     method = "lsa"
 
-    def summarize(self, text: str, max_sentences: int = MAX_SENTENCES) -> Summary | None:
-        """The best-scoring sentences that fit `MAX_CHARS`, at most `max_sentences`, in their original order; None when none fit or the
+    def summarize(
+        self, text: str, max_sentences: int = MAX_SENTENCES, max_chars: int = MAX_CHARS
+    ) -> Summary | None:
+        """The best-scoring sentences that fit `max_chars` (`MAX_CHARS` for descriptions), at most `max_sentences`, in their original order; None when none fit or the
         result would not be shorter than the text."""
         sentences = split_sentences(text)
         if not sentences:
@@ -132,7 +138,7 @@ class LsaSummarizer:
             if len(chosen) == max_sentences:
                 break
             extra = len(sentences[index]) + (1 if chosen else 0)
-            if length + extra <= MAX_CHARS:
+            if length + extra <= max_chars:
                 chosen.append(index)
                 length += extra
 
