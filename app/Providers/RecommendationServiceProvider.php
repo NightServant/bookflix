@@ -10,6 +10,7 @@ use App\Discovery\Recommendations\Sources\ContentSimilarSource;
 use App\Discovery\Recommendations\Sources\DeweySimilarSource;
 use App\Discovery\Recommendations\Sources\EditorialSource;
 use App\Discovery\Recommendations\Sources\ExplorationSource;
+use App\Discovery\Recommendations\Sources\FollowedReadersSource;
 use App\Discovery\Recommendations\Sources\NewReleasesSource;
 use App\Discovery\Recommendations\Sources\PopularInGenresSource;
 use App\Discovery\Recommendations\Sources\SemanticSimilarSource;
@@ -40,6 +41,7 @@ class RecommendationServiceProvider extends ServiceProvider
             NewReleasesSource::class,
             EditorialSource::class,
             ExplorationSource::class,
+            FollowedReadersSource::class,
         ], self::SOURCES);
 
         $this->app->when(CandidatePool::class)->needs('$sources')->giveTagged(self::SOURCES);

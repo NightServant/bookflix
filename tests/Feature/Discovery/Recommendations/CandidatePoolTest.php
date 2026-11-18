@@ -86,9 +86,9 @@ test('the container builds the pool from the eight tagged sources', function () 
     $user = User::factory()->create();
     Media::factory()->count(3)->create(['published_on' => now()->subDays(3), 'ratings_count' => 10]);
 
-    expect(app(CandidatePool::class)->bySource($user))->toHaveKeys(['collaborative', 'content_similar', 'dewey_similar', 'editorial', 'exploration', 'new_releases', 'popular_in_genres', 'trending']);
+    expect(app(CandidatePool::class)->bySource($user))->toHaveKeys(['collaborative', 'content_similar', 'dewey_similar', 'editorial', 'exploration', 'followed_readers', 'new_releases', 'popular_in_genres', 'trending']);
 
     $user->profile->update(['personalization_enabled' => false]);
 
-    expect(array_keys(app(CandidatePool::class)->bySource($user->fresh())))->toBe(['trending', 'new_releases', 'editorial']);
+    expect(array_keys(app(CandidatePool::class)->bySource($user->fresh())))->toBe(['trending', 'new_releases', 'editorial', 'followed_readers']);
 });
