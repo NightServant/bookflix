@@ -1,5 +1,8 @@
 <?php
 
+use App\Enums\AccessType;
+use App\Models\ContentSource;
+use App\Models\Media;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -91,4 +94,29 @@ test('logging in rehashes a password hashed with fewer rounds', function () {
 
     $this->assertAuthenticated();
     expect($user->fresh()->password)->not->toBe($oldHash);
+});
+
+test('purge deletes every uploaded source of an account, however many there are', function () {
+    Storage::fake(ContentSource::disk());
+    $gone = User::factory()->create(['deactivated_at' => now()->subDays(31)]);
+    $media = Media::factory()->create();
+    $now = now();
+
+    // More than one chunk of 1,000 rows: an offset walk would skip the ones past it as the earlier ones are deleted.
+    foreach (array_chunk(range(1, 1100), 500) as $ids) {
+        ContentSource::insert(array_map(fn (int $i): array => [
+            'media_id' => $media->id,
+            'access_type' => AccessType::UserOwned->value,
+            'format' => 'pdf',
+            'license' => 'Uploaded by its owner',
+            'owner_user_id' => $gone->id,
+            'external_key' => "upload:{$i}",
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $ids));
+    }
+
+    $this->artisan('bookflix:purge-deactivated-accounts')->assertSuccessful();
+
+    expect(ContentSource::where('media_id', $media->id)->count())->toBe(0)->and(User::find($gone->id))->toBeNull();
 });

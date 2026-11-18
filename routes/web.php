@@ -25,6 +25,7 @@ Route::middleware(['auth', 'verified', 'reader'])->group(function () {
     Route::livewire('stories/{slug}', 'pages::stories.show')->name('stories.show');
     Route::livewire('series/{slug}', 'pages::series.show')->name('series.show');
     Route::livewire('library', 'pages::library.index')->name('library.index');
+    Route::livewire('library/upload', 'pages::library.upload')->name('library.upload');
     Route::livewire('collections', 'pages::collections.index')->name('collections.index');
     Route::livewire('collections/{slug}', 'pages::collections.show')->name('collections.show')->where('slug', '[a-z0-9-]+');
     Route::livewire('history', 'pages::history.index')->name('history.index');
@@ -47,5 +48,6 @@ Route::get('exports/{user}/{file}', [ExportDownloadController::class, 'show'])
     ->where(['user' => '[0-9]+', 'file' => ExportStorage::FILE_PATTERN])
     ->name('exports.download');
 
+require __DIR__.'/reader.php';
 require __DIR__.'/settings.php';
 require __DIR__.'/admin.php';

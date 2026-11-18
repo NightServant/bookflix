@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Actions\Reader\RecordContentFile;
 use App\Catalog\Ingestion\IngestionPipeline;
 use App\Catalog\Providers\MissingProviderCredentials;
+use App\Catalog\Providers\OffersContentFiles;
 use App\Catalog\Providers\RateLimitedByProvider;
 use App\Enums\IngestionMode;
 use App\Enums\IngestionStatus;
@@ -91,6 +93,11 @@ class FetchProviderPage implements ShouldQueue
         foreach ($page->records as $record) {
             try {
                 $counts[$pipeline->import($record, $provider)->value]++;
+
+                // The public-domain catalogues also offer a file: it is recorded unverified, once the media exists.
+                if ($provider instanceof OffersContentFiles && ($offer = $provider->contentFile($record)) !== null) {
+                    app(RecordContentFile::class)->handle($run->externalSource, $record, $offer);
+                }
             } catch (Throwable $exception) {
                 report($exception);
                 $counts['failed']++;

@@ -6,6 +6,7 @@ use App\Classification\DeweyCounts;
 use App\Enums\ClassificationType;
 use App\Enums\DuplicateStatus;
 use App\Enums\ReviewStatus;
+use App\Models\ContentSource;
 use App\Models\Creator;
 use App\Models\DuplicateCandidate;
 use App\Models\ExternalSource;
@@ -154,6 +155,15 @@ test('merge moves external ids pivots and relations and soft deletes the loser',
         ->and($winner->relations()->count())->toBe(0)
         ->and($loser->fresh()->trashed())->toBeTrue()
         ->and($loser->fresh()->merged_into_id)->toBe($winner->id);
+});
+
+test('merge moves the loser\'s content sources to the winner', function () {
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    $source = ContentSource::factory()->publicDomain()->verified()->ready()->create(['media_id' => $loser->id]);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    expect($source->fresh()->media_id)->toBe($winner->id);
 });
 
 test('merge rebuilds the winner search text and closes only the pair being merged', function () {

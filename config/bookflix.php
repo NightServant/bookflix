@@ -2,11 +2,13 @@
 
 use App\Catalog\Providers\AniList\AniListProvider;
 use App\Catalog\Providers\ComicVine\ComicVineProvider;
+use App\Catalog\Providers\Gutenberg\GutenbergProvider;
 use App\Catalog\Providers\Hardcover\HardcoverProvider;
 use App\Catalog\Providers\MangaDex\MangaDexProvider;
 use App\Catalog\Providers\MangaUpdates\MangaUpdatesProvider;
 use App\Catalog\Providers\Metron\MetronProvider;
 use App\Catalog\Providers\OpenLibrary\OpenLibraryProvider;
+use App\Catalog\Providers\StandardEbooks\StandardEbooksProvider;
 
 return [
 
@@ -84,6 +86,7 @@ return [
             ['label' => 'Duplicates', 'icon' => 'square-2-stack', 'route' => 'admin.duplicates', 'active' => ['admin.duplicates'], 'count' => 'duplicates'],
             ['label' => 'Classification', 'icon' => 'rectangle-group', 'route' => 'admin.classifications', 'active' => ['admin.classifications'], 'count' => 'classifications'],
             ['label' => 'Staff picks', 'icon' => 'star', 'route' => 'admin.staff-picks', 'active' => ['admin.staff-picks']],
+            ['label' => 'Reading files', 'icon' => 'document-check', 'route' => 'admin.content', 'active' => ['admin.content']],
         ]],
         ['group' => 'Intelligence', 'items' => [
             ['label' => 'Models', 'icon' => 'cpu-chip', 'route' => 'admin.models', 'active' => ['admin.models', 'admin.models.*']],
@@ -91,6 +94,51 @@ return [
         ['group' => 'People', 'items' => [
             ['label' => 'Users', 'icon' => 'users', 'route' => 'admin.users', 'active' => ['admin.users']],
         ]],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reader
+    |--------------------------------------------------------------------------
+    |
+    | Reading files (Phase 9). `disk` is private (storage/app/private by default):
+    | files are only reachable through signed URLs that last `url_ttl_minutes`.
+    | `archive` bounds what an EPUB or CBZ may unpack to (entries, total size,
+    | and the ratio to its compressed size) so a zip bomb cannot harm the server;
+    | `max_page_mb` refuses a single comic page whose declared size is above it.
+    | `upload` caps a reader's own files (megabytes per format, a total quota and
+    | uploads per hour). `cbr` names the tools that unpack RAR comics, run with a
+    | timeout. `fetch` caps a public-domain file downloaded from a provider.
+    | `session_gap_minutes` is how long after a save the reader's next one still
+    | belongs to the same reading session (one history row, one signal).
+    |
+    */
+
+    'reader' => [
+        'disk' => env('BOOKFLIX_READER_DISK', 'local'),
+        'url_ttl_minutes' => 10,
+        'session_gap_minutes' => 10,
+        'archive' => [
+            'max_entries' => 2000,
+            'max_uncompressed_mb' => 1024,
+            'max_ratio' => 100,
+            'max_page_mb' => 50,
+        ],
+        'upload' => [
+            'epub_mb' => 100,
+            'pdf_mb' => 200,
+            'cbz_mb' => 500,
+            'quota_mb' => 2048,
+            'per_hour' => 10,
+        ],
+        'cbr' => [
+            'unar_path' => env('BOOKFLIX_UNAR_PATH', 'unar'),
+            'bsdtar_path' => env('BOOKFLIX_BSDTAR_PATH', 'bsdtar'),
+            'timeout_seconds' => 120,
+        ],
+        'fetch' => [
+            'max_mb' => 100,
+        ],
     ],
 
     /*
@@ -122,6 +170,23 @@ return [
 
     'library' => [
         'writes_per_minute' => 60,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Content Security Policy
+    |--------------------------------------------------------------------------
+    |
+    | Every page answers with a policy that allows only this site's own scripts
+    | (plus a per-request nonce) and blocks framing. `enabled` turns it off, and
+    | `report_only` sends it as a report-only header, so a browser logs what it
+    | would block without blocking it; use that to try a change safely.
+    |
+    */
+
+    'csp' => [
+        'enabled' => env('BOOKFLIX_CSP_ENABLED', true),
+        'report_only' => env('BOOKFLIX_CSP_REPORT_ONLY', false),
     ],
 
     'privacy' => [
@@ -236,6 +301,24 @@ return [
             'rate_per_minute' => 30,
             'max_pages_per_run' => 20,
             'allowed_hosts' => ['hardcover.app', 'api.hardcover.app', 'assets.hardcover.app'],
+        ],
+
+        'gutenberg' => [
+            'class' => GutenbergProvider::class,
+            'enabled' => (bool) env('BOOKFLIX_GUTENBERG_ENABLED', false),
+            // The catalogue is one CSV read from a local copy, so a page costs no request; the rate only paces the pages.
+            'rate_per_minute' => 10,
+            'max_pages_per_run' => 20,
+            'page_size' => 500,
+            'allowed_hosts' => ['www.gutenberg.org', 'gutenberg.org'],
+        ],
+
+        'standardebooks' => [
+            'class' => StandardEbooksProvider::class,
+            'enabled' => (bool) env('BOOKFLIX_STANDARDEBOOKS_ENABLED', false),
+            'rate_per_minute' => 6,
+            'max_pages_per_run' => 20,
+            'allowed_hosts' => ['standardebooks.org'],
         ],
 
         'wikidata' => [

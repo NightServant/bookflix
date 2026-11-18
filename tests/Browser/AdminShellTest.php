@@ -53,7 +53,7 @@ test('the admin pages pass the audit with no console errors, on desktop and on a
     Collection::factory()->public()->editorial()->create();
     Collection::factory()->public()->create();
 
-    foreach (['/admin', '/admin/providers', '/admin/duplicates', '/admin/classifications', '/admin/staff-picks', '/admin/models'] as $path) {
+    foreach (['/admin', '/admin/providers', '/admin/duplicates', '/admin/classifications', '/admin/staff-picks', '/admin/content', '/admin/models'] as $path) {
         visit($path, $this->viewports[$viewport])->wait(1)
             ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
     }

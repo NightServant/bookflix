@@ -30,6 +30,9 @@ Schedule::job(new SyncProvider('mangaupdates'))->name('sync:mangaupdates')->ever
 Schedule::job(new SyncProvider('comicvine'))->name('sync:comicvine')->daily()->when($sourceIsEnabled('comicvine'));
 Schedule::job(new SyncProvider('metron'))->name('sync:metron')->everySixHours()->when($sourceIsEnabled('metron'));
 Schedule::job(new SyncProvider('hardcover'))->name('sync:hardcover')->everySixHours()->when($sourceIsEnabled('hardcover'));
+// The public-domain catalogues change slowly: Gutenberg reads its catalogue in bounded runs, Standard Ebooks its 15 newest releases.
+Schedule::job(new SyncProvider('gutenberg'))->name('sync:gutenberg')->daily()->when($sourceIsEnabled('gutenberg'));
+Schedule::job(new SyncProvider('standardebooks'))->name('sync:standardebooks')->daily()->when($sourceIsEnabled('standardebooks'));
 
 // The ML pipelines (train, build similarities, evaluate), each a chain that stops at its first failed step. They wait for a configured service, and a pipeline still running from the last time is not started again.
 $mlIsConfigured = fn (): bool => (string) config('services.ml.token') !== '';

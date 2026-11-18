@@ -11,6 +11,7 @@ use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
 use App\Enums\ClassificationMethod;
 use App\Enums\ClassificationType;
+use App\Enums\ContentFormat;
 use App\Enums\CreatorRole;
 use App\Enums\ImportOutcome;
 use App\Enums\InteractionEvent;
@@ -22,6 +23,7 @@ use App\Enums\RecommendationEventType;
 use App\Enums\ReviewStatus;
 use App\Models\Collection as StoryCollection;
 use App\Models\CollectionItem;
+use App\Models\ContentSource;
 use App\Models\ContentWarning;
 use App\Models\Creator;
 use App\Models\DeweyClass;
@@ -53,6 +55,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
 use Pest\Browser\Api\AwaitableWebpage;
@@ -652,4 +655,196 @@ function richReader(): array
     }
 
     return [$user, $catalog];
+}
+
+/**
+ * A tiny valid EPUB 3 with two chapters ("Down the Rabbit-Hole" and "The Pool of Tears"): the stored `mimetype` first, `container.xml`, the package
+ * document, a nav and one XHTML file per chapter, each with `$paragraphs` paragraphs so a chapter spans several pages. `$extraHtml` goes at the top of chapter 1.
+ */
+function tinyEpub(int $paragraphs = 30, string $extraHtml = ''): string
+{
+    $zip = new ZipArchive;
+    $temp = (string) tempnam(sys_get_temp_dir(), 'epub');
+    $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+    $zip->addFromString('mimetype', 'application/epub+zip');
+    $zip->setCompressionName('mimetype', ZipArchive::CM_STORE);
+    $zip->addFromString('META-INF/container.xml', <<<'XML'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+        </container>
+        XML);
+    $zip->addFromString('OEBPS/content.opf', <<<'XML'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+          <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <dc:identifier id="id">urn:uuid:3f2b8c1e-0000-4000-8000-000000000001</dc:identifier>
+            <dc:title>The Open Book</dc:title>
+            <dc:language>en</dc:language>
+            <meta property="dcterms:modified">2026-11-17T00:00:00Z</meta>
+          </metadata>
+          <manifest>
+            <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+            <item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="c1"/><itemref idref="c2"/></spine>
+        </package>
+        XML);
+    $zip->addFromString('OEBPS/nav.xhtml', <<<'XML'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head>
+        <body><nav epub:type="toc"><ol>
+          <li><a href="ch1.xhtml">I. Down the Rabbit-Hole</a></li>
+          <li><a href="ch2.xhtml">II. The Pool of Tears</a></li>
+        </ol></nav></body></html>
+        XML);
+
+    $chapters = ['ch1.xhtml' => ['Chapter I.', 'Down the Rabbit-Hole', 'Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading.'], 'ch2.xhtml' => ['Chapter II.', 'The Pool of Tears', 'Curiouser and curiouser, cried Alice, she was so much surprised that for the moment she quite forgot how to speak good English, and the garden grew very strange.']];
+
+    foreach ($chapters as $file => [$eyebrow, $title, $sentence]) {
+        $body = implode("\n", array_map(fn (int $n) => "<p>{$sentence} ({$n})</p>", range(1, $paragraphs)));
+
+        $zip->addFromString("OEBPS/{$file}", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>{$title}</title></head><body><h1>{$title}</h1><p>{$eyebrow}</p>".($file === 'ch1.xhtml' ? $extraHtml : '')."{$body}</body></html>");
+    }
+
+    // A zip normally ends in NUL bytes, which the browser-test server's `mb_trim` of a streamed body would cut off (and the Content-Length with them): a comment ends it in text.
+    $zip->setArchiveComment('bookflix test fixture');
+    $zip->close();
+    $bytes = (string) file_get_contents($temp);
+    unlink($temp);
+
+    return $bytes;
+}
+
+/**
+ * A verified public-domain EPUB source whose file is `$bytes` (the tiny book by default), on a fresh story, on the faked reader disk.
+ */
+function epubSource(?string $bytes = null): ContentSource
+{
+    Storage::fake(ContentSource::disk());
+
+    $bytes ??= tinyEpub();
+    $source = ContentSource::factory()->for(Media::factory()->novel()->create(['title' => 'The Open Book']))->publicDomain()->verified()->ready()->create();
+    Storage::disk(ContentSource::disk())->put($source->storage_path, $bytes);
+    $source->update(['byte_size' => strlen($bytes)]);
+
+    return $source;
+}
+
+/**
+ * A small valid PDF by hand: `$pages` Letter pages, each saying "Page n of N" in Helvetica, a correct xref table, and no newline after the final
+ * `%%EOF` (the browser-test server trims trailing whitespace from a streamed body, and the Content-Length with it). With `$encrypted` the
+ * trailer has an /Encrypt dictionary (standard handler, revision 2) whose user entry matches no password, so opening it asks for one.
+ */
+function tinyPdf(int $pages = 3, bool $encrypted = false, array $outline = [], bool $blank = false): string
+{
+    $objects = [1 => '<< /Type /Catalog /Pages 2 0 R >>', 3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+    $kids = [];
+
+    for ($n = 1; $n <= $pages; $n++) {
+        $page = 4 + ($n - 1) * 2;
+        $text = $blank ? '0 0 10 10 re f' : "BT /F1 36 Tf 72 700 Td (Page {$n} of {$pages}) Tj ET";
+        $kids[] = "{$page} 0 R";
+        $objects[$page] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents '.($page + 1).' 0 R >>';
+        $objects[$page + 1] = '<< /Length '.strlen($text)." >>\nstream\n{$text}\nendstream";
+    }
+
+    $objects[2] = '<< /Type /Pages /Count '.$pages.' /Kids ['.implode(' ', $kids).'] >>';
+    $encrypt = null;
+
+    // An outline (title => page, in order): the root, then one item per entry, each pointing at its page with an explicit destination.
+    if ($outline !== []) {
+        $root = 4 + $pages * 2 + ($encrypted ? 1 : 0);
+        $items = [];
+        $n = 0;
+
+        foreach ($outline as $title => $target) {
+            $id = $root + 1 + $n;
+            $items[] = $id;
+            $links = ($n > 0 ? '/Prev '.($id - 1).' 0 R ' : '').($n < count($outline) - 1 ? '/Next '.($id + 1).' 0 R ' : '');
+            $objects[$id] = '<< /Title ('.$title.') /Parent '.$root.' 0 R '.$links.'/Dest ['.(4 + ($target - 1) * 2).' 0 R /Fit] >>';
+            $n++;
+        }
+
+        $objects[$root] = '<< /Type /Outlines /First '.$items[0].' 0 R /Last '.end($items).' 0 R /Count '.count($items).' >>';
+        $objects[1] = '<< /Type /Catalog /Pages 2 0 R /Outlines '.$root.' 0 R >>';
+    }
+
+    if ($encrypted) {
+        $encrypt = 4 + $pages * 2;
+        $objects[$encrypt] = '<< /Filter /Standard /V 1 /R 2 /P -4 /O <'.str_repeat('ab', 32).'> /U <'.str_repeat('cd', 32).'> >>';
+    }
+
+    ksort($objects);
+
+    // The test server trims trailing whitespace from every streamed body, a range of a file too: a range of 64 KB must not end in whitespace.
+    // A comment line ahead of the text that would end one moves it by a byte, until none does.
+    $ends = fn (string $text, int $from): bool => (function () use ($text, $from): bool {
+        for ($i = 0, $n = strlen($text); $i < $n; $i++) {
+            if (($from + $i + 1) % 65536 === 0 && strpbrk($text[$i], " \n\r\t\0\f\v") !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    })();
+    $body = "%PDF-1.4\n";
+    $offsets = [];
+
+    foreach ($objects as $number => $object) {
+        $text = "{$number} 0 obj\n{$object}\nendobj\n";
+
+        for ($shift = 0; $ends(str_repeat('%', $shift).($shift > 0 ? "\n" : '').$text, strlen($body)); $shift++);
+
+        $body .= ($shift > 0 ? str_repeat('%', $shift)."\n" : '');
+        $offsets[$number] = strlen($body);
+        $body .= $text;
+    }
+
+    $trailer = '/Size '.(count($objects) + 1).' /Root 1 0 R'.($encrypt === null ? '' : " /Encrypt {$encrypt} 0 R /ID [<".str_repeat('01', 16).'> <'.str_repeat('01', 16).'>]');
+    $table = "xref\n0 ".(count($objects) + 1)."\n0000000000 65535 f \n".implode('', array_map(fn (int $offset) => sprintf("%010d 00000 n \n", $offset), $offsets))."trailer\n<< {$trailer} >>\n";
+
+    for ($shift = 0; ; $shift++) {
+        $pad = $shift > 0 ? str_repeat('%', $shift)."\n" : '';
+        $tail = $pad.$table."startxref\n".(strlen($body) + strlen($pad))."\n%%EOF";
+
+        if (! $ends($tail, strlen($body))) {
+            return $body.$tail;
+        }
+    }
+}
+
+/**
+ * A verified public-domain PDF source whose file is `$bytes` (the 3-page one by default), on a fresh story, on the faked reader disk.
+ */
+function pdfSource(?string $bytes = null): ContentSource
+{
+    Storage::fake(ContentSource::disk());
+
+    $bytes ??= tinyPdf();
+    $source = ContentSource::factory()->for(Media::factory()->novel()->create(['title' => 'The Open Page']))->publicDomain()->verified()->ready()->create(['format' => ContentFormat::Pdf, 'mime_type' => 'application/pdf']);
+    Storage::disk(ContentSource::disk())->put($source->storage_path, $bytes);
+    $source->update(['byte_size' => strlen($bytes)]);
+
+    return $source;
+}
+
+/**
+ * A verified public-domain comic source (CBZ of `$pages` small pages, `$size` pixels each unless `$sizes` says otherwise for a page) on a fresh story
+ * of `$type` (`manga` from Japan reads right to left; `webcomic` is a vertical strip), on the faked reader disk.
+ *
+ * @param  array{0: int, 1: int}  $size
+ * @param  array<int, array{0: int, 1: int}>  $sizes
+ */
+function comicSource(string $type = 'manga', int $pages = 5, array $size = [40, 60], array $sizes = [], ?string $title = null): ContentSource
+{
+    Storage::fake(ContentSource::disk());
+
+    $media = $type === 'manga'
+        ? Media::factory()->manga()->create(['title' => $title ?? 'Vagabond Tides', 'country_of_origin' => 'JP'])
+        : Media::factory()->ofType($type)->create(['title' => $title ?? 'Harbour Lights', 'country_of_origin' => 'KR']);
+
+    return ContentSource::factory()->for($media)->publicDomain()->verified()->cbz($pages, $size, $sizes)->create();
 }

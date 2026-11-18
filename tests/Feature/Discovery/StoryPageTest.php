@@ -325,11 +325,11 @@ test('the story page runs a bounded number of queries', function () {
     $this->actingAs(User::factory()->create());
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
-    // Three of the 30 are the controls': the reader's rating, their library entry, and their collections (with whether each holds this story); one is the types the story also is; one is the summary.
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(30);
+    // Three of the 31 are the controls': the reader's rating, their library entry, and their collections (with whether each holds this story); one is the types the story also is; one is the summary; one is the story's content sources (the read action and Where to read).
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(31);
 });
 
-test('the story page runs at most twenty six queries once the similar ids are cached', function () {
+test('the story page runs at most twenty seven queries once the similar ids are cached', function () {
     Queue::fake();
     $m = fullMedia();
     $this->actingAs(User::factory()->create());
@@ -339,8 +339,8 @@ test('the story page runs at most twenty six queries once the similar ids are ca
     DB::enableQueryLog();
     $this->get(route('stories.show', $m->slug))->assertOk();
 
-    // One of the twenty six is the mature access gate (whether this story is behind it for the reader), another the reader's rating, another their library entry, another their collections, another the types the story also is, another the summary.
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(26);
+    // One of the twenty seven is the mature access gate (whether this story is behind it for the reader), another the reader's rating, another their library entry, another their collections, another the types the story also is, another the summary, another the story's content sources (the read action and Where to read).
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(27);
 });
 
 test('similar media ids are kept an hour as plain ids and the rows are loaded fresh', function () {
@@ -405,7 +405,7 @@ test('a story in a 300 volume series hydrates at most eleven volumes and stays w
         ->assertSee('All 300 volumes')
         ->assertSeeInOrder([$volumes[148]->title, $volumes[150]->title]);
 
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(26)
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(27)
         ->and(count(array_diff(array_keys($hydrated), $shelf)))->toBeLessThanOrEqual(11);
 });
 

@@ -30,6 +30,11 @@
     --color-featured-from: #192247;
     --color-featured-via: #461518;
     --color-featured-to: #6f181d;
+    /* The reader's two book themes (reading settings): the swatches in the panel and the colors the EPUB engine sets inside the book. */
+    --color-reader-dark: #0a0a0a;
+    --color-reader-dark-ink: #ebebeb;
+    --color-reader-sepia: #211c14;
+    --color-reader-sepia-ink: #e8dcc6;
     --color-paper: #e9e4d8; /* the edges of pages (<x-book-3d>) only: never text, never a surface */
 
     /* Flux reads zinc + accent; map them onto Bookflix surfaces */
@@ -618,5 +623,83 @@ select:focus[data-flux-control] {
     .book3d__body,
     .book3d__shadow {
         visibility: hidden;
+    }
+}
+
+/*
+ * The reader's progress track (resources/views/components/reader/bottom-bar.blade.php): a native range input (so the slider role, the keys and the
+ * touch drag stay the browser's own) drawn as a 4px track with a 16px white handle inside a 44px target. The part read is white up to
+ * `--reader-progress`; it fills from the right for a right-to-left comic (`dir="rtl"`). Never red.
+ */
+.reader-range {
+    @apply mx-0 mt-0 -mb-2 block h-11 w-full cursor-pointer appearance-none bg-transparent outline-hidden;
+    --reader-track: color-mix(in srgb, var(--color-ink-muted) 35%, transparent);
+    --reader-fill: linear-gradient(to right, var(--color-ink) var(--reader-progress, 0%), var(--reader-track) var(--reader-progress, 0%));
+}
+
+/* An attribute, not :dir(rtl): the CSS build lowers :dir() to a list of right-to-left languages, which never matches a manga's dir="rtl". */
+.reader-range[dir='rtl'] {
+    --reader-fill: linear-gradient(to left, var(--color-ink) var(--reader-progress, 0%), var(--reader-track) var(--reader-progress, 0%));
+}
+
+.reader-range::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--reader-fill);
+}
+
+.reader-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border-radius: 9999px;
+    border: 0;
+    background: var(--color-ink);
+}
+
+.reader-range::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--reader-fill);
+}
+
+.reader-range::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    border: 0;
+    background: var(--color-ink);
+}
+
+.reader-range:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-accent-electric);
+}
+
+.reader-range:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-accent-electric);
+}
+
+/* The chrome fades in 200ms; under reduced motion it shows and hides at once. */
+.reader-chrome {
+    transition: opacity 200ms var(--ease-out-bookflix);
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+}
+
+/* The opening state's spinner turns; under reduced motion it stays still. */
+.reader-spinner {
+    animation: reader-spin 900ms linear infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+        animation: none;
+    }
+}
+
+@keyframes reader-spin {
+    to {
+        transform: rotate(360deg);
     }
 }

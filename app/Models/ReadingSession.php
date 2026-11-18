@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $user_id
  * @property int $media_id
+ * @property int|null $content_source_id the file a reader save was made in; null for a manual log
  * @property Carbon $started_at
  * @property Carbon|null $ended_at
  * @property int $seconds
@@ -25,7 +26,7 @@ use Illuminate\Support\Carbon;
  * @property string $to_percent
  * @property int $chapters_completed
  */
-#[Fillable(['user_id', 'media_id', 'started_at', 'ended_at', 'seconds', 'from_percent', 'to_percent', 'chapters_completed'])]
+#[Fillable(['user_id', 'media_id', 'content_source_id', 'started_at', 'ended_at', 'seconds', 'from_percent', 'to_percent', 'chapters_completed'])]
 class ReadingSession extends Model
 {
     /** @use HasFactory<ReadingSessionFactory> */

@@ -24,6 +24,7 @@ dataset('admin shell pages', [
     'admin.duplicates' => ['admin.duplicates', fn () => [], 'Duplicates'],
     'admin.classifications' => ['admin.classifications', fn () => [], 'Classification'],
     'admin.staff-picks' => ['admin.staff-picks', fn () => [], 'Staff picks'],
+    'admin.content' => ['admin.content', fn () => [], 'Reading files'],
     'admin.models' => ['admin.models', fn () => [], 'Models'],
     'admin.models.compare' => ['admin.models.compare', fn () => [], 'Models'],
     'admin.users' => ['admin.users', fn () => [], 'Users'],
@@ -33,8 +34,8 @@ test('every admin page renders the whole admin navigation with the right current
     $html = $this->actingAs(User::factory()->admin()->create())->get(route($name, $parameters()))->assertOk()->getContent();
     $items = adminNav($html);
 
-    expect(array_column($items, 'label'))->toBe(['Overview', 'Sync', 'Media', 'Duplicates', 'Classification', 'Staff picks', 'Models', 'Users'])
-        ->and(array_column($items, 'href'))->toBe([route('admin.index'), route('admin.providers'), route('admin.media.index'), route('admin.duplicates'), route('admin.classifications'), route('admin.staff-picks'), route('admin.models'), route('admin.users')])
+    expect(array_column($items, 'label'))->toBe(['Overview', 'Sync', 'Media', 'Duplicates', 'Classification', 'Staff picks', 'Reading files', 'Models', 'Users'])
+        ->and(array_column($items, 'href'))->toBe([route('admin.index'), route('admin.providers'), route('admin.media.index'), route('admin.duplicates'), route('admin.classifications'), route('admin.staff-picks'), route('admin.content'), route('admin.models'), route('admin.users')])
         ->and(collect($items)->where('current', true)->pluck('label')->all())->toBe([$current]);
 })->with('admin shell pages');
 
@@ -82,7 +83,7 @@ test('an admin sees the admin shell on the profile and security pages, a reader 
     foreach (['profile.edit', 'security.edit'] as $name) {
         $html = $this->get(route($name))->assertOk()->getContent();
 
-        expect(adminNav($html))->toHaveCount(8)
+        expect(adminNav($html))->toHaveCount(9)
             ->and($html)->not->toContain(route('preferences.edit'))
             ->and($html)->not->toContain(route('privacy.edit'))
             ->and(primaryNavs($html)['header'])->toBe('');

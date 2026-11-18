@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet href="https://standardebooks.org/feeds/atom/style" type="text/xsl"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+	<script xmlns="http://www.w3.org/1999/xhtml" src="https://standardebooks.org/scripts/xslt-polyfill.min.js"/>
+	<id>https://standardebooks.org/feeds/atom/new-releases</id>
+	<link href="https://standardebooks.org/feeds/atom/new-releases" rel="self" type="application/atom+xml"/>
+	<title>Standard Ebooks - Newest Ebooks</title>
+	<subtitle>The 15 latest Standard Ebooks, most-recently-released first.</subtitle>
+	<icon>https://standardebooks.org/images/logo.png</icon>
+	<updated>2026-11-16T14:55:01Z</updated>
+	<author>
+		<name>Standard Ebooks</name>
+		<uri>https://standardebooks.org</uri>
+	</author>
+	<link href="https://standardebooks.org/opensearch" rel="search" title="Standard Ebooks" type="application/opensearchdescription+xml"/>
+	<entry>
+		<id>https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars</id>
+		<title>A Fighting Man of Mars</title>
+		<author>
+			<name>Edgar Rice Burroughs</name>
+			<uri>https://standardebooks.org/ebooks/edgar-rice-burroughs</uri>
+		</author>
+		<published>2026-11-15T17:49:50Z</published>
+		<updated>2026-11-15T17:49:59Z</updated>
+		<rights>Public domain in the United States. Users located outside of the United States must check their local laws before using this ebook. Original content released to the public domain via the Creative Commons CC0 1.0 Universal Public Domain Dedication.</rights>
+		<summary type="text">A courageous warrior of Barsoom seeks to rescue the woman he loves from savage creatures and malevolent tyrants.</summary>
+		<content type="html">&lt;p&gt;On the world of Barsoom, Hadron of Hastor leaps into action when he learns the woman he loves has been abducted. He’s driven by duty and honor despite her rejection of his proposal. He cleverly identifies the kidnappers as agents for Tul Axtar, leader of the world of Jahar. A curious and courageous adventurer, Hadron delves into previously unknown parts of Barsoom, battling savage creatures, evil despots, and even a vengeful mad scientist. He relies on his wits and warrior skills as he enacts daring escapes from ever more dire circumstances. The climactic conflict isn’t simply a battle of good versus evil—rather, it’s heavy with momentous portents due to advances in Martian weaponry, which can be devastating in the wrong hands.&lt;/p&gt; &lt;p&gt;&lt;i&gt;A Fighting Man of Mars&lt;/i&gt; was first serialized in six parts in &lt;i&gt;Blue Book Magazine&lt;/i&gt; from April to September 1930, then published as a novel in 1931.&lt;/p&gt;</content>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Science fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Mars (Planet)--Fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Life on other planets--Fiction"/>
+		<category scheme="https://standardebooks.org/vocab/subjects" term="Adventure"/>
+		<category scheme="https://standardebooks.org/vocab/subjects" term="Fantasy"/>
+		<category scheme="https://standardebooks.org/vocab/subjects" term="Science Fiction"/>
+		<media:thumbnail height="525" url="https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars/downloads/cover-thumbnail.jpg" width="350"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars" rel="alternate" title="This ebook’s page at Standard Ebooks" type="application/xhtml+xml"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars/downloads/edgar-rice-burroughs_a-fighting-man-of-mars.epub?source=feed" length="776651" rel="enclosure" title="Recommended compatible epub" type="application/epub+zip"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars/downloads/edgar-rice-burroughs_a-fighting-man-of-mars_advanced.epub?source=feed" length="1186287" rel="enclosure" title="Advanced epub" type="application/epub+zip"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars/downloads/edgar-rice-burroughs_a-fighting-man-of-mars.kepub.epub?source=feed" length="681272" rel="enclosure" title="Kobo Kepub epub" type="application/kepub+zip"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars/downloads/edgar-rice-burroughs_a-fighting-man-of-mars.azw3?source=feed" length="839462" rel="enclosure" title="Amazon Kindle azw3" type="application/x-mobipocket-ebook"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/a-fighting-man-of-mars/text/single-page" length="590920" rel="enclosure" title="XHTML" type="application/xhtml+xml"/>
+	</entry>
+	<entry>
+		<id>https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel</id>
+		<title>Sir Nigel</title>
+		<author>
+			<name>Arthur Conan Doyle</name>
+			<uri>https://standardebooks.org/ebooks/arthur-conan-doyle</uri>
+		</author>
+		<published>2026-11-10T04:14:54Z</published>
+		<updated>2026-11-15T02:55:44Z</updated>
+		<rights>Public domain in the United States. Users located outside of the United States must check their local laws before using this ebook. Original content released to the public domain via the Creative Commons CC0 1.0 Universal Public Domain Dedication.</rights>
+		<summary type="text">A young English squire seeks honor by doing knightly deeds in the Hundred Years’ War.</summary>
+		<content type="html">&lt;p&gt;Nigel Loring, the last offspring of a noble and once thriving line of warriors, struggles, along with his grandmother, to maintain their dwindling estate. Nigel dreams of becoming a knight and performing honorable deeds, but has no means to equip himself. Through some luck and skill, he soon comes to possess a powerful warhorse and a suit of armor. He attaches himself as squire to an old family friend who is going to the wars in France. Before leaving the shores of England, Nigel pledges to his beloved that he will not return to claim her for his bride until he has performed three great deeds.&lt;/p&gt; &lt;p&gt;The adventure moves from England to war on the sea, and then to France. In the face of much danger, the company of knights is always looking to do worshipful acts to bring honor upon themselves, and they are always guided by the highest ideals of chivalry.&lt;/p&gt; &lt;p&gt;&lt;i&gt;Sir Nigel&lt;/i&gt; was first published serially in 1905. It is a prequel to &lt;a href="https://standardebooks.org/ebooks/arthur-conan-doyle/the-white-company"&gt;&lt;i&gt;The White Company&lt;/i&gt;&lt;/a&gt;, and takes place at the outset of the Hundred Years’ War.&lt;/p&gt;</content>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Historical fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Hundred Years' War, 1339-1453--Fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Knights and knighthood--Fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Great Britain--History--Edward III, 1327-1377--Fiction"/>
+		<category scheme="https://standardebooks.org/vocab/subjects" term="Fiction"/>
+		<media:thumbnail height="525" url="https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel/downloads/cover-thumbnail.jpg" width="350"/>
+		<link href="https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel" rel="alternate" title="This ebook’s page at Standard Ebooks" type="application/xhtml+xml"/>
+		<link href="https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel/downloads/arthur-conan-doyle_sir-nigel.epub?source=feed" length="871216" rel="enclosure" title="Recommended compatible epub" type="application/epub+zip"/>
+		<link href="https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel/downloads/arthur-conan-doyle_sir-nigel_advanced.epub?source=feed" length="1361948" rel="enclosure" title="Advanced epub" type="application/epub+zip"/>
+		<link href="https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel/downloads/arthur-conan-doyle_sir-nigel.kepub.epub?source=feed" length="836593" rel="enclosure" title="Kobo Kepub epub" type="application/kepub+zip"/>
+		<link href="https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel/downloads/arthur-conan-doyle_sir-nigel.azw3?source=feed" length="1004772" rel="enclosure" title="Amazon Kindle azw3" type="application/x-mobipocket-ebook"/>
+		<link href="https://standardebooks.org/ebooks/arthur-conan-doyle/sir-nigel/text/single-page" length="823571" rel="enclosure" title="XHTML" type="application/xhtml+xml"/>
+	</entry>
+	<entry>
+		<id>https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl</id>
+		<title>The Cave Girl</title>
+		<author>
+			<name>Edgar Rice Burroughs</name>
+			<uri>https://standardebooks.org/ebooks/edgar-rice-burroughs</uri>
+		</author>
+		<published>2026-11-10T03:35:05Z</published>
+		<updated>2026-11-15T02:57:47Z</updated>
+		<rights>Public domain in the United States. Users located outside of the United States must check their local laws before using this ebook. Original content released to the public domain via the Creative Commons CC0 1.0 Universal Public Domain Dedication.</rights>
+		<summary type="text">An American castaway finds himself in an island inhabited by stone-age people.</summary>
+		<content type="html">&lt;p&gt;Waldo Emerson Smith-Jones is the sheltered, overly educated son of a prominent Boston family. During a voyage to the South Seas, he’s swept overboard, becoming a castaway on a secluded island. He soon he becomes enamored with a local woman, and must learn how to survive in the harsh, uncivilized island environment before he can return to civilization.&lt;/p&gt; &lt;p&gt;Like other &lt;a href="https://standardebooks.org/ebooks/edgar-rice-burroughs"&gt;Edgar Rice Burroughs&lt;/a&gt; works, &lt;i&gt;The Cave Girl&lt;/i&gt; was first serialized in periodicals before being published as a single volume. The first part of the story was titled “The Cave Girl” and was serialized in &lt;i&gt;All-Story&lt;/i&gt; in 1913; the second part, titled “The Cave Man,” was serialized in &lt;i&gt;All-Story Weekly&lt;/i&gt; in 1917.&lt;/p&gt;</content>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Science fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Islands--Fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Survival--Fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Adventure stories"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Oceania--Fiction"/>
+		<category scheme="http://purl.org/dc/terms/LCSH" term="Cave dwellers--Fiction"/>
+		<category scheme="https://standardebooks.org/vocab/subjects" term="Adventure"/>
+		<category scheme="https://standardebooks.org/vocab/subjects" term="Fiction"/>
+		<media:thumbnail height="525" url="https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl/downloads/cover-thumbnail.jpg" width="350"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl" rel="alternate" title="This ebook’s page at Standard Ebooks" type="application/xhtml+xml"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl/downloads/edgar-rice-burroughs_the-cave-girl.epub?source=feed" length="561684" rel="enclosure" title="Recommended compatible epub" type="application/epub+zip"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl/downloads/edgar-rice-burroughs_the-cave-girl_advanced.epub?source=feed" length="756416" rel="enclosure" title="Advanced epub" type="application/epub+zip"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl/downloads/edgar-rice-burroughs_the-cave-girl.kepub.epub?source=feed" length="495052" rel="enclosure" title="Kobo Kepub epub" type="application/kepub+zip"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl/downloads/edgar-rice-burroughs_the-cave-girl.azw3?source=feed" length="615127" rel="enclosure" title="Amazon Kindle azw3" type="application/x-mobipocket-ebook"/>
+		<link href="https://standardebooks.org/ebooks/edgar-rice-burroughs/the-cave-girl/text/single-page" length="496880" rel="enclosure" title="XHTML" type="application/xhtml+xml"/>
+	</entry>
+</feed>

@@ -52,6 +52,16 @@ class ExternalSourceSeeder extends Seeder
                 'base_url' => 'https://hardcover.app',
                 'attribution' => 'Book data from Hardcover (hardcover.app).',
             ],
+            'gutenberg' => [
+                'name' => 'Project Gutenberg',
+                'base_url' => 'https://www.gutenberg.org',
+                'attribution' => 'Public-domain books from Project Gutenberg (gutenberg.org).',
+            ],
+            'standardebooks' => [
+                'name' => 'Standard Ebooks',
+                'base_url' => 'https://standardebooks.org',
+                'attribution' => 'Public-domain ebooks from Standard Ebooks (standardebooks.org).',
+            ],
             'wikidata' => [
                 'name' => 'Wikidata',
                 'base_url' => 'https://www.wikidata.org',
