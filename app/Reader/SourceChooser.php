@@ -23,7 +23,29 @@ class SourceChooser
 
     public function for(User $user, Media $media, ?int $requested = null): ?ContentSource
     {
-        return $this->readable($user, $media)
+        return $this->best($this->readable($user, $media), $requested);
+    }
+
+    /**
+     * The same choice from sources already loaded for the story (the story page loads them once for both its read action and Where to read).
+     *
+     * @param  Collection<int, ContentSource>  $sources
+     */
+    public function fromLoaded(User $user, Media $media, Collection $sources): ?ContentSource
+    {
+        return $this->best($sources
+            ->filter(fn (ContentSource $source): bool => in_array($source->format, self::FORMATS, true))
+            ->each(fn (ContentSource $source) => $source->setRelation('media', $media))
+            ->filter(fn (ContentSource $source): bool => $this->gate->allows($user, $source))
+            ->values());
+    }
+
+    /**
+     * @param  Collection<int, ContentSource>  $sources
+     */
+    private function best(Collection $sources, ?int $requested = null): ?ContentSource
+    {
+        return $sources
             ->sortBy(fn (ContentSource $source): array => [
                 $source->id === $requested ? 0 : 1,
                 $source->access_type === AccessType::UserOwned ? 0 : 1,
@@ -56,13 +78,23 @@ class SourceChooser
      */
     public function links(Media $media): Collection
     {
-        return ContentSource::query()
-            ->where('media_id', $media->id)
-            ->where('access_type', AccessType::ExternalLink->value)
-            ->whereNotNull('url')
-            ->orderBy('id')
-            ->get()
-            ->filter(fn (ContentSource $source): bool => $source->isVerified() && in_array(parse_url((string) $source->url, PHP_URL_SCHEME), ['http', 'https'], true))
+        return $this->linksFrom(ContentSource::query()->where('media_id', $media->id)->where('access_type', AccessType::ExternalLink->value)->get());
+    }
+
+    /**
+     * The same links picked from sources already loaded for the story.
+     *
+     * @param  Collection<int, ContentSource>  $sources
+     * @return Collection<int, ContentSource>
+     */
+    public function linksFrom(Collection $sources): Collection
+    {
+        return $sources
+            ->filter(fn (ContentSource $source): bool => $source->access_type === AccessType::ExternalLink
+                && $source->url !== null
+                && $source->isVerified()
+                && in_array(parse_url((string) $source->url, PHP_URL_SCHEME), ['http', 'https'], true))
+            ->sortBy('id')
             ->values();
     }
 }

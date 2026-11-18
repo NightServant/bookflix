@@ -188,9 +188,29 @@ new #[Title('Story')] class extends Component {
     #[Computed]
     public function readSource(): ?\App\Models\ContentSource
     {
+        return $this->readState['source'];
+    }
+
+    /**
+     * The story's sources, loaded once (one query) and decided once: the file this reader opens, and the links out when there is none. An array, not
+     * the source itself, because a computed property that returns null is worked out again on every read.
+     *
+     * @return array{source: ?\App\Models\ContentSource, links: Collection<int, \App\Models\ContentSource>}
+     */
+    #[Computed]
+    public function readState(): array
+    {
         $user = auth()->user();
 
-        return $user === null || ! Gate::forUser($user)->allows('use-reader-side') ? null : app(SourceChooser::class)->for($user, $this->media);
+        if ($user === null || ! Gate::forUser($user)->allows('use-reader-side')) {
+            return ['source' => null, 'links' => new Collection];
+        }
+
+        $chooser = app(SourceChooser::class);
+        $sources = \App\Models\ContentSource::query()->where('media_id', $this->media->id)->get();
+        $source = $chooser->fromLoaded($user, $this->media, $sources);
+
+        return ['source' => $source, 'links' => $source === null ? $chooser->linksFrom($sources) : new Collection];
     }
 
     /**
@@ -227,13 +247,7 @@ new #[Title('Story')] class extends Component {
     #[Computed]
     public function whereToRead(): Collection
     {
-        $user = auth()->user();
-
-        if ($user === null || ! Gate::forUser($user)->allows('use-reader-side') || $this->readSource !== null) {
-            return new Collection;
-        }
-
-        return app(SourceChooser::class)->links($this->media);
+        return $this->readState['links'];
     }
 
     /**
