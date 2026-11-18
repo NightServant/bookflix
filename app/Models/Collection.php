@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $description
  * @property Visibility $visibility
  * @property bool $is_editorial
+ * @property Carbon|null $moderation_hidden_at Set by a moderator; while set the collection can't be made public.
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -63,6 +64,7 @@ class Collection extends Model
         return [
             'visibility' => Visibility::class,
             'is_editorial' => 'boolean',
+            'moderation_hidden_at' => 'datetime',
         ];
     }
 
@@ -85,7 +87,7 @@ class Collection extends Model
     }
 
     /**
-     * Collections this reader may view: their own, the editorial ones, and the public ones of readers who are still active. The same rule as
+     * Collections this reader may view: their own, the editorial ones, and the public ones of active, non-admin readers that moderators have not hidden. The same rule as
      * CollectionPolicy::view, for a query.
      *
      * @param  Builder<Collection>  $query
@@ -97,7 +99,8 @@ class Collection extends Model
             ->when($viewer !== null, fn (Builder $own) => $own->orWhere('collections.user_id', $viewer->id))
             ->orWhere(fn (Builder $public) => $public
                 ->where('collections.visibility', Visibility::Public->value)
-                ->whereHas('user', fn (Builder $owner) => $owner->active())));
+                ->whereNull('collections.moderation_hidden_at')
+                ->whereHas('user', fn (Builder $owner) => $owner->active()->where('users.is_admin', false))));
     }
 
     /**

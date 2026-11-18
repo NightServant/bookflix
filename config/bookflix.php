@@ -238,6 +238,7 @@ return [
         ],
         'follows_per_hour' => 60,
         'reviews_per_hour' => 10,
+        'reports_per_hour' => 10,
     ],
 
     /*

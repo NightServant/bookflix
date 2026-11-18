@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
 use Livewire\Livewire;
 
-const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json', 'following.json', 'reviews.json'];
+const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json', 'following.json', 'reviews.json', 'reports.json'];
 
 /**
  * A reader with one row in every table the export reads, one of them behind the mature gate.
@@ -118,7 +118,7 @@ beforeEach(function () {
     Notification::fake();
 });
 
-test('the export zip holds the eleven files, with every one of the readers own rows and nothing else', function () {
+test('the export zip holds the twelve files, with every one of the readers own rows and nothing else', function () {
     $user = exportFixture('Mine');
     $other = exportFixture('Theirs');
 
@@ -192,7 +192,7 @@ test('the profile file has the account and profile, and none of the secrets', fu
         ->and($text)->not->toContain('SECRETSECRET')->not->toContain('RECOVERY')->not->toContain('REMEMBERME')->not->toContain($user->password)->not->toContain('secret-name.jpg');
 });
 
-test('a reader with nothing yet still gets all eleven files', function () {
+test('a reader with nothing yet still gets all twelve files', function () {
     $user = User::factory()->create();
 
     (new ExportUserData($user->id))->handle();

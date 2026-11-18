@@ -5,10 +5,13 @@ namespace App\Providers;
 use App\Discovery\Search\QueryParser;
 use App\Discovery\Search\RuleBasedQueryParser;
 use App\Enums\Visibility;
+use App\Models\Collection;
 use App\Models\Creator;
 use App\Models\Demographic;
 use App\Models\Genre;
 use App\Models\MediaType;
+use App\Models\Profile;
+use App\Models\Review;
 use App\Models\Theme;
 use App\Models\Trope;
 use App\Models\User;
@@ -56,6 +59,10 @@ class AppServiceProvider extends ServiceProvider
             'demographic' => Demographic::class,
             'media_type' => MediaType::class,
             'creator' => Creator::class,
+            // What a report points at (reports.reportable_type).
+            'review' => Review::class,
+            'collection' => Collection::class,
+            'profile' => Profile::class,
         ]);
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
@@ -79,6 +86,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('follows', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.follows_per_hour'))->by($user->id));
 
         RateLimiter::for('reviews', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reviews_per_hour'))->by($user->id));
+        RateLimiter::for('reports', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reports_per_hour'))->by($user->id));
 
         // pdf.js reads a file in many small ranges, so a reader gets a roomy allowance (per person, not per address).
         // One save every couple of seconds while reading, plus the beacons; a person, not an address.

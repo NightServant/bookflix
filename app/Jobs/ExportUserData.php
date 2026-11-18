@@ -67,6 +67,7 @@ class ExportUserData implements ShouldQueue
                 'searches.json' => $this->searches($user),
                 'following.json' => $this->following($user),
                 'reviews.json' => $this->reviews($user),
+                'reports.json' => $this->reports($user),
             ];
 
             foreach ($lists as $name => $rows) {
@@ -395,6 +396,28 @@ class ExportUserData implements ShouldQueue
                 'status' => $row->status,
                 'created_at' => $this->time($row->created_at),
                 'updated_at' => $this->time($row->updated_at),
+            ];
+        }
+    }
+
+    /**
+     * The reports the reader filed: what kind of thing, why, and how it was settled. Never who or what was reported, or what the moderator did.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function reports(User $user): Generator
+    {
+        $rows = DB::table('reports')
+            ->where('reporter_id', $user->id)
+            ->select('id', 'reportable_type', 'reason', 'status', 'created_at')
+            ->lazyById(self::CHUNK, 'id');
+
+        foreach ($rows as $row) {
+            yield [
+                'target_type' => $row->reportable_type,
+                'reason' => $row->reason,
+                'status' => $row->status,
+                'created_at' => $this->time($row->created_at),
             ];
         }
     }
