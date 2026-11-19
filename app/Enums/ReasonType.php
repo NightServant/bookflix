@@ -10,7 +10,6 @@ enum ReasonType: string
     case BecauseYouRead = 'because_you_read';
     case SimilarThemes = 'similar_themes';
     case PopularWithSimilarReaders = 'popular_with_similar_readers';
-    case PopularWithFollowed = 'popular_with_followed';
     case MatchesInterest = 'matches_interest';
     case Trending = 'trending';
     case Editorial = 'editorial';

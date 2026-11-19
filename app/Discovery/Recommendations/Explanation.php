@@ -38,7 +38,6 @@ final readonly class Explanation
             ReasonType::BecauseYouRead => self::with($this->reasonTitle, 'Because you read :title'),
             ReasonType::SimilarThemes => self::with($this->reasonTitle, 'Similar themes to :title'),
             ReasonType::PopularWithSimilarReaders => self::with($this->reasonTitle, 'Popular with readers who enjoyed :title'),
-            ReasonType::PopularWithFollowed => (string) __('Popular with readers you follow'),
             ReasonType::MatchesInterest => self::with($this->genre, 'Matches your interest in :genre', 'genre'),
             ReasonType::Trending => (string) __('Trending now'),
             ReasonType::Editorial => (string) __('Picked by our editors'),
