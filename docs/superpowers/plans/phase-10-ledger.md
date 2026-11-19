@@ -60,11 +60,13 @@ Plan: `2026-10-23-phase-10-social.md` on `claude/phase-plans-7d02cb` (PR #3, doc
 
 | Task | State | Commit |
 |---|---|---|
-| 10.1 Public profiles and libraries | backend next | |
-| 10.2 Following | backend next | |
-| 10.3 Reviews | backend next | |
-| 10.4 Reports and moderation | backend next | |
-| 10.5 Review summaries | backend next | |
-| 10.6 Shared collections | backend next | |
-| 10.7 Activity feed and followed-readers source | backend next | |
-| Screens | waiting for the design sign-off | |
+| 10.1 Public profiles and libraries | backend done; screens wait for sign-off | 2bd5354 |
+| 10.2 Following | backend done; screens wait for sign-off | 2bd5354 |
+| 10.3 Reviews | backend done; screens wait for sign-off | 7f586c4 |
+| 10.4 Reports and moderation | backend done; screens wait for sign-off | 7107d9d |
+| 10.5 Review summaries | ML route 9f00ead; job and table done | 041bc65 |
+| 10.6 Shared collections | clone and handle lookup done; screens wait for sign-off | b2bd9fc |
+| 10.7 Activity feed and followed-readers source | backend done; page waits for sign-off | 30015eb |
+| Screens | Figma "Phase 10 Screens" drawn 2026-11-19, waiting for sign-off | |
+
+Backend gate on 30015eb: `composer test` 3078 passed (lint, PHPStan level 7 clean).
