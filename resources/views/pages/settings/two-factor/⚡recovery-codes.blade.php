@@ -61,9 +61,12 @@ new class extends Component {
     </div>
 
     <div class="px-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {{-- Two equal columns on a wide screen, two full-width rows on a phone. White, not red: red is kept for reading. --}}
+        <div class="grid gap-3 sm:grid-cols-2" data-test="recovery-code-actions">
             <x-cta
                 x-show="!showRecoveryCodes"
+                variant="light"
+                class="w-full"
                 icon="eye"
                 icon:variant="outline"
                 @click="showRecoveryCodes = true;"
@@ -75,6 +78,8 @@ new class extends Component {
 
             <x-cta
                 x-show="showRecoveryCodes"
+                variant="light"
+                class="w-full"
                 icon="eye-slash"
                 icon:variant="outline"
                 @click="showRecoveryCodes = false"
@@ -89,6 +94,7 @@ new class extends Component {
                     x-show="showRecoveryCodes"
                     icon="arrow-path"
                     variant="secondary"
+                    class="w-full"
                     wire:click="regenerateRecoveryCodes"
                 >
                     {{ __('Regenerate codes') }}
