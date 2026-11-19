@@ -200,21 +200,23 @@ new class extends Component {
                         />
                     </div>
 
-                    <div class="flex items-center space-x-3">
+                    {{-- Two columns on a wide screen, two rows on a phone. --}}
+                    <div class="grid gap-3 sm:grid-cols-2">
                         <x-cta
                             variant="secondary"
                             icon="arrow-left"
                             icon:variant="outline"
-                            class="flex-1"
+                            class="w-full"
                             wire:click="resetVerification"
                         >
                             {{ __('Back') }}
                         </x-cta>
 
                         <x-cta
+                            variant="light"
                             icon="check"
                             icon:variant="outline"
-                            class="flex-1"
+                            class="w-full"
                             wire:click="confirmTwoFactor"
                             x-bind:disabled="$wire.code.length < 6"
                         >
@@ -249,7 +251,7 @@ new class extends Component {
                 <div>
                     <x-cta
                         :disabled="$errors->has('setupData')"
-                        variant="primary"
+                        variant="light"
                         icon:trailing="arrow-right"
                         icon-trailing:variant="outline"
                         class="w-full"

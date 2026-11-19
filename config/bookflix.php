@@ -62,7 +62,7 @@ return [
         ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'discover', 'active' => ['discover', 'explore.*']],
         ['label' => 'Search', 'icon' => 'magnifying-glass', 'route' => 'search', 'active' => ['search'], 'desktop' => false],
         ['label' => 'Library', 'icon' => 'book-open', 'route' => 'library.index', 'active' => ['library.*', 'collections.*', 'history.*']],
-        ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.edit', 'active' => ['profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']],
+        ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.show', 'active' => ['profile.show', 'profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']],
     ],
 
     /*
@@ -93,6 +93,7 @@ return [
         ]],
         ['group' => 'People', 'items' => [
             ['label' => 'Users', 'icon' => 'users', 'route' => 'admin.users', 'active' => ['admin.users']],
+            ['label' => 'Reports', 'icon' => 'flag', 'route' => 'admin.moderation', 'active' => ['admin.moderation'], 'count' => 'reports'],
         ]],
     ],
 
@@ -217,6 +218,43 @@ return [
         'link_hours' => 24,
         'retention_days' => 7,
         'cooldown_minutes' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Social
+    |--------------------------------------------------------------------------
+    |
+    | Per-hour limits for reviews, reports and collection copies, and the review
+    | summary thresholds.
+    |
+    */
+
+    'social' => [
+        'reviews_per_hour' => 10,
+        'reports_per_hour' => 10,
+        // A story's "What readers say" summary needs this many qualifying reviews, and is rebuilt this long after the first change (a burst makes one job).
+        'review_summary_min_reviews' => 5,
+        'review_summary_delay_minutes' => 10,
+        'collection_clones_per_hour' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Outside Reviews
+    |--------------------------------------------------------------------------
+    |
+    | Reviews and ratings read from the providers' official APIs (P10-R20). `outside_enabled` switches the
+    | nightly run (`bookflix:refresh-outside-reviews`); it is off until
+    | each source's terms are confirmed. A story's outside data is refreshed when it is `outside_stale_days` old.
+    |
+    */
+
+    'reviews' => [
+        'outside_enabled' => (bool) env('BOOKFLIX_OUTSIDE_REVIEWS_ENABLED', false),
+        'outside_stale_days' => 30,
+        // Each source's own rating scale: ratings are stored 0 to 100 and shown back on the scale the source uses.
+        'outside_scales' => ['anilist' => 100, 'hardcover' => 5, 'mangaupdates' => 10, 'openlibrary' => 5],
     ],
 
     /*

@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
 use Livewire\Livewire;
 
-const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json'];
+const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json', 'reviews.json', 'reports.json'];
 
 /**
  * A reader with one row in every table the export reads, one of them behind the mature gate.
@@ -39,7 +39,7 @@ const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'colle
 function exportFixture(string $label = 'Mine'): User
 {
     $user = User::factory()->create(['name' => "{$label} Reader", 'email' => strtolower($label).'-reader@example.test']);
-    $user->profile()->updateOrCreate([], ['bio' => "{$label} bio", 'avatar_path' => "avatars/{$user->id}/secret-name.jpg"]);
+    $user->profile()->updateOrCreate([], ['headline' => "{$label} headline", 'bio' => "{$label} bio", 'avatar_path' => "avatars/{$user->id}/secret-name.jpg"]);
     UserPreference::factory()->for($user)->create(['preferable_type' => 'genre', 'preferable_id' => Genre::factory()->create(['name' => "{$label} Genre", 'slug' => strtolower($label).'-genre'])->id]);
 
     $story = Media::factory()->create(['title' => "{$label} Story"]);
@@ -118,7 +118,7 @@ beforeEach(function () {
     Notification::fake();
 });
 
-test('the export zip holds the nine files, with every one of the readers own rows and nothing else', function () {
+test('the export zip holds the eleven files, with every one of the readers own rows and nothing else', function () {
     $user = exportFixture('Mine');
     $other = exportFixture('Theirs');
 
@@ -168,7 +168,8 @@ test('the rows say what they are: stories by title, in the readers terms', funct
 
     expect($entry)->toMatchArray(['media_id' => $story->id, 'slug' => $story->slug, 'status' => 'reading', 'favorite' => true])
         ->and($entry['added_at'])->toBeString()->and($entry['favorited_at'])->toBeString()
-        ->and($collection)->toMatchArray(['name' => 'Mine Shelf', 'description' => 'Kept close', 'visibility' => 'private'])
+        ->and($collection)->toMatchArray(['name' => 'Mine Shelf', 'description' => 'Kept close'])
+        ->and($collection)->not->toHaveKey('visibility')
         ->and(collect($collection['items'])->pluck('title')->all())->toBe(['Mine Story', 'Mine Gated Tale'])
         ->and($collection['items'][0])->toMatchArray(['position' => 0, 'note' => 'Start here', 'media_id' => $story->id])
         ->and($rating)->toMatchArray(['media_id' => $story->id, 'score' => 9])
@@ -187,12 +188,13 @@ test('the profile file has the account and profile, and none of the secrets', fu
     $text = exportText($user);
 
     expect($profile['account'])->toMatchArray(['id' => $user->id, 'name' => 'Mine Reader', 'email' => 'mine-reader@example.test'])
-        ->and($profile['profile'])->toMatchArray(['bio' => 'Mine bio', 'profile_visibility' => 'private', 'personalization_enabled' => true, 'has_avatar' => true])
+        ->and($profile['profile'])->not->toHaveKeys(['profile_visibility', 'library_visibility'])
+        ->and($profile['profile'])->toMatchArray(['headline' => 'Mine headline', 'bio' => 'Mine bio', 'personalization_enabled' => true, 'has_avatar' => true])
         ->and($profile['exported_at'])->toBeString()
         ->and($text)->not->toContain('SECRETSECRET')->not->toContain('RECOVERY')->not->toContain('REMEMBERME')->not->toContain($user->password)->not->toContain('secret-name.jpg');
 });
 
-test('a reader with nothing yet still gets all nine files', function () {
+test('a reader with nothing yet still gets all eleven files', function () {
     $user = User::factory()->create();
 
     (new ExportUserData($user->id))->handle();

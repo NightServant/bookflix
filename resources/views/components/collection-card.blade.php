@@ -6,7 +6,7 @@
     CollectionPreviews gives (`count`, `covers`). For a list of collections on a page of their own use <x-collection-row>.
 --}}
 <a
-    href="{{ route('collections.show', ['slug' => $collection->slug, 'owner' => $collection->user_id]) }}"
+    href="{{ route('collections.show', ['slug' => $collection->slug]) }}"
     wire:navigate
     {{ $attributes->class('group focus-ring block w-60 shrink-0 rounded-card bg-surface-card p-3 hover:bg-surface-input sm:w-68') }}
 >

@@ -2,13 +2,11 @@
 
 {{--
     One collection as a row of a list: a stack of its first covers, the name, and a line of facts (how many stories the reader may see,
-    who may see it, when it last changed). The whole row is the link, 44px tall at the least. `preview` is what CollectionPreviews gives:
-    `count` and `covers`. A link names its owner, so a collection of the same name by another reader cannot take its place; `editorial` links to
-    the staff pick itself (a reader's own collection of the same name cannot take its place) and swaps the visibility for "Staff pick". Give each row a `wire:key` in the loop.
+    when it last changed). The whole row is the link, 44px tall at the least. `preview` is what CollectionPreviews gives:
+    `count` and `covers`. `editorial` links to the staff pick itself (a reader's own collection of the same name cannot take its place) and marks it "Staff pick". Give each row a `wire:key` in the loop.
 --}}
 @php
-    $href = route('collections.show', ['slug' => $collection->slug] + ($editorial ? ['editors' => 1] : ['owner' => $collection->user_id]));
-    $public = $collection->visibility === \App\Enums\Visibility::Public;
+    $href = route('collections.show', ['slug' => $collection->slug] + ($editorial ? ['editors' => 1] : []));
 @endphp
 
 <a href="{{ $href }}" wire:navigate {{ $attributes->class('group focus-ring flex min-h-11 items-center gap-4 rounded-control py-4 sm:gap-6') }}>
@@ -35,8 +33,6 @@
             @endif
             @if ($editorial)
                 <span class="inline-flex items-center gap-1"><flux:icon name="sparkles" variant="micro" class="size-4" />{{ __('Staff pick') }}</span>
-            @else
-                <span class="inline-flex items-center gap-1"><flux:icon :name="$public ? 'globe-alt' : 'lock-closed'" variant="micro" class="size-4" />{{ $public ? __('Public') : __('Private') }}</span>
             @endif
             <span>{{ __('Updated') }} <time datetime="{{ $collection->updated_at->toIso8601String() }}" title="{{ $collection->updated_at->toFormattedDateString() }}">{{ $collection->updated_at->diffForHumans() }}</time></span>
         </span>

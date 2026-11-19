@@ -65,6 +65,8 @@ class ExportUserData implements ShouldQueue
                 'history.json' => $this->history($user),
                 'interactions.json' => $this->interactions($user),
                 'searches.json' => $this->searches($user),
+                'reviews.json' => $this->reviews($user),
+                'reports.json' => $this->reports($user),
             ];
 
             foreach ($lists as $name => $rows) {
@@ -116,12 +118,11 @@ class ExportUserData implements ShouldQueue
                 'updated_at' => $this->time($user->updated_at),
             ],
             'profile' => [
+                'headline' => $profile->headline,
                 'bio' => $profile->bio,
                 'has_avatar' => filled($profile->avatar_path),
                 'preferred_languages' => $profile->preferred_languages,
                 'reading_length' => $profile->reading_length->value,
-                'profile_visibility' => $profile->profile_visibility->value,
-                'library_visibility' => $profile->library_visibility->value,
                 'personalization_enabled' => $profile->personalization_enabled,
                 'show_mature' => $profile->show_mature,
                 'adult_confirmed_at' => $this->time($profile->adult_confirmed_at),
@@ -217,7 +218,6 @@ class ExportUserData implements ShouldQueue
                 'name' => $collection->name,
                 'slug' => $collection->slug,
                 'description' => $collection->description,
-                'visibility' => $collection->visibility,
                 'is_editorial' => (bool) $collection->is_editorial,
                 'created_at' => $this->time($collection->created_at),
                 'updated_at' => $this->time($collection->updated_at),
@@ -343,6 +343,55 @@ class ExportUserData implements ShouldQueue
                 'query' => $row->query,
                 'filters' => json_decode($row->filters ?? '[]'),
                 'results_count' => $row->results_count,
+                'created_at' => $this->time($row->created_at),
+            ];
+        }
+    }
+
+    /**
+     * The reviews the reader wrote and still has, with their status (a hidden one says so). Deleted reviews are gone.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function reviews(User $user): Generator
+    {
+        $rows = DB::table('reviews')
+            ->join('media', 'media.id', '=', 'reviews.media_id')
+            ->where('reviews.user_id', $user->id)
+            ->whereNull('reviews.deleted_at')
+            ->select('reviews.id', 'media.title', 'media.slug', 'reviews.body', 'reviews.has_spoilers', 'reviews.status', 'reviews.created_at', 'reviews.updated_at')
+            ->lazyById(self::CHUNK, 'reviews.id', 'id');
+
+        foreach ($rows as $row) {
+            yield [
+                'title' => $row->title,
+                'slug' => $row->slug,
+                'body' => $row->body,
+                'has_spoilers' => (bool) $row->has_spoilers,
+                'status' => $row->status,
+                'created_at' => $this->time($row->created_at),
+                'updated_at' => $this->time($row->updated_at),
+            ];
+        }
+    }
+
+    /**
+     * The reports the reader filed: what kind of thing, why, and how it was settled. Never who or what was reported, or what the moderator did.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function reports(User $user): Generator
+    {
+        $rows = DB::table('reports')
+            ->where('reporter_id', $user->id)
+            ->select('id', 'reportable_type', 'reason', 'status', 'created_at')
+            ->lazyById(self::CHUNK, 'id');
+
+        foreach ($rows as $row) {
+            yield [
+                'target_type' => $row->reportable_type,
+                'reason' => $row->reason,
+                'status' => $row->status,
                 'created_at' => $this->time($row->created_at),
             ];
         }

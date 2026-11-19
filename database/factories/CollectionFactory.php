@@ -23,17 +23,8 @@ class CollectionFactory extends Factory
             'user_id' => User::factory(),
             'name' => fake()->unique()->words(2, true),
             'slug' => fn (array $attributes): string => Str::slug($attributes['name']),
-            'visibility' => 'private',
             'is_editorial' => false,
         ];
-    }
-
-    /**
-     * A public collection.
-     */
-    public function public(): static
-    {
-        return $this->state(fn () => ['visibility' => 'public']);
     }
 
     /**
@@ -41,6 +32,7 @@ class CollectionFactory extends Factory
      */
     public function editorial(): static
     {
-        return $this->state(fn () => ['is_editorial' => true]);
+        // A staff pick is an admin's collection (P10-R3): readers' collections are private and never editorial.
+        return $this->state(fn () => ['is_editorial' => true, 'user_id' => User::factory()->admin()]);
     }
 }

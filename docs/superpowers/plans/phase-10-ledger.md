@@ -1,0 +1,119 @@
+# Phase 10 ledger (social)
+
+Plan: `2026-10-23-phase-10-social.md` on `claude/phase-plans-7d02cb` (PR #3, docs only). Master plan: Part E Phase 10, Part F, A6 (Social), A12, A16, Q5, Q14. The spec the plan cites is not in this environment; the plan and the master plan are the source. Branch `phase-10-social`, cut from main at db2f588.
+
+## Conflict scan (against main at db2f588)
+
+- **Profiles** (`profiles`): `avatar_path`, `bio`, `profile_visibility` and `library_visibility` enum(private, public) default private, `personalization_enabled`, `show_mature`. No handle; the display name is `users.name`. Visibility is set on Settings, Privacy.
+- **Gates:** `access-admin` (is_admin), `use-reader-side` (not admin), `view-library(?viewer, owner)` = the owner, or the library is public and the owner is active. Nothing uses `view-library` yet. There is no `view-profile`.
+- **Admin-only accounts** (#32): the `reader` middleware keeps admins off every reader route; admins have no reader side. Admin pages are `Route::livewire` under `can:access-admin`, with navigation in `config('bookflix.admin_navigation')`.
+- **Navigation:** `config('bookflix.navigation')` has Home, Discover, Search (mobile only), Library and Profile; Profile goes to Settings (`profile.edit`).
+- **Collections already have a public view.** `CollectionPolicy::view` allows the owner, an editorial collection, or a public one whose owner is active. `collections.show` resolves `?owner={user_id}` (and `?editors=1` for staff picks), and Discover links public collections that way. `collection_items.note` (500) exists. There is no clone and no share link.
+- **Reviews:** no table. `InteractionEvent::Review` exists (weight 4 in A12).
+- **Summaries:** Phase 7's description summaries are an ML **batch job** (`summarize-media`) that reads Postgres and writes `media_summaries` (media_id, summary, source_hash, method, generated_at). `MlClient` has no `summarize` method and the ML service has no summarize endpoint. `media_features` belongs to an LSA model version (`model_version_id`), so it is the wrong home for review summaries.
+- **Recommendations:** sources extend `Sources\Source` (live media, `Media::visibleTo`, not in the library, not dismissed); `CandidatePool::PERSONALIZED` lists the sources skipped for an opted-out reader; `recommendations.reason_type` is a plain string column (no check constraint), and `Explanation` holds the templates.
+- **Story page:** `<x-tabs>` with Overview, Series and Related; query budgets 31 (and 27 for the cached cases) in `StoryPageTest`.
+- **Events:** `LibraryChanged` → `ForgetHomeShelves`.
+- **Purge:** `bookflix:purge-deactivated-accounts` deletes the avatar, exports and uploaded content sources, then the user (foreign keys cascade). **Export:** `ExportUserData` has account, profile, preferences, library, ratings, collections and history; nothing social.
+- **Morph map:** `Relation::morphMap` (not enforced) with genre, theme, trope, demographic, media_type, creator.
+- **Rate limiters:** defined in `AppServiceProvider`.
+- **Mature gate:** `Media::scopeVisibleTo(?User)` and `Media::isGatedFor(?User)`.
+- **No sitemap exists**, so the plan's "sitemap exclusion" has nothing to do.
+
+## Rulings
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| P10-R1 | Order. Backend first while the screens wait for sign-off: 10.1's handle, gates and lookups; 10.2's actions; 10.3's model, actions and `Markdown::safe`; 10.4's report and moderation actions; 10.5's job and ML endpoint; 10.6's clone action; 10.7's feed query and source. Every screen (profile, library, connections, follow button, story Reviews tab and form, report dialog, admin Reports page, activity page, collection share and Save a copy, the handle field, What readers say) waits for the design sign-off. | Backend shapes may need small changes once the screens are signed off. |
+| P10-R2 | Handles: `profiles.handle` string(32) null, unique, stored lowercase, `^[a-z0-9_]{3,32}$`, never in `config('bookflix.social.reserved_handles')` (admin, administrator, api, bookflix, help, me, mod, moderator, root, settings, staff, support, system and the app's first path segments). Input is lowercased, so uniqueness is case-insensitive. A profile can be made public only once it has a handle. Changing a handle frees the old one; the old URL answers 404 (no redirect). | A reader must pick a handle before going public. |
+| P10-R3 | One seam. `view-profile(?viewer, owner)`: the owner, or the owner is not an admin, is active, has a public profile that moderators have not hidden. `view-library` becomes: the owner, or `view-profile` and a public library. Every refusal is **404**, never 403, so a private profile's existence never leaks. Routes, all under `auth`, `verified`, `reader` (settled: signed-in readers only): `/u/{handle}` (`profile.show`), `/u/{handle}/library` (`profile.library`), `/u/{handle}/followers` and `/u/{handle}/following` (`profile.connections`), `/u/{handle}/collections/{slug}` (the existing collection page, resolved by handle). | A guest sent a link meets sign-in. |
+| P10-R4 | A public profile shows name, handle, avatar, bio, follower and following counts, recent reviews and public collections. Lists **and counts** include only active, non-admin users with public profiles, for every viewer including the owner, so a private reader never shows up in anyone's list. Never shown: email, ids, preferences, interactions, progress. Ratings and reading status appear only on the public library page. Favourite genres appear only when the library is public, taken from completed and favourite stories. | The owner's own counts can be lower than their real follower rows. |
+| P10-R5 | The mature gate holds on every social surface: profile reviews, library, collections, activity, the followed-readers source and story reviews all list media through `Media::visibleTo($viewer)`. | None; it matches every other listing. |
+| P10-R6 | Following per the plan: `follows` (`follower_id`, `followed_id`, `created_at`; primary key on both; both cascade; index on `followed_id`). `FollowUser` rejects self, admin, deactivated, private and moderator-hidden targets (`ValidationException`, key `follow`) and is idempotent; `UnfollowUser` is idempotent and always allowed. Settled: no follow requests. When a profile goes private its follows stay but grant nothing. 60 follows an hour per reader. | Followers of a profile that went private silently stop seeing it. |
+| P10-R7 | Reviews: `reviews` (`user_id` and `media_id` cascade, `body` text, `has_spoilers` default false, `status` enum(published, hidden) default published, timestamps, soft deletes) with a **partial unique index on (user_id, media_id) where deleted_at is null**, so a deleted review can be written again. Settled: any signed-in reader may review any story they can see. `SaveReview` creates or edits the live one (body required, at most 5,000 characters after trimming; 10 saves an hour) and records `InteractionEvent::Review` once, on creation, through the opt-out-aware recorder. Editing a hidden review keeps it hidden. A deleted-then-rewritten review starts published; moderators can hide it again. Reviews show on the story page whatever the author's profile visibility (publishing one is the choice); the author's name links to their profile only when `view-profile` allows. Hidden reviews are shown only to their author, with a notice. | The delete-and-repost case needs a second report. |
+| P10-R8 | `Markdown::safe(string): HtmlString` renders with `html_input => strip` and `allow_unsafe_links => false`, renders paragraphs, emphasis, strong, lists, block quotes, inline code and links (http, https, mailto) only. Images render as their alt text (no external image loads), and headings render as paragraphs. Links get `rel="nofollow ugc noopener noreferrer"`. The editor is a plain `flux:textarea`; no EasyMDE (no new dependency). Spoilers: on the story page the body sits in a closed `<details>`; on profiles and in the feed it is never sent ("Contains spoilers"). | Readers lose headings and images in reviews. |
+| P10-R9 | Reports per the plan: `reports` (`reporter_id` cascade, `morphs(reportable)`, `reason` enum(spam, abuse, spoiler, copyright, other), `details` text null (at most 1,000), `status` enum(open, actioned, dismissed) default open, `handled_by` null on delete, `handled_at`, timestamps, index on (status, created_at)) plus a partial unique index on (reporter_id, reportable_type, reportable_id) where status is open. Targets: a published review, a public non-editorial collection, a public profile, each one the reporter can see and that is not their own. A duplicate open report returns the existing one. 10 reports an hour. Reports never hide anything by themselves. Morph map gains `review`, `collection`, `profile`. | Staff picks can't be reported (admins made them). |
+| P10-R10 | Moderation: a new admin page, **Reports** (`admin.moderation`, in `admin_navigation` with the open count). Oldest open first; filters for status, type and reason; the reported content is shown inline (spoilers included, rendered with `Markdown::safe`); a deleted target shows "Removed". Actions: **Hide** (review → hidden; collection → private plus `moderation_hidden_at`; profile → private plus `moderation_hidden_at`; sibling open reports become actioned), **Dismiss**, and **Restore** (review → published; collection and profile: `moderation_hidden_at` cleared, visibility stays private for the owner to choose). Every action records `handled_by` and `handled_at`. While `moderation_hidden_at` is set the owner can't make it public again, and their settings say why. `collections.moderation_hidden_at` and `profiles.moderation_hidden_at` are new columns. | Restore is beyond the plan's hide/dismiss; without it a mistaken hide could not be undone. |
+| P10-R11 | Review summary: the ML service gains `POST /summarize` (token auth like the other routes) running the existing `LsaSummarizer` on text of at most 20,000 characters, and `MlClient::summarize(string $text, int $sentences = 3): ?string`. Laravel's `SummarizeReviews` job (unique per story while queued, delayed 10 minutes) builds the text from **published, non-spoiler reviews by active, non-admin authors**, newest first, and stores it in a new `review_summaries` table (`media_id` primary key, `summary`, `review_count`, `source_hash`, `generated_at`). With fewer than 5 such reviews the row is deleted. Hiding or deleting a review, or deactivating its author, deletes the story's summary at once and queues a new one, so hidden text never lingers. ML down: the previous summary stays (except in those cases) and nothing throws. The story page's "What readers say" shows it, escaped, only from 5 reviews up. | One more ML route; summaries lag new reviews by up to 10 minutes. |
+| P10-R12 | Shared collections: the existing view rule stays and gains "not moderator-hidden" and "owner not an admin" (editorial excepted). New: the handle route, a Copy link button (`navigator.clipboard`, with the link selected as a fallback), and **Save a copy** (`CloneCollection`): a private copy owned by the reader, items in order, a unique slug, **without the original's notes**. Notes show only to the owner. Items are filtered by `visibleTo($viewer)`. A public collection stays viewable when its owner's profile is private (as today); the owner's name links only when `view-profile` allows. | Notes are not copied. |
+| P10-R13 | Activity feed: its own page, `/activity` (`activity`), derived from existing tables (no new table): finished a story (`user_library.completed_at`, library public), rated (library public), published a review (spoilers: "reviewed X, spoilers hidden", no body), made a public collection. Only from followed users who are active, non-admin and have a public profile; media through `visibleTo`. Newest first with **cursor pagination** (20 a page) so new events don't shift pages; no cache, so a visibility change shows at once; at most 8 queries. Where it sits in the navigation is decided in the design. | A union query over four tables; indexes are checked in the task. |
+| P10-R14 | `FollowedReadersSource` (key `followed_readers`): stories completed or rated 8 or more by followed users who are active, non-admin, with a public profile and a public library; score is the distinct followers count over the largest; the `Source` base already drops the library, dismissed titles and gated media. Reason `ReasonType::PopularWithFollowed` (`popular_with_followed`), template "Popular with readers you follow"; the payload carries the count, never names. It is not in `CandidatePool::PERSONALIZED`: it reads whom the reader follows, not their behaviour, so an opted-out reader who follows people still gets it. `reason_type` is a string column, so no migration. Its ranking weight follows how the code weights the collaborative source. | One more source in every recommendation build. |
+| P10-R15 | Deactivation (Q5: no reactivation): deactivated users vanish through `User::active()` in every query: reviews, follows, counts, feed, source, summaries, profile URLs (404). The purge's cascades delete their reviews, follows and reports; `handled_by` goes null. The export gains `reviews` (with status), `following` (handles) and `reports` (reason, status, date). | None. |
+| P10-R16 | Rate limits are named limiters (`reviews` 10/hour, `reports` 10/hour, `follows` 60/hour, per user) applied inside the actions, so Livewire calls count too. | None. |
+| P10-R17 | The navigation Profile item opens the reader's own public profile when they have a handle (that page has "Edit profile"); without one it stays on Settings. Final placement is part of the design sign-off. | A layout test asserts the nav. |
+| P10-R18 | Story page query budgets rise by what the Reviews tab and What readers say need, each named in the test's comment. | None. |
+
+## Changed by the user (2026-11-19), after the first screens
+
+The first Phase 10 screens were not signed off. The user changed the phase:
+
+- **Every profile is private.** No public profiles, libraries or follower lists. Settled in answers the same day: following, the activity feed, the followed-readers source and profile reports are **removed** from the branch.
+- **Collections are private too.** Readers can't publish collections. Staff picks become editorial collections that admins make in the admin area (a new admin screen). Existing staff picks made from readers' collections end; readers' collections are not republished.
+- **Reviews come from outside sources and from readers.** Reader reviews, spoilers, moderation and "What readers say" stay. Outside reviews come from **official APIs only** (no scraping): a short excerpt, the rating, the source and a link back, never the full text.
+- **The profile page looks like LinkedIn and JobStreet profiles** (banner, avatar over it, headline, sections as cards), in the Bookflix design system, and only its owner sees it.
+
+### Rulings replaced or added
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| P10-R2 | **Withdrawn.** No handles: nothing has a public address. | |
+| P10-R3 | **Replaced.** Profiles, libraries and collections are visible to their owner only; editorial collections to every reader. `profiles.profile_visibility`, `profiles.library_visibility` and `collections.visibility` are dropped (a migration makes the rule the schema), with the Privacy page's visibility choices and the collection page's "Who can see it". `view-profile` and `view-library` go; `CollectionPolicy::view` is the owner or an editorial collection. | Reversing this later needs the columns back. |
+| P10-R4, R6, R13, R14 | **Withdrawn** with following, the activity feed and the followed-readers source. | |
+| P10-R9, R10 | **Narrowed.** Reports and moderation cover reviews only: reader reviews and outside reviews. `collections.moderation_hidden_at` and `profiles.moderation_hidden_at` go. | |
+| P10-R12 | **Replaced.** "Save a copy" stays for editorial collections (a private copy, items in order, no notes). Staff picks: admins create and edit editorial collections in the admin area (owned by the admin who made them); the old toggle over readers' public collections goes. | Discover and Home show no staff-pick rows until admins make some. |
+| P10-R17 | **Replaced.** The Profile item opens the reader's own profile page (`/profile`), which links to Profile settings. | |
+| P10-R19 | **Own profile page** (`/profile`, owner only): a banner (token gradient, no upload), avatar, name, a new optional **headline** (`profiles.headline`, at most 120 characters), "Only you can see this page", a "Your reading" analytics card (finished this year, time read, reviews, collections), About (bio), profile strength with next steps, currently reading, finished by year, favourite genres, reviews and collections, all from existing tables. | One more column. |
+| P10-R20 | **Outside reviews** (official APIs only, through the existing providers, their switches, allowed hosts and rate limits): AniList community reviews (the reviewer's own short summary, score, link) and score; Hardcover reviews (excerpt, rating, link) and rating; Open Library ratings (average, count); MangaUpdates rating (Bayesian, votes). Stored in `external_reviews` (media, source, external id unique per source, author name, rating 0–100, plain-text excerpt at most 300 characters, url, published_at, fetched_at, hidden_at, hidden_by) and `external_ratings` (media, source, score 0–100, votes, url, fetched_at). Refreshed by a queued job when a story page is opened and its data is over 30 days old, plus a nightly run for the most-read stories. Spoiler-marked outside reviews are skipped. Readers can report an outside review; moderators hide it. The NYT Books API (critic reviews) needs a new key and a terms check and is deferred. Each source's terms are for the user to confirm (from this environment the terms pages were unreachable); AniList's say commercial use is free under $150 a month in revenue. | Fewer outside reviews for novels than for manga. |
+
+### Design sign-off (2026-11-19)
+
+The revised "Phase 10 Screens" were signed off by the user on 2026-11-19 ("Revised screens are so much better, build the screens"): 01 your profile, 03 story Reviews tab with Around the web and Ratings, 04 report dialog, 07 staff pick, 08 profile settings with Headline, 09 admin Reports, 10 admin Staff picks editor.
+
+### Code review of the first backend (2026-11-19)
+
+Nine findings. 3 to 6 are in code now removed. To fix in the rework: (1) `SummarizeReviews` is `ShouldBeUnique` but must be unique only while queued, and must not write text that changed while the ML call ran; (2) a media merge must move or retire reviews and summaries; (7) a malformed ML answer must not delete the stored summary; (8) reporting a review of a deleted story must not 500; (9) `review_count` must store the qualifying count.
+
+## Settled with the user (2026-11-18)
+
+- Per-story discussions (10.8): **deferred**, recorded below.
+- Public profiles, libraries and collections: **signed-in readers only** (the plan).
+- Following a private profile: **not allowed**; no follow requests (the plan).
+- Reviews: **any signed-in reader** may review any story they can see.
+
+## Changed by the user while the screens were built (2026-11-20)
+
+- Reviews show the reviewer's headline under their name (P10-R21). The headline was private to the profile page; it now shows wherever the reader's
+  reviews show, and the Settings help, the profile's "Your reviews" line and "Private by design" say so.
+- Each reader's review is one card: avatar, name, headline, date and the review (P10-R22). A spoiler review stays in that card, as one inline line
+  that opens it; no box of its own. The avatar spans the name, headline and date.
+- On a phone, the profile's "Continue reading" is full width at the standard 44 px height.
+- "Two step verification" buttons: two columns on a desktop, two rows on a phone. Done on Verify email (Resend email, Log out), and also on the
+  two-factor sign-in challenge (its recovery-code switch became a real button, reachable by keyboard) and Security's recovery codes.
+
+Decided while building: Dismiss closes every open report about the thing, as Hide does (Admin, Reports shows one card per thing); a staff pick is any
+collection an admin owns, "Off" being one not shown to readers (no new column); the Reviews tab loads when first shown, so the story page's own
+queries are unchanged; outside reviews can be reported, hidden and restored like reader reviews.
+
+Note on history: commit 94b0e35 is labelled as a ledger change but also holds most of the removal of follows, handles and the activity feed (staged
+deletions swept into it). History is not rewritten.
+
+## Deferred
+
+- 10.8 per-story discussions (settled 2026-11-18): after 10.1–10.7 have proved out, in a phase of their own.
+- Follow requests for private profiles.
+- Guest-visible public pages.
+
+## Tasks
+
+| Task | State | Commit |
+|---|---|---|
+| 10.1 Your profile (owner only; public profiles withdrawn) | done | 2bd5354, 96ac076, 42a98b3, 47e1660 |
+| 10.2 Following | withdrawn by the user (2026-11-19) | 8b42b80, 94b0e35 |
+| 10.3 Reviews, with outside reviews from official APIs | done | 7f586c4, 716d619, fd3e917, 26aab60 |
+| 10.4 Reports and moderation (Admin, Reports) | done | 7107d9d, fd3e917, 921b54d |
+| 10.5 Review summaries | done | 9f00ead, 041bc65 |
+| 10.6 Staff picks: admin editor, Save a copy, Copy link | done | b2bd9fc, 96ac076, (this branch) |
+| 10.7 Activity feed and followed-readers source | withdrawn by the user (2026-11-19) | 8b42b80 |
+| Screens | signed off 2026-11-19 and built | |
+
+Backend gate on 30015eb: `composer test` 3078 passed (lint, PHPStan level 7 clean).

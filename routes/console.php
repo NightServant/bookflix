@@ -34,6 +34,9 @@ Schedule::job(new SyncProvider('hardcover'))->name('sync:hardcover')->everySixHo
 Schedule::job(new SyncProvider('gutenberg'))->name('sync:gutenberg')->daily()->when($sourceIsEnabled('gutenberg'));
 Schedule::job(new SyncProvider('standardebooks'))->name('sync:standardebooks')->daily()->when($sourceIsEnabled('standardebooks'));
 
+// Nightly, for the most-read stories only, and only once the switch is on (each source's terms are the owner's to confirm).
+Schedule::command('bookflix:refresh-outside-reviews --limit=500')->dailyAt('02:40')->when(fn (): bool => (bool) config('bookflix.reviews.outside_enabled'));
+
 // The ML pipelines (train, build similarities, evaluate), each a chain that stops at its first failed step. They wait for a configured service, and a pipeline still running from the last time is not started again.
 $mlIsConfigured = fn (): bool => (string) config('services.ml.token') !== '';
 

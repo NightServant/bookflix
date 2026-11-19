@@ -4,11 +4,12 @@ namespace App\Providers;
 
 use App\Discovery\Search\QueryParser;
 use App\Discovery\Search\RuleBasedQueryParser;
-use App\Enums\Visibility;
 use App\Models\Creator;
 use App\Models\Demographic;
+use App\Models\ExternalReview;
 use App\Models\Genre;
 use App\Models\MediaType;
+use App\Models\Review;
 use App\Models\Theme;
 use App\Models\Trope;
 use App\Models\User;
@@ -56,6 +57,9 @@ class AppServiceProvider extends ServiceProvider
             'demographic' => Demographic::class,
             'media_type' => MediaType::class,
             'creator' => Creator::class,
+            // What a report points at (reports.reportable_type).
+            'review' => Review::class,
+            'external_review' => ExternalReview::class,
         ]);
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
@@ -63,9 +67,9 @@ class AppServiceProvider extends ServiceProvider
         // An admin account runs the catalog and has no reader side (see EnsureReaderAccount); the same line guards the reader writes an admin could still call straight through Livewire.
         Gate::define('use-reader-side', fn (User $user): bool => ! $user->is_admin);
 
-        // A reader's library is theirs; others (guests too) may see it only when its owner made it public and is still active. Phase 10 builds the public page on this.
-        Gate::define('view-library', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
-            || ($owner->profile->library_visibility === Visibility::Public && ! $owner->isDeactivated()));
+        RateLimiter::for('reviews', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reviews_per_hour'))->by($user->id));
+        RateLimiter::for('collection-clones', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.collection_clones_per_hour'))->by($user->id));
+        RateLimiter::for('reports', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reports_per_hour'))->by($user->id));
 
         // pdf.js reads a file in many small ranges, so a reader gets a roomy allowance (per person, not per address).
         // One save every couple of seconds while reading, plus the beacons; a person, not an address.

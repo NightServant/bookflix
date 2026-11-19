@@ -2,23 +2,22 @@
 
 namespace App\Policies;
 
-use App\Enums\Visibility;
 use App\Models\Collection;
 use App\Models\User;
 
 /**
- * Who may do what with a collection. Anyone may view an editorial one, and a public one while its owner is active; only the owner changes
- * a collection, whatever its visibility (an admin marks one editorial through the page's own check, not here).
+ * Who may do what with a collection. A collection is private to its owner (P10-R3); an editorial one may be viewed by every reader while its owner
+ * is active. Only the owner changes a collection.
  */
 class CollectionPolicy
 {
     public function view(?User $viewer, Collection $collection): bool
     {
-        if ($viewer?->id === $collection->user_id || $collection->is_editorial) {
+        if ($viewer?->id === $collection->user_id) {
             return true;
         }
 
-        return $collection->visibility === Visibility::Public && ! $collection->loadMissing('user')->user->isDeactivated();
+        return $collection->is_editorial && ! $collection->loadMissing('user')->user->isDeactivated();
     }
 
     public function update(User $user, Collection $collection): bool

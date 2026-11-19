@@ -79,21 +79,18 @@
                         @enderror
                     </div>
 
-                    <x-cta
-                        type="submit"
-                        icon="arrow-right"
-                        icon:variant="outline"
-                        class="w-full"
-                    >
-                        {{ __('Continue') }}
-                    </x-cta>
-                </div>
+                    {{-- The two actions side by side on a wide screen, one above the other on a phone. Switching codes is a real button, so the keyboard reaches it. --}}
+                    <div class="grid gap-3 sm:grid-cols-2" data-test="two-factor-actions">
+                        <x-cta
+                            type="submit"
+                            icon:trailing="arrow-right"
+                            class="w-full"
+                        >
+                            {{ __('Continue') }}
+                        </x-cta>
 
-                <div class="mt-5 space-x-0.5 text-center text-meta text-ink-subtle">
-                    <span>{{ __('or you can') }}</span>
-                    <div class="inline font-medium text-ink underline cursor-pointer">
-                        <span x-show="!showRecoveryInput" @click="toggleInput()">{{ __('login using a recovery code') }}</span>
-                        <span x-show="showRecoveryInput" @click="toggleInput()">{{ __('login using an authentication code') }}</span>
+                        <x-cta type="button" variant="secondary" class="w-full" x-show="!showRecoveryInput" @click="toggleInput()">{{ __('Use a recovery code') }}</x-cta>
+                        <x-cta type="button" variant="secondary" class="w-full" x-show="showRecoveryInput" @click="toggleInput()">{{ __('Use your app instead') }}</x-cta>
                     </div>
                 </div>
             </form>

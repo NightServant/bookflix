@@ -2,7 +2,6 @@
 
 namespace App\Actions\Library;
 
-use App\Enums\Visibility;
 use App\Models\Collection;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -20,9 +19,9 @@ use Illuminate\Validation\ValidationException;
  */
 class CreateCollection
 {
-    public function handle(User $user, string $name, ?string $description = null, Visibility $visibility = Visibility::Private): Collection
+    public function handle(User $user, string $name, ?string $description = null): Collection
     {
-        return DB::transaction(function () use ($user, $name, $description, $visibility): Collection {
+        return DB::transaction(function () use ($user, $name, $description): Collection {
             User::query()->whereKey($user->id)->lockForUpdate()->first();
 
             $limit = (int) config('bookflix.collections.max_per_reader');
@@ -47,7 +46,6 @@ class CreateCollection
                         'name' => $name,
                         'slug' => $slug,
                         'description' => $description,
-                        'visibility' => $visibility,
                     ]));
                 } catch (UniqueConstraintViolationException) {
                     $taken[] = $slug;

@@ -15,11 +15,11 @@ function pick(StoryCollection $collection, Media $media, int $position): void
 test('editorial collection items come in position order and private collections never leak', function () {
     $user = User::factory()->create();
     [$first, $second, $private] = Media::factory()->count(3)->create();
-    $editorial = StoryCollection::factory()->editorial()->public()->create();
+    $editorial = StoryCollection::factory()->editorial()->create();
     pick($editorial, $second, 2);
     pick($editorial, $first, 1);
     pick(StoryCollection::factory()->create(['user_id' => $user->id]), $private, 1);
-    pick(StoryCollection::factory()->public()->create(), $private, 1);
+    pick(StoryCollection::factory()->create(), $private, 1);
 
     $c = app(EditorialSource::class)->candidatesFor($user, 10);
 

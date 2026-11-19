@@ -19,6 +19,8 @@ new #[Title('Profile settings')] class extends Component {
     public string $name = '';
     public string $email = '';
 
+    public string $headline = '';
+
     public string $bio = '';
 
     /** @var list<string> */
@@ -42,6 +44,7 @@ new #[Title('Profile settings')] class extends Component {
         }
 
         $profile = Auth::user()->profile;
+        $this->headline = $profile->headline ?? '';
         $this->bio = $profile->bio ?? '';
         $this->preferredLanguages = $profile->preferred_languages;
         $this->readingLength = $profile->reading_length->value;
@@ -68,7 +71,7 @@ new #[Title('Profile settings')] class extends Component {
     }
 
     /**
-     * Update the reading profile (bio, languages, reading length, avatar).
+     * Update the reading profile (headline, bio, languages, reading length, avatar).
      *
      * ponytail: avatar is stored as uploaded, no resizing; add an image library if avatar bandwidth becomes a problem.
      */
@@ -77,6 +80,9 @@ new #[Title('Profile settings')] class extends Component {
         // An admin account has no reader side, so it has no reading profile to save (see EnsureReaderAccount).
         Gate::authorize('use-reader-side');
 
+        // Spaces around the line are not part of it, and a line of nothing but spaces is no line.
+        $this->headline = trim($this->headline);
+
         $validated = $this->validate($this->readingProfileRules());
 
         $user = Auth::user();
@@ -84,6 +90,7 @@ new #[Title('Profile settings')] class extends Component {
         $previousAvatarPath = $user->profile->avatar_path;
 
         $data = [
+            'headline' => $validated['headline'] ?: null,
             'bio' => $validated['bio'] ?: null,
             'preferred_languages' => array_values($validated['preferredLanguages']),
             'reading_length' => $validated['readingLength'],
@@ -144,7 +151,7 @@ new #[Title('Profile settings')] class extends Component {
     @php($reader = auth()->user()->can('use-reader-side'))
 
     @include('partials.settings-heading', ['title' => __('Profile'), 'description' => $reader
-        ? __('Update the name and email on your account, then tell us how you like to read. Save each section when you are done.')
+        ? __('What your own profile page shows. Only you can see it.')
         : __('Update the name and email on your account. Your password and sign-in options are under Security.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Profile settings') }}</flux:heading>
@@ -152,7 +159,7 @@ new #[Title('Profile settings')] class extends Component {
     <x-pages::settings.layout>
         <x-settings-card :title="__('Name and Email')" :description="__('How you appear on Bookflix, and where we reach you.')">
         <form wire:submit="updateProfileInformation" class="w-full space-y-6">
-            <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
+            <flux:input wire:model="name" :label="__('Name')" :description:trailing="$reader ? __('Shown on your profile and next to reviews you post.') : null" type="text" required autofocus autocomplete="name" />
 
             <div>
                 <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" />
@@ -198,6 +205,8 @@ new #[Title('Profile settings')] class extends Component {
                     <flux:input wire:model="avatar" :label="__('Avatar')" type="file" accept="image/jpeg,image/png,image/webp" />
                 </div>
             </div>
+
+            <flux:input wire:model="headline" :label="__('Headline (optional)')" :description:trailing="__('Shown under your name on your profile and next to reviews you post. Up to 120 characters.')" maxlength="120" autocomplete="off" />
 
             <flux:textarea wire:model="bio" :label="__('Bio')" rows="3" maxlength="1000" />
 

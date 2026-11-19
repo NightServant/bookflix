@@ -14,12 +14,16 @@ use App\Catalog\Providers\RateLimitedByProvider;
 use App\Catalog\Providers\SanitizesProviderData;
 use App\Catalog\Providers\SendsProviderRequests;
 use App\Enums\CreatorRole;
+use App\Reviews\OffersReviews;
+use App\Reviews\OutsideRating;
+use App\Reviews\OutsideReviewData;
+use App\Reviews\ScalesScores;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
 
-class OpenLibraryProvider implements MetadataProvider
+class OpenLibraryProvider implements MetadataProvider, OffersReviews
 {
-    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, ScalesScores, SendsProviderRequests;
 
     private const BASE_URL = 'https://openlibrary.org';
 
@@ -252,6 +256,25 @@ class OpenLibraryProvider implements MetadataProvider
             sourceUrl: self::BASE_URL."/works/{$id}",
             fetchedAt: CarbonImmutable::now(),
         );
+    }
+
+    /**
+     * Open Library's rating of a work (average 1 to 5 scaled to 0 to 100, and how many readers rated); it holds no review text.
+     */
+    public function outsideReviews(string $externalId): OutsideReviewData
+    {
+        $id = rawurlencode($externalId);
+        $response = $this->get("/works/{$id}/ratings.json");
+        $summary = $response->json('summary');
+
+        if ($response->status() === 404 || ! is_array($summary)) {
+            throw new ProviderUnavailable('Open Library answered without ratings.');
+        }
+
+        $count = $this->count($summary['count'] ?? null);
+        $score = $count === null ? null : $this->scale($summary['average'] ?? null, 5);
+
+        return new OutsideReviewData([], $score === null ? null : new OutsideRating($score, $count, $this->storableUrl(self::BASE_URL."/works/{$id}")));
     }
 
     public function normalize(ProviderRecord $record): NormalizedMedia

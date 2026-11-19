@@ -4,14 +4,14 @@ use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Illuminate\Support\Facades\Route;
 
-test('the profile item is current on every settings page', function (string $routeName) {
+test('the profile item opens the profile page and is current on it and on every settings page', function (string $routeName) {
     $response = $this->actingAs(User::factory()->create())
         ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route($routeName))
         ->assertOk();
 
     $navs = primaryNavs($response->getContent());
-    $profile = preg_quote(route('profile.edit'), '#');
+    $profile = preg_quote(route('profile.show'), '#');
     $home = preg_quote(route('home'), '#');
 
     expect($navs['header'])
@@ -20,7 +20,7 @@ test('the profile item is current on every settings page', function (string $rou
         ->and($navs['bottom'])
         ->toMatch('#<a\s+href="'.$profile.'"[^>]*aria-current="page"#')
         ->not->toMatch('#<a\s+href="'.$home.'"[^>]*aria-current="page"#');
-})->with(['profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']);
+})->with(['profile.show', 'profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']);
 
 test('the discover item is current on every explore page', function (string $routeName, array $parameters) {
     $this->seed(DeweySeeder::class);

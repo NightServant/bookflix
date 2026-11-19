@@ -4,7 +4,7 @@ namespace App\Models;
 
 use App\Actions\Ratings\RecalculateRatedMedia;
 use App\Enums\ReadingLength;
-use App\Enums\Visibility;
+use App\Social\ReviewSummaries;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -61,6 +61,11 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         static::updated(function (User $user): void {
             if ($user->wasChanged('deactivated_at')) {
                 app(RecalculateRatedMedia::class)->handle($user);
+
+                // The words of a deactivated reader leave every review summary at once (P10-R11); a reactivation lets them back in on the next rebuild.
+                if ($user->isDeactivated()) {
+                    app(ReviewSummaries::class)->invalidateForAuthor($user);
+                }
             }
         });
     }
@@ -90,8 +95,6 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->hasOne(Profile::class)->withDefault([
             'preferred_languages' => [],
             'reading_length' => ReadingLength::Any,
-            'profile_visibility' => Visibility::Private,
-            'library_visibility' => Visibility::Private,
             'personalization_enabled' => true,
             'show_mature' => false,
         ]);

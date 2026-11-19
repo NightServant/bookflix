@@ -16,16 +16,24 @@ use App\Catalog\Providers\SendsProviderRequests;
 use App\Enums\AgeRating;
 use App\Enums\CreatorRole;
 use App\Enums\PublicationStatus;
+use App\Reviews\Excerpt;
+use App\Reviews\OffersReviews;
+use App\Reviews\OutsideRating;
+use App\Reviews\OutsideReview;
+use App\Reviews\OutsideReviewData;
+use App\Reviews\ScalesScores;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
 
-class AniListProvider implements MetadataProvider
+class AniListProvider implements MetadataProvider, OffersReviews
 {
-    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, ScalesScores, SendsProviderRequests;
 
     private const ENDPOINT = 'https://graphql.anilist.co';
 
     private const PAGE_SIZE = 50;
+
+    private const REVIEW_LIMIT = 10;
 
     private const FIELDS = 'id idMal title { romaji english native } synonyms description(asHtml: false) format status countryOfOrigin isAdult startDate { year month day } chapters genres tags { name isMediaSpoiler } coverImage { extraLarge large } siteUrl updatedAt popularity favourites averageScore meanScore staff(perPage: 10, sort: RELEVANCE) { edges { role node { name { full } } } } characters(perPage: 5, sort: ROLE) { edges { node { name { full } } } }';
 
@@ -94,6 +102,50 @@ class AniListProvider implements MetadataProvider
         )->json('data.Media');
 
         return is_array($media) ? $this->record($media) : null;
+    }
+
+    /**
+     * The reviewers' own summaries (AniList's one-line "summary", never the full body), their 0 to 100 score, name and link, newest first,
+     * and the media's average score. A private review is skipped; AniList's review type has no spoiler flag, so none can be tested for.
+     * Field names follow AniList's public GraphQL schema (Media.reviews, Review.summary/score/private/siteUrl); not confirmable offline.
+     */
+    public function outsideReviews(string $externalId): OutsideReviewData
+    {
+        $media = $this->post(
+            'query ($id: Int) { Media(id: $id, type: MANGA) { siteUrl averageScore reviews(limit: '.self::REVIEW_LIMIT.', sort: [CREATED_AT_DESC]) { nodes { id summary score private siteUrl createdAt user { name } } } } }',
+            ['id' => (int) $externalId],
+        )->json('data.Media');
+
+        if (! is_array($media)) {
+            throw new ProviderUnavailable('AniList answered without the media.');
+        }
+
+        $reviews = [];
+
+        foreach (is_array($media['reviews']['nodes'] ?? null) ? $media['reviews']['nodes'] : [] as $node) {
+            $excerpt = is_array($node) && ($node['private'] ?? false) !== true ? Excerpt::make($node['summary'] ?? null) : null;
+            $url = is_array($node) ? $this->storableUrl($node['siteUrl'] ?? null) : null;
+
+            if ($excerpt === null || $url === null || ! is_int($node['id'] ?? null)) {
+                continue;
+            }
+
+            $reviews[] = new OutsideReview(
+                externalId: (string) $node['id'],
+                excerpt: $excerpt,
+                url: $url,
+                authorName: $this->text($node['user']['name'] ?? null) ?: null,
+                rating: $this->scale($node['score'] ?? null, 100, zeroMeansNone: false),
+                publishedAt: is_int($node['createdAt'] ?? null) && $node['createdAt'] > 0 ? CarbonImmutable::createFromTimestampUTC($node['createdAt']) : null,
+            );
+        }
+
+        $score = $this->scale($media['averageScore'] ?? null, 100);
+
+        return new OutsideReviewData(
+            array_slice($reviews, 0, self::REVIEW_LIMIT),
+            $score === null ? null : new OutsideRating($score, null, $this->storableUrl($media['siteUrl'] ?? null)),
+        );
     }
 
     public function normalize(ProviderRecord $record): NormalizedMedia

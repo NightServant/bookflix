@@ -78,3 +78,10 @@ test('already verified user visiting verification link is redirected without fir
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
     Event::assertNotDispatched(Verified::class);
 });
+
+test('resend and log out sit in two columns on a wide screen and two rows on a phone', function () {
+    $html = $this->actingAs(User::factory()->unverified()->create())->get(route('verification.notice'))->assertOk()->getContent();
+
+    expect(htmlQuery($html, '//*[@data-test="verify-email-actions"][contains(@class,"grid") and contains(@class,"sm:grid-cols-2")]/form')->length)->toBe(2)
+        ->and(htmlQuery($html, '//*[@data-test="verify-email-actions"]//button[contains(@class,"w-full")]')->length)->toBe(2);
+});

@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Enums\ReadingLength;
-use App\Enums\Visibility;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -25,8 +24,6 @@ class ProfileFactory extends Factory
             'bio' => fake()->sentence(),
             'preferred_languages' => ['en'],
             'reading_length' => ReadingLength::Any,
-            'profile_visibility' => Visibility::Private,
-            'library_visibility' => Visibility::Private,
             'personalization_enabled' => true,
             'show_mature' => false,
         ];

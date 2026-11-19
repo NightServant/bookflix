@@ -45,6 +45,38 @@ test('bio is limited to 1000 characters', function () {
         ->assertHasErrors(['bio' => 'max']);
 });
 
+test('the headline is saved trimmed, optional, and limited to 120 characters', function () {
+    $this->actingAs($user = User::factory()->create());
+
+    Livewire::test('pages::settings.profile')
+        ->set('headline', '  Slow science fiction and short manga  ')
+        ->call('updateReadingProfile')
+        ->assertHasNoErrors();
+
+    expect($user->refresh()->profile->headline)->toBe('Slow science fiction and short manga');
+
+    // Blank clears it.
+    Livewire::test('pages::settings.profile')->assertSet('headline', 'Slow science fiction and short manga')
+        ->set('headline', '   ')->call('updateReadingProfile')->assertHasNoErrors();
+    expect($user->refresh()->profile->headline)->toBeNull();
+
+    // 120 characters fit, even with spaces around them; 121 do not.
+    Livewire::test('pages::settings.profile')->set('headline', ' '.str_repeat('é', 120).' ')->call('updateReadingProfile')->assertHasNoErrors();
+    expect($user->refresh()->profile->headline)->toBe(str_repeat('é', 120));
+
+    Livewire::test('pages::settings.profile')->set('headline', str_repeat('a', 121))->call('updateReadingProfile')->assertHasErrors(['headline' => 'max']);
+    expect($user->refresh()->profile->headline)->toBe(str_repeat('é', 120));
+});
+
+test('the headline field is labelled and explained on the page', function () {
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test('pages::settings.profile')->assertSee('Headline (optional)')
+        ->assertSee('Shown under your name on your profile and next to reviews you post. Up to 120 characters.')
+        ->assertSee('What your own profile page shows. Only you can see it.')
+        ->assertSee('Shown on your profile and next to reviews you post.');
+});
+
 test('a new avatar replaces the previous file', function () {
     $this->actingAs($user = User::factory()->create());
     $disk = Storage::disk(config('bookflix.avatar_disk'));

@@ -3,12 +3,14 @@
 namespace App\Admin;
 
 use App\Enums\DuplicateStatus;
+use App\Enums\ReportStatus;
 use App\Enums\ReviewStatus;
 use App\Models\DuplicateCandidate;
 use App\Models\ExternalSource;
 use App\Models\IngestionRun;
 use App\Models\Media;
 use App\Models\MediaDeweyClass;
+use App\Models\Report;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
@@ -21,7 +23,7 @@ final class AdminCounts
     public const CACHE_KEY = 'admin.dashboard-counts';
 
     /**
-     * @return array{media: int, users: int, admins?: int, duplicates: int, classifications: int, sources: int, oldestDuplicate?: ?string, oldestClassification?: ?string, lastRun: ?array{status: string, at: string}}
+     * @return array{media: int, users: int, admins?: int, duplicates: int, classifications: int, reports: int, sources: int, oldestDuplicate?: ?string, oldestClassification?: ?string, lastRun: ?array{status: string, at: string}}
      */
     public static function get(): array
     {
@@ -37,6 +39,8 @@ final class AdminCounts
                 'admins' => (int) $people->admins,
                 'duplicates' => $pairs->count(),
                 'classifications' => $classes->count(),
+                // Reported things waiting, not reports: Admin, Reports shows one card per thing.
+                'reports' => (int) Report::query()->where('status', ReportStatus::Open->value)->toBase()->selectRaw('count(distinct (reportable_type, reportable_id)) as total')->value('total'),
                 'oldestDuplicate' => $pairs->min('created_at'),
                 'oldestClassification' => $classes->min('created_at'),
                 'sources' => ExternalSource::providers()->where('enabled', true)->count(),

@@ -315,7 +315,7 @@ test('a later shelf backfills from its next candidates and keeps its size', func
 test('the staff picks and Explore by Subject are exempt from the de-duplication', function () {
     [$user] = richReader();
     $first = homeShelves($user)->firstWhere('key', 'recommended')->items->first();
-    collectionOf(User::factory()->create(), [$first], ['is_editorial' => true, 'visibility' => 'public', 'name' => 'Picked Again']);
+    collectionOf(User::factory()->create(), [$first], ['is_editorial' => true, 'name' => 'Picked Again']);
     Cache::flush();
 
     $shelves = homeShelves($user);

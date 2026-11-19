@@ -50,7 +50,7 @@ test('users create collections with a unique slug per owner', function () {
 test('creating a collection opens it, and a name with no letters still gets a slug', function () {
     $this->actingAs($user = User::factory()->create());
 
-    Livewire::test('pages::collections.index')->set('name', '!!!')->call('create')->assertRedirect(route('collections.show', ['slug' => 'collection', 'owner' => $user->id]));
+    Livewire::test('pages::collections.index')->set('name', '!!!')->call('create')->assertRedirect(route('collections.show', ['slug' => 'collection']));
 
     expect($user->collections()->sole()->name)->toBe('!!!');
 });
@@ -175,7 +175,7 @@ test('the index runs a bounded number of queries', function () {
 });
 
 test('only the owner can edit or view a private collection', function () {
-    $c = Collection::factory()->create(['visibility' => 'private']);
+    $c = Collection::factory()->create();
     $this->actingAs($other = User::factory()->create());
 
     $this->get(route('collections.show', $c->slug))->assertNotFound();
@@ -189,39 +189,39 @@ test('the policy and the lookup agree on who may view which collection', functio
     $owner = User::factory()->create();
     $viewer = User::factory()->create();
     $collection = match ($kind) {
-        'own' => Collection::factory()->for($viewer)->create(['visibility' => 'private']),
-        'private' => Collection::factory()->for($owner)->create(['visibility' => 'private']),
-        'public' => Collection::factory()->for($owner)->create(['visibility' => 'public']),
-        'public, owner deactivated' => Collection::factory()->for(User::factory()->deactivated())->create(['visibility' => 'public']),
-        'editorial' => Collection::factory()->for($owner)->create(['visibility' => 'private', 'is_editorial' => true]),
+        'own' => Collection::factory()->for($viewer)->create(),
+        'private' => Collection::factory()->for($owner)->create(),
+        'editorial' => Collection::factory()->for(User::factory()->admin())->create(['is_editorial' => true]),
+        'editorial, owner deactivated' => Collection::factory()->for(User::factory()->admin()->deactivated())->create(['is_editorial' => true]),
     };
 
     expect(Gate::forUser($viewer)->allows('view', $collection))->toBe($allowed)
-        ->and(Collection::resolveFor($collection->slug, $viewer)?->is($collection) ?? false)->toBe($allowed);
+        ->and(Gate::forUser(null)->allows('view', $collection))->toBe($kind === 'editorial')
+        ->and(Collection::resolveFor($collection->slug, $viewer)?->is($collection) ?? false)->toBe($allowed)
+        ->and(Collection::query()->viewableBy($viewer)->whereKey($collection->id)->exists())->toBe($allowed);
 })->with([
     'own' => ['own', true],
-    'someone elses private one' => ['private', false],
-    'a public one' => ['public', true],
-    'a public one of a deactivated reader' => ['public, owner deactivated', false],
+    'someone elses collection' => ['private', false],
     'an editorial one' => ['editorial', true],
+    'an editorial one whose owner is deactivated' => ['editorial, owner deactivated', false],
 ]);
 
-test('only the owner may change a collection, even a public or editorial one', function () {
+test('only the owner may change a collection, even an editorial one', function () {
     $owner = User::factory()->create();
     $other = User::factory()->create();
-    $public = Collection::factory()->for($owner)->create(['visibility' => 'public']);
+    $plain = Collection::factory()->for($owner)->create();
     $editorial = Collection::factory()->for($owner)->create(['is_editorial' => true]);
 
-    foreach ([$public, $editorial] as $collection) {
+    foreach ([$plain, $editorial] as $collection) {
         foreach (['update', 'delete', 'addItem'] as $ability) {
             expect(Gate::forUser($other)->allows($ability, $collection))->toBeFalse()->and(Gate::forUser($owner)->allows($ability, $collection))->toBeTrue();
         }
     }
 });
 
-test('your own collection wins an ambiguous slug, then an editorial one, then a public one', function () {
+test('your own collection wins an ambiguous slug over an editorial one, and another readers collection is never found', function () {
     $me = User::factory()->create();
-    $public = Collection::factory()->create(['name' => 'Classics', 'visibility' => 'public']);
+    $theirs = Collection::factory()->create(['name' => 'Classics']);
     $editorial = Collection::factory()->create(['name' => 'Classics', 'is_editorial' => true]);
 
     expect(Collection::resolveFor('classics', $me)->is($editorial))->toBeTrue();
@@ -234,8 +234,9 @@ test('your own collection wins an ambiguous slug, then an editorial one, then a 
 
     $editorial->delete();
     $mine->delete();
-    expect(Collection::resolveFor('classics', $me)->is($public))->toBeTrue()
-        ->and(Collection::resolveFor('nothing-here', $me))->toBeNull();
+    expect(Collection::resolveFor('classics', $me))->toBeNull()
+        ->and(Collection::resolveFor('nothing-here', $me))->toBeNull()
+        ->and($theirs->fresh())->not->toBeNull();
 });
 
 test('a link to a staff pick opens the staff pick, not the readers own collection of the same name', function () {
@@ -251,106 +252,43 @@ test('a link to a staff pick opens the staff pick, not the readers own collectio
         ->and(collectionTitles($linked))->toBe(['Staff Tale'])->and($linked->instance()->collection->is($pick))->toBeTrue();
 });
 
-test('a link to a public collection carries its owner, so two readers with a Favorites collection never swap pages', function () {
+test('two readers with a Favorites collection each open their own and never the others', function () {
     [$a, $b, $c] = User::factory()->count(3)->create();
-    $first = collectionOf($a, [Media::factory()->create(['title' => 'Tale From A'])], ['name' => 'Favorites', 'visibility' => 'public']);
-    $second = collectionOf($b, [Media::factory()->create(['title' => 'Tale From B'])], ['name' => 'Favorites', 'visibility' => 'public']);
-    expect($second->slug)->toBe($first->slug);
+    collectionOf($a, [Media::factory()->create(['title' => 'Tale From A'])], ['name' => 'Favorites']);
+    collectionOf($b, [Media::factory()->create(['title' => 'Tale From B'])], ['name' => 'Favorites']);
 
-    $this->actingAs($c);
-
-    // A link without an owner is ambiguous, and the oldest collection takes it. The owner in the link settles it.
-    expect(Collection::resolveFor('favorites', $c)->is($first))->toBeTrue()
-        ->and(Collection::resolveFor('favorites', $c, owner: $a->id)->is($first))->toBeTrue()
-        ->and(Collection::resolveFor('favorites', $c, owner: $b->id)->is($second))->toBeTrue()
-        ->and(Collection::resolveFor('favorites', $c, owner: $c->id))->toBeNull();
-
-    foreach ([[$a, $first], [$b, $second]] as [$owner, $collection]) {
-        $page = Livewire::withQueryParams(['owner' => $owner->id])->test('pages::collections.show', ['slug' => 'favorites']);
-
-        expect($page->instance()->collection->is($collection))->toBeTrue()
-            ->and(collectionTitles($page))->toBe([$collection->items()->first()->media->title]);
-    }
-
-    $this->get(route('collections.show', ['slug' => 'favorites', 'owner' => $b->id]))->assertOk()->assertSee('Tale From B')->assertDontSee('Tale From A');
-    $this->get(route('collections.show', ['slug' => 'favorites', 'owner' => $a->id]))->assertOk()->assertSee('Tale From A')->assertDontSee('Tale From B');
+    $this->actingAs($a)->get(route('collections.show', 'favorites'))->assertOk()->assertSee('Tale From A')->assertDontSee('Tale From B');
+    $this->actingAs($b)->get(route('collections.show', 'favorites'))->assertOk()->assertSee('Tale From B')->assertDontSee('Tale From A');
+    $this->actingAs($c)->get(route('collections.show', 'favorites'))->assertNotFound();
 });
 
-test('the owners own link still opens their collection, and so does the same link for anyone else it is public to', function () {
-    [$a, $b] = User::factory()->count(2)->create();
-    collectionOf($a, [Media::factory()->create(['title' => 'Tale From A'])], ['name' => 'Favorites', 'visibility' => 'public']);
-    collectionOf($b, [Media::factory()->create(['title' => 'Tale From B'])], ['name' => 'Favorites', 'visibility' => 'private']);
-
-    $link = route('collections.show', ['slug' => 'favorites', 'owner' => $a->id]);
-
-    $this->actingAs($a)->get($link)->assertOk()->assertSee('Tale From A');
-    // B has a Favorites of their own, but the link names A.
-    $this->actingAs($b)->get($link)->assertOk()->assertSee('Tale From A')->assertDontSee('Tale From B');
-    $this->actingAs($b)->get(route('collections.show', ['slug' => 'favorites', 'owner' => $b->id]))->assertOk()->assertSee('Tale From B');
-});
-
-test('an owner in the link never opens a private collection, a deactivated readers, or one that is not theirs', function () {
+test('a collection of another reader is not found, a deactivated owners staff pick is not found, and an old owner in the link is ignored', function () {
     [$owner, $other] = User::factory()->count(2)->create();
-    $gone = User::factory()->deactivated()->create();
-    Collection::factory()->for($owner)->create(['name' => 'Secret', 'visibility' => 'private']);
-    Collection::factory()->for($gone)->create(['name' => 'Ghost', 'visibility' => 'public']);
-    Collection::factory()->for($owner)->create(['name' => 'Open', 'visibility' => 'public']);
+    $gone = User::factory()->admin()->deactivated()->create();
+    Collection::factory()->for($owner)->create(['name' => 'Secret']);
+    Collection::factory()->for($gone)->create(['name' => 'Ghost', 'is_editorial' => true]);
 
     $this->actingAs($other);
-    $this->get(route('collections.show', ['slug' => 'secret', 'owner' => $owner->id]))->assertNotFound();
     $this->get(route('collections.show', ['slug' => 'secret']))->assertNotFound();
-    $this->get(route('collections.show', ['slug' => 'ghost', 'owner' => $gone->id]))->assertNotFound();
-    // The owner is the reader named in the link: a collection of another reader's under that slug is not what it means.
-    $this->get(route('collections.show', ['slug' => 'open', 'owner' => $other->id]))->assertNotFound();
+    $this->get(route('collections.show', ['slug' => 'secret', 'owner' => $owner->id]))->assertNotFound();
+    $this->get(route('collections.show', ['slug' => 'ghost', 'editors' => 1]))->assertNotFound();
 
-    $this->actingAs($owner)->get(route('collections.show', ['slug' => 'secret', 'owner' => $owner->id]))->assertOk();
+    $this->actingAs($owner)->get(route('collections.show', ['slug' => 'secret', 'owner' => 'abc']))->assertOk();
 });
 
-test('an owner that cannot be read as a reader id is ignored rather than a crash, and one that names nobody finds nothing', function () {
-    $user = User::factory()->create();
-    $own = Collection::factory()->for($user)->create(['name' => 'Mine']);
-    $this->actingAs($user);
-
-    foreach (['abc', ['1', '2'], '99999999999999999999'] as $owner) {
-        $page = Livewire::withQueryParams(['owner' => $owner])->test('pages::collections.show', ['slug' => 'mine']);
-
-        expect($page->instance()->collection->is($own))->toBeTrue();
-    }
-
-    // Nobody has the id 0, which is also how the page says "no owner".
-    $this->get(route('collections.show', ['slug' => 'mine', 'owner' => 0]))->assertOk();
-    $this->get(route('collections.show', ['slug' => 'mine', 'owner' => -3]))->assertNotFound();
-});
-
-test('a staff pick keeps its editors link, and a collection of someone elses is not found through the wrong owner', function () {
-    $me = User::factory()->create();
-    $admin = User::factory()->admin()->create();
-    collectionOf($me, [Media::factory()->create(['title' => 'My Own Tale'])], ['name' => 'Classics']);
-    $pick = collectionOf($admin, [Media::factory()->create(['title' => 'Staff Tale'])], ['name' => 'Classics', 'is_editorial' => true]);
-
-    $this->actingAs($me);
-
-    expect(Livewire::withQueryParams(['editors' => 1])->test('pages::collections.show', ['slug' => 'classics'])->instance()->collection->is($pick))->toBeTrue()
-        ->and(Collection::resolveFor('classics', $me, editorial: true, owner: $admin->id)->is($pick))->toBeTrue()
-        ->and(Collection::resolveFor('classics', $me, editorial: true, owner: $me->id))->toBeNull();
-});
-
-test('the page puts the owner in its address, and the rows and the new collection redirect link with it', function () {
+test('the rows and the new collection redirect link to the collection, and a staff pick keeps its editors link', function () {
     $this->actingAs($user = User::factory()->create());
-    $own = Collection::factory()->for($user)->create(['name' => 'Rainy Day']);
+    Collection::factory()->for($user)->create(['name' => 'Rainy Day']);
     $admin = User::factory()->admin()->create();
-    $pick = collectionOf($admin, [Media::factory()->create()], ['name' => 'Spooky', 'is_editorial' => true]);
-
-    // The page sets the owner after it opens, so the address bar (the link the owner copies) names them.
-    Livewire::test('pages::collections.show', ['slug' => 'rainy-day'])->assertSet('owner', $user->id);
-    Livewire::withQueryParams(['editors' => 1])->test('pages::collections.show', ['slug' => 'spooky'])->assertSet('owner', 0);
+    collectionOf($admin, [Media::factory()->create()], ['name' => 'Spooky', 'is_editorial' => true]);
 
     $index = Livewire::test('pages::collections.index')->html();
-    expect(htmlQuery($index, '//a[@href="'.route('collections.show', ['slug' => 'rainy-day', 'owner' => $user->id]).'"]')->length)->toBe(1)
-        ->and(htmlQuery($index, '//a[@href="'.route('collections.show', ['slug' => 'spooky', 'editors' => 1]).'"]')->length)->toBe(1);
+    expect(htmlQuery($index, '//a[@href="'.route('collections.show', ['slug' => 'rainy-day']).'"]')->length)->toBe(1)
+        ->and(htmlQuery($index, '//a[@href="'.route('collections.show', ['slug' => 'spooky', 'editors' => 1]).'"]')->length)->toBe(1)
+        ->and($index)->not->toContain('Public');
 
     Livewire::test('pages::collections.index')->set('name', 'Brand New')->call('create')
-        ->assertRedirect(route('collections.show', ['slug' => 'brand-new', 'owner' => $user->id]));
+        ->assertRedirect(route('collections.show', ['slug' => 'brand-new']));
 });
 
 test('items can be added once and removed', function () {
@@ -481,7 +419,7 @@ test('another users item ids cannot be reordered or removed', function () {
 
 test('another reader cannot change a collection they can only view', function () {
     $owner = User::factory()->create();
-    $c = collectionOf($owner, [Media::factory()->create()], ['visibility' => 'public', 'name' => 'Theirs']);
+    $c = collectionOf($owner, [Media::factory()->create()], ['name' => 'Theirs', 'is_editorial' => true]);
     $item = $c->items()->first();
 
     $this->actingAs(User::factory()->create());
@@ -499,13 +437,13 @@ test('another reader cannot change a collection they can only view', function ()
 
 test('the owner edits the details, and the slug stays so links keep working', function () {
     $this->actingAs($u = User::factory()->create());
-    $c = Collection::factory()->for($u)->create(['name' => 'Old name', 'slug' => 'old-name', 'visibility' => 'private']);
+    $c = Collection::factory()->for($u)->create(['name' => 'Old name', 'slug' => 'old-name']);
 
     Livewire::test('pages::collections.show', ['slug' => 'old-name'])
-        ->set('name', 'Autumn reads')->set('description', 'Cosy ones.')->set('visibility', 'public')->call('save')->assertHasNoErrors();
+        ->set('name', 'Autumn reads')->set('description', 'Cosy ones.')->call('save')->assertHasNoErrors();
 
     $c->refresh();
-    expect($c->name)->toBe('Autumn reads')->and($c->description)->toBe('Cosy ones.')->and($c->visibility->value)->toBe('public')->and($c->slug)->toBe('old-name');
+    expect($c->name)->toBe('Autumn reads')->and($c->description)->toBe('Cosy ones.')->and($c->slug)->toBe('old-name');
 });
 
 test('the details are validated', function () {
@@ -516,11 +454,11 @@ test('the details are validated', function () {
         ->set('name', '')->call('save')->assertHasErrors(['name' => 'required'])
         ->set('name', str_repeat('a', 101))->call('save')->assertHasErrors(['name' => 'max'])
         ->set('name', 'Fine')->set('description', str_repeat('a', 501))->call('save')->assertHasErrors(['description' => 'max'])
-        ->set('description', '')->set('visibility', 'friends')->call('save')->assertHasErrors('visibility');
+        ->set('description', '')->call('save')->assertHasNoErrors();
 });
 
 test('editorial collections are viewable by everyone, deleting a collection removes its items', function () {
-    $c = Collection::factory()->create(['is_editorial' => true, 'visibility' => 'private']);
+    $c = Collection::factory()->create(['is_editorial' => true]);
     $this->actingAs(User::factory()->create())->get(route('collections.show', $c->slug))->assertOk();
     CollectionItem::factory()->for($c)->create();
     $c->delete();
@@ -540,7 +478,7 @@ test('the owner deletes a collection and its stories stay in the catalog', funct
 
 test('a collection page opens with a guiding description, and a viewer sees the stories as a grid they cannot edit', function () {
     $owner = User::factory()->create();
-    $c = collectionOf($owner, [Media::factory()->create(['title' => 'Shared Tale'])], ['name' => 'Open List', 'visibility' => 'public']);
+    $c = collectionOf($owner, [Media::factory()->create(['title' => 'Shared Tale'])], ['name' => 'Open List', 'is_editorial' => true]);
 
     $html = $this->actingAs(User::factory()->create())->get(route('collections.show', $c->slug))->assertOk()->getContent();
 
@@ -564,18 +502,15 @@ test('a story behind the mature gate is hidden in your own collection until you 
     expect(collectionTitles($open))->toBe(['Plain Tale', 'Erotic Tale'])->and($open->html())->toContain('2 stories');
 });
 
-test('a story behind the mature gate is hidden in a public or editorial collection from a reader who has not opted in', function (array $attributes) {
-    $c = collectionOf(User::factory()->create(), [Media::factory()->create(['title' => 'Plain Tale']), matureStory()], ['name' => 'Shared', ...$attributes]);
+test('a story behind the mature gate is hidden in an editorial collection from a reader who has not opted in', function () {
+    $c = collectionOf(User::factory()->admin()->create(), [Media::factory()->create(['title' => 'Plain Tale']), matureStory()], ['name' => 'Shared', 'is_editorial' => true]);
 
     $gated = Livewire::actingAs(User::factory()->create())->test('pages::collections.show', ['slug' => $c->slug]);
     expect(collectionTitles($gated))->toBe(['Plain Tale'])->and($gated->html())->not->toContain('Erotic Tale');
 
     $open = Livewire::actingAs(User::factory()->showsMature()->create())->test('pages::collections.show', ['slug' => $c->slug]);
     expect(collectionTitles($open))->toBe(['Plain Tale', 'Erotic Tale']);
-})->with([
-    'public' => [['visibility' => 'public']],
-    'editorial' => [['is_editorial' => true]],
-]);
+});
 
 test('the add stories panel offers the readers library when nothing is typed, and finds stories by what is typed', function () {
     $this->actingAs($user = User::factory()->create());

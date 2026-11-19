@@ -105,7 +105,7 @@ test('the rating shows through the rating display', function () {
         ->assertSee('Rated 4.5 out of 5 from 120 ratings');
 });
 
-test('tabs lead the series and related content, only for what the story has', function () {
+test('tabs lead the series and related content, only for what the story has, and every story has Reviews', function () {
     $m = fullMedia();
     $plain = Media::factory()->create();
 
@@ -114,8 +114,8 @@ test('tabs lead the series and related content, only for what the story has', fu
 
     $tabs = fn (string $html): array => collect(htmlQuery($html, '//*[@role="tab"]'))->map(fn ($tab) => trim($tab->textContent))->all();
 
-    expect($tabs($full))->toBe(['Overview', 'Series', 'Related'])
-        ->and($tabs($bare))->toBe(['Overview']);
+    expect($tabs($full))->toBe(['Overview', 'Series', 'Related', 'Reviews'])
+        ->and($tabs($bare))->toBe(['Overview', 'Reviews']);
 });
 
 test('genres and themes link to search with that filter, tags to a text search', function () {

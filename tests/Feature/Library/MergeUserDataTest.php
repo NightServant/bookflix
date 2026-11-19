@@ -4,6 +4,7 @@ use App\Catalog\Ingestion\Deduplicator;
 use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
 use App\Jobs\RecalculateMediaRating;
+use App\Jobs\SummarizeReviews;
 use App\Models\Collection;
 use App\Models\CollectionItem;
 use App\Models\LibraryEntry;
@@ -11,6 +12,8 @@ use App\Models\Media;
 use App\Models\Rating;
 use App\Models\ReadingProgress;
 use App\Models\ReadingSession;
+use App\Models\Review;
+use App\Models\ReviewSummary;
 use App\Models\User;
 use App\Models\UserInteraction;
 use Illuminate\Queue\Events\JobProcessing;
@@ -320,4 +323,31 @@ test('a merge inside a transaction that rolls back moves nothing and runs no job
         ->and(LibraryEntry::where(['user_id' => $user->id, 'media_id' => $loser->id])->count())->toBe(1)
         ->and(Rating::where(['user_id' => $user->id, 'media_id' => $loser->id])->count())->toBe(1)
         ->and($loser->fresh()->trashed())->toBeFalse();
+});
+
+test('merging moves a readers live review to the winner, retires the duplicate, and rebuilds the summaries (review finding 2)', function () {
+    Queue::fake();
+    [$winner, $loser] = Media::factory()->count(2)->create();
+    $solo = User::factory()->create();
+    $both = User::factory()->create();
+    $moved = Review::factory()->hidden()->create(['user_id' => $solo->id, 'media_id' => $loser->id, 'body' => 'Solo take']);
+    $dropped = Review::factory()->create(['user_id' => $both->id, 'media_id' => $loser->id, 'body' => 'Loser take']);
+    $kept = Review::factory()->create(['user_id' => $both->id, 'media_id' => $winner->id, 'body' => 'Winner take']);
+    $gone = Review::factory()->create(['user_id' => User::factory(), 'media_id' => $loser->id]);
+    $gone->delete();
+    ReviewSummary::query()->create(['media_id' => $loser->id, 'summary' => 'Loser summary', 'review_count' => 5, 'source_hash' => str_repeat('a', 64), 'generated_at' => now()]);
+    ReviewSummary::query()->create(['media_id' => $winner->id, 'summary' => 'Winner summary', 'review_count' => 5, 'source_hash' => str_repeat('b', 64), 'generated_at' => now()]);
+
+    app(Deduplicator::class)->merge($winner, $loser);
+
+    expect($moved->fresh()->media_id)->toBe($winner->id)
+        ->and($moved->fresh()->status->value)->toBe('hidden')
+        ->and($dropped->fresh()->trashed())->toBeTrue()
+        ->and($kept->fresh()->trashed())->toBeFalse()
+        ->and($kept->fresh()->media_id)->toBe($winner->id)
+        ->and(Review::query()->where('media_id', $loser->id)->count())->toBe(0)
+        ->and(Review::query()->where('media_id', $winner->id)->count())->toBe(2)
+        ->and(ReviewSummary::query()->find($loser->id))->toBeNull()
+        ->and(ReviewSummary::query()->find($winner->id))->toBeNull();
+    Queue::assertPushed(SummarizeReviews::class, fn (SummarizeReviews $job) => $job->mediaId === $winner->id);
 });

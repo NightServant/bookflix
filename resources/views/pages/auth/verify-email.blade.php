@@ -8,17 +8,18 @@
             </flux:text>
         @endif
 
-        <div class="flex flex-wrap items-center gap-3">
+        {{-- Two columns on a wide screen, two full-width rows on a phone. --}}
+        <div class="grid gap-3 sm:grid-cols-2" data-test="verify-email-actions">
             <form method="POST" action="{{ route('verification.send') }}">
                 @csrf
-                <x-cta type="submit" icon="paper-airplane" icon:variant="outline">
-                    {{ __('Resend verification email') }}
+                <x-cta type="submit" icon="paper-airplane" icon:variant="outline" class="w-full">
+                    {{ __('Resend email') }}
                 </x-cta>
             </form>
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <x-cta variant="secondary" type="submit" icon="arrow-right-start-on-rectangle" icon:variant="outline" class="cursor-pointer" data-test="logout-button">
+                <x-cta variant="secondary" type="submit" icon="arrow-right-start-on-rectangle" icon:variant="outline" class="w-full cursor-pointer" data-test="logout-button">
                     {{ __('Log out') }}
                 </x-cta>
             </form>

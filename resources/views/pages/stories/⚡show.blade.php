@@ -284,7 +284,10 @@ new #[Title('Story')] class extends Component {
     $neighbours = $this->neighbours;
     $tabs = ['overview' => __('Overview')]
         + ($media->series->isNotEmpty() ? ['series' => __('Series')] : [])
-        + ($media->relations->isNotEmpty() ? ['related' => __('Related')] : []);
+        + ($media->relations->isNotEmpty() ? ['related' => __('Related')] : [])
+        + ['reviews' => __('Reviews')];
+    // `?tab=reviews` (the profile page's links to a reader's reviews) opens on that tab; anything else opens on Overview.
+    $openTab = array_key_exists((string) request()->query('tab'), $tabs) ? (string) request()->query('tab') : 'overview';
     // Until the series page exists (Phase 4.5) a series is named, not linked.
     $linkSeries = Route::has('series.show');
 @endphp
@@ -406,7 +409,7 @@ new #[Title('Story')] class extends Component {
     </header>
 
     <div class="px-gutter">
-    <x-tabs :tabs="$tabs" :label="__('Story sections')" class="mt-12 lg:mt-16">
+    <x-tabs :tabs="$tabs" :selected="$openTab" :label="__('Story sections')" class="mt-12 lg:mt-16">
         <x-slot:overview>
             <div class="flex max-w-prose flex-col gap-8">
                 @if ($this->secondaryClasses->isNotEmpty())
@@ -518,6 +521,11 @@ new #[Title('Story')] class extends Component {
                 </div>
             </x-slot:related>
         @endif
+
+        {{-- Lazy: the reviews load the first time the tab is shown, so opening a story reads nothing of them. --}}
+        <x-slot:reviews>
+            <livewire:story-reviews :media-id="$media->id" lazy :key="'reviews-'.$media->id" />
+        </x-slot:reviews>
     </x-tabs>
 
     </div>

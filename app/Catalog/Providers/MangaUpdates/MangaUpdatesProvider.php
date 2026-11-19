@@ -9,16 +9,21 @@ use App\Catalog\Data\ProviderPage;
 use App\Catalog\Data\ProviderRecord;
 use App\Catalog\Providers\ClassifiesMediaType;
 use App\Catalog\Providers\MetadataProvider;
+use App\Catalog\Providers\ProviderUnavailable;
 use App\Catalog\Providers\SanitizesProviderData;
 use App\Catalog\Providers\SendsProviderRequests;
 use App\Enums\AgeRating;
 use App\Enums\CreatorRole;
 use App\Enums\PublicationStatus;
+use App\Reviews\OffersReviews;
+use App\Reviews\OutsideRating;
+use App\Reviews\OutsideReviewData;
+use App\Reviews\ScalesScores;
 use Carbon\CarbonImmutable;
 
-class MangaUpdatesProvider implements MetadataProvider
+class MangaUpdatesProvider implements MetadataProvider, OffersReviews
 {
-    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, ScalesScores, SendsProviderRequests;
 
     private const API = 'https://api.mangaupdates.com/v1';
 
@@ -97,6 +102,22 @@ class MangaUpdatesProvider implements MetadataProvider
         $series = $this->send(fn () => $this->client()->get(self::API.'/series/'.rawurlencode($externalId)))->json();
 
         return is_array($series) && isset($series['series_id']) ? $this->record($series) : null;
+    }
+
+    /**
+     * The series' Bayesian rating (0 to 10 scaled to 0 to 100) and its vote count. MangaUpdates' official API exposes no review text.
+     */
+    public function outsideReviews(string $externalId): OutsideReviewData
+    {
+        $series = $this->send(fn () => $this->client()->get(self::API.'/series/'.rawurlencode($externalId)))->json();
+
+        if (! is_array($series) || ! isset($series['series_id'])) {
+            throw new ProviderUnavailable('MangaUpdates answered without the series.');
+        }
+
+        $score = $this->scale($series['bayesian_rating'] ?? null, 10);
+
+        return new OutsideReviewData([], $score === null ? null : new OutsideRating($score, $this->count($series['rating_votes'] ?? null), $this->storableUrl($series['url'] ?? null)));
     }
 
     public function normalize(ProviderRecord $record): NormalizedMedia

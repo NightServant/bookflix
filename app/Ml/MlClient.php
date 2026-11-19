@@ -87,6 +87,36 @@ class MlClient
     }
 
     /**
+     * An extractive summary of a text (reviews joined by blank lines, at most 20,000 characters), or null when the service finds no good one.
+     * Any failure, a 422 included, or an answer out of shape is `MlServiceUnavailable`. Call it from a queued job only: it waits for the service.
+     *
+     * @throws MlServiceUnavailable
+     */
+    public function summarize(string $text, int $sentences = 3): ?string
+    {
+        try {
+            $response = $this->request()->post('/v1/summarize', ['text' => $text, 'sentences' => $sentences])->throw();
+        } catch (HttpClientException $exception) {
+            throw new MlServiceUnavailable('The ML service did not summarize the text.', previous: $exception);
+        }
+
+        $body = $response->json();
+
+        // A body that is not a JSON object with a `summary` key (an HTML error page, an empty body) is not "no good summary": the caller would delete the stored one.
+        if (! is_array($body) || ! array_key_exists('summary', $body)) {
+            throw new MlServiceUnavailable('The ML service answered the summary out of shape.');
+        }
+
+        $summary = $body['summary'];
+
+        if ($summary !== null && (! is_string($summary) || trim($summary) === '')) {
+            throw new MlServiceUnavailable('The ML service answered the summary out of shape.');
+        }
+
+        return $summary;
+    }
+
+    /**
      * The Dewey classifier's candidates for a work, from its title and description, genre, theme and tag names and a provider's own code,
      * strongest first, with their raw confidence (the caller caps it). Only answers of the active `dewey-classifier` version are taken. Any
      * failure, a 503 (no model, no classifier, or one trained on other vectors) or an answer out of shape is `MlServiceUnavailable`.
