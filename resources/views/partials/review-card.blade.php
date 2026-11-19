@@ -10,8 +10,10 @@
 
 {{-- One card holds the whole review: avatar, name, headline, date and the review itself. --}}
 <article aria-labelledby="review-{{ $review->id }}-author" @class(['rounded-card border border-hairline bg-surface-deep p-5', 'mt-3' => $own])>
+    {{-- The avatar is as tall as the name, headline and date beside it: it ends level with "2 days ago". --}}
     <header class="flex items-start gap-3">
-        <flux:avatar size="sm" :name="$author->name" :initials="$author->initials()" :src="$author->avatarUrl()" class="shrink-0 rounded-control!" />
+        {{-- 60px spans name, headline and date (three lines); 40px spans name and date. --}}
+        <flux:avatar :name="$author->name" :initials="$author->initials()" :src="$author->avatarUrl()" @class(['shrink-0 rounded-control!', 'size-15! text-lead!' => filled($headline), 'size-10! text-meta!' => blank($headline)]) />
 
         <div class="min-w-0 flex-1">
             <p id="review-{{ $review->id }}-author" class="text-meta font-medium text-ink">{{ $author->name }}</p>
@@ -22,8 +24,8 @@
         </div>
 
         @if ($canWrite)
-            <flux:dropdown position="bottom" align="end">
-                <x-cta variant="secondary" icon="ellipsis-horizontal" :aria-label="$own ? __('Your review options') : __('Review options for :name', ['name' => $author->name])" class="-me-2 -mt-2 bg-transparent! hover:bg-surface-card!" />
+            <flux:dropdown position="bottom" align="end" class="self-start">
+                <x-cta variant="secondary" icon="ellipsis-horizontal" :aria-label="$own ? __('Your review options') : __('Review options for :name', ['name' => $author->name])" class="-my-2 -me-2 bg-transparent! hover:bg-surface-card!" />
 
                 <flux:menu class="shadow-overlay!">
                     @if ($own)
