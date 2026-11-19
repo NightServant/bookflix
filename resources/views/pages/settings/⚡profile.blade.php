@@ -151,7 +151,7 @@ new #[Title('Profile settings')] class extends Component {
     @php($reader = auth()->user()->can('use-reader-side'))
 
     @include('partials.settings-heading', ['title' => __('Profile'), 'description' => $reader
-        ? __('Update the name and email on your account, then tell us how you like to read. Save each section when you are done.')
+        ? __('What your own profile page shows. Only you can see it.')
         : __('Update the name and email on your account. Your password and sign-in options are under Security.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Profile settings') }}</flux:heading>
@@ -159,7 +159,7 @@ new #[Title('Profile settings')] class extends Component {
     <x-pages::settings.layout>
         <x-settings-card :title="__('Name and Email')" :description="__('How you appear on Bookflix, and where we reach you.')">
         <form wire:submit="updateProfileInformation" class="w-full space-y-6">
-            <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
+            <flux:input wire:model="name" :label="__('Name')" :description:trailing="$reader ? __('Shown on your profile and next to reviews you post.') : null" type="text" required autofocus autocomplete="name" />
 
             <div>
                 <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" />
@@ -206,7 +206,7 @@ new #[Title('Profile settings')] class extends Component {
                 </div>
             </div>
 
-            <flux:input wire:model="headline" :label="__('Headline')" :description="__('A line under your name on your profile, like “Slow science fiction and short manga”.')" :placeholder="__('Optional')" maxlength="120" autocomplete="off" />
+            <flux:input wire:model="headline" :label="__('Headline (optional)')" :description:trailing="__('A line under your name, up to 120 characters.')" maxlength="120" autocomplete="off" />
 
             <flux:textarea wire:model="bio" :label="__('Bio')" rows="3" maxlength="1000" />
 

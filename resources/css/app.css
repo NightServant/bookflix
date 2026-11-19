@@ -306,6 +306,42 @@ html[data-hero-transition]::view-transition-new(hero-cover) {
     background-color: var(--color-ink-subtle);
 }
 
+/* A review's body as App\Support\Markdown::safe renders it: paragraphs, lists, emphasis, code and links (headings come out as paragraphs). */
+.review-body > * + * {
+    margin-top: 0.75em;
+}
+
+.review-body ul {
+    list-style: disc;
+    padding-inline-start: 1.25rem;
+}
+
+.review-body ol {
+    list-style: decimal;
+    padding-inline-start: 1.25rem;
+}
+
+.review-body strong {
+    font-weight: 600;
+}
+
+.review-body a {
+    color: var(--color-link);
+    text-decoration: underline;
+}
+
+.review-body code {
+    border-radius: var(--radius-control);
+    background-color: var(--color-surface-card);
+    padding: 0 0.25em;
+}
+
+.review-body blockquote {
+    border-inline-start: 2px solid var(--color-hairline);
+    padding-inline-start: 0.75rem;
+    color: var(--color-ink-subtle);
+}
+
 /* Flux modals and flyouts (<x-filter-sheet>): a scrim in the canvas colour instead of Flux's 10% black, and no transition under reduced motion. */
 [data-flux-modal] > dialog::backdrop {
     background-color: color-mix(in srgb, var(--color-canvas) 80%, transparent);

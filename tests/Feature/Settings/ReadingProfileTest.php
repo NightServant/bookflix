@@ -71,8 +71,10 @@ test('the headline is saved trimmed, optional, and limited to 120 characters', f
 test('the headline field is labelled and explained on the page', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test('pages::settings.profile')->assertSee('Headline')
-        ->assertSee('A line under your name on your profile, like “Slow science fiction and short manga”.', false);
+    Livewire::test('pages::settings.profile')->assertSee('Headline (optional)')
+        ->assertSee('A line under your name, up to 120 characters.')
+        ->assertSee('What your own profile page shows. Only you can see it.')
+        ->assertSee('Shown on your profile and next to reviews you post.');
 });
 
 test('a new avatar replaces the previous file', function () {
