@@ -118,6 +118,7 @@ class ExportUserData implements ShouldQueue
                 'updated_at' => $this->time($user->updated_at),
             ],
             'profile' => [
+                'headline' => $profile->headline,
                 'bio' => $profile->bio,
                 'has_avatar' => filled($profile->avatar_path),
                 'preferred_languages' => $profile->preferred_languages,

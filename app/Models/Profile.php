@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $user_id
  * @property string|null $avatar_path
+ * @property string|null $headline A line under the reader's name on their profile page, at most 120 characters (P10-R19).
  * @property string|null $bio
  * @property list<string> $preferred_languages
  * @property ReadingLength $reading_length
@@ -27,6 +28,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'avatar_path',
+    'headline',
     'bio',
     'preferred_languages',
     'reading_length',

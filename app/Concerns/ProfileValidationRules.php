@@ -58,6 +58,7 @@ trait ProfileValidationRules
     protected function readingProfileRules(): array
     {
         return [
+            'headline' => ['nullable', 'string', 'max:120'],
             'bio' => ['nullable', 'string', 'max:1000'],
             'preferredLanguages' => ['array'],
             'preferredLanguages.*' => [Rule::in(config('bookflix.languages'))],

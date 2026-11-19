@@ -19,6 +19,8 @@ new #[Title('Profile settings')] class extends Component {
     public string $name = '';
     public string $email = '';
 
+    public string $headline = '';
+
     public string $bio = '';
 
     /** @var list<string> */
@@ -42,6 +44,7 @@ new #[Title('Profile settings')] class extends Component {
         }
 
         $profile = Auth::user()->profile;
+        $this->headline = $profile->headline ?? '';
         $this->bio = $profile->bio ?? '';
         $this->preferredLanguages = $profile->preferred_languages;
         $this->readingLength = $profile->reading_length->value;
@@ -68,7 +71,7 @@ new #[Title('Profile settings')] class extends Component {
     }
 
     /**
-     * Update the reading profile (bio, languages, reading length, avatar).
+     * Update the reading profile (headline, bio, languages, reading length, avatar).
      *
      * ponytail: avatar is stored as uploaded, no resizing; add an image library if avatar bandwidth becomes a problem.
      */
@@ -77,6 +80,9 @@ new #[Title('Profile settings')] class extends Component {
         // An admin account has no reader side, so it has no reading profile to save (see EnsureReaderAccount).
         Gate::authorize('use-reader-side');
 
+        // Spaces around the line are not part of it, and a line of nothing but spaces is no line.
+        $this->headline = trim($this->headline);
+
         $validated = $this->validate($this->readingProfileRules());
 
         $user = Auth::user();
@@ -84,6 +90,7 @@ new #[Title('Profile settings')] class extends Component {
         $previousAvatarPath = $user->profile->avatar_path;
 
         $data = [
+            'headline' => $validated['headline'] ?: null,
             'bio' => $validated['bio'] ?: null,
             'preferred_languages' => array_values($validated['preferredLanguages']),
             'reading_length' => $validated['readingLength'],
@@ -198,6 +205,8 @@ new #[Title('Profile settings')] class extends Component {
                     <flux:input wire:model="avatar" :label="__('Avatar')" type="file" accept="image/jpeg,image/png,image/webp" />
                 </div>
             </div>
+
+            <flux:input wire:model="headline" :label="__('Headline')" :description="__('A line under your name on your profile, like “Slow science fiction and short manga”.')" :placeholder="__('Optional')" maxlength="120" autocomplete="off" />
 
             <flux:textarea wire:model="bio" :label="__('Bio')" rows="3" maxlength="1000" />
 

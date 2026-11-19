@@ -39,7 +39,7 @@ const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'colle
 function exportFixture(string $label = 'Mine'): User
 {
     $user = User::factory()->create(['name' => "{$label} Reader", 'email' => strtolower($label).'-reader@example.test']);
-    $user->profile()->updateOrCreate([], ['bio' => "{$label} bio", 'avatar_path' => "avatars/{$user->id}/secret-name.jpg"]);
+    $user->profile()->updateOrCreate([], ['headline' => "{$label} headline", 'bio' => "{$label} bio", 'avatar_path' => "avatars/{$user->id}/secret-name.jpg"]);
     UserPreference::factory()->for($user)->create(['preferable_type' => 'genre', 'preferable_id' => Genre::factory()->create(['name' => "{$label} Genre", 'slug' => strtolower($label).'-genre'])->id]);
 
     $story = Media::factory()->create(['title' => "{$label} Story"]);
@@ -189,7 +189,7 @@ test('the profile file has the account and profile, and none of the secrets', fu
 
     expect($profile['account'])->toMatchArray(['id' => $user->id, 'name' => 'Mine Reader', 'email' => 'mine-reader@example.test'])
         ->and($profile['profile'])->not->toHaveKeys(['profile_visibility', 'library_visibility'])
-        ->and($profile['profile'])->toMatchArray(['bio' => 'Mine bio', 'personalization_enabled' => true, 'has_avatar' => true])
+        ->and($profile['profile'])->toMatchArray(['headline' => 'Mine headline', 'bio' => 'Mine bio', 'personalization_enabled' => true, 'has_avatar' => true])
         ->and($profile['exported_at'])->toBeString()
         ->and($text)->not->toContain('SECRETSECRET')->not->toContain('RECOVERY')->not->toContain('REMEMBERME')->not->toContain($user->password)->not->toContain('secret-name.jpg');
 });
