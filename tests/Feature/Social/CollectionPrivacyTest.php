@@ -44,7 +44,7 @@ test('an editorial collection is viewable by every reader and a guest while its 
 test('the migration ends the staff picks that were readers collections and keeps those of admins', function () {
     $admin = User::factory()->admin()->create();
     $adminPick = Collection::factory()->editorial()->create(['user_id' => $admin->id]);
-    $readerPick = Collection::factory()->editorial()->create();
+    $readerPick = Collection::factory()->editorial()->create(['user_id' => User::factory()->create()->id]);
     $migration = require database_path('migrations/2026_11_19_090000_make_profiles_and_collections_private.php');
 
     // down() puts the columns back, up() takes them out again and ends the reader's pick.
