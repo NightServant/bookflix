@@ -36,7 +36,7 @@ new #[Title('Collections')] class extends Component {
         $collection = app(CreateCollection::class)->handle($user, trim($this->name));
         $this->reset('name');
 
-        $this->redirectRoute('collections.show', ['slug' => $collection->slug, 'owner' => $user->id], navigate: true);
+        $this->redirectRoute('collections.show', ['slug' => $collection->slug], navigate: true);
     }
 
     /**

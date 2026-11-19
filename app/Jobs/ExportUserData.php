@@ -65,7 +65,6 @@ class ExportUserData implements ShouldQueue
                 'history.json' => $this->history($user),
                 'interactions.json' => $this->interactions($user),
                 'searches.json' => $this->searches($user),
-                'following.json' => $this->following($user),
                 'reviews.json' => $this->reviews($user),
                 'reports.json' => $this->reports($user),
             ];
@@ -123,8 +122,6 @@ class ExportUserData implements ShouldQueue
                 'has_avatar' => filled($profile->avatar_path),
                 'preferred_languages' => $profile->preferred_languages,
                 'reading_length' => $profile->reading_length->value,
-                'profile_visibility' => $profile->profile_visibility->value,
-                'library_visibility' => $profile->library_visibility->value,
                 'personalization_enabled' => $profile->personalization_enabled,
                 'show_mature' => $profile->show_mature,
                 'adult_confirmed_at' => $this->time($profile->adult_confirmed_at),
@@ -220,7 +217,6 @@ class ExportUserData implements ShouldQueue
                 'name' => $collection->name,
                 'slug' => $collection->slug,
                 'description' => $collection->description,
-                'visibility' => $collection->visibility,
                 'is_editorial' => (bool) $collection->is_editorial,
                 'created_at' => $this->time($collection->created_at),
                 'updated_at' => $this->time($collection->updated_at),
@@ -348,28 +344,6 @@ class ExportUserData implements ShouldQueue
                 'results_count' => $row->results_count,
                 'created_at' => $this->time($row->created_at),
             ];
-        }
-    }
-
-    /**
-     * The handles of the readers they follow, newest first. Only those still viewable (active, public, not hidden) appear: a follow of someone
-     * who went private or was deactivated stays stored but names a reader the exporting reader can no longer see.
-     *
-     * @return Generator<int, array<string, mixed>>
-     */
-    private function following(User $user): Generator
-    {
-        $rows = $user->listedFollowing()
-            ->join('profiles', 'profiles.user_id', '=', 'users.id')
-            ->join('follows', fn ($join) => $join->on('follows.followed_id', '=', 'users.id')->where('follows.follower_id', $user->id))
-            ->whereNotNull('profiles.handle')
-            ->orderByDesc('follows.created_at')->orderBy('users.id')
-            ->select('profiles.handle', 'follows.created_at')
-            ->toBase()
-            ->get();
-
-        foreach ($rows as $row) {
-            yield ['handle' => $row->handle, 'followed_at' => $this->time($row->created_at)];
         }
     }
 

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use stdClass;
 
 /**
- * The editorial collections (staff picks, set by an admin): the themed rows Discover and Home show, and the list the Collections page offers.
+ * The editorial collections (staff picks, made by an admin and still owned by an active account): the themed rows Discover and Home show, and the list the Collections page offers.
  * A collection counts only when the reader may see at least one story in it (Media::visibleTo), and a row holds only those stories.
  */
 class EditorialCollections
@@ -28,6 +28,7 @@ class EditorialCollections
     {
         return Collection::query()
             ->where('is_editorial', true)
+            ->whereHas('user', fn ($owner) => $owner->active())
             ->whereHas('items', fn ($items) => $items->visibleTo($viewer))
             ->orderByDesc('updated_at')->orderByDesc('id')
             ->limit($limit)

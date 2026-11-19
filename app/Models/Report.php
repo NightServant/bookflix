@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
 
 /**
- * A reader's report of a review, collection or profile (see App\Actions\Social for the only writers). The target is null once it has been deleted;
+ * A reader's report of a review (see App\Actions\Social for the only writers). The target is null once it has been deleted;
  * anything that shows a report treats that as "removed".
  *
  * @property int $id
@@ -27,7 +27,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $handled_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property Review|Collection|Profile|null $reportable
+ * @property Review|null $reportable
  */
 #[Fillable(['reporter_id', 'reason', 'details'])]
 class Report extends Model

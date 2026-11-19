@@ -5,7 +5,6 @@ use App\Actions\Library\MoveCollectionItem;
 use App\Actions\Library\RemoveFromCollection;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
-use App\Enums\Visibility;
 use App\Library\WriteLimit;
 use App\Models\Collection;
 use App\Models\CollectionItem;
@@ -14,7 +13,6 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -33,19 +31,9 @@ new class extends Component {
     #[Url]
     public bool $editors = false;
 
-    /**
-     * Whose collection the link means (`?owner=7`; 0 for none), so two readers' public collections of the same name are told apart. Read when the page
-     * opens, which then sets it to the collection's owner, so the address the reader copies the link from names them. A staff pick has no owner in its
-     * address (`except`): it is found by `editors`.
-     */
-    #[Url(except: 0)]
-    public int $owner = 0;
-
     public string $name = '';
 
     public string $description = '';
-
-    public string $visibility = 'private';
 
     /** What the owner typed in the add stories box. */
     public string $find = '';
@@ -55,14 +43,12 @@ new class extends Component {
 
     public function mount(string $slug): void
     {
-        $collection = Collection::resolveFor($slug, auth()->user(), $this->editors, $this->owner ?: null) ?? abort(404);
+        $collection = Collection::resolveFor($slug, auth()->user(), $this->editors) ?? abort(404);
         abort_unless(Gate::allows('view', $collection), 404);
 
         $this->collectionId = $collection->id;
-        $this->owner = $collection->is_editorial ? 0 : $collection->user_id;
         $this->name = $collection->name;
         $this->description = (string) $collection->description;
-        $this->visibility = $collection->visibility->value;
     }
 
     /**
@@ -74,7 +60,7 @@ new class extends Component {
     }
 
     /**
-     * The collection, if this reader may still view it: looked up again on every request, so a collection made private or deleted meanwhile is a 404.
+     * The collection, if this reader may still view it: looked up again on every request, so a collection deleted meanwhile is a 404.
      */
     #[Computed]
     public function collection(): Collection
@@ -204,13 +190,11 @@ new class extends Component {
         $this->validate([
             'name' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:500'],
-            'visibility' => ['required', Rule::enum(Visibility::class)],
         ]);
 
         $collection->update([
             'name' => trim($this->name),
             'description' => trim($this->description) ?: null,
-            'visibility' => Visibility::from($this->visibility),
         ]);
 
         unset($this->collection);
@@ -242,13 +226,12 @@ new class extends Component {
     $collection = $this->collection;
     $items = $this->items;
     $isOwner = $this->isOwner;
-    $public = $collection->visibility === \App\Enums\Visibility::Public;
     $eyebrow = $collection->is_editorial ? __('Staff pick') : ($isOwner ? __('Your collection') : __('Collection'));
     $guide = filled($collection->description)
         ? $collection->description
         : ($isOwner
-            ? __('Add stories below, drag them or use the move buttons to put them in order, and choose who can see the collection.')
-            : ($collection->is_editorial ? __('A list picked by the Bookflix editors. Open a story to read more about it.') : __('A list of stories put together by another reader. Open a story to read more about it.')));
+            ? __('Add stories below, drag them or use the move buttons to put them in order.')
+            : ($collection->is_editorial ? __('A list picked by the Bookflix editors. Open a story to read more about it.') : __('A list of stories. Open a story to read more about it.')));
     $field = 'focus-ring h-11 w-full rounded-control border border-border-input bg-surface-input px-3 text-body text-ink placeholder:text-ink-muted';
     $iconButton = 'focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-control text-ink-subtle hover:bg-surface-input hover:text-ink disabled:cursor-default disabled:text-ink-muted disabled:hover:bg-transparent';
 @endphp
@@ -269,10 +252,6 @@ new class extends Component {
     <div class="px-gutter">
         <p role="status" data-test="collection-count" class="mt-8 flex flex-wrap items-center gap-x-2 text-meta text-ink-subtle">
             <span class="tabular-nums">{{ trans_choice('{0} No stories yet|{1} 1 story|[2,*] :count stories', $items->count()) }}</span>
-            @unless ($collection->is_editorial)
-                <span aria-hidden="true">·</span>
-                <span class="inline-flex items-center gap-1"><flux:icon :name="$public ? 'globe-alt' : 'lock-closed'" variant="micro" class="size-4" />{{ $public ? __('Public') : __('Private') }}</span>
-            @endunless
         </p>
 
         <p class="sr-only" role="status" aria-live="polite" data-test="moved">{{ $moved }}</p>
@@ -405,16 +384,11 @@ new class extends Component {
             </section>
 
             <section id="details" aria-label="{{ __('Collection settings') }}" class="mt-12 scroll-mt-20 lg:mt-16">
-                <x-settings-card :title="__('Details')" :description="__('The name, a line about the collection, and who can see it.')" class="max-w-2xl">
+                <x-settings-card :title="__('Details')" :description="__('The name and a line about the collection. Only you can see it.')" class="max-w-2xl">
                     <form wire:submit="save" class="w-full space-y-6">
                         <flux:input wire:model="name" :label="__('Name')" maxlength="100" autocomplete="off" />
 
                         <flux:textarea wire:model="description" :label="__('Description')" :placeholder="__('What this collection is for')" rows="3" maxlength="500" />
-
-                        <flux:radio.group wire:model="visibility" :label="__('Who can see it')">
-                            <flux:radio value="private" :label="__('Private')" :description="__('Only you can see this collection.')" />
-                            <flux:radio value="public" :label="__('Public')" :description="__('Anyone with the link can open it.')" />
-                        </flux:radio.group>
 
                         <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="save-collection">{{ __('Save') }}</x-cta>
                     </form>

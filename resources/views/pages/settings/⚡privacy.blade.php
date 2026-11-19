@@ -1,20 +1,16 @@
 <?php
 
 use App\Access\MatureAccess;
-use App\Enums\Visibility;
 use App\Jobs\ExportUserData;
 use App\Library\ExportStorage;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Privacy settings')] class extends Component {
-    public string $profileVisibility = 'private';
-    public string $libraryVisibility = 'private';
     public bool $personalizationEnabled = true;
 
     public bool $showMature = false;
@@ -28,8 +24,6 @@ new #[Title('Privacy settings')] class extends Component {
     {
         $profile = Auth::user()->profile;
 
-        $this->profileVisibility = $profile->profile_visibility->value;
-        $this->libraryVisibility = $profile->library_visibility->value;
         $this->personalizationEnabled = $profile->personalization_enabled;
         $this->showMature = MatureAccess::allows(Auth::user());
         $this->confirmAdult = $this->showMature;
@@ -41,32 +35,10 @@ new #[Title('Privacy settings')] class extends Component {
     public function updatePrivacy(): void
     {
         $validated = $this->validate([
-            'profileVisibility' => [Rule::enum(Visibility::class)],
-            'libraryVisibility' => [Rule::enum(Visibility::class)],
             'personalizationEnabled' => ['boolean'],
         ]);
 
-        $profile = Auth::user()->profile;
-        $hidden = $profile->moderation_hidden_at !== null;
-
-        // A public profile needs a handle for its URL, and a profile moderators hid stays private until they restore it.
-        if ($validated['profileVisibility'] === Visibility::Public->value && $hidden) {
-            $this->addError('profileVisibility', __('Moderators have hidden your profile, so it stays private.'));
-        } elseif ($validated['profileVisibility'] === Visibility::Public->value && blank($profile->handle)) {
-            $this->addError('profileVisibility', __('Choose a handle on your profile first.'));
-        }
-
-        if ($validated['libraryVisibility'] === Visibility::Public->value && $hidden) {
-            $this->addError('libraryVisibility', __('Moderators have hidden your profile, so it stays private.'));
-        }
-
-        if ($this->getErrorBag()->isNotEmpty()) {
-            return;
-        }
-
         Auth::user()->profile()->updateOrCreate([], [
-            'profile_visibility' => $validated['profileVisibility'],
-            'library_visibility' => $validated['libraryVisibility'],
             'personalization_enabled' => $validated['personalizationEnabled'],
         ]);
 
@@ -163,25 +135,13 @@ new #[Title('Privacy settings')] class extends Component {
 }; ?>
 
 <section class="w-full">
-    @include('partials.settings-heading', ['title' => __('Privacy'), 'description' => __('Choose who can see your profile and library, whether mature titles are shown, and take a copy of your data.')])
+    @include('partials.settings-heading', ['title' => __('Privacy'), 'description' => __('Your profile, library and collections are private. Choose whether mature titles are shown and take a copy of your data.')])
 
     <flux:heading level="2" class="sr-only">{{ __('Privacy settings') }}</flux:heading>
 
     <x-pages::settings.layout>
-        <x-settings-card :title="__('Who Can See What')" :description="__('Your profile and library are private until you say otherwise.')">
+        <x-settings-card :title="__('Personalization')" :description="__('Your profile, library and collections are private: only you can see them.')">
         <form wire:submit="updatePrivacy" class="w-full space-y-6">
-            <flux:radio.group wire:model="profileVisibility" :label="__('Profile visibility')">
-                <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your profile.')" />
-                <flux:radio value="public" :label="__('Public')" :description="__('Anyone can see your profile.')" />
-            </flux:radio.group>
-
-            <flux:radio.group wire:model="libraryVisibility" :label="__('Library visibility')">
-                <flux:radio value="private" :label="__('Private')" :description="__('Only you can see your library.')" />
-                <flux:radio value="public" :label="__('Public')" :description="__('Anyone can see your library.')" />
-            </flux:radio.group>
-
-            <flux:separator variant="subtle" />
-
             <flux:switch
                 wire:model="personalizationEnabled"
                 :label="__('Personalization')"

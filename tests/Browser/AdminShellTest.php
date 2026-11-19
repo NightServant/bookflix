@@ -50,8 +50,8 @@ test('the admin pages pass the audit with no console errors, on desktop and on a
     $this->seed(DeweySeeder::class);
     DuplicateCandidate::factory()->count(2)->create();
     classified(Media::factory()->count(2)->create(), '813', status: 'pending');
-    Collection::factory()->public()->editorial()->create();
-    Collection::factory()->public()->create();
+    Collection::factory()->editorial()->create();
+    Collection::factory()->create();
 
     foreach (['/admin', '/admin/providers', '/admin/duplicates', '/admin/classifications', '/admin/staff-picks', '/admin/content', '/admin/models'] as $path) {
         visit($path, $this->viewports[$viewport])->wait(1)

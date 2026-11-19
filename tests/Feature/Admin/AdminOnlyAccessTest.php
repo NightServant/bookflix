@@ -31,7 +31,7 @@ dataset('reader pages', [
     'series.show' => ['series.show', fn () => ['slug' => Series::factory()->create()->slug]],
     'library.index' => ['library.index', fn () => []],
     'collections.index' => ['collections.index', fn () => []],
-    'collections.show' => ['collections.show', fn () => ['slug' => Collection::factory()->create(['visibility' => 'public'])->slug]],
+    'collections.show' => ['collections.show', fn () => ['slug' => Collection::factory()->editorial()->create()->slug]],
     'history.index' => ['history.index', fn () => []],
     'preferences.edit' => ['preferences.edit', fn () => []],
     'privacy.edit' => ['privacy.edit', fn () => []],

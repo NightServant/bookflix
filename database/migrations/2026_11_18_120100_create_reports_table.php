@@ -10,7 +10,7 @@ return new class extends Migration
     /**
      * Run the migrations.
      *
-     * A reader's report of a review, collection or profile (P10-R9). A reader has at most one open report per target (partial unique index); `handled_by`
+     * A reader's report of a review (P10-R9). A reader has at most one open report per target (partial unique index); `handled_by`
      * goes null if the moderator's account is purged.
      */
     public function up(): void

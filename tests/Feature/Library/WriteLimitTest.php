@@ -34,7 +34,7 @@ function libraryFingerprint(User $user): array
         'library' => LibraryEntry::where('user_id', $user->id)->orderBy('media_id')->get(['media_id', 'status', 'favorited_at'])->toArray(),
         'ratings' => Rating::where('user_id', $user->id)->orderBy('media_id')->pluck('score', 'media_id')->all(),
         'progress' => ReadingProgress::where('user_id', $user->id)->pluck('percent', 'media_id')->all(),
-        'collections' => Collection::where('user_id', $user->id)->orderBy('id')->get(['id', 'name', 'visibility'])->toArray(),
+        'collections' => Collection::where('user_id', $user->id)->orderBy('id')->get(['id', 'name'])->toArray(),
         'items' => CollectionItem::orderBy('id')->get(['id', 'collection_id', 'media_id', 'position'])->toArray(),
     ];
 }
@@ -175,7 +175,7 @@ test('every change on a collection page is held back once the minute is used up'
         'add a story' => $page->call('addItem', $spare->id),
         'remove a story' => $page->call('removeItem', $collection->items()->first()->id),
         'move a story' => $page->call('reorder', $collection->items()->first()->id, 1),
-        'save the details' => $page->set('name', 'Renamed')->set('visibility', 'public')->call('save'),
+        'save the details' => $page->set('name', 'Renamed')->call('save'),
         'delete the collection' => $page->call('delete')->assertNoRedirect(),
     };
 
@@ -185,9 +185,9 @@ test('every change on a collection page is held back once the minute is used up'
 
 test('another reader is refused before the limit is looked at, so they cannot spend the owners minute', function () {
     $owner = User::factory()->create();
-    $collection = Collection::factory()->for($owner)->create(['visibility' => 'public']);
+    $collection = Collection::factory()->for($owner)->create(['is_editorial' => true]);
     $this->actingAs($visitor = User::factory()->create());
-    $page = Livewire::withQueryParams(['owner' => $owner->id])->test('pages::collections.show', ['slug' => $collection->slug]);
+    $page = Livewire::test('pages::collections.show', ['slug' => $collection->slug]);
 
     $page->call('removeItem', 1)->assertForbidden();
 

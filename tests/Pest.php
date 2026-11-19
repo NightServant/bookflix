@@ -594,7 +594,7 @@ function homeCatalog(): Collection
     ])->create();
     $media->each(fn (Media $story, int $i) => $story->genres()->attach($i >= 30 ? $horror : ($i % 2 === 0 ? $fantasy : $mystery)));
     classified($media->take(10), '813');
-    collectionOf(User::factory()->create(), $media->slice(20, 6)->values()->all(), ['is_editorial' => true, 'visibility' => 'public', 'name' => 'Staff Shelf']);
+    collectionOf(User::factory()->create(), $media->slice(20, 6)->values()->all(), ['is_editorial' => true, 'name' => 'Staff Shelf']);
     DB::statement('refresh materialized view media_popularity');
     activeVersion('hybrid-weights');
 

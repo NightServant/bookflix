@@ -5,8 +5,6 @@ use App\Actions\Social\HideReportedContent;
 use App\Actions\Social\RestoreContent;
 use App\Enums\ReportStatus;
 use App\Enums\ReviewState;
-use App\Enums\Visibility;
-use App\Models\Collection;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
@@ -69,37 +67,6 @@ test('hiding actions every open report of the same target and no others', functi
         ->and($elsewhere->fresh()->status)->toBe(ReportStatus::Open);
 });
 
-test('hiding a collection makes it private and stamps it, and the policy refuses it', function () {
-    $admin = User::factory()->admin()->create();
-    $collection = Collection::factory()->public()->create();
-    $report = Report::factory()->of($collection)->create();
-
-    app(HideReportedContent::class)->handle($admin, $report);
-
-    $collection->refresh();
-
-    expect($collection->visibility)->toBe(Visibility::Private)
-        ->and($collection->moderation_hidden_at)->not->toBeNull()
-        ->and(Gate::forUser(User::factory()->create())->allows('view', $collection))->toBeFalse()
-        ->and(Gate::forUser($collection->user)->allows('view', $collection))->toBeTrue()
-        ->and(Collection::query()->viewableBy(User::factory()->create())->count())->toBe(0);
-});
-
-test('hiding a profile makes it private and stamps it, and view-profile refuses it', function () {
-    $admin = User::factory()->admin()->create();
-    $owner = moderatedReader('about_to_hide');
-    $report = Report::factory()->of($owner->profile)->create();
-
-    app(HideReportedContent::class)->handle($admin, $report);
-
-    $profile = $owner->profile->fresh();
-
-    expect($profile->profile_visibility)->toBe(Visibility::Private)
-        ->and($profile->moderation_hidden_at)->not->toBeNull()
-        ->and(Gate::forUser(User::factory()->create())->allows('view-profile', $owner->fresh()))->toBeFalse()
-        ->and($report->fresh()->status)->toBe(ReportStatus::Actioned);
-});
-
 test('dismissing keeps the content and records the handler', function () {
     $admin = User::factory()->admin()->create();
     $review = Review::factory()->create();
@@ -126,36 +93,17 @@ test('restoring a review publishes it again', function () {
         ->and($report->fresh()->handled_by)->toBe($admin->id);
 });
 
-test('restoring a collection or profile clears the stamp and leaves it private', function () {
-    $admin = User::factory()->admin()->create();
-    $collection = Collection::factory()->create(['moderation_hidden_at' => now()]);
-    $owner = moderatedReader('restore_me');
-    $owner->profile->forceFill(['profile_visibility' => Visibility::Private, 'moderation_hidden_at' => now()])->save();
-
-    app(RestoreContent::class)->handle($admin, Report::factory()->of($collection)->create());
-    app(RestoreContent::class)->handle($admin, Report::factory()->of($owner->profile)->create());
-
-    expect($collection->fresh()->moderation_hidden_at)->toBeNull()
-        ->and($collection->fresh()->visibility)->toBe(Visibility::Private)
-        ->and($owner->profile->fresh()->moderation_hidden_at)->toBeNull()
-        ->and($owner->profile->fresh()->profile_visibility)->toBe(Visibility::Private);
-});
-
 test('a target deleted since cannot be hidden or restored, but the report can be dismissed', function () {
     $admin = User::factory()->admin()->create();
     $review = Review::factory()->create();
-    $collection = Collection::factory()->public()->create();
     $a = Report::factory()->of($review)->create();
-    $b = Report::factory()->of($collection)->create();
     $review->delete();
-    $collection->delete();
 
     foreach ([HideReportedContent::class, RestoreContent::class] as $action) {
-        expect(fn () => app($action)->handle($admin, $a->fresh()))->toThrow(ValidationException::class)
-            ->and(fn () => app($action)->handle($admin, $b->fresh()))->toThrow(ValidationException::class);
+        expect(fn () => app($action)->handle($admin, $a->fresh()))->toThrow(ValidationException::class);
     }
 
     app(DismissReport::class)->handle($admin, $a->fresh());
 
-    expect($a->fresh()->status)->toBe(ReportStatus::Dismissed)->and($b->fresh()->status)->toBe(ReportStatus::Open);
+    expect($a->fresh()->status)->toBe(ReportStatus::Dismissed);
 });

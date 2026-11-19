@@ -378,25 +378,15 @@ test('an adult rated entry is gated too, and a deleted or merged away one is not
     expect(libraryTitles(Livewire::actingAs($user)->test('pages::library.index')))->toBe(['Plain Tale']);
 });
 
-test('the view-library gate honours privacy and deactivation', function () {
+test('a library is private: there is no gate that shares it, and a reader only ever lists their own entries', function () {
     $owner = User::factory()->create();
     $other = User::factory()->create();
+    LibraryEntry::factory()->for($owner)->for(Media::factory()->create(['title' => 'Owners Tale']))->create();
 
-    expect(Gate::forUser($other)->allows('view-library', $owner))->toBeFalse()
-        ->and(Gate::forUser($owner)->allows('view-library', $owner))->toBeTrue()
-        ->and(Gate::forUser(null)->allows('view-library', $owner))->toBeFalse();
-
-    // A public library is seen only through a viewable profile (P10-R3).
-    $owner->profile()->updateOrCreate([], ['library_visibility' => 'public']);
-    expect(Gate::forUser($other)->allows('view-library', $owner->refresh()))->toBeFalse();
-
-    $owner->profile()->updateOrCreate([], ['profile_visibility' => 'public']);
-    expect(Gate::forUser($other)->allows('view-library', $owner->refresh()))->toBeTrue()
-        ->and(Gate::forUser(null)->allows('view-library', $owner))->toBeTrue();
-
-    $owner->forceFill(['deactivated_at' => now()])->save();
-    expect(Gate::forUser($other)->allows('view-library', $owner->refresh()))->toBeFalse()
-        ->and(Gate::forUser($owner)->allows('view-library', $owner))->toBeTrue();
+    expect(Gate::has('view-library'))->toBeFalse()
+        ->and(Gate::has('view-profile'))->toBeFalse()
+        ->and(libraryTitles(Livewire::actingAs($other)->test('pages::library.index')))->toBe([])
+        ->and(libraryTitles(Livewire::actingAs($owner)->test('pages::library.index')))->toBe(['Owners Tale']);
 });
 
 test('the library runs a bounded number of queries in every view', function (string $view, int $budget) {

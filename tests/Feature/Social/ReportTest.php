@@ -3,10 +3,8 @@
 use App\Actions\Social\FileReport;
 use App\Enums\ReportReason;
 use App\Enums\ReportStatus;
-use App\Enums\Visibility;
 use App\Models\Collection;
 use App\Models\Media;
-use App\Models\Profile;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
@@ -26,38 +24,21 @@ function reportError(User $reporter, Model $target, ReportReason $reason = Repor
     return null;
 }
 
-function moderatedReader(string $handle = 'reported_reader'): User
-{
-    $user = User::factory()->create();
-    $user->profile()->updateOrCreate([], ['handle' => $handle, 'profile_visibility' => Visibility::Public]);
-
-    return $user->fresh();
-}
-
-test('a reader reports a published review, a public collection and a public profile', function () {
+test('a reader reports a published review', function () {
     $reporter = User::factory()->create();
-    $owner = moderatedReader();
     $review = Review::factory()->create();
-    $collection = Collection::factory()->public()->create();
 
-    $one = app(FileReport::class)->handle($reporter, $review, ReportReason::Spoiler, '  Gives away the end ');
-    $two = app(FileReport::class)->handle($reporter, $collection, ReportReason::Abuse, null);
-    $three = app(FileReport::class)->handle($reporter, $owner->profile, ReportReason::Other, '');
+    $report = app(FileReport::class)->handle($reporter, $review, ReportReason::Spoiler, '  Gives away the end ');
 
-    expect(Report::query()->count())->toBe(3)
-        ->and($one->fresh()->reportable_type)->toBe('review')
-        ->and($one->fresh()->reason)->toBe(ReportReason::Spoiler)
-        ->and($one->fresh()->details)->toBe('Gives away the end')
-        ->and($one->fresh()->status)->toBe(ReportStatus::Open)
-        ->and($one->fresh()->handled_by)->toBeNull()
-        ->and($two->fresh()->reportable_type)->toBe('collection')
-        ->and($three->fresh()->reportable_type)->toBe('profile')
-        ->and($three->fresh()->details)->toBeNull()
-        ->and($three->fresh()->reportable->is($owner->profile))->toBeTrue()
+    expect(Report::query()->count())->toBe(1)
+        ->and($report->fresh()->reportable_type)->toBe('review')
+        ->and($report->fresh()->reason)->toBe(ReportReason::Spoiler)
+        ->and($report->fresh()->details)->toBe('Gives away the end')
+        ->and($report->fresh()->status)->toBe(ReportStatus::Open)
+        ->and($report->fresh()->handled_by)->toBeNull()
+        ->and($report->fresh()->reportable->is($review))->toBeTrue()
         // Reporting changes nothing about the content.
-        ->and($review->fresh()->status->value)->toBe('published')
-        ->and($collection->fresh()->visibility)->toBe(Visibility::Public)
-        ->and($owner->profile->fresh()->moderation_hidden_at)->toBeNull();
+        ->and($review->fresh()->status->value)->toBe('published');
 });
 
 test('details are limited to 1000 characters', function () {
@@ -76,15 +57,11 @@ test('only a signed-in active reader can report: an admin or deactivated account
         ->and(Report::query()->count())->toBe(0);
 });
 
-test('a reader cannot report their own review, collection or profile', function () {
-    $owner = moderatedReader('self_reporter');
+test('a reader cannot report their own review', function () {
+    $owner = User::factory()->create();
     $review = Review::factory()->create(['user_id' => $owner->id]);
-    $collection = Collection::factory()->public()->create(['user_id' => $owner->id]);
 
-    expect(reportError($owner, $review))->toHaveKey('report')
-        ->and(reportError($owner, $collection))->toHaveKey('report')
-        ->and(reportError($owner, $owner->profile))->toHaveKey('report')
-        ->and(Report::query()->count())->toBe(0);
+    expect(reportError($owner, $review))->toHaveKey('report')->and(Report::query()->count())->toBe(0);
 });
 
 test('a second open report of the same target returns the first', function () {
@@ -122,35 +99,35 @@ test('classes outside the morph map and unrelated models are refused', function 
 
 test('content the reporter cannot see or that is not reportable is refused alike', function () {
     $reporter = User::factory()->create();
-    $hiddenProfile = moderatedReader('hidden_one')->profile;
-    $hiddenProfile->forceFill(['moderation_hidden_at' => now()])->save();
-    $admin = User::factory()->admin()->create();
-    $admin->profile()->update(['profile_visibility' => Visibility::Public]);
-    $adminProfile = $admin->profile->fresh();
     $unreportable = [
         'hidden review' => Review::factory()->hidden()->create(),
         'deactivated author review' => Review::factory()->create(['user_id' => User::factory()->deactivated()]),
         'admin author review' => Review::factory()->create(['user_id' => User::factory()->admin()]),
         'review of a gated story' => Review::factory()->create(['media_id' => matureStory()->id]),
-        'private collection' => Collection::factory()->create(),
-        'editorial collection' => Collection::factory()->public()->editorial()->create(),
-        'moderator-hidden collection' => Collection::factory()->public()->create(['moderation_hidden_at' => now()]),
-        'collection of a deactivated reader' => Collection::factory()->public()->create(['user_id' => User::factory()->deactivated()]),
-        'private profile' => User::factory()->create()->profile,
-        'hidden profile' => $hiddenProfile,
-        'admin profile' => $adminProfile,
+        'collection' => Collection::factory()->create(),
+        'profile' => User::factory()->create()->profile,
     ];
     $deleted = Review::factory()->create();
     $deleted->delete();
     $unreportable['deleted review'] = $deleted;
 
     foreach ($unreportable as $target) {
-        $target = $target instanceof User ? $target->profile : $target;
         expect(reportError($reporter, $target))->toHaveKey('report');
     }
 
     expect(Report::query()->count())->toBe(0);
 });
+
+test('a review of a deleted or merged story is refused with a validation error, never a crash', function (Closure $retire) {
+    $reporter = User::factory()->create();
+    $review = Review::factory()->create();
+    $retire($review->media);
+
+    expect(reportError($reporter, $review->fresh()))->toHaveKey('report')->and(Report::query()->count())->toBe(0);
+})->with([
+    'deleted' => [fn (Media $media) => $media->delete()],
+    'merged' => [fn (Media $media) => $media->forceFill(['merged_into_id' => Media::factory()->create()->id])->save()],
+]);
 
 test('a reader may file ten reports an hour', function () {
     $reporter = User::factory()->create();
@@ -166,20 +143,17 @@ test('a reader may file ten reports an hour', function () {
 
 test('a report whose target was deleted since still loads', function () {
     $review = Review::factory()->create();
-    $collection = Collection::factory()->public()->create();
-    $a = Report::factory()->of($review)->create();
-    $b = Report::factory()->of($collection)->create();
+    Report::factory()->of($review)->create();
 
     $review->delete();
-    $collection->delete();
 
     $reports = Report::query()->with('reportable')->get();
 
-    expect($reports)->toHaveCount(2)->and($reports->pluck('reportable')->filter()->all())->toBe([]);
+    expect($reports)->toHaveCount(1)->and($reports->pluck('reportable')->filter()->all())->toBe([]);
 });
 
-test('the morph map names review, collection and profile', function () {
+test('the morph map names review and no longer collection or profile', function () {
     expect(Relation::getMorphedModel('review'))->toBe(Review::class)
-        ->and(Relation::getMorphedModel('collection'))->toBe(Collection::class)
-        ->and(Relation::getMorphedModel('profile'))->toBe(Profile::class);
+        ->and(Relation::getMorphedModel('collection'))->toBeNull()
+        ->and(Relation::getMorphedModel('profile'))->toBeNull();
 });

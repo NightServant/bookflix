@@ -4,9 +4,6 @@ namespace App\Actions\Social;
 
 use App\Enums\ReportStatus;
 use App\Enums\ReviewState;
-use App\Enums\Visibility;
-use App\Models\Collection;
-use App\Models\Profile;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
@@ -14,9 +11,8 @@ use App\Social\ReviewSummaries;
 use Illuminate\Support\Facades\DB;
 
 /**
- * A moderator hides what a report points at (P10-R10): a review becomes hidden; a collection or profile becomes private and is stamped
- * `moderation_hidden_at`, so its owner can't make it public again until it is restored. The report and every other open report of the same target
- * become actioned. A target deleted since can't be hidden (the report can be dismissed). Admin only.
+ * A moderator hides a reported review (P10-R10). The report and every other open report of the same target become actioned. A target deleted since
+ * can't be hidden (the report can be dismissed). Admin only. Outside reviews are one more branch here when they become reportable.
  */
 class HideReportedContent
 {
@@ -34,10 +30,6 @@ class HideReportedContent
             if ($target instanceof Review) {
                 $target->forceFill(['status' => ReviewState::Hidden])->save();
                 $this->summaries->invalidate($target->media_id);
-            } elseif ($target instanceof Collection) {
-                $target->forceFill(['visibility' => Visibility::Private, 'moderation_hidden_at' => now()])->save();
-            } elseif ($target instanceof Profile) {
-                $target->forceFill(['profile_visibility' => Visibility::Private, 'moderation_hidden_at' => now()])->save();
             }
 
             Report::query()

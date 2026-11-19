@@ -33,7 +33,7 @@ class ReportFactory extends Factory
     }
 
     /**
-     * A report of this review, collection or profile.
+     * A report of this target (a review).
      */
     public function of(Model $target): static
     {

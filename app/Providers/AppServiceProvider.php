@@ -4,13 +4,10 @@ namespace App\Providers;
 
 use App\Discovery\Search\QueryParser;
 use App\Discovery\Search\RuleBasedQueryParser;
-use App\Enums\Visibility;
-use App\Models\Collection;
 use App\Models\Creator;
 use App\Models\Demographic;
 use App\Models\Genre;
 use App\Models\MediaType;
-use App\Models\Profile;
 use App\Models\Review;
 use App\Models\Theme;
 use App\Models\Trope;
@@ -61,29 +58,12 @@ class AppServiceProvider extends ServiceProvider
             'creator' => Creator::class,
             // What a report points at (reports.reportable_type).
             'review' => Review::class,
-            'collection' => Collection::class,
-            'profile' => Profile::class,
         ]);
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
 
         // An admin account runs the catalog and has no reader side (see EnsureReaderAccount); the same line guards the reader writes an admin could still call straight through Livewire.
         Gate::define('use-reader-side', fn (User $user): bool => ! $user->is_admin);
-
-        // One seam for who may see a reader's public side (P10-R3): the owner, or an active, non-admin owner with a public profile that moderators have not hidden.
-        // Callers answer a refusal with 404, never 403, so a private profile's existence doesn't leak.
-        Gate::define('view-profile', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
-            || (! $owner->is_admin
-                && ! $owner->isDeactivated()
-                && $owner->profile->profile_visibility === Visibility::Public
-                && $owner->profile->moderation_hidden_at === null));
-
-        // A reader's library is theirs; others may see it only when the profile is viewable and the owner made the library public.
-        Gate::define('view-library', fn (?User $viewer, User $owner): bool => $viewer?->is($owner)
-            || (Gate::forUser($viewer)->allows('view-profile', $owner) && $owner->profile->library_visibility === Visibility::Public));
-
-        // Named so it is tuned in one place; FollowUser applies it, so Livewire calls count too.
-        RateLimiter::for('follows', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.follows_per_hour'))->by($user->id));
 
         RateLimiter::for('reviews', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reviews_per_hour'))->by($user->id));
         RateLimiter::for('collection-clones', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.collection_clones_per_hour'))->by($user->id));

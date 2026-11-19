@@ -1,45 +1,31 @@
 <?php
 
-use App\Enums\Visibility;
 use App\Models\Collection;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
-use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 /*
- * Staff picks: the public collections readers have built, each with a switch that makes it an editorial collection (a themed row for every reader
- * on Discover and Home, see EditorialCollections). Only a public collection can be picked; a pick already made stays listed so it can be turned off,
- * and it ends on its own when the owner makes the collection private (see Collection::booted). Private collections are never listed here.
+ * Staff picks: the editorial collections, each with a switch that shows it to every reader as a themed row on Discover and Home (see
+ * EditorialCollections). Readers' collections are private and never listed here (P10-R3); a collection switched off stays on the page until it is
+ * reloaded, so it can be switched back on. Admins will make editorial collections in an editor of their own.
  */
 new #[Title('Staff picks')] class extends Component {
     use WithPagination;
 
-    #[Url(as: 'show')]
-    public string $show = 'all';
+    /** @var list<int> The collections switched on or off since the page opened: they stay listed, so a slip can be undone. */
+    #[Locked]
+    public array $touched = [];
 
     public function boot(): void
     {
         Gate::authorize('access-admin');
-    }
-
-    public function updatedShow(): void
-    {
-        $this->resetPage();
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    #[Computed]
-    public function filters(): array
-    {
-        return ['all' => __('All public'), 'picks' => __('Staff picks')];
     }
 
     /**
@@ -52,8 +38,7 @@ new #[Title('Staff picks')] class extends Component {
     public function collections(): LengthAwarePaginator
     {
         return $this->listed()
-            ->when($this->show === 'picks', fn (Builder $query) => $query->where('is_editorial', true))
-            ->select(['id', 'user_id', 'name', 'description', 'visibility', 'is_editorial', 'updated_at'])
+            ->select(['id', 'user_id', 'name', 'description', 'is_editorial', 'updated_at'])
             ->with('user:id,name')
             ->withCount('items')
             ->orderByDesc('updated_at')->orderByDesc('id')
@@ -73,14 +58,12 @@ new #[Title('Staff picks')] class extends Component {
         $collection = $this->listed()->findOrFail($collectionId);
         $pick = ! $collection->is_editorial;
 
-        // A collection its owner keeps private can be taken off the list but never put on it.
-        abort_if($pick && $collection->visibility !== Visibility::Public, 404);
-
         // The owner's "Updated" date stays theirs: a pick is not an edit of the collection.
         $collection->timestamps = false;
         $collection->is_editorial = $pick;
         $collection->save();
 
+        $this->touched[] = $collection->id;
         unset($this->collections, $this->picks);
 
         Flux::toast(variant: 'success', text: $pick
@@ -89,7 +72,7 @@ new #[Title('Staff picks')] class extends Component {
     }
 
     /**
-     * What this page may list and change: public collections of active readers, and every collection already picked.
+     * What this page may list and change: the editorial collections, and those switched off since it opened.
      *
      * @return Builder<Collection>
      */
@@ -97,29 +80,15 @@ new #[Title('Staff picks')] class extends Component {
     {
         return Collection::query()->where(fn (Builder $query) => $query
             ->where('is_editorial', true)
-            ->orWhere(fn (Builder $public) => $public
-                ->where('visibility', Visibility::Public->value)
-                ->whereHas('user', fn (Builder $owner) => $owner->active())));
+            ->orWhereIn('id', $this->touched));
     }
 }; ?>
 
 <section class="py-8">
-    <x-admin-header :title="__('Staff picks')" :description="__('Public collections readers have built. Turn one on to show it to every reader as a themed row on Discover and Home. A pick ends if its owner makes the collection private.')" />
-
-    @php($shown = array_key_exists($show, $this->filters) ? $show : 'all')
-
-    <nav aria-label="{{ __('Show') }}" class="mt-6 flex flex-wrap gap-2">
-        @foreach ($this->filters as $value => $label)
-            <x-chip wire:key="show-{{ $value }}" :href="route('admin.staff-picks', ['show' => $value])" wire:click.prevent="$set('show', '{{ $value }}')" :active="$shown === $value" class="min-h-11 px-4">{{ $label }}</x-chip>
-        @endforeach
-    </nav>
+    <x-admin-header :title="__('Staff picks')" :description="__('The editorial collections. A staff pick is shown to every reader as a themed row on Discover and Home. Readers’ own collections stay private.')" />
 
     @if ($this->collections->isEmpty())
-        @if ($shown === 'picks')
-            <x-admin-empty class="mt-6 rounded-card bg-surface-card" icon="star" :title="__('No staff picks yet')" :description="__('Turn on a collection under All public to show it to every reader.')" />
-        @else
-            <x-admin-empty class="mt-6 rounded-card bg-surface-card" icon="star" :title="__('No public collections yet')" :description="__('When a reader makes a collection public it appears here, ready to be made a staff pick.')" />
-        @endif
+        <x-admin-empty class="mt-6 rounded-card bg-surface-card" icon="star" :title="__('No staff picks yet')" :description="__('Editorial collections made by admins appear here.')" />
     @else
         {{-- A table from md up; below it each collection is a card, each cell named by its data-label (the header row is hidden there). --}}
         <flux:table class="mt-6 table-auto! max-md:block max-md:whitespace-normal! max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tr]:block max-md:[&_td]:block max-md:[&_td]:border-0 max-md:[&_td]:px-0">
@@ -139,9 +108,6 @@ new #[Title('Staff picks')] class extends Component {
                             <span class="block text-body text-ink">{{ $collection->name }}</span>
                             @if ($collection->description)
                                 <span class="block line-clamp-1 text-meta text-ink-subtle">{{ $collection->description }}</span>
-                            @endif
-                            @if ($collection->visibility !== \App\Enums\Visibility::Public)
-                                <span class="mt-1 block text-legal text-ink-subtle">{{ __('Private: turning it off removes it from this list.') }}</span>
                             @endif
                         </flux:table.cell>
                         <flux:table.cell data-label="{{ __('Owner') }}" class="{{ $cell }}">{{ $collection->user?->name }}</flux:table.cell>
@@ -174,11 +140,7 @@ new #[Title('Staff picks')] class extends Component {
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p class="text-meta text-ink-subtle">
-                @if ($shown === 'picks')
-                    {{ trans_choice(':count staff pick|:count staff picks', $this->collections->total(), ['count' => Number::format($this->collections->total())]) }} · {{ __('shown to every reader on Discover and Home') }}
-                @else
-                    {{ trans_choice(':count collection|:count collections', $this->collections->total(), ['count' => Number::format($this->collections->total())]) }} · {{ trans_choice(':count staff pick|:count staff picks', $this->picks, ['count' => Number::format($this->picks)]) }}
-                @endif
+                {{ trans_choice(':count staff pick|:count staff picks', $this->collections->total(), ['count' => Number::format($this->collections->total())]) }} · {{ __('shown to every reader on Discover and Home') }}
             </p>
             <x-pager :paginator="$this->collections" class="justify-end" />
         </div>

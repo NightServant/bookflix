@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\ReadingLength;
-use App\Enums\Visibility;
 use App\Events\HomePreferencesChanged;
 use Database\Factories\ProfileFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -16,28 +15,21 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $user_id
  * @property string|null $avatar_path
- * @property string|null $handle Public identifier, lowercase (see App\Actions\Social\SetHandle).
  * @property string|null $bio
  * @property list<string> $preferred_languages
  * @property ReadingLength $reading_length
- * @property Visibility $profile_visibility
- * @property Visibility $library_visibility
  * @property bool $personalization_enabled
  * @property bool $show_mature The reader asked to see mature and adult titles; counts only with `adult_confirmed_at` (see App\Access\MatureAccess).
  * @property Carbon|null $adult_confirmed_at When the reader confirmed they are 18 or older.
  * @property Carbon|null $onboarded_at
- * @property Carbon|null $moderation_hidden_at Set by a moderator; while set the profile can't be made public.
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'handle',
     'avatar_path',
     'bio',
     'preferred_languages',
     'reading_length',
-    'profile_visibility',
-    'library_visibility',
     'personalization_enabled',
     'show_mature',
     'adult_confirmed_at',
@@ -70,13 +62,10 @@ class Profile extends Model
         return [
             'preferred_languages' => 'array',
             'reading_length' => ReadingLength::class,
-            'profile_visibility' => Visibility::class,
-            'library_visibility' => Visibility::class,
             'personalization_enabled' => 'boolean',
             'show_mature' => 'boolean',
             'adult_confirmed_at' => 'datetime',
             'onboarded_at' => 'datetime',
-            'moderation_hidden_at' => 'datetime',
         ];
     }
 

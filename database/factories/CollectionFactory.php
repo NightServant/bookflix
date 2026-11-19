@@ -23,17 +23,8 @@ class CollectionFactory extends Factory
             'user_id' => User::factory(),
             'name' => fake()->unique()->words(2, true),
             'slug' => fn (array $attributes): string => Str::slug($attributes['name']),
-            'visibility' => 'private',
             'is_editorial' => false,
         ];
-    }
-
-    /**
-     * A public collection.
-     */
-    public function public(): static
-    {
-        return $this->state(fn () => ['visibility' => 'public']);
     }
 
     /**

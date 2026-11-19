@@ -94,12 +94,12 @@ test('dragging animates the list unless the reader has asked for less motion', f
     'reduced motion' => [['reducedMotion' => 'reduce'], 0],
 ]);
 
-test('the address of a collection names its owner, so a link copied from it opens the right one', function () {
+test('a collection of your own has a plain address, and a staff pick has the editors in its address', function () {
     visit(route('collections.show', $this->collection->slug), $this->desktop)->wait(1)
-        ->assertQueryStringHas('owner', (string) $this->user->id)
+        ->assertQueryStringMissing('owner')
+        ->assertQueryStringMissing('editors')
         ->assertNoJavaScriptErrors();
 
-    // A staff pick has the editors in its address instead.
     visit(route('collections.show', ['slug' => $this->pick->slug, 'editors' => 1]), $this->desktop)->wait(1)
         ->assertQueryStringHas('editors')
         ->assertQueryStringMissing('owner')

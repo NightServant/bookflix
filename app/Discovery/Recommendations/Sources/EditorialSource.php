@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
- * Staff picks: the titles of the editorial collections by their position in the collection, the first scoring 1. A reader's own and public
+ * Staff picks: the titles of the editorial collections by their position in the collection, the first scoring 1. A reader's own
  * collections are never read, only those staff marked editorial.
  */
 class EditorialSource extends Source
