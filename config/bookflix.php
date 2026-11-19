@@ -247,6 +247,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Outside Reviews
+    |--------------------------------------------------------------------------
+    |
+    | Reviews and ratings read from the providers' official APIs (P10-R20). `outside_enabled` switches the
+    | nightly run (`bookflix:refresh-outside-reviews`); it is off until
+    | each source's terms are confirmed. A story's outside data is refreshed when it is `outside_stale_days` old.
+    |
+    */
+
+    'reviews' => [
+        'outside_enabled' => (bool) env('BOOKFLIX_OUTSIDE_REVIEWS_ENABLED', false),
+        'outside_stale_days' => 30,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Metadata Providers
     |--------------------------------------------------------------------------
     |

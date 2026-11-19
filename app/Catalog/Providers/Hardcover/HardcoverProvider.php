@@ -15,11 +15,17 @@ use App\Catalog\Providers\RateLimitedByProvider;
 use App\Catalog\Providers\SanitizesProviderData;
 use App\Catalog\Providers\SendsProviderRequests;
 use App\Enums\CreatorRole;
+use App\Reviews\Excerpt;
+use App\Reviews\OffersReviews;
+use App\Reviews\OutsideRating;
+use App\Reviews\OutsideReview;
+use App\Reviews\OutsideReviewData;
+use App\Reviews\ScalesScores;
 use Carbon\CarbonImmutable;
 
-class HardcoverProvider implements MetadataProvider
+class HardcoverProvider implements MetadataProvider, OffersReviews
 {
-    use ClassifiesMediaType, SanitizesProviderData, SendsProviderRequests;
+    use ClassifiesMediaType, SanitizesProviderData, ScalesScores, SendsProviderRequests;
 
     private const API = 'https://api.hardcover.app/v1/graphql';
 
@@ -86,6 +92,55 @@ class HardcoverProvider implements MetadataProvider
         $books = $this->books($this->post("query (\$id: Int!) { books(where: {id: {_eq: \$id}}, limit: 1) { {$fields} } }", ['id' => (int) $externalId]));
 
         return $books === [] ? null : $this->record($books[0]);
+    }
+
+    /**
+     * Public reader reviews of a book (excerpt, 0 to 5 star rating scaled to 0 to 100, reviewer, date) and the book's rating average and count.
+     * Spoiler-flagged and empty reviews are skipped; the link is the book's page, as Hardcover shows reviews there.
+     *
+     * UNCONFIRMED OFFLINE: the existing client only reads `books`. The `user_books` relation and its `review_raw`, `review_has_spoilers`,
+     * `reviewed_at`, `has_review` and `user { username }` fields are taken from Hardcover's public schema and exercised only with faked HTTP.
+     */
+    public function outsideReviews(string $externalId): OutsideReviewData
+    {
+        $body = $this->post($this->userBookReviewsQuery(), ['id' => (int) $externalId]);
+        $book = $this->books($body)[0] ?? null;
+
+        if ($book === null) {
+            throw new ProviderUnavailable('Hardcover answered without the book.');
+        }
+
+        $url = $this->storableUrl('https://hardcover.app/books/'.rawurlencode($this->text($book['slug'] ?? null)));
+        $reviews = [];
+
+        foreach (is_array($book['user_books'] ?? null) ? $book['user_books'] : [] as $entry) {
+            $excerpt = is_array($entry) && ($entry['review_has_spoilers'] ?? false) !== true ? Excerpt::make($entry['review_raw'] ?? null) : null;
+
+            if ($excerpt === null || $url === null || ! is_int($entry['id'] ?? null)) {
+                continue;
+            }
+
+            $reviews[] = new OutsideReview(
+                externalId: (string) $entry['id'],
+                excerpt: $excerpt,
+                url: $url,
+                authorName: $this->text($entry['user']['username'] ?? null) ?: null,
+                rating: $this->scale($entry['rating'] ?? null, 5),
+                publishedAt: $this->date($entry['reviewed_at'] ?? null),
+            );
+        }
+
+        $score = $this->scale($book['rating'] ?? null, 5);
+
+        return new OutsideReviewData(
+            array_slice($reviews, 0, 10),
+            $score === null ? null : new OutsideRating($score, $this->count($book['ratings_count'] ?? null), $url),
+        );
+    }
+
+    private function userBookReviewsQuery(): string
+    {
+        return 'query ($id: Int!) { books(where: {id: {_eq: $id}}, limit: 1) { slug rating ratings_count user_books(where: {has_review: {_eq: true}, review_has_spoilers: {_eq: false}}, order_by: {reviewed_at: desc}, limit: 10) { id rating review_raw review_has_spoilers reviewed_at user { username } } } }';
     }
 
     public function normalize(ProviderRecord $record): NormalizedMedia

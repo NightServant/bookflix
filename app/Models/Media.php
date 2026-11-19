@@ -616,6 +616,22 @@ class Media extends Model
     }
 
     /**
+     * @return HasMany<ExternalReview, $this>
+     */
+    public function externalReviews(): HasMany
+    {
+        return $this->hasMany(ExternalReview::class);
+    }
+
+    /**
+     * @return HasMany<ExternalRating, $this>
+     */
+    public function externalRatings(): HasMany
+    {
+        return $this->hasMany(ExternalRating::class);
+    }
+
+    /**
      * Related media (sequel, adaptation, ...); the kind of relation is the pivot `relation`.
      *
      * @return BelongsToMany<Media, $this, Pivot, 'pivot'>
