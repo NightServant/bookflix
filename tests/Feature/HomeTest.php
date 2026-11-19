@@ -17,7 +17,7 @@ test('authenticated users can visit home', function () {
     $response = $this->actingAs(User::factory()->create())->get(route('home'))->assertOk();
 
     foreach (primaryNavs($response->getContent()) as $nav) {
-        expect($nav)->toContain('href="'.route('home').'"', 'href="'.route('profile.edit').'"');
+        expect($nav)->toContain('href="'.route('home').'"', 'href="'.route('profile.show').'"');
     }
 });
 

@@ -36,7 +36,7 @@ class SaveStaffPick
             ['name' => ['required', 'string', 'max:100'], 'description' => ['nullable', 'string', 'max:500']],
         )->validate();
 
-        if ($pick !== null && ! $pick->loadMissing('user')->user?->is_admin) {
+        if ($pick !== null && ! $pick->is_editorial && ! $pick->loadMissing('user')->user?->is_admin) {
             throw ValidationException::withMessages(['pick' => __('Only staff picks can be edited here.')]);
         }
 

@@ -181,6 +181,8 @@ new #[Title('Reports')] class extends Component {
         </div>
     </div>
 
+    @error('report')<p role="alert" class="mt-4 text-meta text-red-400">{{ $message }}</p>@enderror
+
     @if ($cards->isEmpty())
         <x-admin-empty class="mt-6 rounded-card bg-surface-card" icon="flag" :title="__('Nothing to look at')" :description="$status === 'open' ? __('No open reports. When a reader reports a review, it shows up here.') : __('No reports match these filters.')" />
     @else

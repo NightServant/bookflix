@@ -168,7 +168,15 @@ new #[Title('Staff picks')] class extends Component {
     {
         $media = Media::query()->unmerged()->visibleTo(null)->findOrFail($mediaId);
 
-        if (! in_array($media->id, $this->storyIds, true) && count($this->storyIds) < (int) config('bookflix.collections.max_items')) {
+        $limit = (int) config('bookflix.collections.max_items');
+
+        if (count($this->storyIds) >= $limit) {
+            $this->addError('stories', trans_choice('A collection holds at most :count story.|A collection holds at most :count stories.', $limit));
+
+            return;
+        }
+
+        if (! in_array($media->id, $this->storyIds, true)) {
             $this->storyIds[] = $media->id;
         }
 
@@ -241,7 +249,10 @@ new #[Title('Staff picks')] class extends Component {
      */
     private function picks(): Builder
     {
-        return Collection::query()->whereHas('user', fn (Builder $user) => $user->where('is_admin', true));
+        // Also any collection still shown to readers, so a pick whose maker is no longer an admin can still be switched off or edited.
+        return Collection::query()->where(fn (Builder $query) => $query
+            ->where('is_editorial', true)
+            ->orWhereHas('user', fn (Builder $user) => $user->where('is_admin', true)));
     }
 }; ?>
 

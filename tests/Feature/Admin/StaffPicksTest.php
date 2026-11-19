@@ -159,3 +159,12 @@ test('the empty state says what to do', function () {
 
     staffPicks()->assertSee('No staff picks yet')->assertSee('Make one with New staff pick');
 });
+
+test('a pick still shown to readers stays listed and can be switched off when its maker is no longer an admin', function () {
+    $former = User::factory()->create();
+    $pick = Collection::factory()->create(['user_id' => $former->id, 'is_editorial' => true, 'name' => 'Orphaned Pick']);
+    $this->actingAs($this->admin);
+
+    staffPicks()->assertSee('Orphaned Pick')->call('toggle', $pick->id)->assertOk();
+    expect($pick->fresh()->is_editorial)->toBeFalse();
+});

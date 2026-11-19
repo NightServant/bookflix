@@ -2,6 +2,7 @@
 
 namespace App\Actions\Social;
 
+use App\Admin\AdminCounts;
 use App\Enums\ReportReason;
 use App\Enums\ReportStatus;
 use App\Models\ExternalReview;
@@ -10,6 +11,7 @@ use App\Models\Review;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
@@ -53,6 +55,8 @@ class FileReport
         try {
             $report = new Report(['reporter_id' => $reporter->id, 'reason' => $reason, 'details' => $details === '' ? null : $details]);
             $report->forceFill(['reportable_type' => $target->getMorphClass(), 'reportable_id' => $target->getKey()])->save();
+            // The admin menu's Reports badge counts what waits; it is cached for a minute.
+            Cache::forget(AdminCounts::CACHE_KEY);
 
             return $report;
         } catch (UniqueConstraintViolationException) {
