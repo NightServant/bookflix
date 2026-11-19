@@ -6,6 +6,7 @@ use App\Discovery\Search\QueryParser;
 use App\Discovery\Search\RuleBasedQueryParser;
 use App\Models\Creator;
 use App\Models\Demographic;
+use App\Models\ExternalReview;
 use App\Models\Genre;
 use App\Models\MediaType;
 use App\Models\Review;
@@ -58,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
             'creator' => Creator::class,
             // What a report points at (reports.reportable_type).
             'review' => Review::class,
+            'external_review' => ExternalReview::class,
         ]);
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);

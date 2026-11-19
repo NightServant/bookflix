@@ -537,7 +537,7 @@ new #[Title('Your profile')] class extends Component {
         <section aria-labelledby="reviews-title" data-section="reviews" class="{{ $card }}">
             <header class="px-5 pt-5 sm:px-6">
                 <h2 id="reviews-title" class="text-lead text-ink">{{ __('Your reviews') }}</h2>
-                <p class="mt-1 flex items-center gap-1.5 text-legal text-ink-muted"><flux:icon name="lock-closed" variant="micro" class="size-3.5 shrink-0" />{{ __('Your name shows on story pages next to them') }}</p>
+                <p class="mt-1 flex items-center gap-1.5 text-legal text-ink-muted"><flux:icon name="lock-closed" variant="micro" class="size-3.5 shrink-0" />{{ __('Your name and headline show on story pages next to them') }}</p>
             </header>
 
             @if ($reviews['total'] === 0)
@@ -629,7 +629,7 @@ new #[Title('Your profile')] class extends Component {
 
         <section aria-labelledby="private-title" class="{{ $card }} p-5">
             <h2 id="private-title" class="flex items-center gap-2 text-lead text-ink"><flux:icon name="lock-closed" class="size-5 text-ink-subtle" />{{ __('Private by design') }}</h2>
-            <p class="mt-2 text-meta text-ink-subtle">{{ __('Bookflix has no public profiles. Your library, collections and reading stay yours. Reviews you post show your name on that story’s page.') }}</p>
+            <p class="mt-2 text-meta text-ink-subtle">{{ __('Bookflix has no public profiles. Your library, collections and reading stay yours. Reviews you post show your name and headline on that story’s page.') }}</p>
             <a href="{{ route('privacy.edit') }}" wire:navigate class="focus-ring mt-1 inline-flex min-h-11 items-center gap-2 rounded-control text-meta text-link hover:underline">{{ __('Privacy settings') }}<flux:icon name="arrow-right" variant="micro" class="size-4" /></a>
         </section>
     </aside>

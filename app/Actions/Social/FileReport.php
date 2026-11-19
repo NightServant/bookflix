@@ -4,6 +4,7 @@ namespace App\Actions\Social;
 
 use App\Enums\ReportReason;
 use App\Enums\ReportStatus;
+use App\Models\ExternalReview;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
@@ -79,7 +80,25 @@ class FileReport
             return $this->reportableReview($reporter, $target);
         }
 
+        if ($target instanceof ExternalReview) {
+            return $this->reportableOutsideReview($reporter, $target);
+        }
+
         return false;
+    }
+
+    /**
+     * An outside review a reader can see: shown (not hidden by a moderator), of a story that is still there and past the reporter's gate.
+     */
+    private function reportableOutsideReview(User $reporter, ExternalReview $review): bool
+    {
+        if (! $review->exists || $review->hidden_at !== null) {
+            return false;
+        }
+
+        $media = $review->loadMissing('media')->media;
+
+        return $media !== null && $media->merged_into_id === null && ! $media->isGatedFor($reporter);
     }
 
     private function reportableReview(User $reporter, Review $review): bool

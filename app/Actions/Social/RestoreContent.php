@@ -3,6 +3,7 @@
 namespace App\Actions\Social;
 
 use App\Enums\ReviewState;
+use App\Models\ExternalReview;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
@@ -28,6 +29,10 @@ class RestoreContent
             if ($target instanceof Review) {
                 $target->forceFill(['status' => ReviewState::Published])->save();
                 $this->summaries->queue($target->media_id);
+            }
+
+            if ($target instanceof ExternalReview) {
+                $target->forceFill(['hidden_at' => null, 'hidden_by' => null])->save();
             }
 
             $this->markHandled($report, $moderator, $report->status);

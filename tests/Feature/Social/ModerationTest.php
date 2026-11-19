@@ -5,6 +5,7 @@ use App\Actions\Social\HideReportedContent;
 use App\Actions\Social\RestoreContent;
 use App\Enums\ReportStatus;
 use App\Enums\ReviewState;
+use App\Models\ExternalReview;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
@@ -106,4 +107,26 @@ test('a target deleted since cannot be hidden or restored, but the report can be
     app(DismissReport::class)->handle($admin, $a->fresh());
 
     expect($a->fresh()->status)->toBe(ReportStatus::Dismissed);
+});
+
+test('hiding an outside review takes it off the story and restoring brings it back', function () {
+    $admin = User::factory()->admin()->create();
+    $review = ExternalReview::factory()->create();
+    $report = Report::factory()->of($review)->create();
+    $second = Report::factory()->of($review)->create();
+
+    app(HideReportedContent::class)->handle($admin, $report);
+
+    $review->refresh();
+    expect($review->hidden_at)->not->toBeNull()
+        ->and($review->hidden_by)->toBe($admin->id)
+        ->and(ExternalReview::query()->visible()->whereKey($review->id)->exists())->toBeFalse()
+        ->and($second->refresh()->status)->toBe(ReportStatus::Actioned);
+
+    app(RestoreContent::class)->handle($admin, $report->refresh());
+
+    $review->refresh();
+    expect($review->hidden_at)->toBeNull()
+        ->and($review->hidden_by)->toBeNull()
+        ->and(ExternalReview::query()->visible()->whereKey($review->id)->exists())->toBeTrue();
 });

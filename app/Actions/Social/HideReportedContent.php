@@ -4,6 +4,7 @@ namespace App\Actions\Social;
 
 use App\Enums\ReportStatus;
 use App\Enums\ReviewState;
+use App\Models\ExternalReview;
 use App\Models\Report;
 use App\Models\Review;
 use App\Models\User;
@@ -30,6 +31,10 @@ class HideReportedContent
             if ($target instanceof Review) {
                 $target->forceFill(['status' => ReviewState::Hidden])->save();
                 $this->summaries->invalidate($target->media_id);
+            }
+
+            if ($target instanceof ExternalReview) {
+                $target->forceFill(['hidden_at' => now(), 'hidden_by' => $moderator->id])->save();
             }
 
             Report::query()

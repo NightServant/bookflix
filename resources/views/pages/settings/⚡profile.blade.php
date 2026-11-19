@@ -206,7 +206,7 @@ new #[Title('Profile settings')] class extends Component {
                 </div>
             </div>
 
-            <flux:input wire:model="headline" :label="__('Headline (optional)')" :description:trailing="__('A line under your name, up to 120 characters.')" maxlength="120" autocomplete="off" />
+            <flux:input wire:model="headline" :label="__('Headline (optional)')" :description:trailing="__('Shown under your name on your profile and next to reviews you post. Up to 120 characters.')" maxlength="120" autocomplete="off" />
 
             <flux:textarea wire:model="bio" :label="__('Bio')" rows="3" maxlength="1000" />
 

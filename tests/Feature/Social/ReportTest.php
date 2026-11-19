@@ -1,9 +1,11 @@
 <?php
 
 use App\Actions\Social\FileReport;
+use App\Enums\AgeRating;
 use App\Enums\ReportReason;
 use App\Enums\ReportStatus;
 use App\Models\Collection;
+use App\Models\ExternalReview;
 use App\Models\Media;
 use App\Models\Report;
 use App\Models\Review;
@@ -154,6 +156,26 @@ test('a report whose target was deleted since still loads', function () {
 
 test('the morph map names review and no longer collection or profile', function () {
     expect(Relation::getMorphedModel('review'))->toBe(Review::class)
+        ->and(Relation::getMorphedModel('external_review'))->toBe(ExternalReview::class)
         ->and(Relation::getMorphedModel('collection'))->toBeNull()
         ->and(Relation::getMorphedModel('profile'))->toBeNull();
+});
+
+test('a reader reports an outside review that is shown', function () {
+    $reporter = User::factory()->create();
+    $review = ExternalReview::factory()->create();
+
+    $report = app(FileReport::class)->handle($reporter, $review, ReportReason::Spoiler, 'Gives the ending away');
+
+    expect($report->reportable_type)->toBe('external_review')
+        ->and($report->reportable->is($review))->toBeTrue()
+        ->and($report->status)->toBe(ReportStatus::Open);
+});
+
+test('a hidden outside review, or one of a story the reporter cannot see, is refused', function () {
+    $reporter = User::factory()->create();
+
+    expect(reportError($reporter, ExternalReview::factory()->create(['hidden_at' => now()])))->toHaveKey('report')
+        ->and(reportError($reporter, ExternalReview::factory()->create(['media_id' => Media::factory()->create(['age_rating' => AgeRating::Adult])->id])))->toHaveKey('report')
+        ->and(reportError(User::factory()->admin()->create(), ExternalReview::factory()->create()))->toHaveKey('report');
 });

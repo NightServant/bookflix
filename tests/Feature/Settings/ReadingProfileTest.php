@@ -72,7 +72,7 @@ test('the headline field is labelled and explained on the page', function () {
     $this->actingAs(User::factory()->create());
 
     Livewire::test('pages::settings.profile')->assertSee('Headline (optional)')
-        ->assertSee('A line under your name, up to 120 characters.')
+        ->assertSee('Shown under your name on your profile and next to reviews you post. Up to 120 characters.')
         ->assertSee('What your own profile page shows. Only you can see it.')
         ->assertSee('Shown on your profile and next to reviews you post.');
 });

@@ -252,6 +252,8 @@ return [
     'reviews' => [
         'outside_enabled' => (bool) env('BOOKFLIX_OUTSIDE_REVIEWS_ENABLED', false),
         'outside_stale_days' => 30,
+        // Each source's own rating scale: ratings are stored 0 to 100 and shown back on the scale the source uses.
+        'outside_scales' => ['anilist' => 100, 'hardcover' => 5, 'mangaupdates' => 10, 'openlibrary' => 5],
     ],
 
     /*
