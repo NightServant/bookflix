@@ -43,6 +43,32 @@ Plan: `2026-10-23-phase-10-social.md` on `claude/phase-plans-7d02cb` (PR #3, doc
 | P10-R17 | The navigation Profile item opens the reader's own public profile when they have a handle (that page has "Edit profile"); without one it stays on Settings. Final placement is part of the design sign-off. | A layout test asserts the nav. |
 | P10-R18 | Story page query budgets rise by what the Reviews tab and What readers say need, each named in the test's comment. | None. |
 
+## Changed by the user (2026-11-19), after the first screens
+
+The first Phase 10 screens were not signed off. The user changed the phase:
+
+- **Every profile is private.** No public profiles, libraries or follower lists. Settled in answers the same day: following, the activity feed, the followed-readers source and profile reports are **removed** from the branch.
+- **Collections are private too.** Readers can't publish collections. Staff picks become editorial collections that admins make in the admin area (a new admin screen). Existing staff picks made from readers' collections end; readers' collections are not republished.
+- **Reviews come from outside sources and from readers.** Reader reviews, spoilers, moderation and "What readers say" stay. Outside reviews come from **official APIs only** (no scraping): a short excerpt, the rating, the source and a link back, never the full text.
+- **The profile page looks like LinkedIn and JobStreet profiles** (banner, avatar over it, headline, sections as cards), in the Bookflix design system, and only its owner sees it.
+
+### Rulings replaced or added
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| P10-R2 | **Withdrawn.** No handles: nothing has a public address. | |
+| P10-R3 | **Replaced.** Profiles, libraries and collections are visible to their owner only; editorial collections to every reader. `profiles.profile_visibility`, `profiles.library_visibility` and `collections.visibility` are dropped (a migration makes the rule the schema), with the Privacy page's visibility choices and the collection page's "Who can see it". `view-profile` and `view-library` go; `CollectionPolicy::view` is the owner or an editorial collection. | Reversing this later needs the columns back. |
+| P10-R4, R6, R13, R14 | **Withdrawn** with following, the activity feed and the followed-readers source. | |
+| P10-R9, R10 | **Narrowed.** Reports and moderation cover reviews only: reader reviews and outside reviews. `collections.moderation_hidden_at` and `profiles.moderation_hidden_at` go. | |
+| P10-R12 | **Replaced.** "Save a copy" stays for editorial collections (a private copy, items in order, no notes). Staff picks: admins create and edit editorial collections in the admin area (owned by the admin who made them); the old toggle over readers' public collections goes. | Discover and Home show no staff-pick rows until admins make some. |
+| P10-R17 | **Replaced.** The Profile item opens the reader's own profile page (`/profile`), which links to Profile settings. | |
+| P10-R19 | **Own profile page** (`/profile`, owner only): a banner (token gradient, no upload), avatar, name, a new optional **headline** (`profiles.headline`, at most 120 characters), "Only you can see this page", a "Your reading" analytics card (finished this year, time read, reviews, collections), About (bio), profile strength with next steps, currently reading, finished by year, favourite genres, reviews and collections, all from existing tables. | One more column. |
+| P10-R20 | **Outside reviews** (official APIs only, through the existing providers, their switches, allowed hosts and rate limits): AniList community reviews (the reviewer's own short summary, score, link) and score; Hardcover reviews (excerpt, rating, link) and rating; Open Library ratings (average, count); MangaUpdates rating (Bayesian, votes). Stored in `external_reviews` (media, source, external id unique per source, author name, rating 0–100, plain-text excerpt at most 300 characters, url, published_at, fetched_at, hidden_at, hidden_by) and `external_ratings` (media, source, score 0–100, votes, url, fetched_at). Refreshed by a queued job when a story page is opened and its data is over 30 days old, plus a nightly run for the most-read stories. Spoiler-marked outside reviews are skipped. Readers can report an outside review; moderators hide it. The NYT Books API (critic reviews) needs a new key and a terms check and is deferred. Each source's terms are for the user to confirm (from this environment the terms pages were unreachable); AniList's say commercial use is free under $150 a month in revenue. | Fewer outside reviews for novels than for manga. |
+
+### Code review of the first backend (2026-11-19)
+
+Nine findings. 3 to 6 are in code now removed. To fix in the rework: (1) `SummarizeReviews` is `ShouldBeUnique` but must be unique only while queued, and must not write text that changed while the ML call ran; (2) a media merge must move or retire reviews and summaries; (7) a malformed ML answer must not delete the stored summary; (8) reporting a review of a deleted story must not 500; (9) `review_count` must store the qualifying count.
+
 ## Settled with the user (2026-11-18)
 
 - Per-story discussions (10.8): **deferred**, recorded below.
