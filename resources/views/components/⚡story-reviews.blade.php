@@ -319,7 +319,7 @@ new class extends Component {
                         <li class="flex min-w-44 shrink-0 items-center justify-between gap-4 rounded-card bg-surface-card p-4 lg:min-w-0 lg:rounded-none lg:bg-transparent lg:px-0 lg:py-3">
                             <div>
                                 <p class="text-meta font-medium text-ink">{{ __('Bookflix readers') }}</p>
-                                <p class="text-legal text-ink-muted">{{ trans_choice(':count rating|:count ratings', $ratings['count'], ['count' => number_format($ratings['count'])]) }}</p>
+                                <p class="text-legal text-ink-subtle">{{ trans_choice(':count rating|:count ratings', $ratings['count'], ['count' => number_format($ratings['count'])]) }}</p>
                             </div>
                             <p class="text-body font-semibold tabular-nums text-ink">{{ rtrim(rtrim(number_format($ratings['average'], 1), '0'), '.') }} / 10</p>
                         </li>
@@ -329,12 +329,12 @@ new class extends Component {
                             <div>
                                 <p class="text-meta font-medium text-ink">{{ $rating['name'] }}</p>
                                 @if ($rating['votes'])
-                                    <p class="text-legal text-ink-muted">{{ trans_choice(':count rating|:count ratings', $rating['votes'], ['count' => number_format($rating['votes'])]) }}</p>
+                                    <p class="text-legal text-ink-subtle">{{ trans_choice(':count rating|:count ratings', $rating['votes'], ['count' => number_format($rating['votes'])]) }}</p>
                                 @endif
                             </div>
                             <div class="flex items-center gap-1">
                                 <p class="text-body font-semibold tabular-nums text-ink">{{ $rating['value'] }} / {{ $rating['max'] }}</p>
-                                @if ($rating['url'])
+                                @if ($rating['url'] && str_starts_with($rating['url'], 'https://'))
                                     <a href="{{ $rating['url'] }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="focus-ring -me-3 inline-flex size-11 items-center justify-center rounded-control text-ink-subtle hover:text-ink lg:-me-3">
                                         <flux:icon name="arrow-top-right-on-square" variant="micro" class="size-4" />
                                         <span class="sr-only">{{ __(':source page (opens in a new tab)', ['source' => $rating['name']]) }}</span>
@@ -346,7 +346,7 @@ new class extends Component {
                 </ul>
 
                 @if ($ratings['outside'] !== [])
-                    <p class="mt-2 text-legal text-ink-muted">{{ __('Each site’s own scale. Updated monthly.') }}</p>
+                    <p class="mt-2 text-legal text-ink-subtle">{{ __('Each site’s own scale. Updated monthly.') }}</p>
                 @endif
             </section>
         @endif
@@ -355,7 +355,7 @@ new class extends Component {
             <section aria-labelledby="summary-title" class="{{ $card }}">
                 <h2 id="summary-title" class="text-lead text-ink">{{ __('What readers say') }}</h2>
                 <p class="mt-3 text-body text-ink">{{ $summary->summary }}</p>
-                <p class="mt-3 text-legal text-ink-muted">{{ __('Sentences picked from :count readers’ reviews.', ['count' => $summary->review_count]) }} {{ __('Reviews marked as spoilers are left out.') }}</p>
+                <p class="mt-3 text-legal text-ink-subtle">{{ __('Sentences picked from :count readers’ reviews.', ['count' => $summary->review_count]) }} {{ __('Reviews marked as spoilers are left out.') }}</p>
             </section>
         @endif
     </aside>
@@ -390,10 +390,13 @@ new class extends Component {
                                 @endif
                             </div>
                             <p class="mt-2 text-body text-ink">{{ $review->excerpt }}</p>
-                            <a href="{{ $review->url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="focus-ring mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-control text-meta text-link hover:underline">
-                                {{ __('Read the full review on :source', ['source' => $source]) }}<span class="sr-only"> {{ __('(opens in a new tab)') }}</span>
-                                <flux:icon name="arrow-top-right-on-square" variant="micro" class="size-4" />
-                            </a>
+                            {{-- Only an https link is followed: the address comes from the source's API. --}}
+                            @if (str_starts_with($review->url, 'https://'))
+                                <a href="{{ $review->url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="focus-ring mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-control text-meta text-link hover:underline">
+                                    {{ __('Read the full review on :source', ['source' => $source]) }}<span class="sr-only"> {{ __('(opens in a new tab)') }}</span>
+                                    <flux:icon name="arrow-top-right-on-square" variant="micro" class="size-4" />
+                                </a>
+                            @endif
                         </li>
                     @endforeach
                 </ul>

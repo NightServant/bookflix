@@ -3,6 +3,7 @@
 use App\Actions\Library\AddToCollection;
 use App\Actions\Library\MoveCollectionItem;
 use App\Actions\Library\RemoveFromCollection;
+use App\Actions\Social\CloneCollection;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\SearchFilters;
 use App\Library\WriteLimit;
@@ -38,6 +39,10 @@ new class extends Component {
     /** What the owner typed in the add stories box. */
     public string $find = '';
 
+    /** The reader's copy of this staff pick, once saved: the note under the buttons links to it. */
+    #[Locked]
+    public ?string $copySlug = null;
+
     /** What a screen reader hears after a story is moved (the page is a list that re-renders, so the move is said aloud). */
     public string $moved = '';
 
@@ -69,6 +74,17 @@ new class extends Component {
         abort_unless(Gate::allows('view', $collection), 404);
 
         return $collection;
+    }
+
+    /**
+     * Save a private copy of this staff pick into the reader's collections (P10-R12): its stories the reader may see, in order.
+     */
+    public function saveCopy(): void
+    {
+        Gate::authorize('use-reader-side');
+
+        $copy = app(CloneCollection::class)->handle(auth()->user(), $this->collection);
+        $this->copySlug = $copy->slug;
     }
 
     #[Computed]
@@ -227,6 +243,7 @@ new class extends Component {
     $items = $this->items;
     $isOwner = $this->isOwner;
     $eyebrow = $collection->is_editorial ? __('Staff pick') : ($isOwner ? __('Your collection') : __('Collection'));
+    $staffPick = $collection->is_editorial && ! $isOwner;
     $guide = filled($collection->description)
         ? $collection->description
         : ($isOwner
@@ -245,6 +262,44 @@ new class extends Component {
                 </x-slot:actions>
             @endif
         </x-page-header>
+
+        @if ($staffPick)
+            <p class="mt-2 text-meta text-ink-subtle">{{ __('Picked by the Bookflix editors') }} · {{ trans_choice(':count story|:count stories', $items->count()) }}</p>
+
+            {{-- Save a copy (a private collection of the reader's) and Copy link (the clipboard; where that is refused, the address shows selected to copy by hand). --}}
+            <div
+                x-data="{
+                    failed: false,
+                    copied: '',
+                    init() { this.copied = this.$el.dataset.copied },
+                    copy() {
+                        const fail = () => { this.failed = true; this.$nextTick(() => this.$refs.address.select()) };
+                        navigator.clipboard ? navigator.clipboard.writeText(window.location.href).then(() => this.$flux.toast({ text: this.copied, variant: 'success' }), fail) : fail();
+                    },
+                }"
+                data-copied="{{ __('Link copied') }}"
+                class="mt-5"
+            >
+                <div class="grid gap-3 sm:flex sm:flex-wrap">
+                    <x-cta variant="light" icon="document-duplicate" wire:click="saveCopy" class="w-full sm:w-auto">{{ __('Save a copy') }}</x-cta>
+                    <x-cta variant="secondary" icon="link" type="button" x-on:click="copy()" class="w-full sm:w-auto">{{ __('Copy link') }}</x-cta>
+                </div>
+
+                <label x-show="failed" x-cloak class="mt-3 block max-w-md">
+                    <span class="text-meta text-ink-subtle">{{ __('Copy this address:') }}</span>
+                    <input x-ref="address" type="text" readonly value="{{ route('collections.show', ['slug' => $collection->slug, 'editors' => 1]) }}" class="{{ $field }} mt-1">
+                </label>
+
+                @error('collection')<p class="mt-3 text-meta text-red-400">{{ $message }}</p>@enderror
+
+                @if ($copySlug)
+                    <p role="status" class="mt-3 inline-flex flex-wrap items-center gap-x-2 rounded-control border border-hairline bg-surface-card px-3 py-2 text-meta text-ink">
+                        {{ __('Saved to your collections as a private copy.') }}
+                        <a href="{{ route('collections.show', $copySlug) }}" wire:navigate class="focus-ring rounded-control text-link hover:underline">{{ __('Open it') }}</a>
+                    </p>
+                @endif
+            </div>
+        @endif
 
         <x-library-tabs current="collections.index" :exact="false" class="mt-6" />
     </header>

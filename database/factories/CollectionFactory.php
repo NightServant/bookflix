@@ -32,6 +32,7 @@ class CollectionFactory extends Factory
      */
     public function editorial(): static
     {
-        return $this->state(fn () => ['is_editorial' => true]);
+        // A staff pick is an admin's collection (P10-R3): readers' collections are private and never editorial.
+        return $this->state(fn () => ['is_editorial' => true, 'user_id' => User::factory()->admin()]);
     }
 }

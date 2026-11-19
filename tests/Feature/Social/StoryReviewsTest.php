@@ -237,3 +237,11 @@ test('hidden reviews of others never reach the page, however the list is read', 
 
     storyReviews($this->media)->call('showMoreReaders')->assertDontSee('Not for you');
 });
+
+test('an outside link that is not https is never rendered', function () {
+    ExternalReview::factory()->create(['media_id' => $this->media->id, 'url' => 'javascript:alert(1)', 'excerpt' => 'Odd link']);
+    ExternalRating::factory()->create(['media_id' => $this->media->id, 'source' => 'anilist', 'score' => 70, 'url' => 'javascript:alert(2)']);
+    $this->actingAs($this->reader);
+
+    storyReviews($this->media)->assertSee('Odd link')->assertDontSee('javascript:', false);
+});

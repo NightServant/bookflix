@@ -80,6 +80,23 @@ Nine findings. 3 to 6 are in code now removed. To fix in the rework: (1) `Summar
 - Following a private profile: **not allowed**; no follow requests (the plan).
 - Reviews: **any signed-in reader** may review any story they can see.
 
+## Changed by the user while the screens were built (2026-11-20)
+
+- Reviews show the reviewer's headline under their name (P10-R21). The headline was private to the profile page; it now shows wherever the reader's
+  reviews show, and the Settings help, the profile's "Your reviews" line and "Private by design" say so.
+- Each reader's review is one card: avatar, name, headline, date and the review (P10-R22). A spoiler review stays in that card, as one inline line
+  that opens it; no box of its own. The avatar spans the name, headline and date.
+- On a phone, the profile's "Continue reading" is full width at the standard 44 px height.
+- "Two step verification" buttons: two columns on a desktop, two rows on a phone. Done on Verify email (Resend email, Log out), and also on the
+  two-factor sign-in challenge (its recovery-code switch became a real button, reachable by keyboard) and Security's recovery codes.
+
+Decided while building: Dismiss closes every open report about the thing, as Hide does (Admin, Reports shows one card per thing); a staff pick is any
+collection an admin owns, "Off" being one not shown to readers (no new column); the Reviews tab loads when first shown, so the story page's own
+queries are unchanged; outside reviews can be reported, hidden and restored like reader reviews.
+
+Note on history: commit 94b0e35 is labelled as a ledger change but also holds most of the removal of follows, handles and the activity feed (staged
+deletions swept into it). History is not rewritten.
+
 ## Deferred
 
 - 10.8 per-story discussions (settled 2026-11-18): after 10.1–10.7 have proved out, in a phase of their own.
@@ -90,13 +107,13 @@ Nine findings. 3 to 6 are in code now removed. To fix in the rework: (1) `Summar
 
 | Task | State | Commit |
 |---|---|---|
-| 10.1 Public profiles and libraries | backend done; screens wait for sign-off | 2bd5354 |
-| 10.2 Following | backend done; screens wait for sign-off | 2bd5354 |
-| 10.3 Reviews | backend done; screens wait for sign-off | 7f586c4 |
-| 10.4 Reports and moderation | backend done; screens wait for sign-off | 7107d9d |
-| 10.5 Review summaries | ML route 9f00ead; job and table done | 041bc65 |
-| 10.6 Shared collections | clone and handle lookup done; screens wait for sign-off | b2bd9fc |
-| 10.7 Activity feed and followed-readers source | backend done; page waits for sign-off | 30015eb |
-| Screens | Figma "Phase 10 Screens" drawn 2026-11-19, waiting for sign-off | |
+| 10.1 Your profile (owner only; public profiles withdrawn) | done | 2bd5354, 96ac076, 42a98b3, 47e1660 |
+| 10.2 Following | withdrawn by the user (2026-11-19) | 8b42b80, 94b0e35 |
+| 10.3 Reviews, with outside reviews from official APIs | done | 7f586c4, 716d619, fd3e917, 26aab60 |
+| 10.4 Reports and moderation (Admin, Reports) | done | 7107d9d, fd3e917, 921b54d |
+| 10.5 Review summaries | done | 9f00ead, 041bc65 |
+| 10.6 Staff picks: admin editor, Save a copy, Copy link | done | b2bd9fc, 96ac076, (this branch) |
+| 10.7 Activity feed and followed-readers source | withdrawn by the user (2026-11-19) | 8b42b80 |
+| Screens | signed off 2026-11-19 and built | |
 
 Backend gate on 30015eb: `composer test` 3078 passed (lint, PHPStan level 7 clean).

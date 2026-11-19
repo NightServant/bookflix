@@ -394,14 +394,13 @@ new #[Title('Your profile')] class extends Component {
 
             <dl class="grid grid-cols-2 gap-y-6 px-5 py-6 sm:px-6 lg:grid-cols-4 lg:gap-y-0 lg:divide-x lg:divide-hairline">
                 @foreach ($stats as $key => $stat)
-                    <div data-stat="{{ $key }}" class="flex gap-3 pe-3 lg:px-5 lg:first:ps-0 lg:last:pe-0">
-                        <flux:icon :name="$stat['icon']" class="mt-1 size-5 shrink-0 text-ink-subtle" />
-                        {{-- The figure shows first; in the markup the term comes first, as a description list wants. --}}
-                        <div class="flex min-w-0 flex-col">
-                            <dt class="order-2 text-meta text-ink-subtle">{{ $stat['label'] }}</dt>
-                            <dd class="order-1 text-section tabular-nums text-ink">{{ $stat['value'] }}</dd>
-                            <dd class="order-3 mt-0.5 text-legal text-ink-muted">{{ $stat['sub'] }}</dd>
-                        </div>
+                    {{-- Each stat is a dt and its dds (the icon sits in the figure's dd); the figure shows first, the term under it. --}}
+                    <div data-stat="{{ $key }}" class="flex min-w-0 flex-col pe-3 lg:px-5 lg:first:ps-0 lg:last:pe-0">
+                        <dt class="order-2 ps-8 text-meta text-ink-subtle">{{ $stat['label'] }}</dt>
+                        <dd class="order-1 flex items-center gap-3 text-section tabular-nums text-ink">
+                            <flux:icon :name="$stat['icon']" class="size-5 shrink-0 text-ink-subtle" />{{ $stat['value'] }}
+                        </dd>
+                        <dd class="order-3 mt-0.5 ps-8 text-legal text-ink-muted">{{ $stat['sub'] }}</dd>
                     </div>
                 @endforeach
             </dl>
