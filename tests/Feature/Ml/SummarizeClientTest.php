@@ -42,6 +42,10 @@ test('summarize throws when the service is down, rejects the request or answers 
     '422' => [fn () => Http::response(['detail' => []], 422)],
     'not a string' => [fn () => Http::response(['summary' => ['a'], 'method' => 'lsa'])],
     'blank' => [fn () => Http::response(['summary' => '  ', 'method' => 'lsa'])],
+    'no summary key' => [fn () => Http::response(['method' => 'lsa'])],
+    'an empty object' => [fn () => Http::response([])],
+    'a page, not JSON' => [fn () => Http::response('<html>Bad gateway</html>', 200)],
+    'a JSON string' => [fn () => Http::response('"ok"', 200, ['Content-Type' => 'application/json'])],
 ]);
 
 test('summarize without a token throws before any request', function () {

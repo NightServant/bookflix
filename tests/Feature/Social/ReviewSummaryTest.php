@@ -11,7 +11,7 @@ use App\Models\Review;
 use App\Models\ReviewSummary;
 use App\Models\User;
 use App\Social\ReviewSummaries;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -95,7 +95,8 @@ test('the text is capped at 20000 characters on a whole review', function () {
     runSummary($media);
 
     Http::assertSent(fn (Request $request) => mb_strlen($request['text']) <= 20000 && str_starts_with($request['text'], '666') && ! str_contains($request['text'], '1111'));
-    expect(ReviewSummary::query()->find($media->id)->review_count)->toBe(4);
+    // The text holds four reviews; the summary says how many qualified (P10 review finding 9).
+    expect(ReviewSummary::query()->find($media->id)->review_count)->toBe(6);
 });
 
 test('an unchanged source makes no ML call', function () {
@@ -206,15 +207,70 @@ test('deactivating a reader invalidates the summaries of the stories they review
     Queue::assertPushed(SummarizeReviews::class, fn (SummarizeReviews $job) => $job->mediaId === $reviewed->id);
 });
 
-test('the job is unique per story and delayed by the configured minutes', function () {
+test('the job is unique per story until it starts, and delayed by the configured minutes', function () {
     config(['bookflix.social.review_summary_delay_minutes' => 10]);
     $media = Media::factory()->create();
 
     app(ReviewSummaries::class)->queue($media);
 
-    expect(new SummarizeReviews($media->id))->toBeInstanceOf(ShouldBeUnique::class)
+    // Unique only until it starts, so a change that lands while the ML service works still queues the next rebuild (finding 1).
+    expect(new SummarizeReviews($media->id))->toBeInstanceOf(ShouldBeUniqueUntilProcessing::class)
         ->and((new SummarizeReviews(7))->uniqueId())->toBe('7')
         ->and((new SummarizeReviews(7))->uniqueId())->not->toBe((new SummarizeReviews(8))->uniqueId());
     Queue::assertPushed(SummarizeReviews::class, fn (SummarizeReviews $job) => $job->queue === null
         && abs(now()->diffInSeconds($job->delay, false) - 600) < 5);
+});
+
+test('a review hidden while the ML service works is not written into the summary', function () {
+    $media = Media::factory()->create();
+    reviewsOf($media, 5);
+    $secret = Review::factory()->create(['media_id' => $media->id, 'body' => 'SECRET opinion', 'created_at' => now()]);
+    $calls = 0;
+    Http::fake(['ml.test/v1/summarize' => function () use ($secret, &$calls) {
+        // A moderator hides the review while the first call is in flight.
+        if ($calls++ === 0) {
+            $secret->forceFill(['status' => 'hidden'])->save();
+
+            return Http::response(['summary' => 'SECRET opinion, summed up.', 'method' => 'lsa']);
+        }
+
+        return Http::response(['summary' => 'Fresh.', 'method' => 'lsa']);
+    }]);
+    storedSummary($media);
+
+    runSummary($media);
+
+    // The old row is untouched (it is the invalidation's job to delete it), and nothing about the hidden text is stored.
+    expect(ReviewSummary::query()->find($media->id)->summary)->toBe('Old summary.');
+
+    runSummary($media);
+
+    expect(ReviewSummary::query()->find($media->id)->summary)->toBe('Fresh.');
+});
+
+test('a null summary is not applied to reviews that changed meanwhile either', function () {
+    $media = Media::factory()->create();
+    reviewsOf($media, 5);
+    $extra = Review::factory()->create(['media_id' => $media->id, 'body' => 'One more', 'created_at' => now()]);
+    Http::fake(['ml.test/v1/summarize' => function () use ($extra) {
+        $extra->delete();
+
+        return Http::response(['summary' => null, 'method' => 'lsa']);
+    }]);
+    storedSummary($media);
+
+    runSummary($media);
+
+    expect(ReviewSummary::query()->find($media->id)->summary)->toBe('Old summary.');
+});
+
+test('an answer that is not a summary object keeps the stored summary', function () {
+    Http::fake(['ml.test/v1/summarize' => Http::response('<html>Bad gateway</html>', 200)]);
+    $media = Media::factory()->create();
+    reviewsOf($media, 5);
+    storedSummary($media);
+
+    runSummary($media);
+
+    expect(ReviewSummary::query()->find($media->id)->summary)->toBe('Old summary.');
 });

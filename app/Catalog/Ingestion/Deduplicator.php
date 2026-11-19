@@ -18,6 +18,7 @@ use App\Models\Media;
 use App\Models\MediaDeweyClass;
 use App\Models\MediaExternalId;
 use App\Models\MediaType;
+use App\Social\ReviewSummaries;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -203,7 +204,9 @@ class Deduplicator
      * already has a row for the winner it stays and the loser's is dropped, otherwise the row moves over. A dropped library row or progress row
      * first gives the winner's what it had that the winner's lacks (see carryOver), so a favorite or further progress is never lost to a merge.
      * Reading history and recorded signals are a log, so they all move. The loser's stored reader rating (the `bookflix` rows in `media_metrics`) is dropped with its ratings;
-     * the winner's is rebuilt from `ratings` by the job merge queues. The media rows are locked, so no reader can add either story meanwhile.
+     * the winner's is rebuilt from `ratings` by the job merge queues. A reader's live review of the loser moves over when they have none for the winner,
+     * and is deleted (soft) when they do: one live review per reader and story. The loser's review summary is deleted and the winner's rebuilt, as the
+     * reviews behind it changed (see moveReviews). The media rows are locked, so no reader can add either story meanwhile.
      */
     private function moveUserData(Media $winner, Media $loser): void
     {
@@ -217,6 +220,7 @@ class Deduplicator
         }
 
         $this->moveCollectionItems($winner, $loser);
+        $this->moveReviews($winner, $loser);
 
         DB::table('reading_history')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
         DB::table('user_interactions')->where('media_id', $loser->id)->update(['media_id' => $winner->id]);
@@ -258,6 +262,25 @@ class Deduplicator
             from reading_progress as dropped
             where kept.media_id = ? and dropped.media_id = ? and dropped.user_id = kept.user_id
             SQL, [$winner->id, $loser->id]);
+    }
+
+    /**
+     * Reviews follow the story they were written about. Where the reader already has a live review of the winner, the loser's is soft deleted (the
+     * winner's stays: the same rule as a rating); otherwise it moves over with its status. Deleted reviews stay where they are. What readers say
+     * about the loser is gone with it, and the winner's summary is deleted and rebuilt from the reviews it now holds.
+     */
+    private function moveReviews(Media $winner, Media $loser): void
+    {
+        $retired = DB::table('reviews')->where('media_id', $loser->id)->whereNull('deleted_at')
+            ->whereIn('user_id', DB::table('reviews')->where('media_id', $winner->id)->whereNull('deleted_at')->select('user_id'))
+            ->update(['deleted_at' => now()]);
+        $moved = DB::table('reviews')->where('media_id', $loser->id)->whereNull('deleted_at')->update(['media_id' => $winner->id]);
+
+        DB::table('review_summaries')->where('media_id', $loser->id)->delete();
+
+        if ($retired + $moved > 0) {
+            app(ReviewSummaries::class)->invalidate($winner);
+        }
     }
 
     /**

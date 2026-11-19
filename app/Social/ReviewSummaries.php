@@ -17,7 +17,7 @@ class ReviewSummaries
 {
     public function queue(Media|int $media): void
     {
-        SummarizeReviews::dispatch($this->id($media))->delay(now()->addMinutes((int) config('bookflix.social.review_summary_delay_minutes')));
+        SummarizeReviews::dispatch($this->id($media))->delay(now()->addMinutes((int) config('bookflix.social.review_summary_delay_minutes')))->afterCommit();
     }
 
     public function invalidate(Media|int $media): void

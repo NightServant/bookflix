@@ -100,7 +100,14 @@ class MlClient
             throw new MlServiceUnavailable('The ML service did not summarize the text.', previous: $exception);
         }
 
-        $summary = $response->json('summary');
+        $body = $response->json();
+
+        // A body that is not a JSON object with a `summary` key (an HTML error page, an empty body) is not "no good summary": the caller would delete the stored one.
+        if (! is_array($body) || ! array_key_exists('summary', $body)) {
+            throw new MlServiceUnavailable('The ML service answered the summary out of shape.');
+        }
+
+        $summary = $body['summary'];
 
         if ($summary !== null && (! is_string($summary) || trim($summary) === '')) {
             throw new MlServiceUnavailable('The ML service answered the summary out of shape.');
