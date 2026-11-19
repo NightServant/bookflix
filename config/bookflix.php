@@ -224,19 +224,12 @@ return [
     | Social
     |--------------------------------------------------------------------------
     |
-    | Handles a reader may not take: names that mean something to the app, and the
-    | first segments of its own paths, so a profile URL (/u/{handle}) can never
-    | be mistaken for, or impersonate, a page or an account of the service.
+    | Per-hour limits for reviews, reports and collection copies, and the review
+    | summary thresholds.
     |
     */
 
     'social' => [
-        'reserved_handles' => [
-            'admin', 'administrator', 'api', 'bookflix', 'help', 'me', 'mod', 'moderator', 'root', 'settings', 'staff', 'support', 'system',
-            'home', 'search', 'discover', 'explore', 'stories', 'series', 'library', 'collections', 'history', 'read', 'reader', 'u', 'activity',
-            'onboarding', 'login', 'register', 'logout', 'exports', 'covers', 'recommendations', 'user', 'email', 'password', 'two-factor', 'livewire',
-        ],
-        'follows_per_hour' => 60,
         'reviews_per_hour' => 10,
         'reports_per_hour' => 10,
         // A story's "What readers say" summary needs this many qualifying reviews, and is rebuilt this long after the first change (a burst makes one job).
