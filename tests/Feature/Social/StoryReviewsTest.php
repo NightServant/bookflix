@@ -52,7 +52,7 @@ test('readers reviews show the name and headline, newest first, with no link to 
     Review::factory()->hidden()->create(['media_id' => $this->media->id, 'body' => 'Hidden by a moderator']);
     $this->actingAs($this->reader);
 
-    $html = storyReviews($this->media)->assertSeeInOrder(['Kei Aoyama', 'Newer take', 'Dana Whitlock', 'Slow science fiction'])
+    $html = storyReviews($this->media)->assertSeeHtmlInOrder(['Kei Aoyama', 'Newer take', 'Dana Whitlock', 'Slow science fiction'])
         ->assertSee('Older <strong>take</strong>', false)
         ->assertDontSee('Hidden by a moderator')
         ->assertSee('2 reviews')

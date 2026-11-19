@@ -68,11 +68,12 @@ test('hiding actions every open report of the same target and no others', functi
         ->and($elsewhere->fresh()->status)->toBe(ReportStatus::Open);
 });
 
-test('dismissing keeps the content and records the handler', function () {
+test('dismissing keeps the content, closes every open report about it and records the handler', function () {
     $admin = User::factory()->admin()->create();
     $review = Review::factory()->create();
     $report = Report::factory()->of($review)->create();
     $sibling = Report::factory()->of($review)->create();
+    $other = Report::factory()->create();
 
     app(DismissReport::class)->handle($admin, $report);
 
@@ -80,7 +81,9 @@ test('dismissing keeps the content and records the handler', function () {
         ->and($report->fresh()->handled_by)->toBe($admin->id)
         ->and($report->fresh()->handled_at)->not->toBeNull()
         ->and($review->fresh()->status)->toBe(ReviewState::Published)
-        ->and($sibling->fresh()->status)->toBe(ReportStatus::Open);
+        ->and($sibling->fresh()->status)->toBe(ReportStatus::Dismissed)
+        ->and($sibling->fresh()->handled_by)->toBe($admin->id)
+        ->and($other->fresh()->status)->toBe(ReportStatus::Open);
 });
 
 test('restoring a review publishes it again', function () {

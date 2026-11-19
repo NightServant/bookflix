@@ -93,6 +93,7 @@ return [
         ]],
         ['group' => 'People', 'items' => [
             ['label' => 'Users', 'icon' => 'users', 'route' => 'admin.users', 'active' => ['admin.users']],
+            ['label' => 'Reports', 'icon' => 'flag', 'route' => 'admin.moderation', 'active' => ['admin.moderation'], 'count' => 'reports'],
         ]],
     ],
 

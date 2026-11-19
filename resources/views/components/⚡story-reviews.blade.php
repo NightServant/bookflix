@@ -302,13 +302,7 @@ new class extends Component {
     $canWrite = $this->canWrite;
     $readerTotal = $readers['total'] + ($mine !== null ? 1 : 0);
     $card = 'rounded-card bg-surface-card p-5';
-    $reasons = [
-        ReportReason::Spam->value => __('Spam or advertising'),
-        ReportReason::Abuse->value => __('Abusive or hateful'),
-        ReportReason::Spoiler->value => __('Spoilers not marked'),
-        ReportReason::Copyright->value => __('Copyright problem'),
-        ReportReason::Other->value => __('Something else'),
-    ];
+    $reasons = collect(ReportReason::cases())->mapWithKeys(fn (ReportReason $reason): array => [$reason->value => $reason->label()])->all();
 @endphp
 
 {{-- `reportReturn` is the ⋯ button a report was opened from: focus goes back to it when the dialog closes. --}}

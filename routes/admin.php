@@ -20,4 +20,5 @@ Route::middleware(['auth', 'verified', 'can:access-admin'])
         Route::livewire('models', 'pages::admin.models.index')->name('models');
         Route::livewire('models/compare/{name?}', 'pages::admin.models.compare')->name('models.compare');
         Route::livewire('users', 'pages::admin.users.index')->name('users');
+        Route::livewire('reports', 'pages::admin.moderation.index')->name('moderation');
     });
