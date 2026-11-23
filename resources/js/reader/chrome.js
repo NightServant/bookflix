@@ -45,8 +45,8 @@ const ANNOUNCE_AFTER = 600;
 
 const percentText = (value) => `${Math.round((Number(value) || 0) * 10) / 10}`;
 
-// The bottom bar shows a whole number; the saved percent keeps its decimals.
-const wholeText = (value) => `${Math.round(Number(value) || 0)}`;
+// The bottom bar shows a whole number, rounded down like the story page and the profile (never 100% before the end); the saved percent keeps its decimals.
+const wholeText = (value) => `${Math.floor(Number(value) || 0)}`;
 
 export default function readerChrome(Alpine) {
     Alpine.data('readerChrome', (config) => ({

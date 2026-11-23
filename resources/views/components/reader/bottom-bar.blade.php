@@ -3,7 +3,7 @@
 @php
     $value = number_format((float) $percent, 1, '.', '');
     $label = fn ($n) => rtrim(rtrim(number_format((float) $n, 1, '.', ''), '0'), '.');
-    $whole = (string) round((float) $percent);
+    $whole = (string) floor((float) $percent);
 @endphp
 
 {{--
