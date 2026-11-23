@@ -6,6 +6,7 @@ use App\Models\ContentSource;
 use App\Models\Media;
 use App\Reader\Cbz\CbrConverter;
 use App\Reader\UploadContentSource;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Number;
@@ -22,11 +23,14 @@ use Livewire\WithFileUploads;
 new #[Title('Add your own file')] class extends Component {
     use WithFileUploads;
 
-    /** The most stories the picker holds: the reader's library first, then the catalog by title. */
-    private const PICKER_LIMIT = 500;
+    /** The most stories the picker holds: the reader's library first, then the catalog by title; typing searches the whole catalog on the server. */
+    private const PICKER_LIMIT = 50;
 
     /** The slug of the story the file belongs to. */
     public string $story = '';
+
+    /** What the reader typed in the picker: two letters or more filter the list by title or creator. */
+    public string $storySearch = '';
 
     public $file = null;
 
@@ -96,7 +100,7 @@ new #[Title('Add your own file')] class extends Component {
         $uploads->handle(auth()->user(), $media, $this->file);
 
         $this->file->delete();
-        $this->reset('file', 'story', 'own');
+        $this->reset('file', 'story', 'own', 'storySearch');
         $this->resetErrorBag();
         $this->added = true;
         $this->round++;
@@ -127,7 +131,11 @@ new #[Title('Add your own file')] class extends Component {
         $user = auth()->user();
         $picked = $this->story !== '' ? $this->visibleStory($this->story) : null;
 
+        $term = trim($this->storySearch);
+        $like = '%'.addcslashes($term, '%_\\').'%';
+
         $media = Media::query()->visibleTo($user)->with('creators')
+            ->when(mb_strlen($term) >= 2, fn (Builder $query) => $query->where(fn (Builder $query) => $query->where('title', 'ilike', $like)->orWhereHas('creators', fn (Builder $creator) => $creator->where('name', 'ilike', $like))))
             ->orderByRaw('exists (select 1 from user_library where user_library.media_id = media.id and user_library.user_id = ?) desc', [$user->id])
             ->orderBy('title')
             ->limit(self::PICKER_LIMIT)
@@ -234,7 +242,7 @@ new #[Title('Add your own file')] class extends Component {
                     {{ __('Which story is it?') }}
                 </h2>
                 <div class="mt-4">
-                    <x-combobox wire:model="story" :options="$this->stories" :label="__('Story')" :hide-label="true" :placeholder="__('Search the catalog')" wire:key="upload-story-{{ $round }}" />
+                    <x-combobox wire:model="story" :options="$this->stories" :label="__('Story')" search="storySearch" :hide-label="true" :placeholder="__('Search the catalog')" wire:key="upload-story-{{ $round }}" />
                     <p class="mt-2 text-meta text-ink-subtle">{{ __('Search the catalog and pick the story this file belongs to. Your progress is kept on that story.') }}</p>
                     @if ($storyError)
                         <p role="alert" class="mt-2 text-meta text-ink">{{ $storyError }}</p>

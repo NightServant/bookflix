@@ -6,6 +6,7 @@
     'hideLabel' => false,
     'labelClass' => null,
     'freeform' => false,
+    'search' => null,
 ])
 
 {{--
@@ -15,6 +16,7 @@
     Multiple mode keeps the list open and shows the picks as chips, each with a remove button.
     `freeform` turns it into a search field with suggestions: the typed text is the model, a suggestion fills the field, and Enter
     keeps what was typed unless an arrow key chose a suggestion. `label-class` replaces the label's styling.
+    `search` names a Livewire property: the typed text is sent there (debounced) and the server answers with a fresh `options`, for lists too long to preload.
     The ui plugin adds the combobox, listbox and option roles, the arrow/Enter/Escape keys and aria-activedescendant at runtime.
     The ui plugin needs an x-data ancestor, so the state lives on the wrapper and the combobox element only takes the model attributes.
 --}}
@@ -28,7 +30,8 @@
 @endphp
 
 <div
-    x-data="comboboxField(@js($items), { multiple: {{ $multiple ? 'true' : 'false' }}, freeform: {{ $freeform ? 'true' : 'false' }} })"
+    x-data="comboboxField(@js($items), { multiple: {{ $multiple ? 'true' : 'false' }}, freeform: {{ $freeform ? 'true' : 'false' }}, search: @js($search) })"
+    @if ($search) data-options="{{ json_encode($items) }}" @endif
     {{ $attributes->whereDoesntStartWith(['wire:model', 'x-model', 'name'])->class('relative') }}
 >
     <div x-combobox @if ($multiple) multiple @endif {{ $modelAttributes }} @keydown.escape.capture="$combobox.isOpen || $event.stopPropagation()">

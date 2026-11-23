@@ -366,7 +366,9 @@ new #[Title('Staff picks')] class extends Component {
                 <h3 class="text-meta font-medium text-ink">{{ __('Stories') }} · <span class="tabular-nums">{{ count($storyIds) }}</span></h3>
 
                 <div class="relative mt-2">
-                    <flux:input type="search" icon="magnifying-glass" wire:model.live.debounce.300ms="search" :placeholder="__('Add a story by title or author')" :aria-label="__('Add a story by title or author')" autocomplete="off" />
+                    {{-- Escape in a filled search clears it (and its results) instead of closing the editor and losing the draft; empty, it closes as usual. --}}
+                    <flux:input type="search" icon="magnifying-glass" wire:model.live.debounce.300ms="search" :placeholder="__('Add a story by title or author')" :aria-label="__('Add a story by title or author')" autocomplete="off"
+                        x-on:keydown.escape="if ($el.value !== '') { $event.preventDefault(); $event.stopPropagation(); $el.value = ''; $wire.set('search', '') }" />
 
                     @if ($this->results->isNotEmpty())
                         <ul class="mt-1 rounded-card border border-hairline bg-surface-deep p-1" aria-label="{{ __('Stories found') }}">

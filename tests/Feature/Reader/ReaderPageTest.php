@@ -65,7 +65,20 @@ describe('access', function () {
     test('a story with nothing this reader may open goes back to the story page', function () {
         $this->source->update(['verified_at' => null, 'verified_by' => null]);
 
-        ($this->open)()->assertRedirect(route('stories.show', $this->media->slug));
+        ($this->open)()->assertRedirect(route('stories.show', $this->media->slug))
+            ->assertSessionHas('toast', 'There is nothing to read here for this story yet.');
+    });
+
+    test('a file withdrawn after the reader started tells them on the story page that their place is kept', function () {
+        ReadingProgress::factory()->create(['user_id' => $this->reader->id, 'media_id' => $this->media->id, 'content_source_id' => $this->source->id, 'percent' => 13]);
+        $this->source->update(['verified_at' => null, 'verified_by' => null]);
+
+        ($this->open)()->assertRedirect(route('stories.show', $this->media->slug))
+            ->assertSessionHas('toast', 'This book is no longer available to read here. Your place is kept.');
+
+        $this->followingRedirects();
+        ($this->open)()->assertOk()->assertSee('$flux.toast', false)->assertSee('This book is no longer available to read here.', false);
+        expect(ReadingProgress::query()->where('user_id', $this->reader->id)->value('percent'))->toEqual(13);
     });
 
     test('a story that only has links out goes back to the story page', function () {

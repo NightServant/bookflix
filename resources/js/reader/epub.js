@@ -227,6 +227,15 @@ export default function startEpub(container, { settings }) {
 
             await view.open(file);
 
+            // foliate points `src` into the book but leaves `srcset` relative to it (its own TODO), and the browser prefers `srcset`, so the image
+            // breaks (every Standard Ebooks title page) and stays broken. Each chapter drops `srcset` before it is built, so its images use `src`.
+            // ponytail: a regex over the chapter's markup; it would also strip a literal ` srcset="…"` written in the text, which no book does.
+            view.book.transformTarget?.addEventListener('data', ({ detail }) => {
+                if (/html/.test(detail.type)) {
+                    detail.data = Promise.resolve(detail.data).then((markup) => String(markup).replace(/\s+srcset\s*=\s*("[^"]*"|'[^']*')/gi, ''));
+                }
+            });
+
             flat = flatten(view.book.toc);
             view.addEventListener('relocate', relocated);
             view.addEventListener('load', forward);
