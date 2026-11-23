@@ -172,6 +172,13 @@ describe('the engine container', function () {
             ->and(engineData(($this->open)()->getContent(), 'data-resume-percent'))->toBe('42');
     });
 
+    test('the bottom bar rounds the percent down, the same as the story page', function () {
+        ReadingProgress::create(['user_id' => $this->reader->id, 'media_id' => $this->media->id, 'content_source_id' => $this->source->id, 'percent' => 12.6, 'last_read_at' => now()]);
+
+        expect(($this->open)()->getContent())->toMatch('/data-reader="percent"[^>]*>12%<\/p>/');
+        $this->get(route('stories.show', $this->media->slug))->assertSee('Continue reading · 12%');
+    });
+
     test('a locator with quotes and angle brackets can\'t break out of its attribute', function () {
         $cfi = 'epubcfi(/6/8)" onfocus="alert(1)" x="<script>';
         ReadingProgress::create(['user_id' => $this->reader->id, 'media_id' => $this->media->id, 'content_source_id' => $this->source->id, 'locator' => ['cfi' => $cfi], 'percent' => 5, 'last_read_at' => now()]);

@@ -43,7 +43,7 @@ test('ArrowRight turns the page, the place is saved, and a reload resumes it', f
         ->and((float) $saved->percent)->toBeGreaterThan(0.0)
         ->and($saved->client_session)->toBeString()->and($saved->client_seq)->toBeInt();
 
-    $label = round((float) $saved->percent).'%';
+    $label = floor((float) $saved->percent).'%';
 
     $page->assertSeeIn('[data-reader=percent]', $label);
     $meta = $page->script('document.querySelector("[data-reader=meta]").textContent');
