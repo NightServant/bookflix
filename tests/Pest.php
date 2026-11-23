@@ -660,9 +660,14 @@ function richReader(): array
 /**
  * A tiny valid EPUB 3 with two chapters ("Down the Rabbit-Hole" and "The Pool of Tears"): the stored `mimetype` first, `container.xml`, the package
  * document, a nav and one XHTML file per chapter, each with `$paragraphs` paragraphs so a chapter spans several pages. `$extraHtml` goes at the top of chapter 1.
+ * `$images` (file name => PNG bytes) are stored next to the chapters and listed in the manifest, for `$extraHtml` to show.
+ *
+ * @param  array<string, string>  $images
  */
-function tinyEpub(int $paragraphs = 30, string $extraHtml = ''): string
+function tinyEpub(int $paragraphs = 30, string $extraHtml = '', array $images = []): string
 {
+    $imageItems = implode('', array_map(fn (string $name, int $n) => "<item id=\"img{$n}\" href=\"{$name}\" media-type=\"image/png\"/>", array_keys($images), array_keys(array_keys($images))));
+
     $zip = new ZipArchive;
     $temp = (string) tempnam(sys_get_temp_dir(), 'epub');
     $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
@@ -675,7 +680,7 @@ function tinyEpub(int $paragraphs = 30, string $extraHtml = ''): string
           <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
         </container>
         XML);
-    $zip->addFromString('OEBPS/content.opf', <<<'XML'
+    $zip->addFromString('OEBPS/content.opf', <<<XML
         <?xml version="1.0" encoding="UTF-8"?>
         <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -688,6 +693,7 @@ function tinyEpub(int $paragraphs = 30, string $extraHtml = ''): string
             <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
             <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
             <item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+            {$imageItems}
           </manifest>
           <spine><itemref idref="c1"/><itemref idref="c2"/></spine>
         </package>
@@ -707,6 +713,10 @@ function tinyEpub(int $paragraphs = 30, string $extraHtml = ''): string
         $body = implode("\n", array_map(fn (int $n) => "<p>{$sentence} ({$n})</p>", range(1, $paragraphs)));
 
         $zip->addFromString("OEBPS/{$file}", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>{$title}</title></head><body><h1>{$title}</h1><p>{$eyebrow}</p>".($file === 'ch1.xhtml' ? $extraHtml : '')."{$body}</body></html>");
+    }
+
+    foreach ($images as $name => $png) {
+        $zip->addFromString("OEBPS/{$name}", $png);
     }
 
     // A zip normally ends in NUL bytes, which the browser-test server's `mb_trim` of a streamed body would cut off (and the Content-Length with them): a comment ends it in text.

@@ -37,7 +37,8 @@ new #[Layout('layouts::reader')] class extends Component {
 
     /**
      * A merged-away slug answers 301 to the story it became; a story the reader may not see is a 404 (and so is one that is gone); a story with nothing
-     * this reader may open sends them back to its page, where "Where to read" says what there is.
+     * this reader may open sends them back to its page, where "Where to read" says what there is, with a toast saying why (and, when they had
+     * started it, that their place is kept: a file withdrawn since is the usual reason).
      */
     public function mount(string $slug): void
     {
@@ -54,7 +55,11 @@ new #[Layout('layouts::reader')] class extends Component {
         $source = app(SourceChooser::class)->for($user, $media, is_string($requested) && ctype_digit($requested) ? (int) $requested : null);
 
         if ($source === null) {
-            abort(redirect()->route('stories.show', $media->slug));
+            $started = ReadingProgress::query()->where('user_id', $user->id)->where('media_id', $media->id)->exists();
+
+            abort(redirect()->route('stories.show', $media->slug)->with('toast', $started
+                ? __('This book is no longer available to read here. Your place is kept.')
+                : __('There is nothing to read here for this story yet.')));
         }
 
         $this->mediaId = $media->id;

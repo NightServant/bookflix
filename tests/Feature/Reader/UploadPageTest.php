@@ -2,6 +2,7 @@
 
 use App\Enums\AccessType;
 use App\Models\ContentSource;
+use App\Models\Creator;
 use App\Models\Media;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -62,6 +63,26 @@ describe('the story', function () {
         $stories = ($this->upload)()->instance()->stories();
 
         expect($stories)->toHaveKey($this->media->slug)->not->toHaveKey($mature->slug);
+    });
+
+    test('typing searches the whole catalog by title or creator, beyond the default list', function () {
+        Media::factory()->novel()->count(60)->sequence(fn ($sequence) => ['title' => sprintf('Aaa %03d', $sequence->index)])->create();
+        $cave = Media::factory()->novel()->create(['title' => 'The Cave Girl']);
+        $other = Media::factory()->novel()->create(['title' => 'Zzz Plain']);
+        $other->creators()->attach(Creator::factory()->create(['name' => 'Edgar Rice Burroughs']), ['role' => 'author', 'position' => 0]);
+
+        $page = ($this->upload)();
+
+        expect($page->instance()->stories())->not->toHaveKey($cave->slug)->and(count($page->instance()->stories()))->toBe(50);
+
+        $page->set('storySearch', 'cave girl');
+        expect(array_keys($page->instance()->stories()))->toBe([$cave->slug]);
+
+        $page->set('storySearch', 'rice burr');
+        expect(array_keys($page->instance()->stories()))->toBe([$other->slug]);
+
+        $page->set('storySearch', '%_');
+        expect($page->instance()->stories())->toBeEmpty();
     });
 
     test('a story behind the mature gate cannot be chosen', function () {

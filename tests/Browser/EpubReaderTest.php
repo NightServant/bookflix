@@ -120,6 +120,15 @@ test('the iframe that holds the book has a title', function () {
         ->assertNoConsoleLogs();
 });
 
+test('an image with a srcset shows, the way Standard Ebooks title pages are made', function () {
+    $png = (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    $source = epubSource(tinyEpub(30, '<p><img id="title" src="title.png" srcset="title-2x.png 2x, title.png 1x" alt="Title page"/></p>', ['title.png' => $png, 'title-2x.png' => $png]));
+
+    visit(route('reader.show', $source->media->slug), $this->desktop)->waitForText('Chapter 1 of 2')->wait(0.6)
+        ->assertScript('new Promise((resolve) => { const image = document.querySelector("foliate-view").renderer.getContents()[0].doc.getElementById("title"); const done = () => resolve(image.naturalWidth > 0); image.naturalWidth ? done() : (image.addEventListener("load", done), setTimeout(done, 3000)); })', true)
+        ->assertNoConsoleLogs();
+});
+
 test('a link out of the book opens only web and mail addresses, in a new tab without an opener', function () {
     $source = epubSource(tinyEpub(30, '<p><a id="js" href="javascript:window.top.__pwned=1">js</a> <a id="data" href="data:text/html,hi">data</a> <a id="file" href="file:///etc/passwd">file</a> <a id="web" href="https://example.com/a">web</a> <a id="mail" href="mailto:a@example.com">mail</a></p>'));
 

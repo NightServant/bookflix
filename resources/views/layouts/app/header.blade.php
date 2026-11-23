@@ -45,6 +45,11 @@
             </flux:toast.group>
         @endpersist
 
+        {{-- A redirect that carries a `toast` (e.g. the reader sending someone back to the story) shows it once the page is up. --}}
+        @if (session('toast'))
+            <div x-data x-init="$nextTick(() => $flux.toast({ text: @js(session('toast')) }))" hidden></div>
+        @endif
+
         @livewireScriptConfig
         {{-- Flux's script is bundled into app.js (static, compressed, no parser-blocking tag); this keeps the rest of @fluxScripts. --}}
         @php(app('livewire')->forceAssetInjection())

@@ -777,9 +777,11 @@ export default function components(Alpine) {
     }));
 
     // <x-combobox>: the filter and labels around @alpinejs/ui's combobox. Matching ignores case and accents.
-    Alpine.data('comboboxField', (options, { multiple, freeform }) => ({
+    Alpine.data('comboboxField', (options, { multiple, freeform, search = null }) => ({
         options,
         query: '',
+        sent: '',
+        timer: null,
 
         // The ui plugin puts aria-multiselectable on the input, where a combobox may not carry it; the listbox has it (in the markup).
         // It also sets aria-controls once, after boot, from a binding that never re-runs, and a Livewire morph of the parent strips it
@@ -793,10 +795,26 @@ export default function components(Alpine) {
             };
 
             this.$nextTick(fix);
-            this.unhook = window.Livewire?.hook('morph.updated', ({ el }) => el === this.$refs.__input && this.$nextTick(fix));
+            this.unhook = window.Livewire?.hook('morph.updated', ({ el }) => {
+                // x-data is not re-evaluated on a morph, so a server-searched list arrives through the wrapper's data-options.
+                search && el === this.$el && (this.options = JSON.parse(el.dataset.options ?? '[]'));
+                el === this.$refs.__input && this.$nextTick(fix);
+            });
+
+            // Server search: send the typed text 250 ms after the last key, only when it changed. An empty query is the default list;
+            // the field showing the picked story's own label is not a search.
+            search && this.$watch('query', (query) => {
+                clearTimeout(this.timer);
+                this.timer = setTimeout(() => {
+                    const text = query === this.labelFor(this.$data.__value) ? this.sent : query;
+
+                    text !== this.sent && this.$wire.set(search, (this.sent = text));
+                }, 250);
+            });
         },
 
         destroy() {
+            clearTimeout(this.timer);
             this.unhook?.();
         },
 
