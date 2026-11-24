@@ -172,6 +172,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * Whether the "Why this?" popover may ask an outside AI service for a sentence: AI is on, personalization is on and the reader opted in (P11-R18).
+     */
+    public function aiExplanationsEnabled(): bool
+    {
+        return (bool) config('bookflix.ai.enabled') && $this->personalizationEnabled() && $this->profile->ai_explanations_enabled;
+    }
+
+    /**
      * Public URL of the uploaded avatar, or null when none was uploaded.
      */
     public function avatarUrl(): ?string

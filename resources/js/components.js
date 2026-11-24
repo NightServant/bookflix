@@ -393,6 +393,54 @@ export default function components(Alpine) {
     // moves focus to the next tile and offers Undo in a `role="status"` toast for `undoSeconds`, paused while it is hovered or has focus. Undo is
     // also on the Z key (or Ctrl/Cmd+Z) while the toast offers it, the toast says so, and closing it with focus inside it hands focus to the page.
     // The removal is client-side, from what the page already holds: the server forgets the cached shelves, and the next load rebuilds them.
+    // The "Why this?" popover of a recommended tile (resources/views/components/why-this.blade.php): it opens under the button, asks the page's
+    // Livewire component for one AI sentence the first time, and shows it only when one comes back; otherwise just the template reason stays.
+    Alpine.data('whyThis', ({ mediaId, type, reasonMediaId }) => ({
+        open: false,
+        state: 'idle',
+        sentence: '',
+        position: {},
+
+        toggle() {
+            this.open ? this.close() : this.show();
+        },
+
+        show() {
+            const box = this.$refs.button.getBoundingClientRect();
+            const left = Math.max(16, Math.min(box.left, window.innerWidth - 288 - 16));
+
+            this.position = { top: `${box.bottom + 4}px`, left: `${left}px` };
+            this.open = true;
+
+            if (this.state !== 'idle') {
+                return;
+            }
+
+            this.state = 'loading';
+            this.$wire.explain(mediaId, type, reasonMediaId).then((text) => {
+                this.sentence = typeof text === 'string' ? text : '';
+                this.state = this.sentence === '' ? 'none' : 'done';
+            }).catch(() => {
+                this.state = 'none';
+            });
+        },
+
+        close() {
+            if (!this.open) {
+                return;
+            }
+
+            this.open = false;
+            this.$refs.button.focus();
+        },
+
+        outside(event) {
+            if (this.open && !this.$refs.panel.contains(event.target) && !this.$refs.button.contains(event.target)) {
+                this.open = false;
+            }
+        },
+    }));
+
     Alpine.data('recommendationTiles', ({ token, clickUrl, impressionsUrl, dismissUrl, undoUrl, undoSeconds = 10, messages }) => {
         const url = (template, id) => template.replace('__id__', id);
         const compact = () => window.matchMedia('(max-width: 639px), (pointer: coarse)').matches;
