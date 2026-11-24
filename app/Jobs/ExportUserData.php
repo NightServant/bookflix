@@ -67,6 +67,7 @@ class ExportUserData implements ShouldQueue
                 'searches.json' => $this->searches($user),
                 'reviews.json' => $this->reviews($user),
                 'reports.json' => $this->reports($user),
+                'assistant-chats.json' => $this->assistantChats($user),
             ];
 
             foreach ($lists as $name => $rows) {
@@ -393,6 +394,37 @@ class ExportUserData implements ShouldQueue
                 'reason' => $row->reason,
                 'status' => $row->status,
                 'created_at' => $this->time($row->created_at),
+            ];
+        }
+    }
+
+    /**
+     * The reader's saved assistant chats, archived ones too, each with its messages in order: the title, the text, when it was sent, the titles
+     * of the catalog stories an answer came with, and the names of any files attached (the files themselves are never kept).
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function assistantChats(User $user): Generator
+    {
+        foreach (DB::table('assistant_conversations')->where('user_id', $user->id)->orderBy('created_at')->orderBy('id')->lazy(100) as $chat) {
+            $messages = DB::table('assistant_messages')->where('assistant_conversation_id', $chat->id)->orderBy('id')->get();
+            $storyIds = fn (object $message): array => json_decode($message->story_ids ?? '[]', true) ?: [];
+            $ids = $messages->flatMap($storyIds)->unique()->all();
+            $titles = $ids === [] ? new Collection : DB::table('media')->whereIn('id', $ids)->pluck('title', 'id');
+
+            yield [
+                'title' => $chat->title,
+                'archived' => $chat->archived_at !== null,
+                'uses_library' => (bool) $chat->use_library,
+                'created_at' => $this->time($chat->created_at),
+                'last_message_at' => $this->time($chat->last_message_at),
+                'messages' => $messages->map(fn (object $message): array => [
+                    'role' => $message->role,
+                    'text' => $message->text,
+                    'stories' => array_values(array_filter(array_map(fn (int $id): ?string => $titles->get($id), $storyIds($message)))),
+                    'attachment_names' => json_decode($message->attachment_names ?? '[]', true) ?: [],
+                    'sent_at' => $this->time($message->created_at),
+                ])->all(),
             ];
         }
     }

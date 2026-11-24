@@ -13,6 +13,8 @@ use Livewire\Component;
 new #[Title('Privacy settings')] class extends Component {
     public bool $personalizationEnabled = true;
 
+    public bool $aiExplanationsEnabled = false;
+
     public bool $showMature = false;
 
     public bool $confirmAdult = false;
@@ -25,6 +27,7 @@ new #[Title('Privacy settings')] class extends Component {
         $profile = Auth::user()->profile;
 
         $this->personalizationEnabled = $profile->personalization_enabled;
+        $this->aiExplanationsEnabled = $profile->ai_explanations_enabled;
         $this->showMature = MatureAccess::allows(Auth::user());
         $this->confirmAdult = $this->showMature;
     }
@@ -43,6 +46,22 @@ new #[Title('Privacy settings')] class extends Component {
         ]);
 
         Flux::toast(variant: 'success', text: __('Privacy settings updated.'));
+    }
+
+    /**
+     * Turn the AI "Why this?" sentence on recommended tiles on or off (P11-R18). It needs personalization, so with that off it is saved off.
+     */
+    public function updateAi(): void
+    {
+        $validated = $this->validate(['aiExplanationsEnabled' => ['boolean']]);
+
+        $on = $validated['aiExplanationsEnabled'] && Auth::user()->personalizationEnabled();
+
+        Auth::user()->profile()->updateOrCreate([], ['ai_explanations_enabled' => $on]);
+
+        $this->aiExplanationsEnabled = $on;
+
+        Flux::toast(variant: 'success', text: __('AI settings updated.'));
     }
 
     /**
@@ -153,6 +172,34 @@ new #[Title('Privacy settings')] class extends Component {
             </x-cta>
         </form>
         </x-settings-card>
+
+        @if (config('bookflix.ai.enabled'))
+            <x-settings-card id="ai" :title="__('AI features')" :description="__('An outside AI service answers Ask, helps with search and writes summaries and explanations.')">
+                <form wire:submit="updateAi" class="w-full space-y-6">
+                    <flux:switch
+                        wire:model="aiExplanationsEnabled"
+                        :label="__('AI explanations')"
+                        :description="auth()->user()->personalizationEnabled() ? __('Adds a “Why this?” note to recommended stories. Off by default.') : __('Turn on Personalization to use this.')"
+                        :disabled="! auth()->user()->personalizationEnabled()"
+                    />
+
+                    <x-cta variant="secondary" type="submit" icon="check" icon:variant="outline" data-test="update-ai-button">
+                        {{ __('Save') }}
+                    </x-cta>
+                </form>
+
+                <div class="mt-8 max-w-prose space-y-3 border-t border-hairline pt-6 text-meta text-ink-subtle text-pretty">
+                    <h3 class="text-body font-medium text-ink">{{ __('What we send') }}</h3>
+                    <ul class="list-disc space-y-2 ps-5">
+                        <li><span class="text-ink">{{ __('Ask:') }}</span> {{ __('your message and the stories it finds. Titles from your library go along only when you turn on Use my library.') }}</li>
+                        <li><span class="text-ink">{{ __('Search:') }}</span> {{ __('while Bookflix AI is on, the words you search for go to the AI service so it can understand the query. This applies to every signed-in reader and has no separate switch.') }}</li>
+                        <li><span class="text-ink">{{ __('Summaries:') }}</span> {{ __('a story\'s public description.') }}</li>
+                        <li><span class="text-ink">{{ __('Explanations:') }}</span> {{ __('the public details of the two stories and why one was suggested.') }}</li>
+                    </ul>
+                    <p>{{ __('We never send your name or email.') }}</p>
+                </div>
+            </x-settings-card>
+        @endif
 
         <x-settings-card :title="__('Mature and Adult Titles')" :description="__('Adult-rated titles and the mature, erotic and controversial genres stay hidden everywhere in Bookflix until you turn this on.')">
             <form wire:submit="updateMature" class="w-full space-y-6">

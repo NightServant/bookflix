@@ -608,6 +608,16 @@ class Media extends Model
     }
 
     /**
+     * The model-written summary of the description, when the summarize job has written one (see MediaAiSummary).
+     *
+     * @return HasOne<MediaAiSummary, $this>
+     */
+    public function aiSummary(): HasOne
+    {
+        return $this->hasOne(MediaAiSummary::class);
+    }
+
+    /**
      * @return HasMany<MediaExternalId, $this>
      */
     public function externalIds(): HasMany

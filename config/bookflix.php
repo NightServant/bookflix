@@ -53,7 +53,9 @@ return [
     |
     | Rendered by the desktop header and the mobile bottom nav. `active` lists
     | the route name patterns that mark the item as current; `desktop => false`
-    | leaves it out of the desktop header (the palette trigger covers it there).
+    | leaves it out of the desktop header (the palette trigger covers it there);
+    | `mobile => false` leaves it out of the phone bottom bar (Ask is a floating button on Home);
+    | `requires => 'ai'` shows the item only while AI is on (App\Support\PrimaryNavigation).
     |
     */
 
@@ -61,6 +63,7 @@ return [
         ['label' => 'Home', 'icon' => 'home', 'route' => 'home', 'active' => ['home']],
         ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'discover', 'active' => ['discover', 'explore.*']],
         ['label' => 'Search', 'icon' => 'magnifying-glass', 'route' => 'search', 'active' => ['search'], 'desktop' => false],
+        ['label' => 'Ask', 'icon' => 'sparkles', 'route' => 'assistant', 'active' => ['assistant'], 'requires' => 'ai', 'mobile' => false],
         ['label' => 'Library', 'icon' => 'book-open', 'route' => 'library.index', 'active' => ['library.*', 'collections.*', 'history.*']],
         ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.show', 'active' => ['profile.show', 'profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']],
     ],
@@ -580,6 +583,43 @@ return [
         'library_add_window_minutes' => 30,
         // How long Home's undo toast stays; browser tests shorten it so they do not wait real seconds.
         'undo_seconds' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI
+    |--------------------------------------------------------------------------
+    |
+    | An open-source model behind a hosted OpenAI-compatible Chat Completions
+    | API. Nothing is sent until `enabled` is on and the base URL, key and the
+    | model for the feature's tier are set. `models.fast` answers search intent
+    | and explanations, `models.smart` the assistant and summaries. `json_mode`
+    | is json_object, json_schema or none. `max_output_tokens` is per feature,
+    | `daily_token_cap` per user, and `log_payloads` writes prompts to the log
+    | (never the key).
+    |
+    */
+
+    'ai' => [
+        'enabled' => (bool) env('BOOKFLIX_AI_ENABLED', false),
+        'base_url' => env('BOOKFLIX_AI_BASE_URL'),
+        'api_key' => env('BOOKFLIX_AI_API_KEY'),
+        'models' => [
+            'fast' => env('BOOKFLIX_AI_MODEL_FAST'),
+            'smart' => env('BOOKFLIX_AI_MODEL_SMART'),
+            // Reads pictures a reader attaches to the assistant; unset, image attachments are not offered (P11-R26).
+            'vision' => env('BOOKFLIX_AI_MODEL_VISION'),
+        ],
+        'json_mode' => env('BOOKFLIX_AI_JSON_MODE', 'json_object'),
+        'timeout' => 20,
+        'max_output_tokens' => [
+            'intent' => 300,
+            'assistant' => 800,
+            'summary' => 300,
+            'explanation' => 80,
+        ],
+        'daily_token_cap' => 50000,
+        'log_payloads' => false,
     ],
 
 ];

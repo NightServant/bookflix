@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
+use App\Discovery\Search\FallbackQueryParser;
 use App\Discovery\Search\QueryParser;
-use App\Discovery\Search\RuleBasedQueryParser;
 use App\Models\Creator;
 use App\Models\Demographic;
 use App\Models\ExternalReview;
@@ -36,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(QueryParser::class, RuleBasedQueryParser::class);
+        $this->app->bind(QueryParser::class, FallbackQueryParser::class);
 
         // Registered here, not in boot, so the guard is on Livewire's list before any of its own hooks.
         $this->guardReaderComponentsFromAdmins();
@@ -70,6 +70,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('reviews', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reviews_per_hour'))->by($user->id));
         RateLimiter::for('collection-clones', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.collection_clones_per_hour'))->by($user->id));
         RateLimiter::for('reports', fn (User $user): Limit => Limit::perHour((int) config('bookflix.social.reports_per_hour'))->by($user->id));
+
+        // The language model: per reader (the assistant per address for a guest), and one global ceiling for summaries.
+        RateLimiter::for('ai-intent', fn (User $user): Limit => Limit::perHour(30)->by($user->id));
+        RateLimiter::for('ai-assistant', fn (Request $request): Limit => Limit::perHour(20)->by($request->user()?->id ?: $request->ip()));
+        RateLimiter::for('ai-explanations', fn (User $user): Limit => Limit::perHour(60)->by($user->id));
+        RateLimiter::for('ai-summaries', fn (): Limit => Limit::perMinute(30));
 
         // pdf.js reads a file in many small ranges, so a reader gets a roomy allowance (per person, not per address).
         // One save every couple of seconds while reading, plus the beacons; a person, not an address.

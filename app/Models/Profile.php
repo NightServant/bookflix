@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property list<string> $preferred_languages
  * @property ReadingLength $reading_length
  * @property bool $personalization_enabled
+ * @property bool $ai_explanations_enabled Opt-in (P11-R18): the "Why this?" popover may send two stories' public details to an outside AI service; counts only while personalization is on.
  * @property bool $show_mature The reader asked to see mature and adult titles; counts only with `adult_confirmed_at` (see App\Access\MatureAccess).
  * @property Carbon|null $adult_confirmed_at When the reader confirmed they are 18 or older.
  * @property Carbon|null $onboarded_at
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
     'preferred_languages',
     'reading_length',
     'personalization_enabled',
+    'ai_explanations_enabled',
     'show_mature',
     'adult_confirmed_at',
     'onboarded_at',
@@ -65,6 +67,7 @@ class Profile extends Model
             'preferred_languages' => 'array',
             'reading_length' => ReadingLength::class,
             'personalization_enabled' => 'boolean',
+            'ai_explanations_enabled' => 'boolean',
             'show_mature' => 'boolean',
             'adult_confirmed_at' => 'datetime',
             'onboarded_at' => 'datetime',

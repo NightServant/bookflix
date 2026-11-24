@@ -3,6 +3,7 @@
 use App\Enums\InteractionEvent;
 use App\Enums\ReadingStatus;
 use App\Jobs\ExportUserData;
+use App\Models\AssistantConversation;
 use App\Models\Collection;
 use App\Models\CollectionItem;
 use App\Models\Creator;
@@ -31,7 +32,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
 use Livewire\Livewire;
 
-const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json', 'reviews.json', 'reports.json'];
+const EXPORT_FILES = ['profile.json', 'preferences.json', 'library.json', 'collections.json', 'ratings.json', 'progress.json', 'history.json', 'interactions.json', 'searches.json', 'reviews.json', 'reports.json', 'assistant-chats.json'];
 
 /**
  * A reader with one row in every table the export reads, one of them behind the mature gate.
@@ -118,7 +119,7 @@ beforeEach(function () {
     Notification::fake();
 });
 
-test('the export zip holds the eleven files, with every one of the readers own rows and nothing else', function () {
+test('the export zip holds the twelve files, with every one of the readers own rows and nothing else', function () {
     $user = exportFixture('Mine');
     $other = exportFixture('Theirs');
 
@@ -194,7 +195,7 @@ test('the profile file has the account and profile, and none of the secrets', fu
         ->and($text)->not->toContain('SECRETSECRET')->not->toContain('RECOVERY')->not->toContain('REMEMBERME')->not->toContain($user->password)->not->toContain('secret-name.jpg');
 });
 
-test('a reader with nothing yet still gets all eleven files', function () {
+test('a reader with nothing yet still gets all twelve files', function () {
     $user = User::factory()->create();
 
     (new ExportUserData($user->id))->handle();
@@ -240,6 +241,29 @@ test('another reader\'s searches never appear in an export, in either direction'
         ->and(collect(exportContents($theirs)['searches.json'])->pluck('query')->all())->toBe(['Theirs search'])
         ->and(exportText($mine))->not->toContain('Theirs search')
         ->and(exportText($theirs))->not->toContain('Mine search');
+});
+
+test('the export has the readers assistant chats with their messages, story titles and attachment names, and only their own', function () {
+    $user = User::factory()->create();
+    $story = Media::factory()->create(['title' => 'Crimson Court']);
+    $chat = AssistantConversation::factory()->for($user)->create(['title' => 'Dark fantasy', 'use_library' => true]);
+    $chat->messages()->create(['role' => 'user', 'text' => 'something with politics', 'attachment_names' => ['notes.txt']]);
+    $chat->messages()->create(['role' => 'assistant', 'text' => 'Try Crimson Court.', 'story_ids' => [$story->id]]);
+    AssistantConversation::factory()->for($user)->archived()->create(['title' => 'Old chat']);
+    $other = AssistantConversation::factory()->create(['title' => 'Their private chat']);
+    $other->messages()->create(['role' => 'user', 'text' => 'their private question']);
+
+    (new ExportUserData($user->id))->handle();
+
+    $chats = collect(exportContents($user)['assistant-chats.json'])->keyBy('title');
+
+    expect($chats->keys()->all())->toEqualCanonicalizing(['Dark fantasy', 'Old chat'])
+        ->and($chats['Old chat']['archived'])->toBeTrue()
+        ->and($chats['Dark fantasy'])->toMatchArray(['archived' => false, 'uses_library' => true])
+        ->and($chats['Dark fantasy']['messages'][0])->toMatchArray(['role' => 'user', 'text' => 'something with politics', 'attachment_names' => ['notes.txt'], 'stories' => []])
+        ->and($chats['Dark fantasy']['messages'][1])->toMatchArray(['role' => 'assistant', 'text' => 'Try Crimson Court.', 'stories' => ['Crimson Court']])
+        ->and($chats['Dark fantasy']['messages'][1]['sent_at'])->toBeString()
+        ->and(exportText($user))->not->toContain('Their private chat')->not->toContain('their private question');
 });
 
 test('a long history is written in pieces and still reads back whole', function () {

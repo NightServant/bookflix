@@ -1,6 +1,6 @@
 <nav aria-label="{{ __('Primary') }}" class="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-surface-deep lg:hidden">
     <ul class="flex">
-        @foreach (config('bookflix.navigation') as $item)
+        @foreach (App\Support\PrimaryNavigation::items()->where('mobile', '!==', false) as $item)
             @php $isCurrent = request()->routeIs(...$item['active']); @endphp
             <li class="flex-1">
                 <a

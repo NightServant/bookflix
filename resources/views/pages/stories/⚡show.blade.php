@@ -8,6 +8,7 @@ use App\Enums\InteractionEvent;
 use App\Models\DeweyClass;
 use App\Models\ExternalSource;
 use App\Models\Media;
+use App\Models\MediaAiSummary;
 use App\Models\MediaDeweyClass;
 use App\Models\ReadingProgress;
 use App\Models\Series;
@@ -99,6 +100,7 @@ new #[Title('Story')] class extends Component {
             'relations' => fn ($relations) => $relations->visibleTo(auth()->user()),
             'externalIds.externalSource',
             'summary',
+            ...(config('bookflix.ai.enabled') ? ['aiSummary'] : []),
         ]);
 
         $classes = $media->deweyClasses()->public()->with('deweyClass.parent')->orderBy('classification_type')->orderBy('id')->get();
@@ -110,14 +112,46 @@ new #[Title('Story')] class extends Component {
 
     /**
      * The summary to lead the story with: only one written from the description as it is now (its hash is the description's), never for no description.
+     * The model's summary wins over the extractive one when it is current (P11-R5); see summaryIsAi.
      */
     #[Computed]
     public function summaryText(): ?string
     {
-        $summary = $this->media->summary;
         $description = $this->media->description;
 
-        return $summary !== null && filled($description) && hash_equals($summary->source_hash, hash('sha256', $description)) ? $summary->summary : null;
+        if (blank($description)) {
+            return null;
+        }
+
+        $hash = hash('sha256', $description);
+        $ai = $this->currentAiSummary();
+
+        if ($ai !== null && hash_equals($ai->source_hash, $hash)) {
+            return $ai->summary;
+        }
+
+        $summary = $this->media->summary;
+
+        return $summary !== null && hash_equals($summary->source_hash, $hash) ? $summary->summary : null;
+    }
+
+    /**
+     * Whether summaryText is the model's (and so carries the "AI-generated" label).
+     */
+    #[Computed]
+    public function summaryIsAi(): bool
+    {
+        $ai = $this->currentAiSummary();
+
+        return $ai !== null && filled($this->media->description) && hash_equals($ai->source_hash, hash('sha256', $this->media->description));
+    }
+
+    /**
+     * The stored AI summary, only while AI is enabled (P11-R17); the kill switch does not hide it. With AI off it is never even loaded.
+     */
+    private function currentAiSummary(): ?MediaAiSummary
+    {
+        return config('bookflix.ai.enabled') ? $this->media->aiSummary : null;
     }
 
     /**
@@ -343,6 +377,10 @@ new #[Title('Story')] class extends Component {
                     @if ($this->summaryText !== null)
                         {{-- The summary is whole sentences of the description; the description itself is one tap away, in place. --}}
                         <div x-data="{ open: false }" class="mt-4 max-w-prose">
+                            @if ($this->summaryIsAi)
+                                <x-ai-label class="mb-2" />
+                            @endif
+
                             <p class="text-body text-ink-subtle text-pretty">{{ $this->summaryText }}</p>
 
                             <p x-show="open" id="story-description" style="display: none" class="mt-3 text-body text-ink-subtle text-pretty">{{ $media->description }}</p>

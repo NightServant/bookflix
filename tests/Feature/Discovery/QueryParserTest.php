@@ -1,10 +1,10 @@
 <?php
 
 use App\Catalog\Ingestion\ProhibitedContent;
+use App\Discovery\Search\FallbackQueryParser;
 use App\Discovery\Search\QueryIntent;
 use App\Discovery\Search\QueryParser;
 use App\Discovery\Search\QueryVocabulary;
-use App\Discovery\Search\RuleBasedQueryParser;
 use App\Discovery\Search\SearchFilters;
 use App\Discovery\Search\TaxonomyFacets;
 use App\Models\DeweyClass;
@@ -44,8 +44,9 @@ function synonymRows(): array
     return $rows;
 }
 
-test('the rule based parser is the default', function () {
-    expect(app(QueryParser::class))->toBeInstanceOf(RuleBasedQueryParser::class);
+test('the rules parse unless the model is on', function () {
+    expect(app(QueryParser::class))->toBeInstanceOf(FallbackQueryParser::class)
+        ->and(config('bookflix.ai.enabled'))->toBeFalse();
 });
 
 test('a natural language query names a type a genre and a theme from the taxonomy', function () {

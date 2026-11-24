@@ -121,6 +121,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * The reader's saved assistant chats; the only way to reach one (P11-R23).
+     *
+     * @return HasMany<AssistantConversation, $this>
+     */
+    public function assistantConversations(): HasMany
+    {
+        return $this->hasMany(AssistantConversation::class);
+    }
+
+    /**
      * The reader's own scores (see App\Actions\Ratings\RateMedia for the only writer).
      *
      * @return HasMany<Rating, $this>
@@ -169,6 +179,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function personalizationEnabled(): bool
     {
         return $this->profile->personalization_enabled;
+    }
+
+    /**
+     * Whether the "Why this?" popover may ask an outside AI service for a sentence: AI is on, personalization is on and the reader opted in (P11-R18).
+     */
+    public function aiExplanationsEnabled(): bool
+    {
+        return (bool) config('bookflix.ai.enabled') && $this->personalizationEnabled() && $this->profile->ai_explanations_enabled;
     }
 
     /**

@@ -5,13 +5,18 @@ use App\Discovery\HomeShelves;
 use App\Discovery\Recommendations\Explanation;
 use App\Discovery\Recommendations\ShelfBuilder;
 use App\Discovery\Shelf;
+use App\Ai\Explanations\LlmExplainer;
 use App\Enums\ReadingStatus;
+use App\Enums\ReasonType;
 use App\Models\Collection;
 use App\Models\Media;
+use App\Models\Recommendation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Renderless;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
@@ -156,6 +161,57 @@ new #[Title('Home')] class extends Component {
         return $label === null ? ['lead' => null, 'subject' => null] : Explanation::parts($label);
     }
 
+    /**
+     * Whether the tiles may offer "Why this?": AI is on, personalization is on and the reader turned AI explanations on (P11-R17, P11-R18).
+     */
+    #[Computed]
+    public function aiExplanations(): bool
+    {
+        return auth()->user()->aiExplanationsEnabled();
+    }
+
+    /**
+     * The reason type and reason story of each reasoned tile, by recommendation id (one query, only when "Why this?" is on).
+     *
+     * @return array<int, array{type: string, media: int|null}>
+     */
+    #[Computed]
+    public function reasonsByRecommendation(): array
+    {
+        $ids = $this->shelves->filter(fn (Shelf $shelf): bool => in_array($shelf->key, self::REASONED, true))
+            ->flatMap(fn (Shelf $shelf) => $shelf->items->map(fn (Media $item) => $item->getAttribute('recommendation_id')))
+            ->filter()->unique()->all();
+
+        return Recommendation::query()->whereIn('id', $ids)->where('user_id', auth()->id())->get(['id', 'reason_type', 'reason_media_id'])
+            ->mapWithKeys(fn (Recommendation $row): array => [$row->id => ['type' => $row->reason_type->value, 'media' => $row->reason_media_id]])->all();
+    }
+
+    /**
+     * One AI sentence on why a story is on this reader's shelf, for the "Why this?" popover; null shows the template reason alone.
+     */
+    #[Renderless]
+    public function explain(int $mediaId, string $reasonType, ?int $reasonMediaId = null): ?string
+    {
+        $type = ReasonType::tryFrom($reasonType) ?? throw ValidationException::withMessages(['reasonType' => __('That reason is not valid.')]);
+        $user = auth()->user();
+
+        $own = Recommendation::query()->where('user_id', $user->id)->where('media_id', $mediaId)
+            ->where('reason_type', $type->value)->where('reason_media_id', $reasonMediaId)->exists();
+
+        if (! $own) {
+            return null;
+        }
+
+        $media = Media::query()->unmerged()->visibleTo($user)->find($mediaId);
+        $reasonMedia = $reasonMediaId === null ? null : Media::query()->unmerged()->visibleTo($user)->find($reasonMediaId);
+
+        if ($media === null || ($reasonMediaId !== null && $reasonMedia === null)) {
+            return null;
+        }
+
+        return app(LlmExplainer::class)->explain($user, $media, $type, $reasonMedia);
+    }
+
     public function dismissible(Shelf $shelf, Media $item): bool
     {
         return in_array($shelf->key, self::DISMISSIBLE, true) && $item->getAttribute('recommendation_id') !== null;
@@ -271,6 +327,9 @@ new #[Title('Home')] class extends Component {
                                                 :reason-subject="$reason['subject']"
                                             />
                                         </x-story-preview>
+                                        @if ($reason['lead'] !== null && $this->aiExplanations && ($why = $this->reasonsByRecommendation[$item->recommendation_id] ?? null))
+                                            <x-why-this :media-id="$item->id" :type="$why['type']" :reason-media-id="$why['media']" :reason="trim($reason['lead'].' '.$reason['subject'])" />
+                                        @endif
                                     </li>
                                 @endforeach
                             </x-shelf>
@@ -320,4 +379,15 @@ new #[Title('Home')] class extends Component {
             </button>
         </div>
     </div>
+    @if (config('bookflix.ai.enabled') && auth()->check())
+        <a
+            href="{{ route('assistant') }}"
+            wire:navigate
+            aria-label="{{ __('Ask Bookflix') }}"
+            data-test="ask-fab"
+            class="focus-ring fixed end-gutter bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full bg-white text-black shadow-overlay motion-safe:transition-transform motion-safe:active:scale-95 lg:hidden"
+        >
+            <flux:icon name="sparkles" class="size-6" />
+        </a>
+    @endif
 </div>
