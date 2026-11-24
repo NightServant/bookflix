@@ -307,3 +307,52 @@ test('deleting a chat removes its messages, and purging an account removes all i
     Livewire::actingAs($this->user)->test('pages::assistant.index')->call('delete', $kept->id);
     expect(AssistantMessage::count())->toBe(0);
 });
+
+test('the rename answers with the reason when it refuses a title', function () {
+    $chat = AssistantConversation::factory()->for($this->user)->create(['title' => 'Keep me']);
+
+    Livewire::actingAs($this->user)->test('pages::assistant.index')
+        ->call('rename', $chat->id, str_repeat('a', 121))
+        ->assertHasErrors('title')
+        ->assertReturned(fn ($reason): bool => is_string($reason) && str_contains($reason, '120'));
+    expect($chat->fresh()->title)->toBe('Keep me');
+});
+
+test('a fallback reply creates no chat and stores no messages, and the text stays in the field', function () {
+    Http::fake(['*' => Http::response('down', 503)]);
+
+    Livewire::actingAs($this->user)->test('pages::assistant.index')->set('message', 'anything')->call('send')
+        ->assertHasErrors('message')->assertSet('message', 'anything')->assertNoRedirect();
+
+    expect(AssistantConversation::count())->toBe(0)->and(AssistantMessage::count())->toBe(0);
+
+    $chat = AssistantConversation::factory()->for($this->user)->create();
+    chatPage($this->user, $chat)->set('message', 'again')->call('send')->assertHasErrors('message');
+    expect($chat->messages()->count())->toBe(0);
+});
+
+test('once the limit is reached nothing more is written, and refused or blocked texts count toward it', function () {
+    plainAnswer();
+    $page = Livewire::actingAs($this->user)->test('pages::assistant.index');
+
+    foreach (range(1, 12) as $i) {
+        $page->set('message', "a lolicon story {$i}")->call('send');
+    }
+    $chat = AssistantConversation::query()->latest('created_at')->firstOrFail();
+    $page = chatPage($this->user, $chat);
+
+    foreach (range(1, 13) as $i) {
+        $page->set('message', "lolicon again {$i}")->call('send');
+    }
+
+    $afterLimit = [AssistantConversation::count(), AssistantMessage::count()];
+
+    foreach (range(1, 10) as $i) {
+        $page->set('message', "hello {$i}")->call('send');
+        Livewire::actingAs($this->user)->test('pages::assistant.index')->set('message', "fresh {$i}")->call('send');
+    }
+
+    expect([AssistantConversation::count(), AssistantMessage::count()])->toBe($afterLimit)
+        ->and(AssistantMessage::where('role', 'user')->count())->toBe(20);
+    Http::assertNothingSent();
+});

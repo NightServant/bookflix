@@ -306,15 +306,28 @@ new #[Title('Ask Bookflix')] class extends Component {
 
         $useLibrary = $this->useLibrary && $this->libraryOffered();
         $isNew = $this->conversationId === null;
-        $chat = $isNew
-            ? $this->ownChats()->create(['title' => AssistantConversation::titleFor($text), 'use_library' => $useLibrary, 'last_message_at' => now()])
-            : $this->openChat();
+        $chat = null;
 
         try {
-            app(AssistantRunner::class)->reply(auth()->user(), $chat, $text, $this->task.':'.$this->depth, $attachments);
+            $chat = $isNew
+                ? $this->ownChats()->create(['title' => AssistantConversation::titleFor($text), 'use_library' => $useLibrary, 'last_message_at' => now()])
+                : $this->openChat();
+
+            $reply = app(AssistantRunner::class)->reply(auth()->user(), $chat, $text, $this->task.':'.$this->depth, $attachments);
         } finally {
             // Whatever happened, the files do not stay: only their names were saved with the message (P11-R26).
             $this->dropAttachments();
+        }
+
+        if ($reply->fallback) {
+            // The limit or an outage: nothing was saved, so a chat made for this message goes too, and the text stays in the field (P11-R23).
+            if ($isNew) {
+                $chat->delete();
+            }
+
+            $this->addError('message', $reply->text);
+
+            return;
         }
 
         if ($isNew) {
@@ -329,15 +342,26 @@ new #[Title('Ask Bookflix')] class extends Component {
         $this->dispatch('assistant-answered');
     }
 
-    public function rename(string $id, string $title): void
+    /**
+     * @return string|null the reason the title was refused (the row shows it and puts the old title back), or null when it was saved
+     */
+    public function rename(string $id, string $title): ?string
     {
         $chat = $this->ownChats()->findOrFail($id);
         $title = trim(preg_replace('/\s+/u', ' ', $title) ?? '');
 
-        Validator::make(['title' => $title], ['title' => ['required', 'string', 'max:'.AssistantConversation::TITLE_MAX]])->validate();
+        $validator = Validator::make(['title' => $title], ['title' => ['required', 'string', 'max:'.AssistantConversation::TITLE_MAX]]);
+
+        if ($validator->fails()) {
+            $this->addError('title', $validator->errors()->first());
+
+            return $validator->errors()->first();
+        }
 
         $chat->update(['title' => $title]);
         unset($this->groups);
+
+        return null;
     }
 
     public function archive(string $id): void
@@ -461,6 +485,7 @@ new #[Title('Ask Bookflix')] class extends Component {
         }
 
         unset($this->groups, $this->archivedChats);
+        $this->dispatch('chat-left');
     }
 }; ?>
 
@@ -683,6 +708,9 @@ new #[Title('Ask Bookflix')] class extends Component {
                     @error('message')
                         <p role="alert" class="mt-2 flex items-center gap-2 text-meta text-ink">
                             <flux:icon name="exclamation-circle" variant="micro" class="size-4 shrink-0" />{{ $message }}
+                            @if ($message === AssistantRunner::UNAVAILABLE)
+                                <a href="{{ route('search', array_filter(['q' => trim($this->message)])) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control px-1 underline underline-offset-4">{{ __('Try Search instead') }}</a>
+                            @endif
                         </p>
                     @enderror
 
@@ -718,8 +746,6 @@ new #[Title('Ask Bookflix')] class extends Component {
             <flux:modal name="assistant-history" variant="flyout" position="left" :closable="false" class="w-full max-w-sm text-ink shadow-overlay!">
                 <div
                     x-init="$el.closest('dialog').setAttribute('aria-labelledby', 'assistant-history-title')"
-                    @keydown.tab.prevent="$focus.wrap().next()"
-                    @keydown.shift.tab.prevent="$focus.wrap().previous()"
                     class="flex h-[calc(100dvh-4rem)] flex-col gap-4"
                 >
                     <div class="flex items-center justify-between gap-4">

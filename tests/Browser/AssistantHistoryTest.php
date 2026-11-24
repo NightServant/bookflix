@@ -136,3 +136,57 @@ test('on a phone History opens a drawer that Escape closes and focus returns to 
     $page->click('[data-test=history-open]')->wait(0.8)->click('dialog[open] a:has-text("A short classic")')->wait(1.5)
         ->assertScript('document.querySelector("dialog[open]") === null', true);
 });
+
+test('on a phone Tab walks every chat in the History drawer and cycles; Escape returns focus to History', function () {
+    $page = visit(route('assistant.show', $this->open->id), $this->phone)->wait(1.5);
+
+    $page->click('[data-test=history-open]')->wait(0.8);
+    $page->script('window.__seen = []; document.addEventListener("focusin", (e) => window.__seen.push((e.target.getAttribute("href") || e.target.getAttribute("aria-label") || e.target.textContent).trim()))');
+
+    foreach (range(1, 24) as $step) {
+        $page->keys(':root', 'Tab');
+    }
+
+    $page->assertScript('window.__seen.some((entry) => entry.endsWith("/assistant/'.AssistantConversation::where('title', 'Hard sci-fi about first contact and the long wait')->value('id').'"))', true)
+        ->assertScript('window.__seen.includes("Options for Hard sci-fi about first contact and the long wait")', true)
+        ->assertScript('window.__seen.includes("Close history") && window.__seen.lastIndexOf("Archived") < window.__seen.indexOf("Close history")', true)
+        ->keys(':root', 'Escape')->wait(0.8)
+        ->assertScript('document.querySelector("dialog[open]") === null', true)
+        ->assertScript('document.activeElement.getAttribute("data-test")', 'history-open');
+});
+
+test('a refused rename shows the server reason and puts the old title back', function () {
+    $page = visit(route('assistant'), $this->desktop)->wait(1.5);
+    $trigger = 'aside li:has(a:has-text("Cozy mysteries")) button[aria-label^="Options for"]';
+
+    $page->script('document.querySelectorAll("aside input[id^=rename-side]").forEach((input) => input.removeAttribute("maxlength"))');
+    $page->click($trigger)->wait(0.4)->click('ui-menu button:has-text("Rename"):visible')->wait(0.6)
+        ->keys('aside input[id^=rename-side]:visible', 'Control+a')
+        ->type('aside input[id^=rename-side]:visible', str_repeat('a', 121))
+        ->keys('aside input[id^=rename-side]:visible', 'Enter')->wait(1.2)
+        ->assertSee('must not be greater than 120 characters')
+        ->assertSee('Cozy mysteries set in small towns');
+
+    expect(AssistantConversation::where('title', 'Cozy mysteries set in small towns')->exists())->toBeTrue();
+});
+
+test('after Archive or Delete of a chat that is not open, focus moves to the next chat, else New chat', function () {
+    $page = visit(route('assistant.show', $this->open->id), $this->desktop)->wait(1.5);
+    $page->script('window.confirm = () => true');
+
+    $page->click('aside li:has(a:has-text("A short classic")) button[aria-label^="Options for"]')->wait(0.4)
+        ->click('ui-menu button:has-text("Archive"):visible')->wait(1.5)
+        ->assertScript('document.activeElement.textContent.trim()', 'Cozy mysteries set in small towns');
+
+    $page->click('aside li:has(a:has-text("Cozy mysteries")) button[aria-label^="Options for"]')->wait(0.4)
+        ->click('ui-menu button:has-text("Delete"):visible')->wait(1.5)
+        ->assertScript('document.activeElement.textContent.trim()', 'Space opera with found family');
+
+    AssistantConversation::where('id', '!=', $this->open->id)->update(['archived_at' => now()]);
+    AssistantConversation::where('title', 'Space opera with found family')->update(['archived_at' => null]);
+    $page = visit(route('assistant.show', $this->open->id), $this->desktop)->wait(1.5);
+    $page->script('window.confirm = () => true');
+    $page->click('aside li:has(a:has-text("Space opera")) button[aria-label^="Options for"]')->wait(0.4)
+        ->click('ui-menu button:has-text("Archive"):visible')->wait(1.5)
+        ->assertScript('document.activeElement.textContent.trim()', 'Dark fantasy with political intrigue');
+});

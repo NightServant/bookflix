@@ -8,8 +8,10 @@
         renaming: false,
         title: @js($chat->title),
         saved: @js($chat->title),
+        error: '',
         begin() {
             this.renaming = true
+            this.error = ''
             // The menu hands focus back to its trigger as it closes; wait that out, then focus the field.
             setTimeout(() => { this.$refs.field.focus(); this.$refs.field.select() }, 60)
         },
@@ -18,11 +20,16 @@
             if (! keep) this.title = this.saved
             this.$nextTick(() => this.$refs.link?.focus())
         },
-        save() {
+        async save() {
             const next = this.title.trim()
-            if (next !== '' && next !== this.saved) {
+            const before = this.saved
+            if (next !== '' && next !== before) {
                 this.saved = this.title = next
-                this.$wire.rename(@js($chat->id), next)
+                this.stop(true)
+                // The server answers with why it refused a title; then the old one goes back.
+                this.error = (await this.$wire.rename(@js($chat->id), next)) ?? ''
+                if (this.error !== '') this.saved = this.title = before
+                return
             }
             this.stop(true)
             this.title = this.saved
@@ -35,6 +42,7 @@
         @else
             <a
                 x-ref="link"
+                data-chat-link="{{ $chat->id }}"
                 href="{{ route('assistant.show', $chat->id) }}"
                 wire:navigate
                 @if ($current) aria-current="page" @endif
@@ -51,13 +59,14 @@
                     <flux:menu.item wire:click="restore('{{ $chat->id }}')" icon="arrow-uturn-left" class="min-h-11! pe-4!">{{ __('Restore') }}</flux:menu.item>
                 @else
                     <flux:menu.item x-on:click="begin()" icon="pencil-square" class="min-h-11! pe-4!">{{ __('Rename') }}</flux:menu.item>
-                    <flux:menu.item wire:click="archive('{{ $chat->id }}')" icon="archive-box" class="min-h-11! pe-4!">{{ __('Archive') }}</flux:menu.item>
+                    <flux:menu.item wire:click="archive('{{ $chat->id }}')" x-on:click="leaving($el.closest('li'))" icon="archive-box" class="min-h-11! pe-4!">{{ __('Archive') }}</flux:menu.item>
                 @endif
 
                 <flux:menu.separator />
 
                 <flux:menu.item
                     wire:click="delete('{{ $chat->id }}')"
+                    x-on:click="leaving($el.closest('li'))"
                     wire:confirm="{{ __('Delete this chat? This can\'t be undone.') }}"
                     icon="trash"
                     variant="danger"
@@ -66,6 +75,8 @@
             </flux:menu>
         </flux:dropdown>
     </div>
+
+    <p x-show="error !== ''" x-cloak role="alert" x-text="error" class="px-3 pb-1 text-legal text-ink"></p>
 
     @unless ($archived)
         <form x-show="renaming" x-cloak @submit.prevent="save()" class="px-1 py-0.5">

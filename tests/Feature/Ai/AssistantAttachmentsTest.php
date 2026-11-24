@@ -8,12 +8,14 @@ use App\Models\User;
 use Database\Seeders\DeweySeeder;
 use Database\Seeders\MediaTypeSeeder;
 use Database\Seeders\TaxonomySeeder;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
+use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
@@ -230,4 +232,33 @@ test('a picture with no vision model configured is not sent anywhere', function 
 
     expect($reply->text)->toBe(AssistantRunner::UNAVAILABLE);
     Http::assertNothingSent();
+});
+
+test('the temporary file is deleted when the chat is archived or gone, too', function () {
+    $chat = AssistantConversation::factory()->for($this->user)->create();
+    $page = Livewire::actingAs($this->user)->test('pages::assistant.index', ['conversation' => $chat->id])
+        ->set('incoming', [attachFile('notes.txt', 'a long list of books')])
+        ->set('message', 'help');
+
+    expect(attachTempFiles())->toHaveCount(1);
+
+    $chat->update(['archived_at' => now()]);
+
+    $page->call('send');
+    expect(attachTempFiles())->toBeEmpty();
+    Http::assertNothingSent();
+});
+
+test('pruning removes temporary uploads older than an hour and keeps fresh ones', function () {
+    $disk = Storage::disk(FileUploadConfiguration::disk());
+    $disk->put(FileUploadConfiguration::path('old.txt', false), 'old');
+    $disk->put(FileUploadConfiguration::path('fresh.txt', false), 'fresh');
+    touch($disk->path(FileUploadConfiguration::path('old.txt', false)), now()->subMinutes(61)->timestamp);
+    touch($disk->path(FileUploadConfiguration::path('fresh.txt', false)), now()->subMinutes(10)->timestamp);
+
+    $this->artisan('bookflix:prune-uploads')->assertSuccessful();
+
+    $disk->assertMissing(FileUploadConfiguration::path('old.txt', false));
+    $disk->assertExists(FileUploadConfiguration::path('fresh.txt', false));
+    expect(collect(app(Schedule::class)->events())->filter(fn ($event): bool => str_contains((string) $event->command, 'bookflix:prune-uploads'))->first()->expression)->toBe('0 * * * *');
 });

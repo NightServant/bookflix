@@ -74,3 +74,16 @@ The review found 4 should-fix items and 6 nits, and judged the branch safe to me
 5–10. explain() accepts any pair of stories; the intent anchor is not mature-gated; user text can close its tags; the assistant catches only LlmUnavailable; the summary job's tries and the description cap; short titles match too much when picking cards.
 
 All ten went to one fix wave.
+
+## Second review (Opus, 2026-11-24, on f4dfa89..49f1fdd: history, modes, uploads, layout)
+
+Should-fix, all sent to one fix wave:
+1. The phone History drawer trapped Tab (the focus wrap counted hidden elements).
+2. Temporary uploads could outlive the page, now pruned hourly, with send() always cleaning up.
+3. Writes were unbounded past the rate limit (no rows written when the limit is hit; refusals count toward it).
+
+Nits fixed in the same wave: silent rename failure; focus lost after archive or delete.
+
+Nits left:
+- The Livewire global upload rule is 500 MB (set in Phase 9); the assistant checks its own limits after upload.
+- Tool subsets per mode split the provider's prefix cache, and promptVersion hashes only the base prompt.

@@ -153,11 +153,12 @@ test('a message over 2,000 characters is refused with a message and nothing is s
 test('an unavailable assistant shows its line and a link to Search', function () {
     Http::fake(['*' => Http::response('', 500)]);
 
-    Livewire::actingAs($this->user)->test('pages::assistant.index')->set('message', 'anything')->call('send');
-
-    openedChat($this->user)
+    Livewire::actingAs($this->user)->test('pages::assistant.index')->set('message', 'anything')->call('send')
         ->assertSee("The assistant isn't available right now.")
-        ->assertSeeHtml('href="'.route('search').'"');
+        ->assertSeeHtml('href="'.route('search', ['q' => 'anything']).'"')
+        ->assertSee('Try Search instead');
+
+    expect($this->user->assistantConversations()->count())->toBe(0);
 });
 
 test('Use my library is offered only while personalization is on, and is off by default', function () {

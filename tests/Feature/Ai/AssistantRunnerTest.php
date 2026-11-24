@@ -474,8 +474,8 @@ it('falls back when AI is off, killed mid-conversation, over budget or erroring'
     expect(asks($this->user, 'third', $conversation)->fallback)->toBeTrue();
     Http::assertSentCount(1);
     expect($conversation->history(true))->toHaveCount(2)
-        ->and($conversation->messages()->count())->toBe(6)
-        ->and($conversation->messages()->where('fixed', true)->count())->toBe(4);
+        ->and($conversation->messages()->count())->toBe(2)
+        ->and($conversation->messages()->where('fixed', true)->count())->toBe(0);
 });
 
 it('falls back when the model dies in the middle of a tool loop', function () {

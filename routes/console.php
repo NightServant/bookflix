@@ -15,6 +15,8 @@ Artisan::command('inspire', function () {
 Schedule::command('bookflix:purge-deactivated-accounts')->daily();
 Schedule::command('bookflix:prune-covers')->weekly();
 Schedule::command('bookflix:prune-exports')->daily();
+// Temporary uploads (assistant attachments) normally go right after the reply; this catches the ones a closed tab left behind (P11-R26).
+Schedule::command('bookflix:prune-uploads')->hourly();
 Schedule::command('bookflix:score-popularity')->daily();
 Schedule::command('bookflix:sync-signals')->daily();
 Schedule::command('model:prune')->daily();

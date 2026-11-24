@@ -73,7 +73,8 @@ class AssistantRunner
         $mode = AssistantMode::parse($mode);
         $reply = $this->answer($user, $conversation, $message, $mode, $attachments);
 
-        if ($message !== '' && mb_strlen($message) <= self::MAX_MESSAGE) {
+        // Nothing is written for the "not available" line (the limit or an outage): it is shown to the reader, not saved (P11-R23).
+        if (! $reply->fallback && $message !== '' && mb_strlen($message) <= self::MAX_MESSAGE) {
             $conversation->record($message, $reply, $mode->key(), array_map(fn (Attachment $attachment): string => $attachment->name, $attachments));
         }
 
@@ -85,12 +86,17 @@ class AssistantRunner
      */
     private function answer(User $user, AssistantConversation $conversation, string $message, AssistantMode $mode, array $attachments): AssistantReply
     {
-        if (mb_strlen($message) > self::MAX_MESSAGE) {
-            return new AssistantReply(self::TOO_LONG, new Collection, fixed: true);
-        }
-
         if ($message === '') {
             return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
+        }
+
+        // Every message counts, refusals and over-long ones included, so the limit also bounds what is written (P11-R23).
+        if (! $this->withinLimit($user)) {
+            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
+        }
+
+        if (mb_strlen($message) > self::MAX_MESSAGE) {
+            return new AssistantReply(self::TOO_LONG, new Collection, fixed: true);
         }
 
         $blocks = $this->attachmentBlocks($attachments);
@@ -101,10 +107,6 @@ class AssistantRunner
         }
 
         if ($hasImage && blank(config('bookflix.ai.models.vision'))) {
-            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
-        }
-
-        if (! $this->withinLimit($user)) {
             return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
         }
 

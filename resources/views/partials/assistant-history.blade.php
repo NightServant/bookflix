@@ -10,18 +10,31 @@
     };
 @endphp
 
-<div class="flex h-full min-h-0 flex-col">
+{{-- `leaving` is set by a row's Archive/Delete click: where focus goes once the row is gone (the next chat, else the one before, else the list's first control). --}}
+<div
+    x-data="{
+        next: null,
+        leaving(row) {
+            const links = [...row.closest('[data-chat-list]').querySelectorAll('[data-chat-link]')]
+            const at = links.indexOf(row.querySelector('[data-chat-link]'))
+            this.next = at < 0 ? '' : ((links[at + 1] ?? links[at - 1])?.dataset.chatLink ?? '')
+        },
+    }"
+    @chat-left.window="if (next !== null) { const id = next; next = null; setTimeout(() => (id ? $el.querySelector('[data-chat-link=\'' + id + '\']') : $el.querySelector('[data-list-home]'))?.focus(), 120) }"
+    data-chat-list
+    class="flex h-full min-h-0 flex-col"
+>
     <p id="rename-hint-{{ $scope }}" class="sr-only">{{ __('Press Enter to save the new title, Escape to cancel.') }}</p>
 
     @if ($showArchived)
         <div class="flex items-center justify-between gap-2">
             <h2 class="text-lead text-ink">{{ __('Archived') }}</h2>
-            <button type="button" wire:click="toggleArchived" class="focus-ring inline-flex min-h-11 items-center gap-2 rounded-control px-2 text-meta text-ink-subtle hover:text-ink">
+            <button type="button" wire:click="toggleArchived" data-list-home class="focus-ring inline-flex min-h-11 items-center gap-2 rounded-control px-2 text-meta text-ink-subtle hover:text-ink">
                 <flux:icon name="arrow-left" variant="micro" class="size-4" />{{ __('Back to chats') }}
             </button>
         </div>
     @else
-        <x-cta variant="secondary" icon="plus" :href="route('assistant')" wire:navigate class="w-full justify-start">{{ __('New chat') }}</x-cta>
+        <x-cta variant="secondary" icon="plus" :href="route('assistant')" wire:navigate data-list-home class="w-full justify-start">{{ __('New chat') }}</x-cta>
     @endif
 
     <nav aria-label="{{ $showArchived ? __('Archived chats') : __('Saved chats') }}" class="mt-5 -mx-1 min-h-0 flex-1 overflow-y-auto px-1">
