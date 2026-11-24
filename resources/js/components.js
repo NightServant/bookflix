@@ -425,11 +425,12 @@ export default function components(Alpine) {
             });
         },
 
-        close() {
+        close(event) {
             if (!this.open) {
                 return;
             }
 
+            event?.stopPropagation();
             this.open = false;
             this.$refs.button.focus();
         },

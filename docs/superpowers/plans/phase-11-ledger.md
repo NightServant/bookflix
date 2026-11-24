@@ -39,6 +39,7 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | P11-R17 | **AI content shows only while `ai.enabled`.** With AI off, pages are exactly Phase 10: no AI-summary query, no labels, no "Why this?". The kill switch stops new calls but does not hide stored AI text. | Stored summaries disappear when AI is switched off, which is intended. |
 | P11-R18 | **AI explanations are opt-in:** a new `profiles.ai_explanations_enabled` (default false), offered only with personalization on, because the "because you liked X" title comes from the reader's own history. Privacy settings gets an "AI features" section (`#ai`) holding the switch and the "What we send" text for all four features. | Few readers will see explanations until they opt in. |
 | P11-R19 | **The assistant never writes recommendation impressions.** `get_recommendations` uses a seam that builds shelves without logging, since those rows are the labeled LTR/bandit data. Its search always asks for page 1, ignoring the request's `?page`. | None found. |
+| P11-R20 | **The "Ask" nav item appears only while `ai.enabled`** (header and phone bottom bar), filtered in one shared place. `/assistant` always exists for readers; with AI off it shows one line and a link to Search. | None found. |
 | P11-R14 | **Exit criterion "cost report from a 100-message scripted run"**: the scripted run uses faked responses with realistic usage numbers. A live cost run needs the user's provider key and their go-ahead. | The real cost is unknown until a live run. |
 
 ## Task log
@@ -50,5 +51,5 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | 11.1 Intent behind QueryParser | done (Discovery folder 649 + QueryParserTest 37; limiter consumed on cache miss only) | see git log |
 | 11.4 AI summaries | done (72 tests incl. story + admin; AI off = Phase 10 page, P11-R17) | see git log |
 | 11.2 Assistant runner and tools | back end done (535 incl. search, recommendations, AI; P11-R19) | see git log |
-| UI (assistant, labels) | signed off (P11-R15) | |
+| UI (assistant, labels) | done (14 feature + 24 browser; 6-item phone bar fits at 375; Why-this Escape fixed) | see git log |
 | 11.5 Explanations | done (43 tests; popover browser check pending in the UI task) | see git log |
