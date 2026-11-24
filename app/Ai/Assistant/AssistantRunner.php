@@ -10,6 +10,7 @@ use App\Ai\TitleVerifier;
 use App\Catalog\Ingestion\ProhibitedContent;
 use App\Enums\ModelKind;
 use App\Enums\ModelStatus;
+use App\Models\AssistantConversation;
 use App\Models\Media;
 use App\Models\ModelVersion;
 use App\Models\User;
@@ -55,40 +56,49 @@ class AssistantRunner
         private TitleVerifier $verifier,
     ) {}
 
-    public function reply(User $user, Conversation $conversation, string $message): AssistantReply
+    /**
+     * Answer one message of a saved chat and save the exchange (the reader's message and the reply). Fixed lines are saved too, flagged so they
+     * never go back to the model; a message over the length limit or an empty one is not saved at all.
+     */
+    public function reply(User $user, AssistantConversation $conversation, string $message): AssistantReply
     {
         $message = trim($message);
+        $reply = $this->answer($user, $conversation, $message);
 
+        if ($message !== '' && mb_strlen($message) <= self::MAX_MESSAGE) {
+            $conversation->record($message, $reply);
+        }
+
+        return $reply;
+    }
+
+    private function answer(User $user, AssistantConversation $conversation, string $message): AssistantReply
+    {
         if (mb_strlen($message) > self::MAX_MESSAGE) {
-            return new AssistantReply(self::TOO_LONG, new Collection);
+            return new AssistantReply(self::TOO_LONG, new Collection, fixed: true);
         }
 
         if ($message === '') {
-            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true);
+            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
         }
 
         if (ProhibitedContent::matches($message)) {
-            return new AssistantReply(self::REFUSAL, new Collection);
+            return new AssistantReply(self::REFUSAL, new Collection, fixed: true);
         }
 
         if (! $this->withinLimit($user)) {
-            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true);
+            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
         }
 
         try {
-            $reply = $this->converse($user, $conversation, $message);
+            return $this->converse($user, $conversation, $message);
         } catch (LlmUnavailable) {
-            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true);
+            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
         } catch (Throwable $e) {
             report($e);
 
-            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true);
+            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true, fixed: true);
         }
-
-        $conversation->add('user', $message, $reply->usedLibrary);
-        $conversation->add('assistant', $reply->text, $reply->usedLibrary);
-
-        return $reply;
     }
 
     /**
@@ -106,10 +116,10 @@ class AssistantRunner
     /**
      * @throws LlmUnavailable
      */
-    private function converse(User $user, Conversation $conversation, string $message): AssistantReply
+    private function converse(User $user, AssistantConversation $conversation, string $message): AssistantReply
     {
         $system = $this->prompt();
-        $libraryAllowed = $conversation->useLibrary && $user->personalizationEnabled();
+        $libraryAllowed = $conversation->use_library && $user->personalizationEnabled();
         $definitions = $this->tools->definitions($user, $conversation);
 
         $messages = [];
@@ -164,14 +174,14 @@ class AssistantRunner
         $this->promptVersion();
 
         if ($this->leaksPrompt($raw)) {
-            return new AssistantReply(self::OFF_TOPIC, new Collection, $usedLibrary);
+            return new AssistantReply(self::OFF_TOPIC, new Collection, $usedLibrary, fixed: true);
         }
 
         $allowed = new Collection(array_values($seen));
         $text = $this->verifier->scrub($this->plain($raw), $allowed);
 
         if ($text === '' || $this->leaksPrompt($text)) {
-            return new AssistantReply(self::OFF_TOPIC, new Collection, $usedLibrary);
+            return new AssistantReply(self::OFF_TOPIC, new Collection, $usedLibrary, fixed: true);
         }
 
         return new AssistantReply($text, $this->stories($text, $allowed, $lastSearch), $usedLibrary);
@@ -183,7 +193,7 @@ class AssistantRunner
      *
      * @throws LlmUnavailable
      */
-    private function ask(User $user, Conversation $conversation, string $system, array $messages, array $definitions, bool $final): LlmResponse
+    private function ask(User $user, AssistantConversation $conversation, string $system, array $messages, array $definitions, bool $final): LlmResponse
     {
         return $this->llm->complete(new LlmRequest(
             feature: 'assistant',

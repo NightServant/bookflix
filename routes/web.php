@@ -21,6 +21,7 @@ Route::middleware(['auth', 'verified', 'reader'])->group(function () {
     Route::livewire('search', 'pages::search.index')->name('search');
     // Always routed for a reader; with AI off it says so and points to Search (P11-R20).
     Route::livewire('assistant', 'pages::assistant.index')->name('assistant');
+    Route::livewire('assistant/{conversation}', 'pages::assistant.index')->name('assistant.show')->whereUlid('conversation');
     Route::livewire('discover', 'pages::discover.index')->name('discover');
     Route::livewire('explore', 'pages::explore.index')->name('explore.index');
     Route::livewire('explore/{code}', 'pages::explore.show')->name('explore.show')->where('code', '[0-9]{3}(\.[0-9]+)?');

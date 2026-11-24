@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AssistantConversation;
 use App\Models\Genre;
 use App\Models\Media;
 use App\Models\User;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Sleep;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -77,41 +79,62 @@ test('Ask is the current item on the assistant page', function () {
     expect($navs['header'])->toMatch('#<a\s+href="'.preg_quote(route('assistant'), '#').'"[^>]*data-current#');
 });
 
-test('a sent message shows the reply and only the cards of verified stories', function () {
+/**
+ * The saved chat the first message created, opened as its own page.
+ */
+function openedChat(User $user): Testable
+{
+    return Livewire::actingAs($user)->test('pages::assistant.index', ['conversation' => $user->assistantConversations()->sole()->id]);
+}
+
+test('a first message creates the chat and sends the reader to its page, where the reply and only the cards of verified stories show', function () {
     $decoy = Media::factory()->manga()->create(['title' => 'Unmentioned Decoy']);
     scriptCourtAnswer();
 
-    Livewire::actingAs($this->user)->test('pages::assistant.index')
+    $new = Livewire::actingAs($this->user)->test('pages::assistant.index')
         ->assertSee('What are you in the mood for?')
         ->set('message', 'dark fantasy with politics')
-        ->call('send')
+        ->call('send');
+    $chat = $this->user->assistantConversations()->sole();
+
+    $new->assertRedirect(route('assistant.show', $chat->id));
+
+    openedChat($this->user)
         ->assertSee('dark fantasy with politics')
         ->assertSee('Try Crimson Court. Throne politics, all the way down.')
         ->assertSeeHtml('href="'.route('stories.show', $this->court->slug).'"')
         ->assertDontSeeHtml('href="'.route('stories.show', $decoy->slug).'"')
-        ->assertDontSee('What are you in the mood for?')
+        ->assertDontSee('What are you in the mood for?');
+});
+
+test('a second message in the open chat shows the answer on the same page', function () {
+    scriptCourtAnswer();
+    $chat = AssistantConversation::factory()->for($this->user)->create();
+
+    Livewire::actingAs($this->user)->test('pages::assistant.index', ['conversation' => $chat->id])
+        ->set('message', 'dark fantasy with politics')
+        ->call('send')
+        ->assertNoRedirect()
+        ->assertSee('Try Crimson Court. Throne politics, all the way down.')
         ->assertSet('message', '');
+
+    expect($chat->messages()->pluck('role')->all())->toBe(['user', 'assistant']);
 });
 
 test('the model\'s text is shown as plain text', function () {
     scriptCourtAnswer('Try Crimson Court <script>alert(1)</script>.');
 
-    $html = Livewire::actingAs($this->user)->test('pages::assistant.index')
-        ->set('message', 'anything')
-        ->call('send')
-        ->html();
+    Livewire::actingAs($this->user)->test('pages::assistant.index')->set('message', 'anything')->call('send');
 
-    expect($html)->not->toContain('<script>alert(1)');
+    expect(openedChat($this->user)->html())->not->toContain('<script>alert(1)');
 });
 
 test('a suggestion chip sends its own text', function () {
     scriptCourtAnswer();
 
-    Livewire::actingAs($this->user)->test('pages::assistant.index')
-        ->call('ask', 'Something like Frieren')
-        ->assertSee('Something like Frieren')
-        ->assertSee('Try Crimson Court.');
+    Livewire::actingAs($this->user)->test('pages::assistant.index')->call('ask', 'Something like Frieren')->assertRedirect();
 
+    openedChat($this->user)->assertSee('Something like Frieren')->assertSee('Try Crimson Court.');
     Http::assertSentCount(2);
 });
 
@@ -130,9 +153,9 @@ test('a message over 2,000 characters is refused with a message and nothing is s
 test('an unavailable assistant shows its line and a link to Search', function () {
     Http::fake(['*' => Http::response('', 500)]);
 
-    Livewire::actingAs($this->user)->test('pages::assistant.index')
-        ->set('message', 'anything')
-        ->call('send')
+    Livewire::actingAs($this->user)->test('pages::assistant.index')->set('message', 'anything')->call('send');
+
+    openedChat($this->user)
         ->assertSee("The assistant isn't available right now.")
         ->assertSeeHtml('href="'.route('search').'"');
 });
@@ -145,32 +168,18 @@ test('Use my library is offered only while personalization is on, and is off by 
     Livewire::actingAs($this->user->fresh())->test('pages::assistant.index')->assertDontSee('Use my library');
 });
 
-test('the library switch is remembered for the conversation and New conversation clears it all', function () {
+test('the library switch is saved with the chat and a new chat starts with it off', function () {
     scriptCourtAnswer();
 
-    $page = Livewire::actingAs($this->user)->test('pages::assistant.index')
-        ->set('useLibrary', true)
-        ->set('message', 'anything')
-        ->call('send')
-        ->assertSee('Try Crimson Court.')
-        ->assertSee('New conversation');
+    Livewire::actingAs($this->user)->test('pages::assistant.index')->set('useLibrary', true)->set('message', 'anything')->call('send');
+    $chat = $this->user->assistantConversations()->sole();
 
-    $page->call('startOver')
-        ->assertDontSee('Try Crimson Court.')
-        ->assertDontSee('New conversation')
-        ->assertSee('What are you in the mood for?')
-        ->assertSet('useLibrary', false);
+    expect($chat->use_library)->toBeTrue();
 
-    Livewire::actingAs($this->user)->test('pages::assistant.index')->assertDontSee('Try Crimson Court.')->assertSet('useLibrary', false);
-});
+    openedChat($this->user)->assertSet('useLibrary', true)->set('useLibrary', false);
+    expect($chat->fresh()->use_library)->toBeFalse();
 
-test('the conversation survives a reload', function () {
-    scriptCourtAnswer();
-
-    $this->actingAs($this->user);
-    Livewire::test('pages::assistant.index')->set('message', 'anything')->call('send');
-
-    $this->get(route('assistant'))->assertSee('Try Crimson Court.')->assertSeeHtml('href="'.route('stories.show', $this->court->slug).'"');
+    Livewire::actingAs($this->user)->test('pages::assistant.index')->assertSet('useLibrary', false);
 });
 
 test('the "What we send" link goes to the AI section of the privacy settings', function () {

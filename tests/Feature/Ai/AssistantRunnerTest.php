@@ -3,9 +3,9 @@
 use App\Ai\Assistant\AssistantReply;
 use App\Ai\Assistant\AssistantRunner;
 use App\Ai\Assistant\AssistantTools;
-use App\Ai\Assistant\Conversation;
 use App\Ai\KillSwitch;
 use App\Enums\ModelKind;
+use App\Models\AssistantConversation;
 use App\Models\Genre;
 use App\Models\LibraryEntry;
 use App\Models\Media;
@@ -71,9 +71,14 @@ function assistantScript(array ...$replies): void
     Http::fake(['*' => $sequence]);
 }
 
-function asks(User $user, string $message, ?Conversation $conversation = null): AssistantReply
+function chatOf(User $user, bool $useLibrary = false): AssistantConversation
 {
-    return app(AssistantRunner::class)->reply($user, $conversation ?? new Conversation, $message);
+    return AssistantConversation::factory()->for($user)->create(['use_library' => $useLibrary]);
+}
+
+function asks(User $user, string $message, ?AssistantConversation $conversation = null): AssistantReply
+{
+    return app(AssistantRunner::class)->reply($user, $conversation ?? chatOf($user), $message);
 }
 
 /**
@@ -99,7 +104,7 @@ it('answers a discovery question by searching the catalog and returns verified c
         assistantCalls([['search_catalog', ['query' => 'Crimson Court', 'filters' => ['mediaTypes' => ['manga'], 'genres' => ['dark-fantasy']], 'limit' => 3]]]),
         assistantText('Try Crimson Court. It is a dark fantasy full of throne politics.'),
     );
-    $conversation = new Conversation;
+    $conversation = chatOf($this->user);
 
     $reply = asks($this->user, 'dark fantasy manga with political intrigue', $conversation);
     [$first, $second] = sentBodies();
@@ -132,7 +137,7 @@ it('shows the first search hits when the text names none of them', function () {
 
 it('records the prompt as a model version and sends it byte-stable first', function () {
     assistantScript(assistantText('Hello there.'), assistantText('Hello again.'));
-    $conversation = new Conversation;
+    $conversation = chatOf($this->user);
 
     asks($this->user, 'hi', $conversation);
     asks($this->user, 'and again', $conversation);
@@ -152,18 +157,22 @@ it('records the prompt as a model version and sends it byte-stable first', funct
         ->and($second['messages'][3])->toBe(['role' => 'user', 'content' => '<message>and again</message>']);
 });
 
-it('keeps only the last ten messages', function () {
-    $conversation = new Conversation;
+it('sends the last ten stored messages and a per-chat hashed id', function () {
+    $conversation = chatOf($this->user);
+    $other = chatOf($this->user);
 
     foreach (range(1, 8) as $i) {
-        $conversation->add('user', "u{$i}");
-        $conversation->add('assistant', "a{$i}");
+        $conversation->messages()->create(['role' => 'user', 'text' => "u{$i}"]);
+        $conversation->messages()->create(['role' => 'assistant', 'text' => "a{$i}"]);
     }
 
-    expect($conversation->messages())->toHaveCount(10)
-        ->and($conversation->messages()[0]['text'])->toBe('u4')
-        ->and(unserialize(serialize($conversation))->hashedUser())->toBe($conversation->hashedUser())
-        ->and((new Conversation)->hashedUser())->not->toBe($conversation->hashedUser());
+    $history = $conversation->history(true);
+
+    expect($history)->toHaveCount(10)
+        ->and($history[0])->toBe(['role' => 'user', 'text' => 'u4'])
+        ->and($history[9])->toBe(['role' => 'assistant', 'text' => 'a8'])
+        ->and($conversation->hashedUser())->toMatch('/^[0-9a-f]{64}$/')->not->toBe($other->hashedUser())
+        ->and($conversation->fresh()->hashedUser())->toBe($conversation->hashedUser());
 });
 
 it('turns bad tool arguments into error results and keeps going', function () {
@@ -332,9 +341,9 @@ it('only offers get_recommendations when the library is on and personalization i
         assistantCalls([['get_recommendations', []]]),
         assistantText('I have nothing to add.'),
     );
-    $conversation = new Conversation($useLibrary);
-    $conversation->add('user', 'earlier question', true);
-    $conversation->add('assistant', 'Secret Shelf Book was a pick.', true);
+    $conversation = chatOf($this->user, $useLibrary);
+    $conversation->messages()->create(['role' => 'user', 'text' => 'earlier question', 'used_library' => true]);
+    $conversation->messages()->create(['role' => 'assistant', 'text' => 'Secret Shelf Book was a pick.', 'used_library' => true]);
 
     $reply = asks($this->user, 'what next?', $conversation);
     [$first, $second] = sentBodies();
@@ -361,7 +370,7 @@ it('reads the readers own shelf through get_recommendations', function () {
         assistantText('Popular right now are the picks above.'),
     );
 
-    $reply = asks($this->user, 'what is trending for me?', new Conversation(true));
+    $reply = asks($this->user, 'what is trending for me?', chatOf($this->user, true));
     $results = toolResults(sentBodies()[1]);
     $data = json_decode(substr($results[0], 6, -7), true);
 
@@ -450,7 +459,7 @@ it('falls back past 20 messages an hour', function () {
 
 it('falls back when AI is off, killed mid-conversation, over budget or erroring', function () {
     Http::fake(['*' => Http::response(assistantText('Fine.'))]);
-    $conversation = new Conversation;
+    $conversation = chatOf($this->user);
 
     expect(asks($this->user, 'first', $conversation)->fallback)->toBeFalse();
 
@@ -464,7 +473,9 @@ it('falls back when AI is off, killed mid-conversation, over budget or erroring'
     config()->set('bookflix.ai.enabled', false);
     expect(asks($this->user, 'third', $conversation)->fallback)->toBeTrue();
     Http::assertSentCount(1);
-    expect(count($conversation->messages()))->toBe(2);
+    expect($conversation->history(true))->toHaveCount(2)
+        ->and($conversation->messages()->count())->toBe(6)
+        ->and($conversation->messages()->where('fixed', true)->count())->toBe(4);
 });
 
 it('falls back when the model dies in the middle of a tool loop', function () {
@@ -516,7 +527,7 @@ it('writes no recommendation rows when get_recommendations reads a shelf', funct
         assistantText('Popular right now are the picks above.'),
     );
 
-    $reply = asks($this->user, 'what is trending for me?', new Conversation(true));
+    $reply = asks($this->user, 'what is trending for me?', chatOf($this->user, true));
     $data = json_decode(substr(toolResults(sentBodies()[1])[0], 6, -7), true);
 
     expect($reply->usedLibrary)->toBeTrue()

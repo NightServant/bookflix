@@ -58,7 +58,7 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | 11.4 AI summaries | done (72 tests incl. story + admin; AI off = Phase 10 page, P11-R17) | see git log |
 | 11.2 Assistant runner and tools | back end done (535 incl. search, recommendations, AI; P11-R19) | see git log |
 | UI (assistant, labels) | done (14 feature + 24 browser; 6-item phone bar fits at 375; Why-this Escape fixed) | see git log |
-| 11.6 Chat history + sidebar | pending | |
+| 11.6 Chat history + sidebar | done (248 tests; fixed lines stored but never sent back; per-chat use_library) | see git log |
 | 11.7 Modes | pending | |
 | 11.8 Uploads | pending | |
 | 11.5 Explanations | done (43 tests; popover browser check pending in the UI task) | see git log |

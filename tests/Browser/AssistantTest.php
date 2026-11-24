@@ -49,7 +49,7 @@ test('a question typed and sent with Enter shows the answer and a cover card, an
         ->keys('#assistant-message', 'Enter')->wait(2)
         ->assertSee('dark fantasy with politics')
         ->assertSee('Try Crimson Court. It is dark fantasy built on throne politics.')
-        ->assertSee('New conversation')
+        ->assertPathBeginsWith('/assistant/')
         ->assertScript('document.querySelectorAll("[aria-live=polite] ul a[href*=\"/stories/\"]").length', 1)
         ->assertValue('#assistant-message', '')
         ->assertScript('document.activeElement.id === "assistant-message"', true)
@@ -57,7 +57,7 @@ test('a question typed and sent with Enter shows the answer and a cover card, an
         ->assertNoAccessibilityIssues()
         ->screenshot(filename: 'assistant-1440-answer');
 
-    $page->click('New conversation')->wait(1)->assertSee('What are you in the mood for?')->assertDontSee('Crimson Court');
+    $page->click('aside a:has-text("New chat")')->wait(1)->assertPathIs('/assistant')->assertSee('What are you in the mood for?')->assertDontSee('Try Crimson Court.');
 });
 
 test('every control is reachable by keyboard in a sensible order, with a visible focus ring', function () {

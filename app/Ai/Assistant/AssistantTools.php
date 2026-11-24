@@ -8,6 +8,7 @@ use App\Discovery\Recommendations\ShelfBuilder;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\QueryVocabulary;
 use App\Discovery\Search\SearchFilters;
+use App\Models\AssistantConversation;
 use App\Models\Media;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -53,7 +54,7 @@ class AssistantTools
      *
      * @return list<array<string, mixed>>
      */
-    public function definitions(User $user, Conversation $conversation): array
+    public function definitions(User $user, AssistantConversation $conversation): array
     {
         $vocabulary = $this->vocabulary->slugs($user);
         $list = fn (string $kind): array => ['type' => 'array', 'maxItems' => self::MAX_FILTER_VALUES, 'items' => ['type' => 'string', 'enum' => $vocabulary[$kind]]];
@@ -85,7 +86,7 @@ class AssistantTools
         return $tools;
     }
 
-    public function execute(User $user, Conversation $conversation, LlmToolCall $call): ToolResult
+    public function execute(User $user, AssistantConversation $conversation, LlmToolCall $call): ToolResult
     {
         if ($call->arguments === null) {
             return ToolResult::error('The arguments must be a JSON object.');
@@ -110,9 +111,9 @@ class AssistantTools
         }
     }
 
-    private function libraryAllowed(User $user, Conversation $conversation): bool
+    private function libraryAllowed(User $user, AssistantConversation $conversation): bool
     {
-        return $conversation->useLibrary && $user->personalizationEnabled();
+        return $conversation->use_library && $user->personalizationEnabled();
     }
 
     /**

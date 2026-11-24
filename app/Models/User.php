@@ -121,6 +121,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * The reader's saved assistant chats; the only way to reach one (P11-R23).
+     *
+     * @return HasMany<AssistantConversation, $this>
+     */
+    public function assistantConversations(): HasMany
+    {
+        return $this->hasMany(AssistantConversation::class);
+    }
+
+    /**
      * The reader's own scores (see App\Actions\Ratings\RateMedia for the only writer).
      *
      * @return HasMany<Rating, $this>
