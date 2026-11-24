@@ -41,14 +41,18 @@ class LlmClient
         $body = $this->body($request, $model);
 
         if (config('bookflix.ai.log_payloads')) {
-            Log::debug('AI request', ['feature' => $request->feature, 'body' => $body]);
+            Log::debug('AI request', $request->logContent
+                ? ['feature' => $request->feature, 'body' => $body]
+                : ['feature' => $request->feature, 'messages' => count($body['messages']), 'chars' => strlen((string) json_encode($body))]);
         }
 
         $response = $this->send($baseUrl, $key, $body);
         $json = $response->json();
 
         if (config('bookflix.ai.log_payloads')) {
-            Log::debug('AI response', ['feature' => $request->feature, 'body' => $json]);
+            Log::debug('AI response', $request->logContent
+                ? ['feature' => $request->feature, 'body' => $json]
+                : ['feature' => $request->feature, 'chars' => strlen((string) json_encode($json))]);
         }
 
         $response = $this->parse($json);
@@ -71,8 +75,16 @@ class LlmClient
             'max_tokens' => $maxTokens,
         ];
 
+        if ($request->endUser !== null) {
+            $body['user'] = $request->endUser;
+        }
+
         if ($request->tools !== []) {
             $body['tools'] = $request->tools;
+
+            if ($request->toolChoice !== null) {
+                $body['tool_choice'] = $request->toolChoice;
+            }
         }
 
         // ponytail: json_schema is sent as json_object until a feature needs a schema; add the schema to LlmRequest then.

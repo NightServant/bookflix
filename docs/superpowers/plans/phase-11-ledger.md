@@ -49,6 +49,6 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | 11.3 TitleVerifier | done (12 tests; typo tier ASCII-only, CJK exact/similarity) | see git log |
 | 11.1 Intent behind QueryParser | done (Discovery folder 649 + QueryParserTest 37; limiter consumed on cache miss only) | see git log |
 | 11.4 AI summaries | done (72 tests incl. story + admin; AI off = Phase 10 page, P11-R17) | see git log |
-| 11.2 Assistant runner and tools | pending | |
+| 11.2 Assistant runner and tools | back end done (535 incl. search, recommendations, AI; P11-R19) | see git log |
 | UI (assistant, labels) | signed off (P11-R15) | |
 | 11.5 Explanations | done (43 tests; popover browser check pending in the UI task) | see git log |

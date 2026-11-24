@@ -72,11 +72,14 @@ class ShelfBuilder
     ) {}
 
     /**
+     * `$log` false (the assistant reading a shelf nobody sees) writes no impression rows and leaves the shelf cache alone, so the labelled training data
+     * only holds what Home showed.
+     *
      * @return Collection<int, Shelf>
      */
-    public function forHome(User $user): Collection
+    public function forHome(User $user, bool $log = true): Collection
     {
-        $built = $this->recommendationShelves($user)->keyBy('key');
+        $built = $this->recommendationShelves($user, $log)->keyBy('key');
         $shelves = new Collection;
 
         $add = function (?Shelf $shelf) use ($shelves): void {
@@ -146,7 +149,7 @@ class ShelfBuilder
      *
      * @return Collection<int, Shelf>
      */
-    private function recommendationShelves(User $user): Collection
+    private function recommendationShelves(User $user, bool $log = true): Collection
     {
         $key = $this->cacheKey($user);
         $digest = Cache::get($key);
@@ -155,7 +158,12 @@ class ShelfBuilder
             return $this->hydrate($user, $digest['shelves']);
         }
 
-        [$shelves, $reasons, $cold] = $this->seeds->during(fn (): array => $this->build($user));
+        [$shelves, $reasons, $cold] = $this->seeds->during(fn (): array => $this->build($user, $log));
+
+        if (! $log) {
+            return $shelves;
+        }
+
         Cache::put($key, ['cold' => $cold, 'shelves' => $this->digest($shelves, $reasons)], now()->addMinutes((int) config('bookflix.recommendations.cache_minutes')));
 
         return $shelves;
@@ -169,7 +177,7 @@ class ShelfBuilder
     /**
      * @return array{0: Collection<int, Shelf>, 1: array<string, int>, 2: bool} the shelves, the id of the title each shelf's heading names, and whether the reader is cold
      */
-    private function build(User $user): array
+    private function build(User $user, bool $log = true): array
     {
         $enabled = $user->personalizationEnabled();
         $cold = $this->computeCold($user);
@@ -227,7 +235,7 @@ class ShelfBuilder
             $specs = $this->sampled($specs);
         }
 
-        $ids = $this->log($user, $specs, $learned !== null);
+        $ids = $log ? $this->log($user, $specs, $learned !== null) : [];
 
         $shelves = $specs->map(function (array $spec, string $key) use ($media, $ids): Shelf {
             $items = array_map(function (ServedItem $item) use ($media, $ids): Media {

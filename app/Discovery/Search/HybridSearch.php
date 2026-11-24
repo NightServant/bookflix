@@ -45,11 +45,13 @@ class HybridSearch
      * (QueryIntent::fromArray). When no text leg finds anything, even without the intent (the whole sentence matches no title or summary), the
      * stories the intent's groups match are listed instead, most rated first, as keyword hits with the groups applied; no semantic matches are claimed.
      *
+     * `$page` fixes the page for a caller that is not a page of the site (the assistant); null reads it from the request.
+     *
      * @return SearchResults `hasMore` is true when a leg returned as many ids as it may, so the total is a floor
      */
-    public function search(string $query, SearchFilters $filters, ?User $user, int $perPage = 24, ?QueryIntent $intent = null): SearchResults
+    public function search(string $query, SearchFilters $filters, ?User $user, int $perPage = 24, ?QueryIntent $intent = null, ?int $page = null): SearchResults
     {
-        $page = Paginator::resolveCurrentPage();
+        $page ??= Paginator::resolveCurrentPage();
         $query = $this->normalize($query);
 
         $throttleKey = 'search:'.($user === null ? request()->ip() : $user->id);
