@@ -2,6 +2,7 @@
 
 use App\Enums\AgeRating;
 use App\Enums\PublicationStatus;
+use App\Jobs\GenerateAiSummary;
 use App\Models\Media;
 use Flux\Flux;
 use Illuminate\Support\Facades\Gate;
@@ -80,6 +81,28 @@ new #[Title('Edit media')] class extends Component {
     }
 
     /**
+     * Queue a new AI summary of the description.
+     */
+    public function regenerateAiSummary(): void
+    {
+        Gate::authorize('access-admin');
+
+        GenerateAiSummary::dispatch($this->media->id);
+        Flux::toast(variant: 'success', text: __('AI summary queued.'));
+    }
+
+    /**
+     * Delete the AI summary, so the story page shows the extractive one again.
+     */
+    public function clearAiSummary(): void
+    {
+        Gate::authorize('access-admin');
+
+        $this->media->aiSummary()->delete();
+        $this->media->unsetRelation('aiSummary');
+    }
+
+    /**
      * Soft delete a record that should not be in the catalogue.
      */
     public function remove(): void
@@ -137,6 +160,17 @@ new #[Title('Edit media')] class extends Component {
                 <li class="text-body text-ink-subtle">{{ __('None.') }}</li>
             @endforelse
         </ul>
+    </x-settings-card>
+
+    <x-settings-card :title="__('AI summary')" :description="__('A model-written summary of the description, shown on the story page with an AI-generated label.')">
+        @php($aiSummary = $media->aiSummary()->first())
+        <p class="text-body text-ink-subtle" data-test="ai-summary-text">{{ $aiSummary?->summary ?? __('None yet') }}</p>
+        <div class="mt-3 flex flex-wrap gap-3">
+            <flux:button variant="filled" icon="sparkles" icon:variant="outline" wire:click="regenerateAiSummary" data-test="regenerate-ai-summary-button">{{ __('Regenerate') }}</flux:button>
+            @if ($aiSummary)
+                <flux:button variant="filled" icon="x-mark" icon:variant="outline" wire:click="clearAiSummary" wire:confirm="{{ __('Clear this AI summary?') }}" data-test="clear-ai-summary-button">{{ __('Clear') }}</flux:button>
+            @endif
+        </div>
     </x-settings-card>
 
     <x-settings-card danger :title="__('Remove invalid record')" :description="__('Hides the record from the catalogue. It stays in the database.')">
