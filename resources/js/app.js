@@ -11,6 +11,7 @@ import bookScene from './book-scene';
 import landing from './landing';
 import versionChart from './version-chart';
 import readerChrome from './reader/chrome';
+import assistantAttach from './assistant-attach';
 
 // Plugins must be registered before Livewire.start() boots Alpine.
 Alpine.plugin(ui);
@@ -22,5 +23,6 @@ Alpine.plugin(bookScene);
 Alpine.plugin(landing);
 Alpine.plugin(versionChart);
 Alpine.plugin(readerChrome);
+Alpine.plugin(assistantAttach);
 
 Livewire.start();

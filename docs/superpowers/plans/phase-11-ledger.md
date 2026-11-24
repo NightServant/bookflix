@@ -46,6 +46,7 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | P11-R24 | **History UI:** a desktop sidebar (≥ lg) with "New chat", then the list grouped Today / Previous 7 days / Older, each with a ⋯ menu (Rename inline, Archive, Delete with confirm), and an "Archived" link. On phones, a "History" button in the assistant header opens the same list in a drawer. Bookflix tokens; the reference sets the layout, not the look. | None found. |
 | P11-R25 | **Modes (user chose both):** a task picker (Find stories, the default / Ask about a story / Plan my reading) changes the instructions and allowed tools. A Quick or Thorough switch: Quick uses the fast model with at most 2 tool turns, Thorough the smart model with at most 4. The mode is stored per message. | None found. |
 | P11-R26 | **Uploads (user chose images, PDF, text; files not kept):**<br>- At most 3 per message.<br>- Images (JPG/PNG/WebP, ≤ 4 MB, MIME checked with finfo) go as `image_url` data parts, only when `BOOKFLIX_AI_MODEL_VISION` is set; otherwise the image option is hidden.<br>- PDF text is extracted **in the browser with the installed pdfjs-dist** (no new package) and sent as text.<br>- .txt/.md is read on the server.<br>- Text is capped at 20,000 characters per message, inside `<attachment>` data blocks, with `<` and `>` neutralized.<br>- Livewire temporary uploads sit on a private disk and are deleted right after the reply. Only file names are stored. Images can't be text-checked by ProhibitedContent, so a provider content filter means the fallback reply. | Vision cost per image. Provider moderation is the only image check. |
+| P11-R27 | **Wider assistant page (user, 2026-11-24; replaces P11-R15's 720 px):** at ≥ lg the assistant uses the full window width. The ≈ 288 px history sidebar sits against the left edge and scrolls on its own. The chat area fills the rest, with the conversation and input sharing an 880 px max width, centred. The input stays at the bottom of the chat area. Message text is kept to about 70 characters a line. Phones are unchanged. | None found. |
 | P11-R14 | **Exit criterion "cost report from a 100-message scripted run"**: the scripted run uses faked responses with realistic usage numbers. A live cost run needs the user's provider key and their go-ahead. | The real cost is unknown until a live run. |
 
 ## Task log
@@ -59,8 +60,8 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | 11.2 Assistant runner and tools | back end done (535 incl. search, recommendations, AI; P11-R19) | see git log |
 | UI (assistant, labels) | done (14 feature + 24 browser; 6-item phone bar fits at 375; Why-this Escape fixed) | see git log |
 | 11.6 Chat history + sidebar | done (248 tests; fixed lines stored but never sent back; per-chat use_library) | see git log |
-| 11.7 Modes | pending | |
-| 11.8 Uploads | pending | |
+| 11.7 Modes | done (task picker + Quick/Thorough; default Quick) | see git log |
+| 11.8 Uploads | done (images via vision model only, PDF text in browser, txt/md on server; files not kept; logs mask images) | see git log |
 | 11.5 Explanations | done (43 tests; popover browser check pending in the UI task) | see git log |
 
 ## Branch review (Opus, 2026-11-24)

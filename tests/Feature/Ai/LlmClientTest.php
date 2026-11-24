@@ -247,3 +247,19 @@ it('logs payloads without the key only when log_payloads is on', function () {
     Log::shouldHaveReceived('debug')->twice();
     Log::shouldNotHaveReceived('debug', fn ($message, $context = []) => str_contains(json_encode($context), 'sk-secret-key-123'));
 });
+
+it('never logs the bytes of a picture, only that one was sent', function () {
+    config()->set('bookflix.ai.log_payloads', true);
+    config()->set('bookflix.ai.models.vision', 'eyes-model');
+    Log::spy();
+    Http::fake(['*' => Http::response(llmAnswer())]);
+
+    llm()->complete(llmRequest(['model' => 'vision', 'messages' => [['role' => 'user', 'content' => [
+        ['type' => 'text', 'text' => '<message>what is this?</message>'],
+        ['type' => 'image_url', 'image_url' => ['url' => 'data:image/png;base64,SECRETIMAGEBYTES']],
+    ]]]]));
+
+    Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'SECRETIMAGEBYTES'));
+    Log::shouldHaveReceived('debug')->with('AI request', Mockery::on(fn (array $context): bool => str_contains(json_encode($context), '[image omitted]') && str_contains(json_encode($context), 'what is this?')))->once();
+    Log::shouldNotHaveReceived('debug', fn ($message, $context = []) => str_contains(json_encode($context), 'SECRETIMAGEBYTES'));
+});

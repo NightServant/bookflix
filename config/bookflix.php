@@ -607,6 +607,8 @@ return [
         'models' => [
             'fast' => env('BOOKFLIX_AI_MODEL_FAST'),
             'smart' => env('BOOKFLIX_AI_MODEL_SMART'),
+            // Reads pictures a reader attaches to the assistant; unset, image attachments are not offered (P11-R26).
+            'vision' => env('BOOKFLIX_AI_MODEL_VISION'),
         ],
         'json_mode' => env('BOOKFLIX_AI_JSON_MODE', 'json_object'),
         'timeout' => 20,

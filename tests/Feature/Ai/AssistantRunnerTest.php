@@ -76,9 +76,9 @@ function chatOf(User $user, bool $useLibrary = false): AssistantConversation
     return AssistantConversation::factory()->for($user)->create(['use_library' => $useLibrary]);
 }
 
-function asks(User $user, string $message, ?AssistantConversation $conversation = null): AssistantReply
+function asks(User $user, string $message, ?AssistantConversation $conversation = null, string $mode = 'find:thorough', array $attachments = []): AssistantReply
 {
-    return app(AssistantRunner::class)->reply($user, $conversation ?? chatOf($user), $message);
+    return app(AssistantRunner::class)->reply($user, $conversation ?? chatOf($user), $message, $mode, $attachments);
 }
 
 /**
@@ -146,7 +146,7 @@ it('records the prompt as a model version and sends it byte-stable first', funct
     $prompt = file_get_contents(app_path('Ai/Prompts/assistant.md'));
     $version = ModelVersion::query()->where('name', 'assistant-prompt')->get();
 
-    expect($first['messages'][0]['content'])->toBe($prompt)->toBe($second['messages'][0]['content'])
+    expect($first['messages'][0]['content'])->toStartWith($prompt."\n\nTask: find stories.")->toBe($second['messages'][0]['content'])
         ->and($prompt)->toContain('Reference: BKF-ASSIST-7731')
         ->and($version)->toHaveCount(1)
         ->and($version[0]->kind)->toBe(ModelKind::Llm)

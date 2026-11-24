@@ -122,15 +122,17 @@ class AssistantConversation extends Model
 
     /**
      * Save one exchange: the reader's message and the reply. A fixed line (see AssistantReply::$fixed) is kept for the page but flagged, with its
-     * question, so it is never sent back to the model.
+     * question, so it is never sent back to the model. The mode goes on the answer; the attachments' names (never their contents) on the message.
+     *
+     * @param  list<string>  $attachmentNames
      */
-    public function record(string $message, AssistantReply $reply): void
+    public function record(string $message, AssistantReply $reply, ?string $mode = null, array $attachmentNames = []): void
     {
-        DB::transaction(function () use ($message, $reply): void {
+        DB::transaction(function () use ($message, $reply, $mode, $attachmentNames): void {
             $shared = ['used_library' => $reply->usedLibrary, 'fixed' => $reply->fixed];
 
-            $this->messages()->create(['role' => 'user', 'text' => $message, ...$shared]);
-            $this->messages()->create(['role' => 'assistant', 'text' => $reply->text, 'story_ids' => $reply->stories->pluck('id')->all(), ...$shared]);
+            $this->messages()->create(['role' => 'user', 'text' => $message, 'attachment_names' => $attachmentNames, ...$shared]);
+            $this->messages()->create(['role' => 'assistant', 'text' => $reply->text, 'story_ids' => $reply->stories->pluck('id')->all(), 'mode' => $mode, ...$shared]);
             $this->forceFill(['last_message_at' => now()])->save();
         });
     }

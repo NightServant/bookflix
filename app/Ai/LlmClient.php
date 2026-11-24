@@ -42,7 +42,7 @@ class LlmClient
 
         if (config('bookflix.ai.log_payloads')) {
             Log::debug('AI request', $request->logContent
-                ? ['feature' => $request->feature, 'body' => $body]
+                ? ['feature' => $request->feature, 'body' => $this->withoutImages($body)]
                 : ['feature' => $request->feature, 'messages' => count($body['messages']), 'chars' => strlen((string) json_encode($body))]);
         }
 
@@ -91,6 +91,28 @@ class LlmClient
         if ($request->json && config('bookflix.ai.json_mode') !== 'none') {
             $body['response_format'] = ['type' => 'json_object'];
         }
+
+        return $body;
+    }
+
+    /**
+     * The request body for the log: every picture (a `data:` URL of base64) is replaced, so no image bytes are ever logged.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    private function withoutImages(array $body): array
+    {
+        $body['messages'] = array_map(function (array $message): array {
+            if (is_array($message['content'] ?? null)) {
+                $message['content'] = array_map(
+                    fn (mixed $part): mixed => is_array($part) && ($part['type'] ?? null) === 'image_url' ? ['type' => 'image_url', 'image_url' => ['url' => '[image omitted]']] : $part,
+                    $message['content'],
+                );
+            }
+
+            return $message;
+        }, $body['messages']);
 
         return $body;
     }

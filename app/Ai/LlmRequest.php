@@ -10,8 +10,8 @@ use App\Models\User;
 final readonly class LlmRequest
 {
     /**
-     * @param  'fast'|'smart'  $model  The tier alias; the model id comes from config.
-     * @param  list<array<string, mixed>>  $messages  OpenAI message arrays.
+     * @param  'fast'|'smart'|'vision'  $model  The tier alias; the model id comes from config.
+     * @param  list<array<string, mixed>>  $messages  OpenAI message arrays; a user message's `content` is a string, or a list of content parts (`text`, `image_url`) for the vision model.
      * @param  list<array<string, mixed>>  $tools  OpenAI function definitions (`{type: "function", function: {...}}`).
      * @param  'none'|'auto'|null  $toolChoice  Sent as `tool_choice` when there are tools; `none` forces a plain answer.
      * @param  bool  $logContent  False when the text belongs to someone who opted out of personalization: with `log_payloads` on, only the feature and sizes are logged.
