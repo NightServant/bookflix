@@ -40,6 +40,8 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | P11-R18 | **AI explanations are opt-in:** a new `profiles.ai_explanations_enabled` (default false), offered only with personalization on, because the "because you liked X" title comes from the reader's own history. Privacy settings gets an "AI features" section (`#ai`) holding the switch and the "What we send" text for all four features. | Few readers will see explanations until they opt in. |
 | P11-R19 | **The assistant never writes recommendation impressions.** `get_recommendations` uses a seam that builds shelves without logging, since those rows are the labeled LTR/bandit data. Its search always asks for page 1, ignoring the request's `?page`. | None found. |
 | P11-R20 | **The "Ask" nav item appears only while `ai.enabled`** (header and phone bottom bar), filtered in one shared place. `/assistant` always exists for readers; with AI off it shows one line and a link to Search. | None found. |
+| P11-R21 | **Search intent has no per-reader switch.** While Bookflix AI is on, every signed-in reader's search words go to the AI service to understand the query. The Privacy "What we send" text says so plainly; the old line "nothing is sent when AI features are off" was wrong. | Privacy-minded readers can't opt out of search intent alone. A switch can follow if asked. |
+| P11-R22 | **User design change (2026-11-24):** on phones the assistant is a **round floating button on Home** (56 px, sparkles icon, "Ask Bookflix", white with a dark icon, above the bottom bar, safe-area aware) that opens `/assistant`. "Ask" leaves the phone bottom bar, which goes back to 5 items. The desktop header keeps "Ask". With AI off there is no button. | On phones the assistant is reachable only from Home, plus the direct URL. |
 | P11-R14 | **Exit criterion "cost report from a 100-message scripted run"**: the scripted run uses faked responses with realistic usage numbers. A live cost run needs the user's provider key and their go-ahead. | The real cost is unknown until a live run. |
 
 ## Task log
@@ -53,3 +55,14 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | 11.2 Assistant runner and tools | back end done (535 incl. search, recommendations, AI; P11-R19) | see git log |
 | UI (assistant, labels) | done (14 feature + 24 browser; 6-item phone bar fits at 375; Why-this Escape fixed) | see git log |
 | 11.5 Explanations | done (43 tests; popover browser check pending in the UI task) | see git log |
+
+## Branch review (Opus, 2026-11-24)
+
+The review found 4 should-fix items and 6 nits, and judged the branch safe to merge after fixing 1–4.
+1. Plain-text invented titles bypass scrub: the prompt now requires double quotes, and mentionsIn covers more quote styles.
+2. The intent parser logs an opted-out reader's text when log_payloads is on.
+3. The privacy copy was wrong (P11-R21).
+4. "Why this?" accessibility: focus, the live region, aria-haspopup.
+5–10. explain() accepts any pair of stories; the intent anchor is not mature-gated; user text can close its tags; the assistant catches only LlmUnavailable; the summary job's tries and the description cap; short titles match too much when picking cards.
+
+All ten went to one fix wave.

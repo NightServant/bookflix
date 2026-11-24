@@ -4,6 +4,7 @@ use App\Ai\Explanations\LlmExplainer;
 use App\Enums\ReasonType;
 use App\Models\Media;
 use App\Models\ModelVersion;
+use App\Models\Recommendation;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Client\Request;
@@ -65,6 +66,9 @@ it('is reached from the home page, validates its arguments and leaves hidden sto
     Http::fake(['*' => Http::response(explainReply('Both are classic gothic tales.'))]);
     [$user, $media, $reason] = explainSetup();
     $hidden = Media::factory()->create(['age_rating' => 'adult']);
+    Recommendation::factory()->create(['user_id' => $user->id, 'media_id' => $media->id, 'reason_type' => 'because_you_read', 'reason_media_id' => $reason->id]);
+    Recommendation::factory()->create(['user_id' => $user->id, 'media_id' => $hidden->id, 'reason_type' => 'trending', 'reason_media_id' => null]);
+    Recommendation::factory()->create(['user_id' => $user->id, 'media_id' => $media->id, 'reason_type' => 'because_you_read', 'reason_media_id' => $hidden->id]);
     $this->actingAs($user);
 
     Livewire::test('pages::home.index')
@@ -75,6 +79,21 @@ it('is reached from the home page, validates its arguments and leaves hidden sto
     Livewire::test('pages::home.index')
         ->call('explain', $hidden->id, 'trending', null)->assertReturned(null)
         ->call('explain', $media->id, 'because_you_read', $hidden->id)->assertReturned(null);
+    Http::assertNothingSent();
+});
+
+it('explains only a reason that is one of the readers own recommendation rows', function () {
+    Http::fake(['*' => Http::response(explainReply('Both are classic gothic tales.'))]);
+    [$user, $media, $reason] = explainSetup();
+    $other = Media::factory()->create();
+    Recommendation::factory()->create(['user_id' => $user->id, 'media_id' => $media->id, 'reason_type' => 'because_you_read', 'reason_media_id' => $reason->id]);
+    Recommendation::factory()->create(['user_id' => User::factory()->create()->id, 'media_id' => $other->id, 'reason_type' => 'trending', 'reason_media_id' => null]);
+    $this->actingAs($user);
+
+    Http::fake();
+    Livewire::test('pages::home.index')
+        ->call('explain', $media->id, 'because_you_read', null)->assertReturned(null);
+    Livewire::test('pages::home.index')->call('explain', $media->id, 'because_you_read', $other->id)->assertReturned(null);
     Http::assertNothingSent();
 });
 
@@ -172,7 +191,7 @@ it('offers Why this? on reasoned tiles only with AI and the opt-in on, and the r
 it('shows the AI features section on the privacy page and saves the toggle', function () {
     $this->actingAs($user = User::factory()->create());
 
-    $this->get(route('privacy.edit'))->assertOk()->assertSee('id="ai"', false)->assertSee('AI explanations')->assertSee('What we send')->assertSee('outside AI service');
+    $this->get(route('privacy.edit'))->assertOk()->assertSee('id="ai"', false)->assertSee('AI explanations')->assertSee('What we send')->assertSee('outside AI service')->assertSee('words you search for go to the AI service')->assertDontSee('nothing is sent');
 
     Livewire::test('pages::settings.privacy')->set('aiExplanationsEnabled', true)->call('updateAi')->assertHasNoErrors();
     expect($user->refresh()->profile->ai_explanations_enabled)->toBeTrue();

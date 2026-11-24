@@ -41,7 +41,7 @@ TXT;
     public function parse(string $query, ?User $viewer = null): QueryIntent
     {
         $slugs = $this->vocabulary->slugs($viewer);
-        $text = mb_substr(mb_scrub($query), 0, self::MAX_TEXT);
+        $text = str_replace(['<', '>'], ' ', mb_substr(mb_scrub($query), 0, self::MAX_TEXT));
 
         $response = $this->client->complete(new LlmRequest(
             feature: 'intent',
@@ -50,6 +50,7 @@ TXT;
             messages: [['role' => 'user', 'content' => "<query>{$text}</query>"]],
             json: true,
             user: $viewer,
+            logContent: $viewer?->personalizationEnabled() ?? false,
         ));
 
         $data = json_decode((string) $response->text, true);
@@ -67,6 +68,10 @@ TXT;
         if ($title !== '') {
             $creator = is_string($similar['creator'] ?? null) && trim($similar['creator']) !== '' ? trim($similar['creator']) : null;
             $anchor = $this->titles->resolve($title, $creator);
+
+            if ($anchor?->isGatedFor($viewer)) {
+                $anchor = null;
+            }
 
             if ($anchor !== null) {
                 $genres = array_values(array_unique([...$genres, ...$anchor->genres()->pluck('slug')->intersect($slugs['genre'])->all()]));

@@ -411,6 +411,7 @@ export default function components(Alpine) {
 
             this.position = { top: `${box.bottom + 4}px`, left: `${left}px` };
             this.open = true;
+            this.$nextTick(() => this.$refs.panel.focus());
 
             if (this.state !== 'idle') {
                 return;

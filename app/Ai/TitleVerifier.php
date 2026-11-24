@@ -154,7 +154,7 @@ class TitleVerifier
 
     /**
      * Removes every sentence that names a story that is not in `$allowedMedia`, leaving the rest of the text; a list item or paragraph left empty
-     * says the story is not in the catalogue. Only quoted titles ("…", “…”, *…*, _…_) and the lead of a bulleted item count as mentions.
+     * says the story is not in the catalogue. Only quoted titles ("…", “…”, '…', `…`, *…*, _…_, __…__) and the lead of a bulleted item count as mentions.
      *
      * ponytail: only the first 20 000 characters are checked (the rest is dropped, never passed through unverified); sentences split on . ! ? so an abbreviation can over-trim.
      *
@@ -227,7 +227,7 @@ class TitleVerifier
      */
     private function mentionsIn(string $content, bool $isListItem): array
     {
-        preg_match_all('/"([^"\n]{2,150})"|“([^”\n]{2,150})”|\*{1,2}([^*\n]{2,150})\*{1,2}|(?<!\w)_([^_\n]{2,150})_(?!\w)/u', $content, $matches, PREG_SET_ORDER);
+        preg_match_all('/"([^"\n]{2,150})"|“([^”\n]{2,150})”|\*{1,2}([^*\n]{2,150})\*{1,2}|(?<!\w)__([^_\n]{2,150})__(?!\w)|(?<!\w)_([^_\n]{2,150})_(?!\w)|`([^`\n]{2,150})`|(?<![\w\'])\'([^\'\n]{2,150})\'(?![\w\'])/u', $content, $matches, PREG_SET_ORDER);
 
         $mentions = [];
 

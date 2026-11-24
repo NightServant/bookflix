@@ -110,7 +110,7 @@ test('on a phone nothing scrolls sideways and the whole bottom bar fits', functi
     $page->assertSee('What are you in the mood for?')
         ->screenshot(filename: 'assistant-375-empty')
         ->assertScript('document.documentElement.scrollWidth <= document.documentElement.clientWidth', true)
-        ->assertScript('document.querySelectorAll("nav[aria-label=Primary] a").length', 6)
+        ->assertScript('document.querySelectorAll("nav[aria-label=Primary] a").length', 5)
         ->assertScript('Array.from(document.querySelectorAll("nav[aria-label=Primary] a")).every((a) => { const r = a.getBoundingClientRect(); return r.left >= 0 && r.right <= document.documentElement.clientWidth && a.scrollWidth <= a.clientWidth; })', true)
         ->assertScript('Array.from(document.querySelectorAll("nav[aria-label=Primary] a span")).every((s) => s.scrollWidth <= s.clientWidth + 1)', true)
         ->assertScript('document.getElementById("assistant-message").getBoundingClientRect().height >= 44', true)
@@ -125,4 +125,17 @@ test('on a phone nothing scrolls sideways and the whole bottom bar fits', functi
 
     // The composer sticks to the viewport just above the bottom bar, never under it.
     $page->assertScript('(() => { const bar = document.querySelector("nav[aria-label=Primary]").getBoundingClientRect(); const box = document.getElementById("assistant-message").closest(".sticky").getBoundingClientRect(); return box.bottom <= bar.top + 1 && bar.top - box.bottom < 8; })()', true);
+});
+
+test('on Home the floating Ask button sits above the phone bottom bar and opens the assistant; on a desktop it is hidden', function () {
+    $fab = 'document.querySelector("[data-test=ask-fab]")';
+
+    $page = visit(route('home'), $this->phone)->wait(1.5);
+    $page->assertScript("(() => { const r = {$fab}.getBoundingClientRect(); return r.width >= 44 && r.height >= 44 && r.width > 0; })()", true)
+        ->assertScript("(() => { const f = {$fab}.getBoundingClientRect(); const bar = document.querySelector('nav[aria-label=Primary]').getBoundingClientRect(); return f.bottom <= bar.top && f.right <= window.innerWidth; })()", true)
+        ->click('[data-test=ask-fab]')->wait(1.5)
+        ->assertPathIs('/assistant');
+
+    visit(route('home'), $this->desktop)->wait(1.5)
+        ->assertScript("{$fab}.getBoundingClientRect().width", 0);
 });

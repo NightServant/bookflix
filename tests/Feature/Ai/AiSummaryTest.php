@@ -201,3 +201,23 @@ it('ignores a stored AI summary while AI is off, with no extra query', function 
 
     expect(collect(DB::getQueryLog())->pluck('query')->filter(fn ($q) => str_contains($q, 'media_ai_summaries')))->toBeEmpty();
 });
+
+it('sends at most 4,000 characters of a long description, cut at a sentence', function () {
+    Http::fake(['*' => Http::response(summaryReply('A girl follows a rabbit.'))]);
+    $media = Media::factory()->create(['description' => str_repeat('A girl follows a white rabbit into a strange country. ', 200)]);
+
+    runSummaryJob($media);
+
+    Http::assertSent(function (Request $request) {
+        preg_match('~<description>(.*)</description>~s', $request['messages'][1]['content'], $m);
+
+        return mb_strlen($m[1]) <= LlmSummarizer::MAX_INPUT && str_ends_with($m[1], 'country.') && mb_strlen($m[1]) > 3000;
+    });
+});
+
+it('retries a rate-limited job for an hour instead of a few attempts', function () {
+    $job = new GenerateAiSummary(1);
+
+    expect($job->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addMinutes(59)->getTimestamp())
+        ->and($job->tries ?? null)->toBeNull();
+});

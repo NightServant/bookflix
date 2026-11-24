@@ -174,7 +174,7 @@ new #[Title('Privacy settings')] class extends Component {
         </x-settings-card>
 
         @if (config('bookflix.ai.enabled'))
-            <x-settings-card id="ai" :title="__('AI features')" :description="__('An outside AI service answers Ask, helps with search and writes summaries and explanations. When AI features are off, nothing is sent.')">
+            <x-settings-card id="ai" :title="__('AI features')" :description="__('An outside AI service answers Ask, helps with search and writes summaries and explanations.')">
                 <form wire:submit="updateAi" class="w-full space-y-6">
                     <flux:switch
                         wire:model="aiExplanationsEnabled"
@@ -192,7 +192,7 @@ new #[Title('Privacy settings')] class extends Component {
                     <h3 class="text-body font-medium text-ink">{{ __('What we send') }}</h3>
                     <ul class="list-disc space-y-2 ps-5">
                         <li><span class="text-ink">{{ __('Ask:') }}</span> {{ __('your message and the stories it finds. Titles from your library go along only when you turn on Use my library.') }}</li>
-                        <li><span class="text-ink">{{ __('Search:') }}</span> {{ __('your search words.') }}</li>
+                        <li><span class="text-ink">{{ __('Search:') }}</span> {{ __('while Bookflix AI is on, the words you search for go to the AI service so it can understand the query. This applies to every signed-in reader and has no separate switch.') }}</li>
                         <li><span class="text-ink">{{ __('Summaries:') }}</span> {{ __('a story\'s public description.') }}</li>
                         <li><span class="text-ink">{{ __('Explanations:') }}</span> {{ __('the public details of the two stories and why one was suggested.') }}</li>
                     </ul>

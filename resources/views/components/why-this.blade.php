@@ -17,7 +17,6 @@
         aria-expanded="false"
         :aria-expanded="open ? 'true' : 'false'"
         aria-controls="{{ $panel }}"
-        aria-haspopup="true"
         class="focus-ring inline-flex min-h-11 items-center gap-1 rounded-control pe-2 text-legal text-ink-subtle hover:text-ink"
     >
         <flux:icon name="sparkles" variant="micro" class="size-3.5" />
@@ -35,16 +34,19 @@
             x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100"
             role="group"
+            tabindex="-1"
             aria-label="{{ __('Why this was suggested') }}"
             class="fixed z-50 w-72 max-w-[calc(100vw-2rem)] rounded-card border border-hairline bg-surface-card p-4 text-start shadow-overlay"
         >
-            <p class="text-meta text-ink">{{ $reason }}</p>
+            <div aria-live="polite">
+                <p class="text-meta text-ink">{{ $reason }}</p>
 
-            <div aria-live="polite" class="mt-3 border-t border-hairline pt-3 empty:hidden">
+                <div class="mt-3 border-t border-hairline pt-3">
                 <p x-show="state === 'loading'" class="text-meta text-ink-subtle">{{ __('Thinking…') }}</p>
                 <div x-show="state === 'done'" style="display: none" class="space-y-2">
                     <p class="text-meta text-ink text-pretty" x-text="sentence"></p>
                     <x-ai-label />
+                </div>
                 </div>
             </div>
         </div>

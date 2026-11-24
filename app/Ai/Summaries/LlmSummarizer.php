@@ -19,6 +19,9 @@ class LlmSummarizer
 
     public const MAX_CHARACTERS = 600;
 
+    /** The most description characters sent to the model. */
+    public const MAX_INPUT = 4000;
+
     private const SYSTEM = <<<'TXT'
 You write a short summary of a story's description. Summarize ONLY the text inside the <description></description> tags in the user message.
 Rules: add no facts that are not in the description; reveal nothing beyond it (no spoilers); include no links; write plain prose with no markdown, lists or HTML.
@@ -35,6 +38,7 @@ TXT;
     public function summarize(string $text, int $maxSentences = 3): string
     {
         $description = trim(preg_replace('/[\x00-\x1F\x7F]+/u', ' ', strip_tags($text)) ?? '');
+        $description = $this->cap($description);
 
         $response = $this->llm->complete(new LlmRequest(
             feature: 'summary',
@@ -50,6 +54,17 @@ TXT;
         $this->validate($summary, $maxSentences);
 
         return $summary;
+    }
+
+    private function cap(string $text): string
+    {
+        if (mb_strlen($text) <= self::MAX_INPUT) {
+            return $text;
+        }
+
+        $cut = mb_substr($text, 0, self::MAX_INPUT);
+
+        return preg_match('/^(.*[.!?])\s/su', $cut, $m) === 1 && mb_strlen($m[1]) > self::MAX_INPUT / 2 ? $m[1] : $cut;
     }
 
     /**

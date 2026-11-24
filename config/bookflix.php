@@ -54,6 +54,7 @@ return [
     | Rendered by the desktop header and the mobile bottom nav. `active` lists
     | the route name patterns that mark the item as current; `desktop => false`
     | leaves it out of the desktop header (the palette trigger covers it there);
+    | `mobile => false` leaves it out of the phone bottom bar (Ask is a floating button on Home);
     | `requires => 'ai'` shows the item only while AI is on (App\Support\PrimaryNavigation).
     |
     */
@@ -62,7 +63,7 @@ return [
         ['label' => 'Home', 'icon' => 'home', 'route' => 'home', 'active' => ['home']],
         ['label' => 'Discover', 'icon' => 'globe-alt', 'route' => 'discover', 'active' => ['discover', 'explore.*']],
         ['label' => 'Search', 'icon' => 'magnifying-glass', 'route' => 'search', 'active' => ['search'], 'desktop' => false],
-        ['label' => 'Ask', 'icon' => 'sparkles', 'route' => 'assistant', 'active' => ['assistant'], 'requires' => 'ai'],
+        ['label' => 'Ask', 'icon' => 'sparkles', 'route' => 'assistant', 'active' => ['assistant'], 'requires' => 'ai', 'mobile' => false],
         ['label' => 'Library', 'icon' => 'book-open', 'route' => 'library.index', 'active' => ['library.*', 'collections.*', 'history.*']],
         ['label' => 'Profile', 'icon' => 'user', 'route' => 'profile.show', 'active' => ['profile.show', 'profile.edit', 'security.edit', 'privacy.edit', 'preferences.edit']],
     ],

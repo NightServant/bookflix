@@ -195,6 +195,13 @@ new #[Title('Home')] class extends Component {
         $type = ReasonType::tryFrom($reasonType) ?? throw ValidationException::withMessages(['reasonType' => __('That reason is not valid.')]);
         $user = auth()->user();
 
+        $own = Recommendation::query()->where('user_id', $user->id)->where('media_id', $mediaId)
+            ->where('reason_type', $type->value)->where('reason_media_id', $reasonMediaId)->exists();
+
+        if (! $own) {
+            return null;
+        }
+
         $media = Media::query()->unmerged()->visibleTo($user)->find($mediaId);
         $reasonMedia = $reasonMediaId === null ? null : Media::query()->unmerged()->visibleTo($user)->find($reasonMediaId);
 
@@ -372,4 +379,15 @@ new #[Title('Home')] class extends Component {
             </button>
         </div>
     </div>
+    @if (config('bookflix.ai.enabled') && auth()->check())
+        <a
+            href="{{ route('assistant') }}"
+            wire:navigate
+            aria-label="{{ __('Ask Bookflix') }}"
+            data-test="ask-fab"
+            class="focus-ring fixed end-gutter bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full bg-white text-black shadow-overlay motion-safe:transition-transform motion-safe:active:scale-95 lg:hidden"
+        >
+            <flux:icon name="sparkles" class="size-6" />
+        </a>
+    @endif
 </div>

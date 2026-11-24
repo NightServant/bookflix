@@ -23,11 +23,17 @@ class GenerateAiSummary implements ShouldQueue
 
     public const MIN_CHARACTERS = 800;
 
-    public int $tries = 2;
+    /** Rate-limit releases do not count as failures; real exceptions do. */
+    public int $maxExceptions = 2;
 
     public function __construct(public readonly int $mediaId)
     {
         $this->onQueue('ai');
+    }
+
+    public function retryUntil(): \DateTimeInterface
+    {
+        return now()->addHour();
     }
 
     /**

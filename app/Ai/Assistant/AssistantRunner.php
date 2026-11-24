@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Throwable;
 
 /**
  * Answers one message of the discovery assistant. The model may call the read-only tools (at most four turns), and what it writes is cleaned
@@ -77,6 +78,10 @@ class AssistantRunner
         try {
             $reply = $this->converse($user, $conversation, $message);
         } catch (LlmUnavailable) {
+            return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true);
+        } catch (Throwable $e) {
+            report($e);
+
             return new AssistantReply(self::UNAVAILABLE, new Collection, fallback: true);
         }
 
@@ -195,7 +200,7 @@ class AssistantRunner
 
     private function wrap(string $text): string
     {
-        return '<message>'.str_replace(['<message>', '</message>'], '', $text).'</message>';
+        return '<message>'.str_replace(['<', '>'], ' ', $text).'</message>';
     }
 
     /**
@@ -225,7 +230,8 @@ class AssistantRunner
      */
     private function stories(string $text, Collection $allowed, Collection $lastSearch): Collection
     {
-        $named = $allowed->filter(fn (Media $story): bool => $story->title !== '' && mb_stripos($text, $story->title) !== false);
+        $named = $allowed->filter(fn (Media $story): bool => mb_strlen($story->title) >= 3
+            && preg_match('/(?<![\p{L}\p{N}])'.preg_quote($story->title, '/').'(?![\p{L}\p{N}])/iu', $text) === 1);
 
         return ($named->isNotEmpty() ? $named : $lastSearch->take(3))->take(self::MAX_STORIES)->values();
     }

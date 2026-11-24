@@ -53,20 +53,28 @@ test('with AI off the page is one line and a link to Search, and neither nav has
         ->assertDontSee('assistant-message', false);
 
     expect($navs['header'])->not->toContain('Ask')->and($navs['bottom'])->not->toContain('Ask');
+    $this->actingAs($this->user)->get(route('home'))->assertOk()->assertDontSee('ask-fab', false)->assertDontSee('Ask Bookflix');
 });
 
-test('with AI on, Ask is in the header and in the phone bottom bar', function () {
+test('with AI on, Ask is in the header but not in the phone bottom bar, and Home has the floating button', function () {
     $navs = primaryNavs($this->actingAs($this->user)->get(route('home'))->assertOk()->getContent());
     $labels = fn (string $nav) => collect(htmlQuery($nav, '//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all();
 
     expect($labels($navs['header']))->toBe(['Home', 'Discover', 'Ask', 'Library', 'Profile'])
-        ->and($labels($navs['bottom']))->toBe(['Home', 'Discover', 'Search', 'Ask', 'Library', 'Profile']);
+        ->and($labels($navs['bottom']))->toBe(['Home', 'Discover', 'Search', 'Library', 'Profile']);
+
+    $home = $this->actingAs($this->user)->get(route('home'))->assertOk();
+    $fab = htmlQuery($home->getContent(), '//a[@data-test="ask-fab"]');
+
+    expect($fab)->toHaveCount(1)
+        ->and($fab[0]->getAttribute('href'))->toBe(route('assistant'))
+        ->and($fab[0]->getAttribute('aria-label'))->toBe('Ask Bookflix');
 });
 
 test('Ask is the current item on the assistant page', function () {
     $navs = primaryNavs($this->actingAs($this->user)->get(route('assistant'))->assertOk()->getContent());
 
-    expect($navs['bottom'])->toMatch('#<a\s+href="'.preg_quote(route('assistant'), '#').'"[^>]*aria-current="page"#');
+    expect($navs['header'])->toMatch('#<a\s+href="'.preg_quote(route('assistant'), '#').'"[^>]*data-current#');
 });
 
 test('a sent message shows the reply and only the cards of verified stories', function () {

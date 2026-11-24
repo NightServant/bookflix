@@ -49,6 +49,7 @@ test('Why this? opens by keyboard with the AI sentence and its pill, and Escape 
     $page->keys(':focus', 'Enter')->wait(1.2)
         ->assertScript($this->expanded, 'true')
         ->assertScript($this->panelVisible, true)
+        ->assertScript('document.activeElement === document.getElementById(document.querySelector("'.$this->button.'").getAttribute("aria-controls"))', true)
         ->assertScript('document.getElementById(document.querySelector("'.$this->button.'").getAttribute("aria-controls")).textContent.includes("slow-burn mysteries")', true)
         ->assertScript('document.getElementById(document.querySelector("'.$this->button.'").getAttribute("aria-controls")).textContent.includes("AI-generated")', true)
         ->assertNoJavaScriptErrors()
