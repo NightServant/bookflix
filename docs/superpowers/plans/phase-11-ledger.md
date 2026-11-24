@@ -35,14 +35,15 @@ Plan: `2026-10-23-phase-11-bookflix-ai.md` on `claude/phase-plans-7d02cb`. Branc
 | P11-R12 | **Design gate:** the assistant page, its nav entry, the AI labels and any "Why this?" disclosure for 11.5 are UI and need the user's sign-off. Backend first: 11.0 → 11.3 → 11.1 → 11.4 (job, table, label) → 11.2 runner and tools → (sign-off) → assistant UI → 11.5. | The UI waits on sign-off. |
 | P11-R13 | **TitleVerifier** matches title plus `alternative_titles` through `immutable_unaccent` and `similarity() >= 0.90`, with the creator check when one is given and merged media resolved to the winner. | None found. |
 | P11-R15 | **Design sign-off (user, 2026-11-24):**<br>- The assistant is a **primary nav item "Ask"**, with a sparkle icon, in the header and the phone bottom bar (5 items), going to `/assistant`.<br>- The page is one centred 720 px chat column: the user's messages on the right, answers on the left with a row of real catalog cover tiles, a 44 px input with Send, suggestion chips on the empty state, a "Use my library" switch (off; only when personalization is on), and the note "Answers come from an outside AI service. What we send" with a link.<br>- When AI is off or limited, one line plus a link to Search.<br>- AI text carries a small subdued **"AI-generated"** pill: next to the summary heading, and in a **"Why this?" popover** on recommended tiles. The tile's own reason line stays. | Five bottom-bar items are tight at 375 px, so it needs checking at that width. |
+| P11-R16 | **TitleVerifier typo tier:** trigram similarity scored "Beserk" against "Berserk" at about 0.5, so 0.90 alone accepts only case, accent and punctuation variants. 0.90 stays for trigram-only matches. A typo tier is added: take the `%` candidates, then accept a Levenshtein distance ≤ 1 for normalized titles of 6–12 characters, ≤ 2 for longer ones, and never under 6 characters, when the lengths differ by at most 2. Order: exact, then ≥ 0.90, then typo. | Two works one letter apart ("Monster" and "Monsters") can be confused. Exact matches win and the creator check applies. |
 | P11-R14 | **Exit criterion "cost report from a 100-message scripted run"**: the scripted run uses faked responses with realistic usage numbers. A live cost run needs the user's provider key and their go-ahead. | The real cost is unknown until a live run. |
 
 ## Task log
 
 | Task | Status | Commits |
 |---|---|---|
-| 11.0 LlmClient, budget guard, kill switch | pending | |
-| 11.3 TitleVerifier | pending | |
+| 11.0 LlmClient, budget guard, kill switch | done (31 tests) | 203da34 |
+| 11.3 TitleVerifier | done (12 tests; typo tier ASCII-only, CJK exact/similarity) | see git log |
 | 11.1 Intent behind QueryParser | pending | |
 | 11.4 AI summaries | pending | |
 | 11.2 Assistant runner and tools | pending | |
