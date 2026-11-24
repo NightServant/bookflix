@@ -582,4 +582,39 @@ return [
         'undo_seconds' => 10,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | AI
+    |--------------------------------------------------------------------------
+    |
+    | An open-source model behind a hosted OpenAI-compatible Chat Completions
+    | API. Nothing is sent until `enabled` is on and the base URL, key and the
+    | model for the feature's tier are set. `models.fast` answers search intent
+    | and explanations, `models.smart` the assistant and summaries. `json_mode`
+    | is json_object, json_schema or none. `max_output_tokens` is per feature,
+    | `daily_token_cap` per user, and `log_payloads` writes prompts to the log
+    | (never the key).
+    |
+    */
+
+    'ai' => [
+        'enabled' => (bool) env('BOOKFLIX_AI_ENABLED', false),
+        'base_url' => env('BOOKFLIX_AI_BASE_URL'),
+        'api_key' => env('BOOKFLIX_AI_API_KEY'),
+        'models' => [
+            'fast' => env('BOOKFLIX_AI_MODEL_FAST'),
+            'smart' => env('BOOKFLIX_AI_MODEL_SMART'),
+        ],
+        'json_mode' => env('BOOKFLIX_AI_JSON_MODE', 'json_object'),
+        'timeout' => 20,
+        'max_output_tokens' => [
+            'intent' => 300,
+            'assistant' => 800,
+            'summary' => 300,
+            'explanation' => 80,
+        ],
+        'daily_token_cap' => 50000,
+        'log_payloads' => false,
+    ],
+
 ];

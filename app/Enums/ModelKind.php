@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * What a `model_versions` row describes. The values are stored (and written by the Python service), so they never change.
+ * What a `model_versions` row describes. The values are stored (and written by the Python service, except `llm`, which PHP writes), so they never change.
  */
 enum ModelKind: string
 {
@@ -15,4 +15,5 @@ enum ModelKind: string
     case DeweyClassifier = 'dewey_classifier';
     case HybridWeights = 'hybrid_weights';
     case InteractionWeights = 'interaction_weights';
+    case Llm = 'llm';
 }
