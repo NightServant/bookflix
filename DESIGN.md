@@ -148,7 +148,7 @@ A black canvas with three stepped greys, white ink, one red for actions and a th
 - **Cinema Red** (`brand`, `brand-hover` for hover): the fill of the primary `<x-cta>` and the logo mark. Never small text, never decoration, never a border or ring. Flux's accent is mapped to it so `variant="primary"` is the red button.
 
 ### Secondary
-- **Featured Gradient** (`featured-from` navy, `featured-via` maroon, `featured-to` dark red): `bg-linear-to-r from-featured-from via-featured-via to-featured-to`, left to right. Allowed only on: the Trending Now shelf (`<x-shelf featured>`), the profile banner, the landing Top 10 band, the sign-in and register panel, Discover's header band and Ask's welcome band. Nowhere else.
+- **Featured Gradient** (`featured-from` navy, `featured-via` maroon, `featured-to` dark red): `bg-linear-to-r from-featured-from via-featured-via to-featured-to`, left to right. Allowed only on: the Trending Now shelf (`<x-shelf featured>`), the profile banner, the landing Top 10 band, the sign-in and register panel, Discover's header band and Ask's empty stage (the vertical `bg-featured-rise`). Nowhere else. Ask's empty stage uses the vertical variant, `bg-featured-rise` (app.css): the same three colours rising from the foot of the surface into the canvas, as a whole-surface wash with no hard edge.
 
 ### Tertiary
 - **Electric Blue** (`accent-electric`): the focus ring and nothing else (`focus-ring`: 2px ring, 2px offset in canvas).
@@ -261,7 +261,7 @@ Standard controls at standard sizes, the same vocabulary on every screen. Every 
 
 ### Do:
 - **Do** use red only for the one primary `<x-cta>` per view and the logo mark.
-- **Do** put the featured gradient only on Trending Now, the profile banner, the landing Top 10 band, the sign-in and register panel, Discover's header band and Ask's welcome band.
+- **Do** put the featured gradient only on Trending Now, the profile banner, the landing Top 10 band, the sign-in and register panel, Discover's header band and Ask's empty stage (the vertical `bg-featured-rise`).
 - **Do** set text on the gradient in `ink` (or `ink` at reduced opacity).
 - **Do** give every control a 44px target and the electric-blue `focus-ring`.
 - **Do** let bands run edge to edge and align their content to `px-gutter`.

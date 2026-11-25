@@ -544,11 +544,11 @@ new #[Layout('layouts::assistant'), Title('Ask Bookflix')] class extends Compone
                 x-data="assistantChat(@js(['pdfTooBig' => __(':name is over 10 MB.'), 'pdfLocked' => __(':name is password protected.'), 'pdfUnreadable' => __(':name could not be read.'), 'tooBig' => __(':name is too large to attach.'), 'uploadFailed' => __('The upload failed. Try again.')]))"
                 x-init="if (@js($entries->isNotEmpty())) settle(innerWidth >= 1024)"
                 @assistant-answered.window="pending = ''; count = 0; settle(true)"
-                @class(['flex flex-1 flex-col outline-none', 'lg:justify-center' => $entries->isEmpty()])
+                @class(['flex flex-1 flex-col outline-none', 'bg-featured-rise lg:justify-center' => $entries->isEmpty()])
             >
                 @if ($entries->isEmpty())
-                    {{-- The welcome band: edge to edge on the featured gradient, in the chat's own column. On a phone it sits under the top bar; from lg the main column centres it with the composer right under it. --}}
-                    <div wire:loading.remove wire:target="send,ask" class="bg-linear-to-r from-featured-from via-featured-via to-featured-to px-gutter py-12 lg:px-8 lg:py-16">
+                    {{-- The welcome, on the empty stage: the main column wears the featured gradient rising from its foot (bg-featured-rise), so nothing here draws a band. On a phone it sits under the top bar; from lg the main column centres it with the composer right under it. --}}
+                    <div wire:loading.remove wire:target="send,ask" class="px-gutter py-12 lg:px-8 lg:py-16">
                         <div class="mx-auto w-full max-w-[880px]">
                             <h2 class="text-section text-ink">{{ __('What are you in the mood for?') }}</h2>
                             <p class="mt-2 text-body text-ink/80">{{ __('Try one of these, or type your own.') }}</p>
@@ -616,7 +616,7 @@ new #[Layout('layouts::assistant'), Title('Ask Bookflix')] class extends Compone
                                 <div x-show="pending !== ''" class="flex justify-end">
                                     <p class="max-w-[85%] whitespace-pre-line break-words rounded-card bg-surface-card px-4 py-3 text-body text-ink lg:max-w-[70ch]" x-text="pending"></p>
                                 </div>
-                                <p class="text-body text-ink-subtle">{{ __('Finding stories…') }}</p>
+                                <p @class(['text-body', 'text-ink/80' => $entries->isEmpty(), 'text-ink-subtle' => $entries->isNotEmpty()])>{{ __('Finding stories…') }}</p>
                             </div>
 
                         </div>
@@ -624,7 +624,7 @@ new #[Layout('layouts::assistant'), Title('Ask Bookflix')] class extends Compone
                 </div>
 
                 {{-- The input bar: sticks to the foot of the chat area and the conversation scrolls above it. --}}
-                <div @class(['sticky bottom-0 z-10 bg-canvas px-gutter pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 lg:px-8', 'lg:pt-8' => $entries->isEmpty()])>
+                <div @class(['sticky bottom-0 z-10 px-gutter pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 lg:px-8', 'bg-canvas' => $entries->isNotEmpty(), 'lg:pt-8' => $entries->isEmpty()])>
                   <div class="mx-auto w-full max-w-[880px]">
                     @if ($attached > 0)
                         <ul aria-label="{{ __('Attached files') }}" class="mb-2 flex flex-wrap gap-2">
@@ -727,7 +727,7 @@ new #[Layout('layouts::assistant'), Title('Ask Bookflix')] class extends Compone
                         <flux:icon name="exclamation-circle" variant="micro" class="size-4 shrink-0" /><span x-text="notice"></span>
                     </p>
 
-                    <p id="assistant-count" x-show="count >= 1800" style="display: none" class="mt-2 text-end text-legal tabular-nums text-ink-subtle" x-text="count.toLocaleString('en-US') + ' / 2,000'"></p>
+                    <p id="assistant-count" x-show="count >= 1800" style="display: none" @class(['mt-2 text-end text-legal tabular-nums', 'text-ink/80' => $entries->isEmpty(), 'text-ink-subtle' => $entries->isNotEmpty()]) x-text="count.toLocaleString('en-US') + ' / 2,000'"></p>
 
                     @if ($this->libraryOffered())
                         <div class="mt-4">
@@ -735,7 +735,7 @@ new #[Layout('layouts::assistant'), Title('Ask Bookflix')] class extends Compone
                         </div>
                     @endif
 
-                    <p id="assistant-note" class="mt-3 text-legal text-ink-subtle">
+                    <p id="assistant-note" @class(['mt-3 text-legal', 'text-ink/80' => $entries->isEmpty(), 'text-ink-subtle' => $entries->isNotEmpty()])>
                         {{ __('Answers come from an outside AI service.') }}
                         <a href="{{ route('privacy.edit') }}#ai" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control px-1 text-ink underline underline-offset-4">{{ __('What we send') }}</a>
                     </p>

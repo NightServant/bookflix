@@ -49,7 +49,7 @@ final class PreResolveHosts
                 return Create::rejectionFor(new ConnectException("Could not resolve host: {$host}", $request));
             }
 
-            $options['curl'][CURLOPT_RESOLVE] = [...$pinned, "{$host}:{$port}:".implode(',', $addresses)];
+            $options['curl'][CURLOPT_RESOLVE] = [...$pinned, "{$host}:{$port}:".implode(',', array_unique($addresses))];
 
             return $handler($request, $options);
         };
