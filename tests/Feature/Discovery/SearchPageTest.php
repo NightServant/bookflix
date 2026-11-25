@@ -315,8 +315,8 @@ test('the taxonomy lists are cached: a first render reads each table once, a sec
     $first = $facetQueries();
     $second = $facetQueries();
 
-    // the genre tree is three statements (the nodes, the extra parent links, the live counts) and the five small lists one
-    expect($first)->toBe(4)->and($second)->toBe(0);
+    // the genre tree is three statements (the nodes, the extra parent links, the live counts), the five small lists one each, and the Top Genres chips two (the family counts, their names)
+    expect($first)->toBe(6)->and($second)->toBe(0);
 });
 
 test('invalid UTF-8 in a filter value is dropped instead of a 500', function () {
@@ -404,4 +404,106 @@ test('an old bookmarked genre or theme slug is upgraded to the node that replace
         ->assertSee('Remove filter Action and Adventure')
         ->call('removeFilter', 'genres', 'action-and-adventure')
         ->assertSet('filters.genres', ['school-life']);
+});
+
+test('browse mode shows Top Genres and Find Stories, and a text query hides them', function () {
+    $action = Genre::factory()->create(['name' => 'Action', 'slug' => 'action']);
+    Genre::factory()->create(['name' => 'Empty Genre', 'slug' => 'empty-genre']);
+    Media::factory()->manga()->count(2)->create()->each(fn (Media $media) => $media->genres()->attach($action));
+    $this->actingAs(User::factory()->create());
+
+    $html = $this->get(route('search'))->assertOk()->assertSee('Top Genres')->assertSee('Find Stories')
+        ->assertSee('Combine genres, subgenres, themes, tropes and more. Each group narrows the results on its own.')->getContent();
+
+    expect(trim(preg_replace('/\s+/', ' ', htmlQuery($html, '//a[@data-genre-chip]')->item(0)->textContent)))->toBe('Action 2')
+        ->and(htmlQuery($html, '//a[@data-genre-chip]')->length)->toBe(1)
+        // The chip's action reaches the browser as a call with the slug (a Blade directive in a component attribute would ship as raw text).
+        ->and(htmlQuery($html, '//a[@data-genre-chip]')->item(0)->getAttribute('wire:click.prevent'))->toBe("toggleGenre('action')");
+
+    $this->get(route('search', ['q' => 'berserk']))->assertOk()->assertDontSee('Top Genres')->assertDontSee('Find Stories');
+    Livewire::test('pages::search.index')->set('q', 'berserk')->assertDontSee('Top Genres')->set('q', '')->assertSee('Top Genres');
+});
+
+test('a Top Genres chip toggles that genre in the filters, shows it active and filters the results', function () {
+    $action = Genre::factory()->create(['name' => 'Action', 'slug' => 'action']);
+    Media::factory()->manga()->create(['title' => 'Action Tale'])->genres()->attach($action);
+    Media::factory()->manga()->create(['title' => 'Plain Tale']);
+    $this->actingAs(User::factory()->create());
+
+    $page = Livewire::test('pages::search.index')->assertDontSee('Action Tale')
+        ->call('toggleGenre', 'action')->assertSet('filters.genres', ['action'])->assertSee('Action Tale')->assertDontSee('Plain Tale');
+
+    expect(htmlQuery($page->html(), '//a[@data-genre-chip][@aria-current="true"]')->length)->toBe(1)
+        ->and(htmlQuery($page->html(), '//a[@data-genre-chip]')->item(0)->getAttribute('href'))->toBe(route('search', ['filters' => ['genres' => []]]));
+
+    $page->call('toggleGenre', 'action')->assertSet('filters.genres', [])->assertDontSee('Action Tale')
+        ->call('toggleGenre', 'not-offered')->assertSet('filters.genres', []);
+});
+
+test('top genres are the families, counting the stories of their subgenres once', function () {
+    $this->seed(TaxonomySeeder::class);
+    $fantasy = Genre::where('slug', 'fantasy')->first();
+    Media::factory()->manga()->create(['title' => 'Both'])->genres()->attach([Genre::where('slug', 'isekai')->first()->id, Genre::where('slug', 'litrpg')->first()->id]);
+    Media::factory()->manga()->create(['title' => 'Family Only'])->genres()->attach($fantasy);
+    Media::factory()->manga()->create(['title' => 'Erotica'])->genres()->attach(Genre::where('slug', 'erotica')->first());
+    $this->actingAs(User::factory()->create());
+
+    $top = Livewire::test('pages::search.index')->get('topGenres');
+
+    expect($top->pluck('media_count', 'slug')->all())->toBe(['fantasy' => 2])
+        ->and($top->pluck('slug'))->not->toContain('mature-erotic-and-controversial-categories');
+});
+
+test('a Top Genres chip links to the search with that genre toggled', function () {
+    Genre::factory()->create(['name' => 'Action', 'slug' => 'action']);
+    Genre::factory()->create(['name' => 'Drama', 'slug' => 'drama']);
+    foreach (['action', 'drama'] as $slug) {
+        Media::factory()->manga()->create()->genres()->attach(Genre::where('slug', $slug)->first());
+    }
+    $this->actingAs(User::factory()->create());
+
+    $hrefs = fn ($page) => collect(htmlQuery($page->html(), '//a[@data-genre-chip]'))->mapWithKeys(fn ($a) => [preg_replace('/\s+/', ' ', trim($a->textContent)) => $a->getAttribute('href')])->all();
+    $action = route('search', ['filters' => ['genres' => ['action']]]);
+
+    expect($hrefs(Livewire::test('pages::search.index')))->toMatchArray(['Action 1' => $action]);
+
+    $active = $hrefs(Livewire::withQueryParams(['filters' => ['genres' => ['action']]])->test('pages::search.index'));
+
+    expect($active['Action 1'])->toBe(route('search'))
+        ->and($active['Drama 1'])->toBe(route('search', ['filters' => ['genres' => ['action', 'drama']]]));
+});
+
+test('top genres leave out deleted stories and count a story once per family', function () {
+    $one = Genre::factory()->create();
+    $two = Genre::factory()->create();
+    $a = Genre::factory()->childOf($one)->create();
+    $b = Genre::factory()->childOf($one)->create();
+    $c = Genre::factory()->childOf($two)->create();
+    Media::factory()->manga()->create()->genres()->attach([$a->id, $b->id, $c->id]);
+    Media::factory()->manga()->count(2)->create()->each(fn (Media $media) => $media->genres()->attach($two));
+    $deleted = Media::factory()->manga()->create();
+    $deleted->genres()->attach($one);
+    $deleted->delete();
+    $this->actingAs(User::factory()->create());
+
+    expect(Livewire::test('pages::search.index')->get('topGenres')->pluck('media_count', 'id')->all())->toBe([$two->id => 3, $one->id => 1]);
+});
+
+test('Top Genres shows at most 12 chips', function () {
+    foreach (Genre::factory()->count(13)->create() as $genre) {
+        Media::factory()->manga()->create()->genres()->attach($genre);
+    }
+    $this->actingAs(User::factory()->create());
+
+    expect(htmlQuery(Livewire::test('pages::search.index')->html(), '//a[@data-genre-chip]')->length)->toBe(12);
+});
+
+test('an old genre slug in the filters is upgraded and its family stays the active chip source', function () {
+    $this->seed(TaxonomySeeder::class);
+    Media::factory()->manga()->create(['title' => 'Isekai Hero'])->genres()->attach(Genre::where('slug', 'isekai')->first());
+    Media::factory()->manga()->create(['title' => 'Courtroom'])->genres()->attach(Genre::where('slug', 'courtroom-drama')->first());
+    $this->actingAs(User::factory()->create());
+
+    Livewire::withQueryParams(['filters' => ['genres' => ['fantasy']]])->test('pages::search.index')->assertSee('Isekai Hero')->assertDontSee('Courtroom');
+    Livewire::withQueryParams(['filters' => ['genres' => ['drama']]])->test('pages::search.index')->assertSee('Courtroom')->assertDontSee('Isekai Hero');
 });

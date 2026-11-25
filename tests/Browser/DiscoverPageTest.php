@@ -20,26 +20,25 @@ beforeEach(function () {
     Media::factory()->novel()->create(['title' => 'Prose Tale']);
 });
 
-test('discover passes the shared checks on desktop and on a phone, filtered or not', function () {
+test('discover passes the shared checks on desktop and on a phone, and an old filter link lands on search', function () {
     foreach ([['width' => 1280, 'height' => 900], ['width' => 375, 'height' => 812]] as $viewport) {
         visit(route('discover'), ['viewport' => $viewport])->wait(1)
-            ->assertSee('Browse by Format')->assertSee('3 stories')
+            ->assertSee('Browse by Format')->assertSee('3 stories')->assertDontSee('Top Genres')->assertDontSee('Find Stories')
             ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
 
         visit(route('discover', ['type' => 'manga', 'genre' => 'action']), ['viewport' => $viewport])->wait(1)
-            ->assertSee('Panel Tale 1')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
+            ->assertPathIs('/search')->assertSee('Panel Tale 1')->assertSee('Top Genres')->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
     }
 });
 
-test('choosing a format tile narrows the stories and moves to them, choosing it again clears it', function () {
-    $page = visit(route('discover'), ['viewport' => ['width' => 1280, 'height' => 700]])->wait(1)
+test('choosing a format tile opens the search page with that format applied', function () {
+    visit(route('discover'), ['viewport' => ['width' => 1280, 'height' => 700]])->wait(1)
         ->assertDontSee('Panel Tale 1')
-        ->click('[data-format-tile]:has-text("Manga")')->wait(1)
+        ->click('[data-format-tile]:has-text("Manga")')->wait(1.5)
+        ->assertPathIs('/search')
         ->assertSee('Panel Tale 1')->assertDontSee('Prose Tale')
-        ->assertScript('document.querySelector("#results").getBoundingClientRect().top < window.innerHeight', true)
-        ->assertScript('document.querySelector("[data-format-tile][aria-current=true]").textContent.includes("Manga")', true);
-
-    $page->click('[data-format-tile][aria-current=true]')->wait(1)->assertDontSee('Panel Tale 1')->assertNoJavaScriptErrors();
+        ->assertScript('decodeURIComponent(location.search).includes("filters[mediaTypes][0]=manga")', true)
+        ->assertNoJavaScriptErrors();
 });
 
 test('Enter in the search panel opens the search with the typed text', function () {

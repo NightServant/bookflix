@@ -7,18 +7,18 @@ use App\Models\AssistantConversation;
 use App\Models\AssistantMessage;
 use App\Models\Media;
 use App\Models\User;
-use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 
-new #[Title('Ask Bookflix')] class extends Component {
+new #[Layout('layouts::assistant'), Title('Ask Bookflix')] class extends Component {
     use WithFileUploads;
 
     /** The most files one message takes, PDFs included (P11-R26). */
@@ -73,15 +73,6 @@ new #[Title('Ask Bookflix')] class extends Component {
 
     /** Whether the chat list shows the archived chats. */
     public bool $showArchived = false;
-
-    /**
-     * The chat runs the full width of the screen from the lg breakpoint (a history column on the left, the chat filling the rest, P11-R27), so the
-     * layout leaves `<main>` bare and this page brings its own gutters.
-     */
-    public function render(): View
-    {
-        return $this->view()->layoutData(['flush' => true]);
-    }
 
     public function mount(?string $conversation = null): void
     {
@@ -493,39 +484,46 @@ new #[Title('Ask Bookflix')] class extends Component {
     $enabled = (bool) config('bookflix.ai.enabled');
 @endphp
 
-<div @class(['w-full', 'lg:-mb-12 lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start' => $enabled])>
+<div @class(['w-full', 'lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start' => $enabled])>
     @if ($enabled)
-        {{-- The saved chats: a column flush against the left edge from the lg breakpoint, full height under the header, scrolling on its own; on a phone the History button opens them in a drawer. --}}
-        <aside aria-label="{{ __('Chat history') }}" class="sticky top-14 hidden h-[calc(100dvh-3.5rem)] overflow-hidden border-e border-hairline px-4 py-5 lg:block">
-            @include('partials.assistant-history', ['scope' => 'side', 'groups' => $this->groups, 'archived' => $this->archivedChats, 'showArchived' => $showArchived, 'currentId' => $conversationId])
+        {{-- The app shell's sidebar from the lg breakpoint: the logo, the way back to Home, then the saved chats (New chat first), scrolling on their own. On a phone the History button opens the chats in a drawer. --}}
+        <aside aria-label="{{ __('Chat history') }}" class="sticky top-0 hidden h-dvh flex-col overflow-hidden border-e border-hairline bg-surface-deep px-4 py-5 lg:flex">
+            <x-app-logo href="{{ route('home') }}" wire:navigate class="self-start" />
+            <a href="{{ route('home') }}" wire:navigate data-test="back-home" class="focus-ring mt-3 inline-flex min-h-11 items-center gap-2 rounded-control px-2 text-meta text-ink-subtle hover:text-ink">
+                <flux:icon name="arrow-left" variant="micro" class="size-4" />{{ __('Back to Home') }}
+            </a>
+            <div class="mt-3 min-h-0 flex-1">
+                @include('partials.assistant-history', ['scope' => 'side', 'groups' => $this->groups, 'archived' => $this->archivedChats, 'showArchived' => $showArchived, 'currentId' => $conversationId])
+            </div>
         </aside>
     @endif
 
-    <div @class(['flex w-full min-w-0 flex-col', 'lg:min-h-[calc(100dvh-3.5rem)]' => $enabled])>
-        <div class="px-gutter pt-6 lg:px-8 lg:pt-10">
-            <x-page-header
-                class="mx-auto w-full max-w-[880px]"
-                :title="__('Ask Bookflix')"
-                :description="$enabled ? __('Say what you feel like reading. Every story it suggests is one in the catalog.') : __('The assistant is switched off.')"
-            >
-                @if ($enabled)
-                    <x-slot:actions>
-                        <div class="flex items-center gap-3 lg:hidden">
-                            <flux:modal.trigger name="assistant-history">
-                                <x-cta variant="secondary" icon="clock" data-test="history-open">{{ __('History') }}</x-cta>
-                            </flux:modal.trigger>
-                            <x-cta variant="secondary" icon="plus" :href="route('assistant')" wire:navigate :aria-label="__('New chat')" />
-                        </div>
-                    </x-slot:actions>
-                @endif
-            </x-page-header>
-
-            @if (! $enabled)
-                <div class="mx-auto mt-8 w-full max-w-[880px]">
+    <div @class(['flex w-full min-w-0 flex-col', 'min-h-dvh' => $enabled])>
+        @if ($enabled)
+            {{-- Below lg: a slim top bar with the way back to Home, the title, History and New chat. --}}
+            <header class="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-hairline bg-canvas px-2 lg:hidden">
+                <a href="{{ route('home') }}" wire:navigate data-test="back-home" aria-label="{{ __('Back to Home') }}" class="focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-control text-ink hover:bg-surface-card">
+                    <flux:icon name="arrow-left" class="size-5" />
+                </a>
+                <h1 class="min-w-0 flex-1 truncate text-lead text-ink">{{ __('Ask Bookflix') }}</h1>
+                <flux:modal.trigger name="assistant-history">
+                    <x-cta variant="secondary" icon="clock" data-test="history-open">{{ __('History') }}</x-cta>
+                </flux:modal.trigger>
+                <x-cta variant="secondary" icon="plus" :href="route('assistant')" wire:navigate :aria-label="__('New chat')" />
+            </header>
+            <h1 class="sr-only max-lg:hidden">{{ __('Ask Bookflix') }}</h1>
+        @else
+            <main id="main" tabindex="-1" class="mx-auto w-full max-w-[880px] px-gutter py-8 outline-none">
+                <x-app-logo href="{{ route('home') }}" wire:navigate />
+                <x-page-header class="mt-10" :title="__('Ask Bookflix')" :description="__('The assistant is switched off.')" />
+                <div class="mt-8 flex flex-wrap items-center gap-3">
                     <x-cta variant="secondary" icon="magnifying-glass" :href="route('search')" wire:navigate>{{ __('Go to Search') }}</x-cta>
+                    <a href="{{ route('home') }}" wire:navigate data-test="back-home" class="focus-ring inline-flex min-h-11 items-center gap-2 rounded-control px-2 text-meta text-ink-subtle hover:text-ink">
+                        <flux:icon name="arrow-left" variant="micro" class="size-4" />{{ __('Back to Home') }}
+                    </a>
                 </div>
-            @endif
-        </div>
+            </main>
+        @endif
 
         @if ($enabled)
             @php
@@ -540,13 +538,38 @@ new #[Title('Ask Bookflix')] class extends Component {
             @endphp
 
             {{-- assistantChat (resources/js/assistant-attach.js): the pending text, the character count, `settle` (brings the newest answer into view and, when asked, puts the cursor back in the field) and the attach button. --}}
-            <div
+            <main
+                id="main"
+                tabindex="-1"
                 x-data="assistantChat(@js(['pdfTooBig' => __(':name is over 10 MB.'), 'pdfLocked' => __(':name is password protected.'), 'pdfUnreadable' => __(':name could not be read.'), 'tooBig' => __(':name is too large to attach.'), 'uploadFailed' => __('The upload failed. Try again.')]))"
                 x-init="if (@js($entries->isNotEmpty())) settle(innerWidth >= 1024)"
                 @assistant-answered.window="pending = ''; count = 0; settle(true)"
-                class="flex flex-1 flex-col"
+                @class(['flex flex-1 flex-col outline-none', 'bg-featured-rise lg:justify-center' => $entries->isEmpty()])
             >
-                <div class="flex-1 px-gutter pb-6 pt-8 lg:px-8">
+                @if ($entries->isEmpty())
+                    {{-- The welcome, on the empty stage: the main column wears the featured gradient rising from its foot (bg-featured-rise), so nothing here draws a band. On a phone it sits under the top bar; from lg the main column centres it with the composer right under it. --}}
+                    <div wire:loading.remove wire:target="send,ask" class="px-gutter py-12 lg:px-8 lg:py-16">
+                        <div class="mx-auto w-full max-w-[880px]">
+                            <h2 class="text-section text-ink">{{ __('What are you in the mood for?') }}</h2>
+                            <p class="mt-2 text-body text-ink/80">{{ __('Try one of these, or type your own.') }}</p>
+
+                            <div role="group" aria-label="{{ __('Suggestions') }}" class="mt-6 flex flex-wrap gap-3">
+                                @foreach ($chips as $chip)
+                                    <button
+                                        type="button"
+                                        @click="pending = @js($chip)"
+                                        wire:click="ask(@js($chip))"
+                                        wire:loading.attr="disabled"
+                                        wire:target="send,ask"
+                                        class="focus-ring min-h-11 rounded-full border border-ink/30 bg-canvas/20 px-4 text-start text-meta text-ink hover:border-ink/60 hover:bg-canvas/40"
+                                    >{{ $chip }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <div @class(['px-gutter pb-6 pt-8 lg:px-8', 'flex-1' => $entries->isNotEmpty(), 'max-lg:flex-1 lg:py-0' => $entries->isEmpty()])>
                     <div class="mx-auto w-full max-w-[880px]">
                         {{-- The messages: polite, so a new answer is read out once it lands without cutting the reader off. --}}
                         <div aria-live="polite" class="flex flex-col gap-8">
@@ -593,35 +616,15 @@ new #[Title('Ask Bookflix')] class extends Component {
                                 <div x-show="pending !== ''" class="flex justify-end">
                                     <p class="max-w-[85%] whitespace-pre-line break-words rounded-card bg-surface-card px-4 py-3 text-body text-ink lg:max-w-[70ch]" x-text="pending"></p>
                                 </div>
-                                <p class="text-body text-ink-subtle">{{ __('Finding stories…') }}</p>
+                                <p @class(['text-body', 'text-ink/80' => $entries->isEmpty(), 'text-ink-subtle' => $entries->isNotEmpty()])>{{ __('Finding stories…') }}</p>
                             </div>
 
-                            @if ($entries->isEmpty())
-                                <div wire:loading.remove wire:target="send,ask" class="pt-4">
-                                    <h2 class="text-lead text-ink">{{ __('What are you in the mood for?') }}</h2>
-                                    <p class="mt-2 text-body text-ink-subtle">{{ __('Try one of these, or type your own.') }}</p>
-
-                                    <div role="group" aria-label="{{ __('Suggestions') }}" class="mt-5 flex flex-wrap gap-3">
-                                        @foreach ($chips as $chip)
-                                            <button
-                                                type="button"
-                                                @click="pending = @js($chip)"
-                                                wire:click="ask(@js($chip))"
-                                                wire:loading.attr="disabled"
-                                                wire:target="send,ask"
-                                                class="focus-ring min-h-11 rounded-full border border-hairline px-4 text-start text-meta text-ink hover:bg-surface-card"
-                                            >{{ $chip }}</button>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
                         </div>
                     </div>
                 </div>
 
-                {{-- The input bar: sticks to the foot of the chat area (above the phone's bottom bar, which is 4.75rem high), and the conversation scrolls above it. --}}
-                <div class="sticky bottom-[4.75rem] z-10 bg-canvas px-gutter pb-3 pt-3 lg:bottom-0 lg:px-8"
-                >
+                {{-- The input bar: sticks to the foot of the chat area and the conversation scrolls above it. --}}
+                <div @class(['sticky bottom-0 z-10 px-gutter pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 lg:px-8', 'bg-canvas' => $entries->isNotEmpty(), 'lg:pt-8' => $entries->isEmpty()])>
                   <div class="mx-auto w-full max-w-[880px]">
                     @if ($attached > 0)
                         <ul aria-label="{{ __('Attached files') }}" class="mb-2 flex flex-wrap gap-2">
@@ -650,11 +653,11 @@ new #[Title('Ask Bookflix')] class extends Component {
 
                     {{-- The task (a radio group: arrow keys move through it) and the depth (a toggle). --}}
                     <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                        <div role="radiogroup" aria-label="{{ __('What to do') }}" class="grid min-w-0 flex-1 grid-cols-3 gap-0.5 rounded-control border border-hairline p-0.5 sm:flex-none">
+                        <div role="radiogroup" aria-label="{{ __('What to do') }}" class="grid min-w-0 flex-1 grid-cols-3 rounded-control bg-surface-card sm:flex-none">
                             @foreach ($tasks as $value => [$label, $short])
                                 <label class="relative block">
                                     <input type="radio" name="assistant-task" value="{{ $value }}" wire:model="task" class="peer sr-only">
-                                    <span class="flex min-h-11 cursor-pointer items-center justify-center rounded-control px-2 text-center text-meta leading-tight sm:px-3 text-ink-subtle hover:text-ink peer-checked:bg-ink peer-checked:text-canvas peer-focus-visible:ring-2 peer-focus-visible:ring-accent-electric peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-canvas"><span class="sr-only sm:hidden">{{ $label }}</span><span aria-hidden="true" class="sm:hidden">{{ $short }}</span><span class="max-sm:hidden">{{ $label }}</span></span>
+                                    <span class="flex min-h-11 cursor-pointer items-center justify-center rounded-control px-3 text-center text-meta leading-tight text-ink-subtle hover:text-ink peer-checked:bg-ink peer-checked:text-canvas peer-checked:hover:text-canvas peer-focus-visible:ring-2 peer-focus-visible:ring-accent-electric peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-canvas"><span class="sr-only sm:hidden">{{ $label }}</span><span aria-hidden="true" class="sm:hidden">{{ $short }}</span><span class="max-sm:hidden">{{ $label }}</span></span>
                                 </label>
                             @endforeach
                         </div>
@@ -666,9 +669,9 @@ new #[Title('Ask Bookflix')] class extends Component {
                             aria-describedby="assistant-depth-hint"
                             data-test="depth-toggle"
                             @class([
-                                'focus-ring inline-flex min-h-11 items-center gap-2 rounded-control border px-4 text-meta',
-                                'border-ink bg-ink text-canvas' => $depth === 'thorough',
-                                'border-hairline text-ink-subtle hover:text-ink' => $depth !== 'thorough',
+                                'focus-ring inline-flex min-h-11 items-center gap-2 rounded-control px-4 text-meta',
+                                'bg-ink text-canvas' => $depth === 'thorough',
+                                'bg-surface-card text-ink-subtle hover:text-ink' => $depth !== 'thorough',
                             ])
                         >
                             <flux:icon :name="$depth === 'thorough' ? 'check' : 'bolt'" variant="micro" class="size-4" />{{ __('Thorough') }}
@@ -724,19 +727,21 @@ new #[Title('Ask Bookflix')] class extends Component {
                         <flux:icon name="exclamation-circle" variant="micro" class="size-4 shrink-0" /><span x-text="notice"></span>
                     </p>
 
-                    <p id="assistant-count" x-show="count >= 1800" style="display: none" class="mt-2 text-end text-legal tabular-nums text-ink-subtle" x-text="count.toLocaleString('en-US') + ' / 2,000'"></p>
+                    <p id="assistant-count" x-show="count >= 1800" style="display: none" @class(['mt-2 text-end text-legal tabular-nums', 'text-ink/80' => $entries->isEmpty(), 'text-ink-subtle' => $entries->isNotEmpty()]) x-text="count.toLocaleString('en-US') + ' / 2,000'"></p>
 
                     @if ($this->libraryOffered())
-                        <flux:switch wire:model.live="useLibrary" align="left" :label="__('Use my library')" class="mt-4" />
+                        <div class="mt-4">
+                            <flux:switch wire:model.live="useLibrary" align="left" :label="__('Use my library')" />
+                        </div>
                     @endif
 
-                    <p id="assistant-note" class="mt-3 text-legal text-ink-subtle">
+                    <p id="assistant-note" @class(['mt-3 text-legal', 'text-ink/80' => $entries->isEmpty(), 'text-ink-subtle' => $entries->isNotEmpty()])>
                         {{ __('Answers come from an outside AI service.') }}
                         <a href="{{ route('privacy.edit') }}#ai" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control px-1 text-ink underline underline-offset-4">{{ __('What we send') }}</a>
                     </p>
                   </div>
                 </div>
-            </div>
+            </main>
         @endif
     </div>
 

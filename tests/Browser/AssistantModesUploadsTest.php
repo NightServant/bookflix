@@ -154,7 +154,7 @@ test('on a desktop the chat uses the full width: history flush left, an 880 px c
     $page = visit(route('assistant.show', $chat->id), $this->desktop)->wait(1.5);
 
     $page->assertScript('Math.round(document.querySelector("aside").getBoundingClientRect().left)', 0)
-        ->assertScript('Math.round(document.querySelector("aside").getBoundingClientRect().height)', 844)
+        ->assertScript('Math.round(document.querySelector("aside").getBoundingClientRect().height)', 900)
         ->assertScript('Math.round(document.getElementById("assistant-message").closest("form").getBoundingClientRect().width)', 880)
         ->assertScript('(() => { const f = document.getElementById("assistant-message").closest("form").getBoundingClientRect(); const a = document.querySelector("aside").getBoundingClientRect(); return Math.abs((f.left + f.right) / 2 - (a.right + innerWidth) / 2) < 2; })()', true)
         ->assertScript('Math.round(document.getElementById("assistant-message").closest(".sticky").getBoundingClientRect().bottom)', 900)

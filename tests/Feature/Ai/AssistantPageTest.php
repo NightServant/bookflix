@@ -52,31 +52,37 @@ test('with AI off the page is one line and a link to Search, and neither nav has
 
     $response->assertSee('The assistant is switched off.')
         ->assertSee('href="'.route('search').'"', false)
+        ->assertSee('Back to Home')
         ->assertDontSee('assistant-message', false);
 
     expect($navs['header'])->not->toContain('Ask')->and($navs['bottom'])->not->toContain('Ask');
     $this->actingAs($this->user)->get(route('home'))->assertOk()->assertDontSee('ask-fab', false)->assertDontSee('Ask Bookflix');
 });
 
-test('with AI on, Ask is in the header but not in the phone bottom bar, and Home has the floating button', function () {
-    $navs = primaryNavs($this->actingAs($this->user)->get(route('home'))->assertOk()->getContent());
+test('with AI on, Ask is in neither nav and Home has the floating button at every width', function () {
+    $home = $this->actingAs($this->user)->get(route('home'))->assertOk();
+    $navs = primaryNavs($home->getContent());
     $labels = fn (string $nav) => collect(htmlQuery($nav, '//a'))->map(fn (DOMElement $link): string => trim($link->textContent))->all();
 
-    expect($labels($navs['header']))->toBe(['Home', 'Discover', 'Ask', 'Library', 'Profile'])
+    expect($labels($navs['header']))->toBe(['Home', 'Discover', 'Library', 'Profile'])
         ->and($labels($navs['bottom']))->toBe(['Home', 'Discover', 'Search', 'Library', 'Profile']);
 
-    $home = $this->actingAs($this->user)->get(route('home'))->assertOk();
     $fab = htmlQuery($home->getContent(), '//a[@data-test="ask-fab"]');
 
     expect($fab)->toHaveCount(1)
         ->and($fab[0]->getAttribute('href'))->toBe(route('assistant'))
-        ->and($fab[0]->getAttribute('aria-label'))->toBe('Ask Bookflix');
+        ->and($fab[0]->getAttribute('aria-label'))->toBe('Ask Bookflix')
+        ->and($fab[0]->getAttribute('class'))->not->toContain('lg:hidden')->toContain('lg:bottom-8');
 });
 
-test('Ask is the current item on the assistant page', function () {
-    $navs = primaryNavs($this->actingAs($this->user)->get(route('assistant'))->assertOk()->getContent());
+test('the assistant page is its own shell: a way back to Home and no reader header nav or bottom bar', function () {
+    $html = $this->actingAs($this->user)->get(route('assistant'))->assertOk()->getContent();
+    $back = htmlQuery($html, '//a[@data-test="back-home"]');
 
-    expect($navs['header'])->toMatch('#<a\s+href="'.preg_quote(route('assistant'), '#').'"[^>]*data-current#');
+    expect($back)->not->toBeEmpty()
+        ->and(collect($back)->every(fn (DOMElement $link): bool => $link->getAttribute('href') === route('home')))->toBeTrue()
+        ->and(primaryNavs($html))->toBe(['header' => '', 'bottom' => ''])
+        ->and(htmlQuery($html, '//main[@id="main"]'))->toHaveCount(1);
 });
 
 /**

@@ -371,6 +371,20 @@ html[data-hero-transition]::view-transition-new(hero-cover) {
     @apply  !mb-0 !leading-tight;
 }
 
+/*
+ * The featured gradient laid vertically: it rises from the foot of the surface, dark red through maroon and navy into the canvas, so the
+ * surface is lit from below with no hard edge. Ask's empty stage only (a whole-surface wash, never a strip). Text on it is ink or ink at 80%.
+ */
+@utility bg-featured-rise {
+    background-image: linear-gradient(to top in oklab, var(--color-featured-to), var(--color-featured-via) 30%, var(--color-featured-from) 62%, var(--color-canvas));
+}
+
+/* A switch with its label (resources/views/flux/switch.blade.php): the label sits level with the 24px pill and 12px from it; a description runs under the label. */
+[data-flux-field]:has(> [data-flux-switch]) {
+    align-items: center;
+    column-gap: 0.75rem;
+}
+
 /* Form controls meet the same 44px floor as <x-cta>; Flux's own are 40px. Checkboxes, radios, ranges and textareas keep their own size. */
 input[data-flux-control]:not([type='checkbox'], [type='radio'], [type='range']),
 select[data-flux-control] {

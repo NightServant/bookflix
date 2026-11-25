@@ -233,6 +233,7 @@ new #[Title('Home')] class extends Component {
 }; ?>
 
 <div
+    @class(['lg:pb-24' => config('bookflix.ai.enabled') && auth()->check()])
     x-data="recommendationTiles(@js([
         'token' => csrf_token(),
         'clickUrl' => route('recommendations.click'),
@@ -385,7 +386,7 @@ new #[Title('Home')] class extends Component {
             wire:navigate
             aria-label="{{ __('Ask Bookflix') }}"
             data-test="ask-fab"
-            class="focus-ring fixed end-gutter bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full bg-white text-black shadow-overlay motion-safe:transition-transform motion-safe:active:scale-95 lg:hidden"
+            class="focus-ring fixed end-gutter bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 lg:bottom-8 flex size-14 items-center justify-center rounded-full bg-white text-black shadow-overlay motion-safe:transition-transform motion-safe:active:scale-95"
         >
             <flux:icon name="sparkles" class="size-6" />
         </a>

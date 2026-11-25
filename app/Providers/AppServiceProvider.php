@@ -13,6 +13,7 @@ use App\Models\Review;
 use App\Models\Theme;
 use App\Models\Trope;
 use App\Models\User;
+use App\Support\PreResolveHosts;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -48,6 +50,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // Herd's PHP-FPM on macOS aborts a worker whose curl looks a host up itself (a 502 on any page that calls out); see PreResolveHosts.
+        if (PHP_OS_FAMILY === 'Darwin' && PHP_SAPI === 'fpm-fcgi') {
+            Http::globalMiddleware(new PreResolveHosts);
+        }
 
         // What a preference points at (user_preferences.preferable_type). A plain map, not an enforced one: notifications and the rest keep their class names.
         Relation::morphMap([

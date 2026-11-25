@@ -2,8 +2,9 @@
 
 {{--
     "Top 10": the ten most popular stories with a cover, as flat posters in a still grid of two rows of five (two to a row on a phone),
-    inside the same container as the heading so its edges line up with the heading text. Each poster stands in front of a huge outlined
-    numeral (dark fill, light-gray stroke), its rank; "10" is drawn smaller so both digits show. Nothing moves, so nothing needs pausing.
+    inside the same container as the heading so its edges line up with the heading text. The section is a full-width featured band, the
+    guest-facing twin of the app's Trending Now shelf (same gradient), so text on it is ink, never ink-subtle grey. Each poster stands in front of a huge outlined
+    numeral (no fill, an opaque ink-tinted stroke), its rank; "10" is drawn smaller so both digits show. Nothing moves, so nothing needs pausing.
     The posters are not links: the page is for people who have no account yet.
 --}}
 @if (count($items))
@@ -11,12 +12,12 @@
         id="top-10"
         data-section="top-ten"
         aria-labelledby="top-ten-title"
-        class="scroll-mt-16 py-16 lg:py-24"
+        class="scroll-mt-16 bg-linear-to-r from-featured-from via-featured-via to-featured-to py-16 lg:py-24"
     >
         <div class="mx-auto max-w-[100rem] px-gutter">
             <div class="max-w-2xl">
                 <h2 id="top-ten-title" class="landing-h2">{{ __('Top 10 on Bookflix today') }}</h2>
-                <p class="mt-3 text-body text-ink-subtle text-pretty">{{ __('The stories readers are reaching for right now, ranked by how popular they are across the catalog.') }}</p>
+                <p class="mt-3 text-body text-ink/80 text-pretty">{{ __('The stories readers are reaching for right now, ranked by how popular they are across the catalog.') }}</p>
             </div>
 
             <ol role="list" aria-label="{{ __('Top 10 stories') }}" class="landing-top mt-10 lg:mt-12">

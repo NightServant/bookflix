@@ -64,14 +64,12 @@ test('the reader rating filter offers stars on the five point scale, names its c
     Media::factory()->manga()->create(['title' => 'Unrated Tale', 'average_rating' => null]);
     $this->actingAs(User::factory()->create());
 
-    foreach ([route('search'), route('discover')] as $url) {
-        expect(filterIsland($this->get($url)->assertOk()->getContent())['minRatings'])->toBe([
-            ['value' => '3', 'label' => '3+ stars'],
-            ['value' => '3.5', 'label' => '3.5+ stars'],
-            ['value' => '4', 'label' => '4+ stars'],
-            ['value' => '4.5', 'label' => '4.5+ stars'],
-        ]);
-    }
+    expect(filterIsland($this->get(route('search'))->assertOk()->getContent())['minRatings'])->toBe([
+        ['value' => '3', 'label' => '3+ stars'],
+        ['value' => '3.5', 'label' => '3.5+ stars'],
+        ['value' => '4', 'label' => '4+ stars'],
+        ['value' => '4.5', 'label' => '4.5+ stars'],
+    ]);
 
     $page = Livewire::test('pages::search.index');
     $page->set('filters.minRating', '3.5')->assertSee('Loved Tale')->assertSee('Fine Tale')->assertDontSee('Unrated Tale');
@@ -93,7 +91,7 @@ test('a link from the ten point scale finds what it meant: 8 is 4 stars, and the
     $page->assertSet('filters.minRating', '4')->assertSee('Loved Tale')->assertDontSee('Fine Tale');
     expect(chipSummary($page->html()))->toBe('Reader rating: 4+ stars');
 
-    expect(Livewire::withQueryParams(['filters' => ['minRating' => '9']])->test('pages::discover.index')->get('filters.minRating'))->toBe('4.5')
+    expect(Livewire::withQueryParams(['filters' => ['minRating' => '9']])->test('pages::search.index')->get('filters.minRating'))->toBe('4.5')
         ->and(Livewire::withQueryParams(['filters' => ['minRating' => '40']])->test('pages::search.index')->get('filters'))->not->toHaveKey('minRating');
 });
 
@@ -155,19 +153,18 @@ test('filters are kept in the url with a history entry per change, and a link re
         'minRating' => '3.5',
     ];
 
-    foreach (['pages::search.index', 'pages::discover.index'] as $page) {
-        $property = (new ReflectionClass(Livewire::test($page)->instance()))->getProperty('filters');
-        $url = $property->getAttributes(Url::class)[0]->newInstance();
+    $page = 'pages::search.index';
+    $property = (new ReflectionClass(Livewire::test($page)->instance()))->getProperty('filters');
+    $url = $property->getAttributes(Url::class)[0]->newInstance();
 
-        expect($url->history)->toBeTrue();
+    expect($url->history)->toBeTrue();
 
-        $state = Livewire::withQueryParams(['filters' => $filters])->test($page)->get('filters');
+    $state = Livewire::withQueryParams(['filters' => $filters])->test($page)->get('filters');
 
-        expect($state)->toEqual($filters);
+    expect($state)->toEqual($filters);
 
-        // what the page writes back is what a link carries
-        expect(Livewire::withQueryParams(['filters' => $state])->test($page)->get('filters'))->toEqual($filters);
-    }
+    // what the page writes back is what a link carries
+    expect(Livewire::withQueryParams(['filters' => $state])->test($page)->get('filters'))->toEqual($filters);
 });
 
 test('only the choices that were made travel in the state, and a malformed link does not break the page', function () {
@@ -182,7 +179,6 @@ test('only the choices that were made travel in the state, and a malformed link 
         ->and($state['years'])->toBe([5]);
 
     $this->get(route('search', ['filters' => 'junk']))->assertOk();
-    $this->get(route('discover', ['filters' => ['genres' => [['x']]]]))->assertOk();
 });
 
 test('a picked family stays one value however many subgenres it holds, and the genre cap fits the whole tree', function () {
@@ -199,23 +195,21 @@ test('the page ships the taxonomy once as a json island and the panel markup onc
     $media->genres()->attach(Genre::where('slug', 'isekai')->first());
     $this->actingAs(User::factory()->create());
 
-    foreach ([route('search'), route('discover')] as $url) {
-        $html = $this->get($url)->assertOk()->getContent();
-        $island = filterIsland($html);
-        $fantasy = collect($island['genres'])->firstWhere('slug', 'fantasy');
-        $isekai = collect($fantasy['groups'])->flatMap(fn (array $group) => $group['items'])->firstWhere('slug', 'isekai');
+    $html = $this->get(route('search'))->assertOk()->getContent();
+    $island = filterIsland($html);
+    $fantasy = collect($island['genres'])->firstWhere('slug', 'fantasy');
+    $isekai = collect($fantasy['groups'])->flatMap(fn (array $group) => $group['items'])->firstWhere('slug', 'isekai');
 
-        expect(substr_count($html, 'id="filter-data"'))->toBe(1)
-            ->and(substr_count($html, 'id="filter-panel-template"'))->toBe(1)
-            ->and(substr_count($html, 'Heroic Fantasy'))->toBe(1)
-            ->and($fantasy['count'])->toBe(1)
-            ->and($isekai['count'])->toBe(1)
-            ->and(array_keys($island))->toEqualCanonicalizing(['types', 'genres', 'themes', 'tropes', 'demographics', 'ratings', 'warnings', 'statuses', 'languages', 'lengths', 'minRatings'])
-            ->and(collect($island['warnings'])->pluck('value')->all())->toContain('gore')
-            ->and(collect($island['tropes'])->pluck('name')->all())->toBe(['Romance tropes', 'Fantasy and progression tropes', 'Mystery and psychological tropes'])
-            ->and(htmlQuery($html, '//aside//*[@x-html]')->length)->toBe(1)
-            ->and(htmlQuery($html, '//template[@id="filter-panel-template"]//*[@x-for="family in data.genres"]')->length)->toBe(1);
-    }
+    expect(substr_count($html, 'id="filter-data"'))->toBe(1)
+        ->and(substr_count($html, 'id="filter-panel-template"'))->toBe(1)
+        ->and(substr_count($html, 'Heroic Fantasy'))->toBe(1)
+        ->and($fantasy['count'])->toBe(1)
+        ->and($isekai['count'])->toBe(1)
+        ->and(array_keys($island))->toEqualCanonicalizing(['types', 'genres', 'themes', 'tropes', 'demographics', 'ratings', 'warnings', 'statuses', 'languages', 'lengths', 'minRatings'])
+        ->and(collect($island['warnings'])->pluck('value')->all())->toContain('gore')
+        ->and(collect($island['tropes'])->pluck('name')->all())->toBe(['Romance tropes', 'Fantasy and progression tropes', 'Mystery and psychological tropes'])
+        ->and(htmlQuery($html, '//aside//*[@x-html]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//template[@id="filter-panel-template"]//*[@x-for="family in data.genres"]')->length)->toBe(1);
 });
 
 test('an update does not send the island or the tree again', function () {
@@ -261,37 +255,18 @@ test('the warnings group says that unknown is not hidden, and the panel has the 
         ->and($sections)->toBe(['Format', 'Genre', 'Themes', 'Tropes', 'Demographic', 'Audience rating', 'Content warnings', 'More filters']);
 });
 
-test('discover takes the old type and genre links into the filters, ignoring unknown ones, and shows a family as a chip', function () {
+test('discover sends the old type and genre links to search, ignoring unknown ones, and keeps a family for itself', function () {
+    $this->seed(MediaTypeSeeder::class);
     Media::factory()->manga()->create(['title' => 'Manga One'])->genres()->attach(Genre::where('slug', 'isekai')->first());
     Media::factory()->novel()->create(['title' => 'Novel One']);
     $this->actingAs(User::factory()->create());
 
-    Livewire::withQueryParams(['type' => 'manga', 'genre' => 'isekai'])->test('pages::discover.index')
-        ->assertSet('filters.mediaTypes', ['manga'])->assertSet('filters.genres', ['isekai'])
-        ->assertSet('type', null)->assertSet('genre', null)
-        ->assertSee('Manga One')->assertDontSee('Novel One');
+    $this->get(route('discover', ['type' => 'manga', 'genre' => 'isekai']))->assertRedirect(route('search', ['filters' => ['mediaTypes' => ['manga'], 'genres' => ['isekai']]]));
+    $this->get(route('discover', ['genre' => 'action', 'type' => 'no-such-type']))->assertRedirect(route('search', ['filters' => ['genres' => ['action-and-adventure']]]));
+    $html = $this->get(route('discover', ['family' => 'prose']))->assertOk()->getContent();
 
-    Livewire::withQueryParams(['genre' => 'action', 'type' => 'no-such-type'])->test('pages::discover.index')
-        ->assertSet('filters.genres', ['action-and-adventure'])->assertSet('filters.mediaTypes', []);
-
-    $family = Livewire::withQueryParams(['family' => 'prose'])->test('pages::discover.index')->assertSee('Novel One')->assertDontSee('Manga One');
-
-    expect(chipSummary($family->html()))->toBe('Family: Prose');
-
-    $family->call('removeFilter', 'family')->assertSet('family', null);
-});
-
-test('discover applies the same filter groups as search, and clearing them clears the family too', function () {
-    Media::factory()->manga()->create(['title' => 'Manga One'])->genres()->attach(Genre::where('slug', 'isekai')->first());
-    Media::factory()->manga()->create(['title' => 'Manga Two']);
-    $this->actingAs(User::factory()->create());
-
-    Livewire::test('pages::discover.index')
-        ->set('family', 'sequential_art')
-        ->set('filters.genres', ['fantasy'])
-        ->assertSee('Manga One')->assertDontSee('Manga Two')
-        ->call('clearFilters')
-        ->assertSet('family', null)->assertSet('filters.genres', []);
+    expect(htmlQuery($html, '//a[@data-format-tile][contains(.,"Novel")]')->length)->toBe(1)
+        ->and(htmlQuery($html, '//a[@data-format-tile][contains(.,"Manga")]')->length)->toBe(0);
 });
 
 test('the filters stay within the query budget when every group is used, and a second render reads the lists from the cache', function () {
@@ -310,10 +285,4 @@ test('the filters stay within the query budget when every group is used, and a s
     $second = $count();
 
     expect($first)->toBeLessThanOrEqual(22)->and($second)->toBeLessThanOrEqual($first - 4);
-
-    DB::flushQueryLog();
-    DB::enableQueryLog();
-    $this->get(route('discover', ['filters' => $query['filters']]))->assertOk();
-
-    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(30);
 });
