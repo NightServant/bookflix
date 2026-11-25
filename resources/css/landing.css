@@ -138,9 +138,9 @@
     container-type: inline-size;
 }
 
-/* Dark fill with a light stroke: the numeral reads as an outline on the canvas, and the poster in front hides what it overlaps. */
+/* An outline only (no fill), so the numeral takes the featured band's colour through it; the stroke is an opaque tint of ink over the band, so where two strokes cross it does not darken; the poster in front hides what it overlaps. */
 .landing-top__rank {
-    --stroke: color-mix(in srgb, var(--color-ink) 38%, var(--color-canvas));
+    --stroke: color-mix(in srgb, var(--color-ink) 40%, var(--color-featured-via));
     position: absolute;
     inset-inline-start: 0;
     inset-block-end: 0;
@@ -150,7 +150,7 @@
     line-height: 0.74;
     letter-spacing: -0.07em;
     font-variant-numeric: tabular-nums;
-    color: var(--color-canvas);
+    color: transparent;
     -webkit-text-stroke: 4px var(--stroke);
     paint-order: stroke fill;
     user-select: none;

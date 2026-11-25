@@ -1,5 +1,6 @@
 <?php
 
+use App\Access\MatureAccess;
 use App\Discovery\Search\HybridSearch;
 use App\Discovery\Search\QueryIntent;
 use App\Discovery\Search\QueryParser;
@@ -7,9 +8,12 @@ use App\Discovery\Search\SearchResults;
 use App\Discovery\Search\SearchLogger;
 use App\Livewire\FilteredPage;
 use App\Models\DeweyClass;
+use App\Models\Genre;
 use App\Models\Media;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
@@ -19,6 +23,8 @@ new #[Title('Search')] class extends FilteredPage {
     private const MIN_QUERY_LENGTH = 2;
 
     private const PER_PAGE = 24;
+
+    private const TOP_GENRES = 12;
 
     #[Url]
     public string $q = '';
@@ -97,6 +103,23 @@ new #[Title('Search')] class extends FilteredPage {
         $this->updatedFilters();
     }
 
+    /**
+     * Turn one of the top genres on or, when it is on, off, in the reader's own genre filter. Only a genre on offer counts.
+     */
+    public function toggleGenre(mixed $slug): void
+    {
+        if (! is_string($slug) || ! $this->topGenres->contains('slug', $slug)) {
+            return;
+        }
+
+        $this->filters['genres'] = in_array($slug, $this->filters['genres'], true)
+            ? array_values(array_diff($this->filters['genres'], [$slug]))
+            : [...$this->filters['genres'], $slug];
+
+        $this->forgetSearch();
+        $this->updatedFilters();
+    }
+
     private function searchChanged(): void
     {
         $this->forgetSearch();
@@ -162,6 +185,27 @@ new #[Title('Search')] class extends FilteredPage {
     public function hasQuery(): bool
     {
         return mb_strlen(trim($this->q)) >= self::MIN_QUERY_LENGTH;
+    }
+
+    /**
+     * The genres with the most stories, each with its live `media_count` (a genre family counts the stories of its subgenres too): the chips of browse
+     * mode. Kept ten minutes as plain rows, once for readers who may see mature titles and once for the rest.
+     *
+     * @return SupportCollection<int, array{id: int, slug: string, name: string, media_count: int}>
+     */
+    #[Computed]
+    public function topGenres(): SupportCollection
+    {
+        $mature = MatureAccess::allows(auth()->user());
+
+        return collect(Cache::remember('search:top-genres:v1:'.($mature ? 'mature' : 'gated'), 600, function () use ($mature): array {
+            $counts = array_slice(Genre::familyCounts($mature), 0, self::TOP_GENRES, true);
+            $genres = Genre::query()->whereIn('id', array_keys($counts))->get()->keyBy('id');
+
+            return collect(array_keys($counts))
+                ->map(fn (int $id): ?array => $genres->has($id) ? ['id' => $id, 'slug' => $genres[$id]->slug, 'name' => $genres[$id]->name, 'media_count' => $counts[$id]] : null)
+                ->filter()->values()->all();
+        }));
     }
 
     /**
@@ -314,10 +358,39 @@ new #[Title('Search')] class extends FilteredPage {
 
     @include('pages.search.intent-chips')
 
-    <div x-data="filterPanel(@js($this->panelConfig))" x-on:filter-sheet-close="discard()" class="mt-8 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-12">
+    @if (! $this->hasQuery)
+        @if ($this->topGenres->isNotEmpty())
+            <section aria-labelledby="genres-title" class="mt-12">
+                <h2 id="genres-title" class="text-section text-ink">{{ __('Top Genres') }}</h2>
+                <p class="mt-1 text-meta text-ink-subtle">{{ __('The genres with the most stories. Select one to filter the results, or use the filters below for subgenres, themes and more.') }}</p>
+
+                <ul class="mt-4 flex flex-wrap gap-2">
+                    @foreach ($this->topGenres as $genre)
+                        @php
+                            $isActive = in_array($genre['slug'], $this->filters['genres'], true);
+                            $genres = $isActive ? array_values(array_diff($this->filters['genres'], [$genre['slug']])) : [...$this->filters['genres'], $genre['slug']];
+                        @endphp
+                        <li wire:key="genre-{{ $genre['id'] }}">
+                            <x-chip :href="route('search', ['filters' => ['genres' => $genres]])" wire:click.prevent="toggleGenre('{{ $genre['slug'] }}')" data-genre-chip :active="$isActive">
+                                <span>{{ $genre['name'] }}</span>
+                                <span class="tabular-nums {{ $isActive ? 'text-canvas' : 'text-ink-subtle' }}">{{ number_format($genre['media_count']) }}</span>
+                            </x-chip>
+                        </li>
+                    @endforeach
+                </ul>
+            </section>
+        @endif
+
+        <div class="mt-12">
+            <h2 id="find-stories-title" class="text-section text-ink">{{ __('Find Stories') }}</h2>
+            <p class="mt-1 text-meta text-ink-subtle">{{ __('Combine genres, subgenres, themes, tropes and more. Each group narrows the results on its own.') }}</p>
+        </div>
+    @endif
+
+    <div x-data="filterPanel(@js($this->panelConfig))" x-on:filter-sheet-close="discard()" class="{{ $this->hasQuery ? 'mt-8' : 'mt-6' }} lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-12">
         <aside aria-labelledby="search-filters-title" class="hidden self-start lg:sticky lg:top-20 lg:block">
             <div class="flex min-h-11 items-center justify-between gap-4">
-                <h2 id="search-filters-title" class="text-lead text-ink">{{ __('Filters') }}</h2>
+                <h{{ $this->hasQuery ? 2 : 3 }} id="search-filters-title" class="text-lead text-ink">{{ __('Filters') }}</h{{ $this->hasQuery ? 2 : 3 }}>
 
                 <button type="button" x-show="activeCount > 0 || dirty" style="display: none" @click="clear()" class="focus-ring -mx-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 text-meta text-link hover:underline"><flux:icon name="x-mark" variant="micro" class="size-4" />{{ __('Clear all') }}</button>
             </div>

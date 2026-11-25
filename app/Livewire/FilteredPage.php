@@ -15,7 +15,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * A page that narrows the catalogue with the taxonomy (Search and Discover) and the filter state it needs: one `filters` array kept in the URL (each change
+ * A page that narrows the catalogue with the taxonomy (Search) and the filter state it needs: one `filters` array kept in the URL (each change
  * is a history entry, so the back button restores the last selection and a copied link restores all of it), the chips that show it, and the
  * labels behind them. The controls themselves are the `<x-filter-panel>` (resources/js/filter-panel.js), which edits a draft in the browser and
  * commits it to `filters`; the server only ever sees the committed array, cleaned here.
@@ -37,7 +37,7 @@ abstract class FilteredPage extends Component
      *
      * @var array<string, mixed>
      */
-    protected const NO_FILTERS = [
+    public const NO_FILTERS = [
         'mediaTypes' => [],
         'genres' => [],
         'themes' => [],
@@ -117,16 +117,6 @@ abstract class FilteredPage extends Component
     protected function filtersChanged(): void {}
 
     /**
-     * Chip groups a page adds to the ones its filters make (Discover's family of formats), ahead of them.
-     *
-     * @return list<array{group: string, label: string|null, chips: list<array{value: string|null, text: string, remove: string}>}>
-     */
-    protected function extraChipGroups(): array
-    {
-        return [];
-    }
-
-    /**
      * Drop one chip: a single value of a list filter, or the whole of a single-value one.
      */
     public function removeFilter(string $group, ?string $value = null): void
@@ -158,13 +148,11 @@ abstract class FilteredPage extends Component
 
     /**
      * The filters as the search sees them: only the keys the page offers, with the year slider's two ends mapped to a range
-     * (a slider left at its limits filters nothing). `$override` replaces filters the page derives itself (Discover's family of formats).
-     *
-     * @param  array<string, mixed>  $override
+     * (a slider left at its limits filters nothing).
      */
-    protected function searchFilters(array $override = []): SearchFilters
+    protected function searchFilters(): SearchFilters
     {
-        $input = [...Arr::only($this->filters, array_keys(self::NO_FILTERS)), ...$override];
+        $input = Arr::only($this->filters, array_keys(self::NO_FILTERS));
         [$from, $to] = array_pad(array_values(Arr::wrap($input['years'] ?? [])), 2, null);
         [$lowest, $highest] = $this->facets['years'];
 
@@ -268,10 +256,6 @@ abstract class FilteredPage extends Component
         $labels = $this->facets;
         $groups = [];
 
-        foreach ($this->extraChipGroups() as $group) {
-            $groups[$group['group']] = $group;
-        }
-
         $add = function (string $group, ?string $label, ?string $value, string $text) use (&$groups): void {
             $groups[$group] ??= ['group' => $group, 'label' => $label, 'chips' => []];
             $groups[$group]['chips'][] = ['value' => $value, 'text' => $text, 'remove' => __('Remove filter :label', ['label' => $text])];
@@ -307,7 +291,7 @@ abstract class FilteredPage extends Component
             $add('minRating', __('Reader rating'), null, $labels['minRatings'][$stars] ?? __(':stars+ stars', ['stars' => $stars]));
         }
 
-        $order = ['family', ...array_keys(self::NO_FILTERS)];
+        $order = array_keys(self::NO_FILTERS);
 
         return array_values(Arr::sort($groups, fn (array $group): int => (int) array_search($group['group'], $order, true)));
     }

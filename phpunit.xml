@@ -36,5 +36,12 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Tests start with AI off and unconfigured whatever a local .env says; a test that needs it sets the config itself. -->
+        <env name="BOOKFLIX_AI_ENABLED" value="false" force="true"/>
+        <env name="BOOKFLIX_AI_BASE_URL" value="(null)" force="true"/>
+        <env name="BOOKFLIX_AI_API_KEY" value="(null)" force="true"/>
+        <env name="BOOKFLIX_AI_MODEL_FAST" value="(null)" force="true"/>
+        <env name="BOOKFLIX_AI_MODEL_SMART" value="(null)" force="true"/>
+        <env name="BOOKFLIX_AI_MODEL_VISION" value="(null)" force="true"/>
     </php>
 </phpunit>

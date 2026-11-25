@@ -118,8 +118,8 @@ test('a picture over 4 MB, a text over 200 KB and a fourth file are refused', fu
     attachPage()
         ->set('incoming', [attachFile('1.txt', 'one'), attachFile('2.txt', 'two'), attachFile('3.txt', 'three'), attachFile('4.txt', 'four')])
         ->assertSee('You can attach up to 3 files to a message.')
-        ->assertSee('3.txt')
-        ->assertDontSee('4.txt');
+        ->assertSeeHtml('<span class="truncate">3.txt</span>')
+        ->assertDontSeeHtml('<span class="truncate">4.txt</span>');
 
     expect(attachTempFiles())->toHaveCount(3);
 });

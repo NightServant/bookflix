@@ -5,8 +5,8 @@
     </head>
     <body class="min-h-screen bg-canvas text-ink antialiased">
         <div class="grid min-h-svh lg:grid-cols-2">
-            {{-- Desktop only: the calm side. --}}
-            <aside class="hidden border-e border-hairline bg-surface-deep p-12 lg:block xl:p-16" aria-label="{{ config('app.name', 'Bookflix') }}">
+            {{-- Desktop only: the calm side, on the featured gradient (as Trending Now). --}}
+            <aside class="hidden bg-linear-to-r from-featured-from via-featured-via to-featured-to p-12 lg:block xl:p-16" aria-label="{{ config('app.name', 'Bookflix') }}">
                 <x-auth-showcase />
             </aside>
 

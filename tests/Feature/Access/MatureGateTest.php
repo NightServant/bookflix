@@ -143,13 +143,13 @@ test('the search page shows them to an opted-in adult', function () {
     $this->get(route('search', ['q' => 'tale']))->assertOk()->assertSee('Adult Tale')->assertSee('Erotic Tale');
 });
 
-test('discover keeps them out of its results, counts and genre list, and shows them to an opted-in adult', function () {
+test('search keeps them out of its results, counts and top genres, and discover keeps them out of its totals, and an opted-in adult sees them', function () {
     $catalog = gatedCatalog();
     $mature = Genre::where('slug', 'mature-erotic-and-controversial-categories')->value('id');
     $romance = Genre::where('slug', 'romance')->value('id');
 
     $this->actingAs($gated = User::factory()->create());
-    $page = $this->get(route('discover', ['genre' => 'erotica']))->assertOk();
+    $page = $this->get(route('search', ['filters' => ['genres' => ['erotica']]]))->assertOk();
     $page->assertDontSee('Erotic Tale')->assertDontSee('Adult Tale');
 
     expect(Genre::familyCounts())->not->toHaveKey($mature)
@@ -160,8 +160,15 @@ test('discover keeps them out of its results, counts and genre list, and shows t
 
     $this->get(route('discover'))->assertOk()->assertSee('3 stories');
 
+    $matureSlug = 'mature-erotic-and-controversial-categories';
+    $top = Livewire::test('pages::search.index')->assertSet('filters.genres', []);
+    expect($top->get('topGenres')->pluck('slug'))->not->toContain($matureSlug);
+    $top->call('toggleGenre', $matureSlug)->assertSet('filters.genres', []);
+
     $this->actingAs(User::factory()->showsMature()->create());
-    $this->get(route('discover', ['genre' => 'erotica']))->assertOk()->assertSee('Erotic Tale');
+    expect(Livewire::test('pages::search.index')->get('topGenres')->pluck('slug'))->toContain($matureSlug);
+    $this->get(route('search', ['filters' => ['genres' => ['erotica']]]))->assertOk()->assertSee('Erotic Tale');
+    $this->get(route('discover', ['genre' => 'erotica']))->assertRedirect();
     $this->get(route('discover'))->assertOk()->assertSee('5 stories');
 });
 

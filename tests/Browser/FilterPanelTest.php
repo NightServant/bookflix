@@ -327,12 +327,12 @@ test('there is no horizontal overflow at 390px, on the page or in the sheet', fu
         ->assertScript($overflow, true)
         ->assertScript('document.querySelector("dialog").scrollWidth <= document.querySelector("dialog").clientWidth', true);
 
-    visit(route('discover'), $this->phone)->wait(1.5)->assertScript($overflow, true);
+    visit(route('search'), $this->phone)->wait(1.5)->assertScript($overflow, true);
 });
 
-test('discover narrows with the same panel, and the format tiles and top genres join the same filters', function () {
-    $page = visit(route('discover'), $this->desktop)->wait(1.5);
-    $side = 'aside[aria-labelledby=discover-filters-title]';
+test('search in browse mode narrows with the panel, and the top genres and the format tiles join the same filters', function () {
+    $page = visit(route('search'), $this->desktop)->wait(1.5)->assertSee('Top Genres')->assertSee('Find Stories');
+    $side = 'aside[aria-labelledby=search-filters-title]';
 
     $page->assertScript('document.querySelectorAll("'.$side.' [data-family-toggle]").length', 16)
         ->click($side.' [data-family-toggle][data-slug=fantasy]')
@@ -340,13 +340,18 @@ test('discover narrows with the same panel, and the format tiles and top genres 
         ->assertScript($this->chips, 'Isekai')
         ->assertScript($this->count, '3 stories')
         ->assertScript($this->query.'.includes("filters[genres][0]=isekai")', true)
-        ->click('[data-format-tile]')->wait(1.5)
-        ->assertScript($this->chips, 'Manga|Isekai')
-        ->assertScript(box('isekai').'.checked', true)
-        ->assertScript('document.querySelector("'.$side.' [data-filter=mediaTypes][value=manga]").checked', true)
         ->assertNoJavaScriptErrors()->assertNoAccessibilityIssues();
 
-    visit(route('discover'), $this->phone)->wait(1.5)
+    // A top genre chip is the same genre filter: it shows active and the panel follows it.
+    visit(route('search'), $this->desktop)->wait(1.5)
+        ->click('[data-genre-chip]:has-text("Fantasy")')->wait(1.5)
+        ->assertScript('document.querySelector("[data-genre-chip][aria-current=true]").textContent.includes("Fantasy")', true)
+        ->assertScript($this->chips, 'Fantasy')
+        ->click('[data-genre-chip][aria-current=true]')->wait(1.5)
+        ->assertScript($this->chips, '')
+        ->assertNoJavaScriptErrors();
+
+    visit(route('search'), $this->phone)->wait(1.5)
         ->click('[data-flux-modal-trigger] button')->wait(0.8)
         ->click('dialog [data-family-toggle][data-slug=fantasy]')
         ->click('dialog [data-genre=isekai]')
@@ -369,7 +374,7 @@ test('leaving the page and coming back with the back button builds the panel aga
     $page = visit(route('search', ['q' => 'dune']), $this->desktop)->wait(1);
 
     $page->script('Livewire.navigate('.json_encode(route('discover')).')');
-    $page->wait(2)->assertSee('Find Stories')
+    $page->wait(2)->assertSee('Browse by Format')
         ->script('history.back()');
     $page->wait(2)
         ->assertScript('document.querySelectorAll("aside [data-family-toggle]").length', 16)

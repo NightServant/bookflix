@@ -104,15 +104,14 @@ test('the 2,000 character counter appears near the limit and a message that is t
         ->assertScript('document.getElementById("assistant-message").value.length', 2050);
 });
 
-test('on a phone nothing scrolls sideways and the whole bottom bar fits', function () {
+test('on a phone nothing scrolls sideways, the top bar goes back to Home and there is no bottom bar', function () {
     $page = visit(route('assistant'), $this->phone)->wait(1);
 
     $page->assertSee('What are you in the mood for?')
         ->screenshot(filename: 'assistant-375-empty')
         ->assertScript('document.documentElement.scrollWidth <= document.documentElement.clientWidth', true)
-        ->assertScript('document.querySelectorAll("nav[aria-label=Primary] a").length', 5)
-        ->assertScript('Array.from(document.querySelectorAll("nav[aria-label=Primary] a")).every((a) => { const r = a.getBoundingClientRect(); return r.left >= 0 && r.right <= document.documentElement.clientWidth && a.scrollWidth <= a.clientWidth; })', true)
-        ->assertScript('Array.from(document.querySelectorAll("nav[aria-label=Primary] a span")).every((s) => s.scrollWidth <= s.clientWidth + 1)', true)
+        ->assertScript('document.querySelectorAll("nav[aria-label=Primary]").length', 0)
+        ->assertScript('(() => { const r = document.querySelector("header [data-test=back-home]").getBoundingClientRect(); return r.width >= 44 && r.height >= 44 && r.left >= 0; })()', true)
         ->assertScript('document.getElementById("assistant-message").getBoundingClientRect().height >= 44', true)
         ->type('#assistant-message', 'dark fantasy with politics')
         ->keys('#assistant-message', 'Enter')->wait(2)
@@ -123,19 +122,44 @@ test('on a phone nothing scrolls sideways and the whole bottom bar fits', functi
         ->screenshot(filename: 'assistant-375-answer')
         ->script('window.scrollTo(0, 0)');
 
-    // The composer sticks to the viewport just above the bottom bar, never under it.
-    $page->assertScript('(() => { const bar = document.querySelector("nav[aria-label=Primary]").getBoundingClientRect(); const box = document.getElementById("assistant-message").closest(".sticky").getBoundingClientRect(); return box.bottom <= bar.top + 1 && bar.top - box.bottom < 8; })()', true);
+    // The composer sticks to the foot of the viewport, and the top bar to its head.
+    $page->assertScript('Math.round(document.getElementById("assistant-message").closest(".sticky").getBoundingClientRect().bottom)', 812)
+        ->assertScript('Math.round(document.querySelector("header").getBoundingClientRect().top)', 0);
 });
 
-test('on Home the floating Ask button sits above the phone bottom bar and opens the assistant; on a desktop it is hidden', function () {
+test('on Home the floating Ask button shows at every width and the nav has no Ask; it opens the assistant and Back to Home returns', function () {
     $fab = 'document.querySelector("[data-test=ask-fab]")';
 
     $page = visit(route('home'), $this->phone)->wait(1.5);
-    $page->assertScript("(() => { const r = {$fab}.getBoundingClientRect(); return r.width >= 44 && r.height >= 44 && r.width > 0; })()", true)
+    $page->assertScript("(() => { const r = {$fab}.getBoundingClientRect(); return r.width >= 44 && r.height >= 44; })()", true)
         ->assertScript("(() => { const f = {$fab}.getBoundingClientRect(); const bar = document.querySelector('nav[aria-label=Primary]').getBoundingClientRect(); return f.bottom <= bar.top && f.right <= window.innerWidth; })()", true)
+        ->assertScript('Array.from(document.querySelectorAll("nav a")).some((a) => a.textContent.trim() === "Ask")', false)
         ->click('[data-test=ask-fab]')->wait(1.5)
-        ->assertPathIs('/assistant');
+        ->assertPathIs('/assistant')
+        ->screenshot(filename: 'assistant-375-shell')
+        ->click('header [data-test=back-home]')->wait(1.5)
+        ->assertPathIs('/home');
 
-    visit(route('home'), $this->desktop)->wait(1.5)
-        ->assertScript("{$fab}.getBoundingClientRect().width", 0);
+    $page = visit(route('home'), $this->desktop)->wait(1.5);
+    $page->assertScript("(() => { const r = {$fab}.getBoundingClientRect(); return r.width >= 44 && r.bottom <= innerHeight && r.right <= innerWidth; })()", true)
+        ->assertScript('Array.from(document.querySelectorAll("nav a")).some((a) => a.textContent.trim() === "Ask")', false)
+        ->click('[data-test=ask-fab]')->wait(1.5)
+        ->assertPathIs('/assistant')
+        ->assertScript('Array.from(document.querySelectorAll("header, nav[aria-label=Primary]")).filter((el) => el.getClientRects().length > 0).length', 0)
+        ->screenshot(filename: 'assistant-1440-shell')
+        ->click('aside [data-test=back-home]')->wait(1.5)
+        ->assertPathIs('/home');
+});
+
+test('the task switcher keeps its label readable when the checked option is hovered', function () {
+    visit(route('assistant'), $this->desktop)->wait(1)
+        ->hover('input[name=assistant-task][value=find] + span')
+        ->assertScript('(() => { const s = getComputedStyle(document.querySelector("input[name=assistant-task]:checked + span")); return s.color !== s.backgroundColor; })()', true);
+});
+
+test('the task switcher and the depth toggle are both 44px tall, desktop and phone', function () {
+    $heights = 'Array.from([document.querySelector("[role=radiogroup]"), document.querySelector("[data-test=depth-toggle]")]).map((el) => Math.round(el.getBoundingClientRect().height))';
+
+    visit(route('assistant'), $this->desktop)->wait(1)->assertScript($heights, [44, 44]);
+    visit(route('assistant'), $this->phone)->wait(1)->assertScript($heights, [44, 44]);
 });
