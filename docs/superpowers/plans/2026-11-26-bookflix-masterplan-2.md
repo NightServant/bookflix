@@ -22,11 +22,11 @@
 | C | Skills, plugins and tools per phase |
 | D | **Phase 1: Security [D]**, split into TDD tasks, ready to execute |
 | E | **Phase 2: Broken functionality and mobile [B]**, split into TDD tasks, ready to execute |
-| F | Phases 3–10 milestone outlines. Each gets its own detailed plan (`superpowers:writing-plans`) when it starts, written against the code as it is then |
+| F | Phases 3–10: the cross-phase interface registry, then each phase's scope and decisions, each linked to its own task-level plan file |
 | G | Delivery loop: branches, ledgers, reviews, PRs, the report |
 | H | Brief coverage matrix |
 
-The brief covers several independent subsystems, so, as in the first master plan, only Phases 1 and 2 are broken down to step level here.
+Phases 1 and 2 are broken down to step level in this file. Phases 3–10 each have their own task-level plan file (`docs/superpowers/plans/mp2-phase-N-<slug>.md`), so an executor reads this masterplan's constraints plus one phase file.
 
 | Phase | Brief | Branch |
 |---|---|---|
@@ -131,7 +131,7 @@ Status words: **OK** (meets the brief), **Partial**, **Missing**, **N/A**. Paths
 | E deactivation | **Conflict.** `app/Console/Commands/PurgeDeactivatedAccounts.php` deletes the user, their uploads and avatar 30 days after deactivation (`bookflix.privacy.deactivated_retention_days`). The brief says accounts are never hard-deleted (D2-13). |
 | E AI self-harm | **Missing.** No handling in `app/Ai/Assistant/*`. "What we send" panel: `R/pages/settings/⚡privacy.blade.php:192-200`. |
 | E subscriptions | **N/A.** No billing code. |
-| F1 reader | **Partial.** foliate-js for EPUB (`resources/js/reader/epub.js`), pdf.js for PDF, own engine for CBZ/images (`resources/js/reader/pages.js`: paged, webtoon, RTL, spreads, fit, preload); CBR → CBZ job; progress debounced + `sendBeacon` on pagehide. Missing: MOBI/AZW3, FB2, light theme, line-height/margin controls, zoom and tap zones (unconfirmed), jurisdiction notice (no `jurisdiction` column). |
+| F1 reader | **Partial.** foliate-js for EPUB (`resources/js/reader/epub.js`), pdf.js for PDF, own engine for CBZ/images (`resources/js/reader/pages.js`: paged, webtoon, RTL, spreads, fit, preload); CBR → CBZ job; progress debounced + `sendBeacon` on pagehide. Already there: touch tap zones, arrow keys, font size and line height, webtoon routing by media type, an EPUB/PDF end card. Missing: MOBI/AZW3, FB2, light theme, margin control, comic zoom and swipe, a comic next-chapter prompt, jurisdiction notice (no `jurisdiction` column). |
 | F2 help page | **Missing.** |
 | F3/F5 | **Partial.** Content providers Gutenberg and Standard Ebooks (`OffersContentFiles`); others metadata only; `content_sources` holds provenance but no jurisdiction; admin Reading files at `/admin/content`. No harvest connection, tables or disk. |
 | F6 uploads | **Partial.** Uploads are `content_sources` rows with `access_type=user_owned` (EPUB, PDF, CBZ, CBR; caps and 2048 MB quota in `config/bookflix.php:131-135`); Livewire temporary uploads; owner-only serving. Missing: DRM detection (attestation only), ComicInfo.xml, series grouping, bulk upload, quota shown in Settings. |
@@ -140,7 +140,7 @@ Status words: **OK** (meets the brief), **Partial**, **Missing**, **N/A**. Paths
 | F9 outside ratings | **OK, off.** `external_ratings`, `external_reviews`, `app/Reviews/*`, `RefreshOutsideReviews`, behind `bookflix.reviews.outside_enabled` (stays off). |
 | F10 references | **Missing.** |
 | G motion | **Partial.** `resources/js/motion.js` (reveal/expand/crossfade directives, reduced-motion aware); tokens 150/250/400 ms in `resources/css/app.css:86-89`; 19 `wire:loading`, 1 skeleton; Livewire navigate progress bar on. |
-| H fonts | **Finding.** `--font-sans` names Netflix Sans first (never shipped); Instrument Sans is loaded from Bunny but not in the stack. |
+| H fonts | **Finding.** `--font-sans` names Netflix Sans first (never shipped); Instrument Sans is self-hosted at build time by the Vite font plugin but is not in the stack. |
 
 ---
 
@@ -165,7 +165,7 @@ Each ruling records what it costs if wrong. Rulings marked **(owner)** were answ
 | D2-13 | The existing 30-day purge hard-deletes deactivated users, which conflicts with the brief. Phase 3 starts by asking the owner; until then the privacy policy describes what the code actually does, and no new code deletes accounts. | High if the policy and code disagree, so this is asked, never assumed. |
 | D2-14 | Livewire persistent middleware gets `EnsureEmailIsVerified`, `EnsureReaderAccount`, `EnsureOnboarded` and `RequirePassword` (Task 1.1). | Low; a page whose route lacks one of these is unaffected (Livewire only re-runs middleware the original route had). |
 | D2-15 | Auth-form throttling uses one named limiter `auth-writes` attached through `config('fortify.middleware')`, returning `Limit::none()` for GETs and for routes with their own limiter. | Low. |
-| D2-16 | F9 is already built and stays off by the owner's rule; no harvest-side staging tables are added for it. Phase 8 only checks attribution and the display format. | Low. |
+| D2-16 | F9 is already built and stays off by the owner's rule; no harvest-side staging tables are added for it. Phase 8 aligns the display with the brief (today it renders "4.1 / 5" plus a separate count) and checks attribution; nothing is switched on. | Low. |
 | D2-17 | F1 keeps the installed `foliate-js` 1.0.1 package if it is the upstream project (johnfactotum/foliate-js, MIT); Phase 7 records licence and version in its ledger, else vendors a pinned commit. | Low. |
 | D2-18 | Single settings page (A3): security actions confirm the password in a dialog, instead of `password.confirm` gating the whole page. | Medium; touches auth UX for existing users, so the Phase 4 plan shows the flow to the owner before building. |
 | D2-19 | Self-harm handling (E) runs as a deterministic check before the assistant's model call, only in Ask (the brief's scope). Crisis resources come from official sources only, live in `config/bookflix.php` with a `reviewed_at` date, and carry a `TODO(owner)` review note. | High if a resource is wrong, which is why the owner reviews the list. |
@@ -181,8 +181,12 @@ Each ruling records what it costs if wrong. Rulings marked **(owner)** were answ
 2. Where will Bookflix be hosted? This decides Vercel Analytics, TrustProxies, HSTS, secure cookies and the Neon role. *Default: Needs decision.*
 3. Takedown and privacy contact address, and the name the policy should use for the operator. *Default: `TODO(owner)`.*
 4. Dependabot for Composer, npm and the `ml/` uv project (more PRs)? *Default: actions only.*
-5. Approve ClamAV (malware scan) and a resumable-upload library? *Default: not added.*
+5. Approve ClamAV (malware scan), `league/flysystem-aws-s3-v3` (S3 storage, needed for any S3 bucket and direct uploads) and a resumable-upload library? *Default: not added.*
 6. Build author pages for internal linking (C1)? *Default: link only between pages that exist.*
+7. Settings save buttons: the brief's A3 makes the one explicit save per form brand red; `DESIGN.md` and `RedForCtasOnlyTest` say settings saves are not red. *Default: keep them white (`light`) until you choose (ruling P4-R3).*
+8. Story, series and shelf pages are behind sign-in, so titles, descriptions and breadcrumbs (Phase 6) only help shared links, not search engines. Make story pages public? *Default: no (ruling P6-R5).*
+
+Each phase plan adds its own phase-specific rulings (`PN-R1`…) with their costs, and lists its "Needs decision" items in that phase's PR report.
 
 ---
 
@@ -194,7 +198,7 @@ Each ruling records what it costs if wrong. Rulings marked **(owner)** were answ
 
 | Skill | Use |
 |---|---|
-| `superpowers:writing-plans` | Write the phase's detailed plan (Phases 3–10) before any code |
+| `superpowers:writing-plans` | Re-check a phase plan against the code before starting it; write a new plan for any scope the owner adds |
 | `ultraclaude:ultraclaude-milestone-execution` *(Mac)* / `superpowers:subagent-driven-development` | One fresh implementer per task, a review after each, a ledger, one whole-branch review |
 | `opus-orchestration` *(Mac)* | Opus architects and reviews; Sonnet workers implement (`model: "sonnet"` on every worker) |
 | `superpowers:test-driven-development` | Failing test first in every task |
@@ -690,14 +694,31 @@ test('the assistant history drawer closes on Escape and returns focus', function
 
 ---
 
-# Part F: Phases 3–10 (milestone outlines)
+# Part F: Phases 3–10
 
-Each phase starts with its own `superpowers:writing-plans` plan at `docs/superpowers/plans/mp2-phase-N-<slug>.md`, written against the code as it is then and checked against Part A. The bullets below are the scope and the decisions already made, not the tasks.
+Each phase has its own task-level plan in `docs/superpowers/plans/mp2-phase-N-<slug>.md` (linked below each heading). It is written against the code as it was on 2026-11-26, so each phase re-checks its baseline before its first task. The bullets here are the scope and the decisions already made; the phase plan holds the tasks.
+
+## F.0 Cross-phase interface registry
+
+Later phases use these names exactly. A phase plan may add names but must not rename these.
+
+| Phase | Produces |
+|---|---|
+| 3 | Routes `legal.privacy` (GET `/privacy`), `legal.terms` (GET `/terms`), public, landing layout, views in `R/legal/`. Shared sections in `R/legal/sections/*.blade.php` that Phases 7 and 9 extend. Config `bookflix.legal.operator_name` (env `BOOKFLIX_LEGAL_OPERATOR`, default null), `bookflix.legal.contact_email` (env `BOOKFLIX_LEGAL_CONTACT_EMAIL`, default null), `bookflix.crisis_resources` (keyed by ISO 3166-1 alpha-2 code plus `default`), `bookflix.crisis_resources_reviewed_at`. `App\Ai\Safety\SafetyCheck::assess(string $message): App\Ai\Safety\SafetyVerdict` (`isCrisis(): bool`). |
+| 4 | Route `settings.edit` (GET `/settings`, page `pages::settings.index`) with section ids `profile`, `reading`, `privacy`, `security`, `account`. `profile.edit`, `preferences.edit`, `privacy.edit` and `security.edit` keep their names and redirect to `/settings#<id>`. Blade components `x-settings.section` (props `id`, `title`, `description`) and `x-settings.summary-card` (right column; Phase 7 adds a quota card, Phase 9 a country field). Alpine `settingToggle` for save-immediately toggles. Landing: closing section `id="closing"`; Alpine store `landingChrome` with `pastFaq: bool`, read by the header and the sticky CTA. `docs/design-references/README.md`. |
+| 5 | Components `x-admin.stat-card` (`title`, `value`, `subtext`), `x-admin.chart-card` (`title`, `type`, `labels`, `datasets`), `x-admin.tabs` (`items`: label, route, optional badge), upgraded `x-admin-toolbar` and `x-admin-table`, `x-confirm-dialog`; `x-cta` variants `primary`, `secondary`, `outline`, `danger`. Trait `App\Livewire\Concerns\AdminTable`. `App\Admin\Metrics\DailySeries::count(Builder $query, string $column, int $days = 30): array<string, int>`. `App\Admin\WorkQueue::items(): Collection<int, App\Admin\WorkQueueItem>`, fed by classes implementing `App\Admin\Contracts\WorkQueueSource` (`items(): iterable<WorkQueueItem>`), registered in `config('bookflix.admin_work_queue_sources')`. `WorkQueueItem` fields: `area` (catalog, review, operations, people), `severity` (error, warning, info), `label`, `count`, `oldestAt`, `status`, `ctaLabel`, `ctaUrl`. Route `admin.settings`. |
+| 6 | `x-breadcrumbs` (`items`: list of `[label, url|null]`) with `BreadcrumbList` JSON-LD; `resources/views/errors/{403,404,419,429,500,503}.blade.php` on a shared `errors/layout.blade.php`. `R/partials/head.blade.php` accepts `$description` and `$ogImage`; titles read `"{Page} | Bookflix"`. The cover proxy accepts `?w=160|320|480` and serves WebP with a fallback. |
+| 7 | Columns `content_sources.jurisdiction` (nullable string), and `content_sources.page_count` / `content_sources.metadata` (jsonb) if a task needs them. `App\Reader\Archives\EpubDrmDetector::isProtected(string $path): bool`. `App\Reader\Uploads\UploadMetadataReader::read(string $path, App\Enums\ContentFormat $format, string $originalName): App\Reader\Uploads\UploadMetadata` (series, volume, chapter, title, creators). `App\Reader\NextChapter::for(Media $media, ?ContentSource $source, User $user): ?App\Reader\NextChapterTarget`. Route `help.reading-apps` (GET `/help/reading-apps`). |
+| 8 | Connection `harvest`; models `App\Harvest\Models\{Source, HarvestRun, RawRecord, HarvestFile, LicenseEvidence, Promotion}` on it (`HarvestFile` uses table `files`). Contracts `App\Harvest\Contracts\HarvestAdapter` and `App\Harvest\Contracts\FileScanner`; `App\Harvest\LicenseGate`; jobs `App\Harvest\Jobs\{RunHarvest, DownloadHarvestFile, PromoteRecord}`. Internal routes `internal.harvest.ready` (GET) and `internal.harvest.promote` (POST), guarded by `config('bookflix.harvest.service_token')`. Config `bookflix.harvest.*` including `excluded_hosts`. `App\Harvest\HarvestWorkQueueSource`. |
+| 9 | Tables `platform_links`, `user_follows`, `content_licenses`, `content_license_media`, `creator_applications`; column `profiles.country` (ISO 3166-1 alpha-2, nullable), set in Settings. `App\Platforms\PlatformRegistry` (config `bookflix.platforms`). `App\Licensing\LicenseGate::allows(ContentSource $source, User $user): bool`, called from `App\Reader\ContentAccessGate`. Routes `publish` (GET/POST `/publish`) and `publish.thanks`. `App\Licensing\LicenseWorkQueueSource`, `App\Platforms\CreatorApplicationWorkQueueSource`. |
+| 10 | Motion tokens in `resources/css/app.css`; no new interfaces. |
 
 ## Phase 3: Legal and compliance [E]
 
+Tasks: [`mp2-phase-3-legal.md`](mp2-phase-3-legal.md)
+
 - **First:** ask the owner open question 1 (deactivation purge, D2-13) and question 3 (operator name, contact address).
-- **Inventory first** (ledger): every table holding personal data, logs, retention jobs (`bookflix:prune-*`, `PurgeDeactivatedAccounts`), and every third party. Today that is the AI provider (from `config('bookflix.ai.base_url')`), Bunny Fonts, the catalog providers (search terms only), mail, storage, and the self-hosted ML service. The policy is written from this inventory, not from a template.
+- **Inventory first** (ledger): every table holding personal data, logs, retention jobs (`bookflix:prune-*`, `PurgeDeactivatedAccounts`), and every third party. Today that is the AI provider (from `config('bookflix.ai.base_url')`), mail, storage, the self-hosted ML service, and the cover-image hosts that readers' browsers load images from (`img-src https:`). Fonts are self-hosted at build time (no outside font host at runtime), and catalog providers run as server jobs without reader data. The policy is written from this inventory, not from a template.
 - Public pages `/privacy` and `/terms` (Blade, landing layout), linked from the landing footer, the register form, Settings › Privacy, the landing FAQ and the Phase 7 help page. They cover: what is collected, why, retention, export (the existing export job), AI features (Ask, explanations, AI-assisted search; provider named from config; what is sent, matching the "What we send" panel; switching off), uploads (private, storage, quota, deactivation, takedown contact), followed series (added when Phase 9 lands), and "Not applicable" for subscriptions and auto-renewal.
 - **Deactivation:** the policy states exactly what happens to a reader's data and uploads on deactivation, and the code does what the policy says. The report flags that GDPR and CCPA may still require erasure on request; hard deletion is not built without the owner's go-ahead.
 - **AI self-harm (D2-19):** a `SafetyCheck` that runs before `AssistantRunner` calls the model. Messages about self-harm or suicide get a warm, direct reply with region-appropriate resources from `config('bookflix.crisis_resources')`, are never routed to book search, never fail silently, and log nothing beyond the normal chat row. Tests use representative messages in both directions: indirect wording and quoted book titles such as "13 Reasons Why" must not misfire as crisis messages.
@@ -705,23 +726,29 @@ Each phase starts with its own `superpowers:writing-plans` plan at `docs/superpo
 
 ## Phase 4: Design references, landing and settings [F10, A1, A2, A3, C4]
 
+Tasks: [`mp2-phase-4-landing-settings.md`](mp2-phase-4-landing-settings.md)
+
 - **F10 first:** `docs/design-references/README.md` plus one note per reference (URL, date, the pattern borrowed and why), covering settings pages (Primer, Geist, Polaris, Material 3), admin tables and dashboards, reader controls (Readest, Thorium, Koodo), and streaming-style shelves. Screenshots go in gitignored `docs/design-references/screenshots/` (D2-23), taken with Playwright of public pages only.
 - **A1:** the header hides (transform + opacity, instant under reduced motion) once a sentinel before `#faq` reaches the viewport top, and returns above it. Driven by IntersectionObserver in `landing.js`, not a scroll listener. Give the closing section an `id`, and give anchored sections `scroll-margin-top`. Keep it compatible with the Phase 2 drawer.
 - **A2:** two independent flex columns at ≥1024px (first three questions left, last two right), one column below; "What is Bookflix?" open on load; one open at a time across both columns; focus ring from tokens.
 - **C4 (landing parts):** "Get started" above the fold at 375×667 and desktop; a guest sticky CTA on phones that respects the safe-area inset and hides while FAQ or closing is on screen (shares A1's observer).
-- **A3:** one `/settings` page shaped like Profile: header block, settings column plus a narrower summary column, sticky section nav with the current section highlighted. Sections: Profile, Reading preferences, Privacy and AI, Security, Account. Toggles save immediately with an inline confirmation and roll back with an error on failure; red buttons only for explicit saves; dialogs for change password, two-factor setup (reuse the existing modal) and deactivate (existing). Old sub-routes keep their names and redirect to the matching anchor. Password confirmation becomes a dialog (D2-18; show the flow to the owner first). The upload quota appears in the summary column.
+- **A3:** one `/settings` page shaped like Profile: header block, settings column plus a narrower summary column, sticky section nav with the current section highlighted. Sections: Profile, Reading preferences, Privacy and AI, Security, Account. Toggles save immediately with an inline confirmation and roll back with an error on failure; red buttons only for explicit saves; dialogs for change password, two-factor setup (reuse the existing modal) and deactivate (existing). Old sub-routes keep their names and redirect to the matching anchor. Password confirmation becomes a dialog (D2-18; show the flow to the owner first). (The upload quota card is added to the summary column in Phase 7.)
 - Tests: Pest browser tests for the A1 toggle (desktop and 375), the FAQ rules (mouse, keyboard, touch), CTA above the fold, the sticky CTA hiding, toggle success and rollback, the redirects, and no setting lost (a Feature test lists every field from today's four pages and finds each on the new page).
 
 ## Phase 5: Admin redesign [A4, A5, A6]
+
+Tasks: [`mp2-phase-5-admin.md`](mp2-phase-5-admin.md)
 
 - **Shared pattern:** Blade components `x-admin.stat-card` (title, number, subtext), `x-admin.chart-card` (Chart.js, lazy-loaded like `resources/js/version-chart.js`), an upgraded `x-admin-toolbar` (debounced search plus link tabs and selects, all in the query string) and `x-admin-table` (muted semibold headers, hairline divider, truncation with a tooltip, stacked cards below 768px or a scroll container with the first column pinned), plus a trait `App\Livewire\Concerns\AdminTable` (`#[Url]` search, filters and page; 10 rows per page; a sort whitelist).
 - **Four button variants** on one component (`x-cta` today): primary (solid red, one per page), secondary (surface card), outline (hairline), danger (red text and border on a transparent fill, always behind a confirmation dialog).
 - **Tables:** Users, Models, Reading files, Staff picks, Classification review, Duplicate review; then Media, Sync and Reports, so every tab inside a group looks the same. Stat numbers come from real queries; a metric not computed anywhere is left out. Charts use existing timestamps first; a new column is added only when no chart is possible otherwise (record it).
 - **A5 overview:** stat cards (stories, enabled sources, items awaiting review, registered readers, last sync status), four chart cards (catalog growth, review backlog, sync outcomes by day, sign-ups or active readers), and one work queue merging "Needs attention" and "At a glance" (count, oldest age, status badge, CTA; filters by area and severity; actionable items first).
-- **A6:** the avatar, name, Settings link and Sign out at the top of the sidebar; five destinations (Overview; Catalog: Media, Reading files, Staff picks; Review: Duplicates, Classification, with badges; Operations: Sync, Models; People: Users, Reports); link tabs inside each, on the existing URLs (D2-9). An admin settings page in the A3 design with two-factor setup; name edited in a dialog; email read-only, and a Feature test proves a forged email change from an admin is rejected server-side (Livewire `set` + call, and Fortify's profile update action).
+- **A6:** the avatar, name, Settings link and Sign out at the top of the sidebar; five destinations (Overview; Catalog: Media, Reading files, Staff picks; Review: Duplicates, Classification, with badges; Operations: Sync, Models; People: Users, Reports); link tabs inside each, on the existing URLs (D2-9). An admin settings page in the A3 design with two-factor setup; name edited in a dialog; email read-only, and a Feature test proves a forged email change from an admin is rejected server-side (a guard on the `User` model, tested through the Livewire profile-save path; Fortify's profile-information route is off and stays absent).
 - Tests: per-table search + filter + pagination together, URL state round trip, danger confirmation, layout at 375/768/1024/1280 (extend `NoHorizontalScrollTest`), the five-link sidebar, the admin email guard.
 
 ## Phase 6: Pages, SEO and trust [C1, C2, C3, C4]
+
+Tasks: [`mp2-phase-6-pages-seo.md`](mp2-phase-6-pages-seo.md)
 
 - **Error pages:** `resources/views/errors/404.blade.php` (search box, home link, a few popular shelves), plus 403, 419, 429 (Phase 1 added throttles), 500 and 503 in the same style.
 - **Thank-you pages:** Not applicable today (no contact or feedback form; reports finish inline). The Phase 9 "Publish on Bookflix" form uses post/redirect/get to a thank-you page.
@@ -734,12 +761,16 @@ Each phase starts with its own `superpowers:writing-plans` plan at `docs/superpo
 
 ## Phase 7: Reader and your own files [F1, F2, F6]
 
+Tasks: [`mp2-phase-7-reader-uploads.md`](mp2-phase-7-reader-uploads.md)
+
 - **F1:** confirm the foliate-js package (D2-17); add MOBI/AZW3 and FB2 through foliate; a light theme next to dark and sepia; line-height and margin controls; keyboard and swipe throughout; reduced motion. In the comics reader, confirm or add pinch and double-tap zoom, tap zones, arrow keys, and webtoon detection from series metadata or tall image ratios. At the last page, one tap opens the next chapter or volume, never a list. Add a nullable `jurisdiction` column on `content_sources` (and an input on the Reading files screen), shown on the story page before reading ("Public domain in the United States. Check your local laws if you're elsewhere."). DjVu stays out of scope; CBR keeps converting at ingest.
 - **F2:** a public help page listing only the brief's reading apps, linked to their official sites.
-- **F6 (D2-8):** detect DRM-protected EPUBs (an `encryption.xml` entry beyond the IDPF/Adobe font-obfuscation algorithms) and reject them with a plain explanation that never mentions removal tools. Read `ComicInfo.xml`, EPUB metadata and filenames (series, volume, chapter) to match the catalog and group volumes in reading order, and let the reader fix a wrong match. Add bulk upload. When the temporary-upload disk is S3, use Livewire's built-in direct-to-S3 temporary uploads (no new dependency); resumable uploads are "Needs decision" (D2-7). Show the quota in Settings. Uploads stay private everywhere (search, shelves, recommendations). Add a terms line and the takedown contact on the upload screen. No import-from-URL (a test proves no such route exists).
+- **F6 (D2-8):** detect DRM-protected EPUBs (an `encryption.xml` entry beyond the IDPF/Adobe font-obfuscation algorithms) and reject them with a plain explanation that never mentions removal tools. Read `ComicInfo.xml`, EPUB metadata and filenames (series, volume, chapter) to match the catalog and group volumes in reading order, and let the reader fix a wrong match. Add bulk upload. Make the temporary-upload disk an env switch (default `local`). Direct-to-S3 temporary uploads need `league/flysystem-aws-s3-v3`, which isn't installed, and resumable uploads need a library: both are "Needs decision" (D2-7). Show the quota in Settings. Uploads stay private everywhere (search, shelves, recommendations). Add a terms line and the takedown contact on the upload screen. No import-from-URL (a test proves no such route exists).
 - Tests per the brief's Part I: one user can never fetch another's upload (direct URL, reused signed URL, Livewire action); DRM EPUB rejected; quota holds; next-chapter prompt opens the right chapter.
 
 ## Phase 8: Harvest system and sources [F3, F4, F5, F9]
+
+Tasks: [`mp2-phase-8-harvest.md`](mp2-phase-8-harvest.md)
 
 - **Infrastructure (D2-2):** connection `harvest` in `config/database.php` (`HARVEST_DB_*`), migrations in `database/migrations/harvest` run with `php artisan migrate --database=harvest --path=database/migrations/harvest`, test database `bookflix_harvest_test`, a private `harvest-raw` disk, queue `harvest` with its own Horizon supervisor, and scheduler entries that run only when `HARVEST_ENABLED=true`. Code never joins across the two connections.
 - **Schema (brief F5):** `sources`, `harvest_runs`, `raw_records` (unique `source_id, external_id`), `files`, `license_evidence`, `promotions`, with the brief's columns.
@@ -747,16 +778,20 @@ Each phase starts with its own `superpowers:writing-plans` plan at `docs/superpo
 - **Good citizen:** robots and terms respected, per-source rate limits, a User-Agent with a contact address from `HARVEST_CONTACT_EMAIL`, exponential backoff, and a circuit breaker that pauses a source after repeated failures and raises an item in the admin work queue. Per-source caps on file count and bytes, with a projected-cost line in the run report.
 - **F3/F4:** the existing Gutenberg and Standard Ebooks providers become the first harvest adapters. Each new source gets a vetting note (official site, machine-readable licence, automation allowed, jurisdictions) and lands with `enabled=false` until the owner approves it in writing. A config deny-list of F4 hosts that the sources table refuses (a test proves an excluded host can't be added or enabled). fmhy.net candidates get vetting notes only.
 - **Rollout:** pilot with Comic Book Plus or Digital Comic Museum if one passes vetting for automated access, else Gutenberg; about 50 titles in the local harvest database; then a report and a stop for the owner's approval before more sources, bigger batches, deployment or promotion.
-- **F9 (D2-16):** check that the Open Library rating display reads "4.1 on Open Library (2,345 ratings)" with a link and stays visually separate from readers' reviews. Nothing is turned on.
+- **F9 (D2-16):** change the Open Library rating display to read "4.1 on Open Library (2,345 ratings)" with a link, kept visually separate from readers' reviews. Nothing is turned on.
 - Tests per the brief's Part I: the license gate (an ambiguous record is never downloaded), dedupe, quarantine of bad files, promotion, the excluded-host guard, and the circuit breaker.
 
 ## Phase 9: Official platforms and creator licensing [F7, F8]
+
+Tasks: [`mp2-phase-9-platforms-licensing.md`](mp2-phase-9-platforms-licensing.md)
 
 - **F7:** `platform_links` (media_id, platform, series_url, episode_url_template, regions) and `user_follows` (user_id, media_id, platform, last_episode_read, notify, plus `opened_episode`/`opened_at` for the return prompt). Platforms come from config, each `confirmed=false` until its URL structure and terms are checked; unconfirmed platforms stay hidden. "Continue on Webtoon, Episode 43" opens that episode in a new tab, or the series page with a note when there is no stable episode URL. On return, ask once "Did you finish Episode 43?" (one tap updates progress; manual setting allowed). New episodes come from official RSS/APIs or MangaUpdates/AniList release data, never scraped pages; notifications are in-app, plus email for opted-in readers only. Library and Continue Reading show hosted titles, uploads and followed series together, labelled "Reads in Bookflix", "Your file" or "On Tapas". Platform names as text. Existing "Where to read" rows are copied into `platform_links` (D2-20). Add the privacy policy section.
 - **F8:** a public "Publish on Bookflix" page with an application form (post/redirect/get to a thank-you page) feeding an admin review tab under Catalog. Add a `content_licenses` table (licensor, works covered via pivot, rights `stream` or `stream_download`, territories as ISO codes, start/end dates, revenue terms text, agreement file on a private disk, approved_by). Licensed files are uploaded by admins only. `ContentAccessGate` checks for an active licence covering the reader's country (D2-21). A scheduled job unpublishes expired works and alerts admins three weeks before expiry (configurable). No contract text is drafted.
 - Tests per the brief's Part I: an expired or out-of-region licence blocks reading; followed-series progress updates from the return prompt; unconfirmed platforms never render.
 
 ## Phase 10: Motion, design-tells audit and final report [G, H, I]
+
+Tasks: [`mp2-phase-10-motion-report.md`](mp2-phase-10-motion-report.md)
 
 - **G:** duration and easing tokens per the brief (micro 100–150 ms, UI 200–250 ms, pages and modals 250–350 ms; D2-22); hard-coded durations moved onto tokens. Hover/focus/press states: cover tiles scale 1.03–1.05 with a surface step, buttons press to 0.98, touch and keyboard equivalents. Micro-interactions: switch slide, save check mark, chevron rotation, heart fill. `wire:loading` on every Livewire action. Skeletons shaped like shelves, story pages, tables and charts, shown only after about 300 ms. The navigate progress bar recoloured from tokens. A few one-time reveals (8–16 px); parallax on the hero only, off under reduced motion. Dialogs and drawers fade/scale with focus in and back. A cross-fade between `wire:navigate` pages. Nothing animates layout.
 - **H (report only):** each design tell with a file or screenshot reference and a recommended fix. Include the font finding (Netflix Sans named but never shipped; Instrument Sans loaded but unused) with a licensed pairing proposal, the hero copy, the live-demo gap, and whether every landing number comes from a query. Change nothing beyond Parts A–G.
