@@ -17,7 +17,7 @@ Every Global Constraint in the masterplan applies. Phase-specific:
 
 - Rows per page: 10 on every admin table; page, search (`q`), sort and every filter live in the query string.
 - Sort is a whitelist per page; an unknown `sort` value falls back to the page default and is never put in SQL.
-- Admin pages use only the four `x-cta` variants (`primary`, `secondary`, `outline`, `danger`); no `<flux:button` in `resources/views/pages/admin/**` (the back link in `x-admin-header` is a component, not a page). One `primary` per page.
+- Admin pages use only the four `x-cta` variants (`primary`, `secondary`, `outline`, `danger`); no `<flux:button` in `resources/views/pages/admin/**` (the back link in `x-admin-header` is a component, not a page). One `primary` per page. D2-26: every `danger` button carries a leading `trash` or `exclamation-triangle` icon, always opens `x-confirm-dialog` (whose confirm is `danger` with an explicit verb), and never sits next to a `primary` button. Add an assertion for the icon and the dialog to Task 5.1's `x-confirm-dialog` test.
 - No `wire:confirm` in `resources/views/pages/admin/**`. Danger actions open `x-confirm-dialog`.
 - Chart colours come from tokens (`--color-accent-electric`, `--color-ink-subtle`, `--color-success`, `--color-ink-muted`); brand red is never a series colour. Every chart has an `sr-only` table with the same numbers.
 - Stat cards and charts read real queries only. A metric with no data source is omitted. No new tracking columns or migrations in this phase.

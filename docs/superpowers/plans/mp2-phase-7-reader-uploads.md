@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-26-cleanup-brief.md` F1, F2, F6, Part I (uploads and next-chapter tests); `docs/superpowers/plans/2026-11-26-bookflix-masterplan-2.md` Part F "Phase 7", Part F.0 row 7, D2-7, D2-8, D2-12, D2-17.
 
-**Branch:** `mp2-phase-7-reader-uploads` · **Ledger:** `docs/superpowers/plans/mp2-phase-7-ledger.md` · **Depends on:** Phase 3 (`legal.terms`, `legal.privacy`, `bookflix.legal.contact_email`, `R/legal/sections/*`), Phase 4 (`settings.edit`, `x-settings.summary-card`), Phase 1 (hardened Livewire middleware), Phase 2 (`NoHorizontalScrollTest`).
+**Branch:** `mp2-phase-7-reader-uploads` · **Ledger:** `docs/superpowers/plans/mp2-phase-7-ledger.md` · **Depends on:** Phase 6 (`stories.show` public), Phase 3 (`legal.terms`, `legal.privacy`, `bookflix.legal.contact_email`, `R/legal/sections/*`), Phase 4 (`settings.edit`, `x-settings.summary-card`), Phase 1 (hardened Livewire middleware), Phase 2 (`NoHorizontalScrollTest`).
 
 `R/` below means `resources/views/`. A path with `⚡` is a single-file Livewire page.
 
@@ -29,7 +29,7 @@ Every Global Constraint in the masterplan applies. Phase-specific:
 
 ## Review Focus
 
-1. **A user's upload leaks to another reader** (direct `/read/{slug}?source=`, a signed URL replayed by someone else, a Livewire action on someone else's file id, or a hosted-looking "Read" button for a story only another user uploaded to). → Task 7.9.
+1. **A user's upload leaks to another reader** (direct `/read/{slug}?source=`, a signed URL replayed by someone else, a Livewire action on someone else's file id, or a hosted-looking "Read" button for a story only another user uploaded to), or a guest reaching anything but a verified public-domain file on an unrestricted story. → Tasks 7.9 and 7.10.
 2. **A DRM-protected EPUB is accepted, or an ordinary EPUB with font obfuscation is wrongly rejected.** Both hurt: one stores a file nobody can read, the other blocks legitimate books. → Task 7.7 (allowed-algorithm and malformed `encryption.xml` cases).
 3. **Bulk upload half-fails silently**: one bad file aborts the batch, the quota is passed mid-batch, or a file is attached to the wrong volume without the reader noticing. → Task 7.8 (per-row errors, quota mid-batch, unmatched rows blocked until a story is chosen).
 4. **The last page dead-ends**: a comic's last page or a series' final volume shows a prompt to a book the reader can't open, or skips straight to a list. → Task 7.4 (ordering, unreadable next, uploads, one-tap browser test).
@@ -66,6 +66,7 @@ Every Global Constraint in the masterplan applies. Phase-specific:
 | P7-R10 | There is no download area on the story page (Baseline step 8). The reading-apps link sits in the license notice of a hosted file and in the landing footer. | Low. |
 | P7-R11 | `EpubDrmDetector` fails closed: an `encryption.xml` that is not valid XML counts as protected. | Low; a broken book is refused with the DRM message. |
 | P7-R12 | MOBI and PDF metadata come from the filename only (no EXTH parsing). | Low. |
+| P7-R13 | **(owner)** Guests may read. `reader.show`, `reader.stream` and `reader.page` open to guests only for a source that is `public_domain`, verified by an admin, ready, with a stored file, on media not gated by `MatureAccess` for a null user. Everything else (user upload, unverified, external link, licensed) is refused to a guest: the stream and page routes answer **403**, the reader page redirects to `login`. Phase 9 widens this only through `LicenseGate` (worldwide licences). `ContentAccessGate::allows` takes a nullable user; the argument order stays `(?User $user, ContentSource $source)` as today so no caller changes (the coordinator's `(source, user)` order is for Phase 9's `LicenseGate`). Guest URLs bind to a hash of the session id (`hash_hmac('sha256', session id, app key)`, never the raw id), 10-minute TTL, plus a per-IP guest throttle (`bookflix.reader.guest_per_minute`, default 120). Guest progress is browser-only (localStorage `bookflix.guest.progress.<sourceId>`); `reader.progress` stays `auth`. | Medium; a gate slip exposes files. Cost is bounded because the guest rule is a closed allow-list in one method. |
 
 ## Baseline re-check
 
@@ -560,11 +561,82 @@ test('there is no way to import a file from a web address', function () {
 - [ ] **Step 4: Run** `vendor/bin/pest tests/Feature/Reader tests/Feature/Security tests/Feature/Access`. Expected: PASS.
 - [ ] **Step 5: Commit** `git commit -m "test: another reader can never reach an upload; no import from a URL"`
 
+### Task 7.10: Guests can read verified public-domain books
+
+**Files:**
+- Modify: `app/Reader/ContentAccessGate.php`, `app/Reader/ContentUrl.php`, `app/Reader/SourceChooser.php` and `app/Reader/NextChapter.php` (user parameter becomes `?User`), `app/Http/Controllers/Reader/StreamContentController.php`, `app/Http/Controllers/Reader/PageController.php`, `app/Providers/AppServiceProvider.php` (`reader-stream` limiter), `routes/reader.php`, `config/bookflix.php` (`reader.guest_per_minute` 120), `R/pages/reader/⚡show.blade.php`, `resources/js/reader/chrome.js`, `resources/js/reader/progress.js`, `R/legal/sections/*` (the Phase 3 uploads or reading section; create `R/legal/sections/reading.blade.php` if none fits and include it in both legal pages)
+- Test: `tests/Feature/Reader/GuestReadingTest.php`, `tests/Browser/GuestReaderTest.php`
+
+**Interfaces:**
+- Produces: `ContentAccessGate::allows(?User $user, ContentSource $source): bool` (a null user is allowed only the guest rule in P7-R13; non-null behaviour unchanged, including `ContentAccessGate::preview`). `ContentUrl::for(?User $user, ContentSource $source): string` (user id in `user` for readers; for guests `guest` = session hash). `CbzPageUrl::for(?User, ...)` the same. `NextChapter::for(Media, ?ContentSource, ?User): ?NextChapterTarget`.
+- Routes: `reader.stream`, `reader.page` and `reader.show` drop `auth`, `verified`, `reader` for guests: use a `web`-only group whose controllers call the gate; signed-in admins are still refused by `EnsureReaderAccount`. `reader.progress` keeps `auth, verified, reader`.
+
+- [ ] **Step 1: Write the failing tests** (`GuestReadingTest.php`, `Storage::fake(ContentSource::disk())`, no `actingAs`)
+
+```php
+test('a guest reads a verified public-domain EPUB: page opens and the signed stream serves the bytes', function () {
+    $source = epubSource();   // tinyEpub(), publicDomain, verified, ready
+    $page = $this->get(route('reader.show', $source->media->slug))->assertOk()->assertSee('data-guest="1"', false);
+    preg_match('/data-stream-url="([^"]+)"/', $page->getContent(), $m);
+    $this->get(html_entity_decode($m[1]))->assertOk()->assertHeader('Content-Type', 'application/epub+zip');
+});
+test('a guest reads a verified public-domain CBZ page by page', function () {
+    $source = comicSource('manga', 3);
+    $url = ContentUrl::... /* CbzPageUrl::for(null, $source, 1) */;
+    $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/png');
+});
+test('a guest is refused everything else', function (string $case, int|string $expected) { /* build the source per $case */ })
+    ->with([
+        'a reader upload' => ['upload', 403], 'an unverified public-domain source' => ['unverified', 403],
+        'a licensed source' => ['licensed', 403], 'an external link' => ['link', 403],
+        'a mature title' => ['mature', 403],
+    ]);   // stream route: 403 for each, using a URL signed with ContentUrl::for(null, $source)
+test('the reader page for those same sources sends a guest to sign in', fn () => /* get(route('reader.show', slug)) assertRedirect(route('login')) for each case; mature: 404 like today */);
+test('a guest URL replayed from another session is refused', function () {
+    $source = epubSource(); $url = ContentUrl::for(null, $source);   // signed while session A is active
+    $this->flushSession()->withSession(['_token' => 'other'])->get($url)->assertForbidden();
+});
+test('a guest URL is refused to a signed-in reader and a reader URL is refused to a guest', fn () => /* both 403 */);
+test('a guest writes no reading_progress rows and reader.progress still needs sign in', function () {
+    $source = epubSource();
+    $this->get(route('reader.show', $source->media->slug))->assertOk();
+    $this->postJson(route('reader.progress', $source->id), ['percent' => 40])->assertUnauthorized();   // or redirect to login for non-JSON: assert the status the auth middleware gives
+    expect(ReadingProgress::count())->toBe(0);
+});
+test('the guest throttle answers 429 on stream and page', function () {
+    config(['bookflix.reader.guest_per_minute' => 2]); /* three requests to each route as a guest -> third is 429 */ });
+test('a signed-in reader still gets a user-bound URL and server progress (regression)', function () {
+    $user = User::factory()->create(); $source = epubSource();
+    expect(ContentUrl::for($user, $source))->toContain('user='.$user->id)->not->toContain('guest=');
+    $this->actingAs($user)->postJson(route('reader.progress', $source->id), ['percent' => 40])->assertSuccessful();
+    expect(ReadingProgress::where('user_id', $user->id)->count())->toBe(1);
+});
+test('a guest sees the jurisdiction notice and the sign-in note before and while reading', fn () => /* stories.show (public from Phase 6): assertSee("Check your local laws if you're elsewhere."); reader page assertSee('Sign in to keep your place on every device') */);
+test('a guest gets the next-volume prompt only when the next item is also guest-readable', fn () => /* NextChapter::for($v1, null, null): v2 public-domain verified -> readable; v2 licensed or upload-only -> readable false, url stories.show */);
+test('the legal pages say guests read without an account and position stays in the browser', fn () => /* get(route('legal.terms')/privacy) assertSee('reading position is stored only in your browser') */);
+```
+
+Browser (`GuestReaderTest.php`, follow `EpubReaderTest.php`, no `actingAs`): a guest opens a `tinyEpub()` book, turns to chapter 2, `assertScript('JSON.parse(localStorage.getItem("bookflix.guest.progress.'.$source->id.'")).percent > 0', true)`, reloads and resumes at "Chapter 2 of 2"; `assertSee('Sign in to keep your place on every device')`; no `POST` to `/progress` is made (`read_network`-style check: `assertScript('performance.getEntriesByName(...)')` filtered to `/progress` is empty); `assertNoJavaScriptErrors()`.
+
+- [ ] **Step 2: Run** `vendor/bin/pest tests/Feature/Reader/GuestReadingTest.php`. Expected: FAIL (guests are redirected to login, `ContentUrl::for(null, ...)` is a type error).
+
+- [ ] **Step 3: Implement**
+  - Gate: `if ($user === null) return $this->allowsGuest($source)`; `allowsGuest` returns true only when `access_type === PublicDomain`, `isVerified()`, `hasFile`, a media that exists and `! $media->isGatedFor(null)`. Everything else false. Place it before the deactivated-user check; keep the rest as is. Add a unit-style test row for each refusal in `ContentAccessGateTest.php`.
+  - `ContentUrl::for`/`CbzPageUrl::for`: guests get `['source' => id, 'guest' => hash_hmac('sha256', session()->getId(), config('app.key'))]` after `session()->put('reader.guest', true)` so the cookie persists; same 10-minute TTL, relative signature. Both controllers: a signed-in user must match `user` as today; a guest must have no `user` value and `hash_equals` its `guest` value against the current session's hash; anything else 403. Then ask the gate (`allows($request->user(), $source)`).
+  - Limiter `reader-stream`: guests `Limit::perMinute((int) config('bookflix.reader.guest_per_minute'))->by('guest:'.$request->ip())`; signed-in unchanged (600 per minute).
+  - `routes/reader.php`: stream, page and show lose `auth, verified, reader` (the controllers and `mount` use the gate; `reader.show` redirects guests to `login` when `SourceChooser::for(null, ...)` finds nothing and a signed-in admin still gets the reader middleware answer). Add `reader` only where a user exists: keep `EnsureReaderAccount` on the group (it passes guests).
+  - `⚡show.blade.php`: `auth()->user()` calls become nullable; `data-guest="1"` on the engine container; `resume()` returns no server progress for guests; a quiet `<p data-reader="guest-note" class="text-meta text-ink-muted">` "Sign in to keep your place on every device" in the bottom area for guests. `readable()` re-checks the gate with the nullable user.
+  - `chrome.js` / `progress.js`: when `data-guest` is present, `startProgress` writes `{ locator, percent }` to `bookflix.guest.progress.<sourceId>` (try/catch, like the other storage) instead of POSTing, and `start()` copies that value into `container.dataset.resumeLocator` and `resumePercent` before loading the engine.
+  - Legal: add the sentence "You can read public-domain books on Bookflix without an account. Your reading position is stored only in your browser." (key text `reading position is stored only in your browser` must appear verbatim, lower-case "your") to the Phase 3 section, so terms and privacy both show it.
+
+- [ ] **Step 4: Run** `vendor/bin/pest tests/Feature/Reader tests/Feature/Security tests/Feature/Access && vendor/bin/pest tests/Browser/GuestReaderTest.php tests/Browser/EpubReaderTest.php tests/Browser/MangaReaderTest.php`. Expected: PASS.
+- [ ] **Step 5: Commit** `git commit -m "feat: guests can read verified public-domain books, with browser-only progress"`
+
 ## Phase exit
 
-- `composer test` green (Pint, PHPStan level 7, Unit and Feature). Run each touched browser file: `vendor/bin/pest tests/Browser/BookFormatsReaderTest.php tests/Browser/ReaderChromeTest.php tests/Browser/EpubReaderTest.php tests/Browser/MangaReaderTest.php tests/Browser/WebtoonReaderTest.php tests/Browser/PdfReaderTest.php tests/Browser/UploadPageTest.php tests/Browser/NoHorizontalScrollTest.php tests/Browser/AccessibilityTest.php tests/Browser/StoryPageTest.php`. Prefix with `env -u AI_AGENT -u CLAUDECODE`.
+- `composer test` green (Pint, PHPStan level 7, Unit and Feature). Run each touched browser file: `vendor/bin/pest tests/Browser/BookFormatsReaderTest.php tests/Browser/ReaderChromeTest.php tests/Browser/EpubReaderTest.php tests/Browser/MangaReaderTest.php tests/Browser/WebtoonReaderTest.php tests/Browser/PdfReaderTest.php tests/Browser/UploadPageTest.php tests/Browser/NoHorizontalScrollTest.php tests/Browser/AccessibilityTest.php tests/Browser/StoryPageTest.php tests/Browser/GuestReaderTest.php`. Prefix with `env -u AI_AGENT -u CLAUDECODE`.
 - `npm run build` once to prove the foliate sandbox plugin still matches and the new `upload.js` bundles.
-- Ledger holds: baseline findings (steps 1 to 8), the Needs-decision items (S3 temporary uploads and the Flysystem package, resumable uploads, `.fbz`, MOBI render if skipped), the TODO(owner) list (takedown contact, jurisdiction backfill), conflict scan rows for 7.2 and 7.3 and 7.4 (all three edit `chrome.js`) and 7.5 and 7.6 (both edit `⚡show.blade.php` and the notice).
+- Ledger holds: guest-gate review notes, baseline findings (steps 1 to 8), the Needs-decision items (S3 temporary uploads and the Flysystem package, resumable uploads, `.fbz`, MOBI render if skipped), the TODO(owner) list (takedown contact, jurisdiction backfill), conflict scan rows for 7.2 and 7.3 and 7.4 (all three edit `chrome.js`) and 7.5 and 7.6 (both edit `⚡show.blade.php` and the notice).
 - Whole-branch review on the most capable model (specific asks: Review Focus items 1 to 5), then one fix wave. Open the PR per Part G and D2-24 (branch from Phase 6's tip while it is open; rebase onto `origin/main` first). Never merge.
 - **PR body: the Part I report table**, one row per brief item (Item, Status, Files):
 
@@ -594,4 +666,5 @@ test('there is no way to import a file from a web address', function () {
 | F6 private always | Already OK, tests added | `UploadPrivacyTest` |
 | F6 terms line and takedown contact | Fixed (address `TODO(owner)`) | upload page |
 | F6 no import from URL | Already OK, test added | `UploadPrivacyTest` |
+| Guest reading of verified public-domain books (stream, page, reader; session-bound URLs, throttle, browser-only progress) | Fixed | `ContentAccessGate`, `ContentUrl`, reader routes, `progress.js`, legal sections |
 | Part I: uploads privacy, DRM, quota, next-chapter tests | Fixed | tests listed above |

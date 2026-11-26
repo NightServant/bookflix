@@ -28,6 +28,9 @@ Every Global Constraint in the masterplan applies. Phase-specific:
 
 ## Review Focus
 
+Six items (the first is new; the old five follow).
+
+0. **A guest can run a write action on the now-public story page** (`add`, `save`, `saveRating`, `toggleCollection`, `sendReport`, ...) because Livewire's update request only re-runs `auth` when the route had it, or sees a private reviewer's name. → Task 6.0 (per-action guest refusals, review identity test).
 1. **A story or series title containing `</script>` breaks out of the JSON-LD tag** and runs script on a page every reader opens. → Task 6.4 (escape test with a hostile title).
 2. **The 500 or 503 page queries the database or session**, so exactly when the database is down the visitor gets a blank page. → Task 6.3 (a query-forbidding hook while rendering both).
 3. **A server error on a Livewire form shows Livewire's raw HTML error modal** (a stack trace in debug, an unstyled page in production) or fails silently. → Task 6.7 (browser test asserts the toast and that `#livewire-error` is absent).
@@ -51,7 +54,7 @@ Every Global Constraint in the masterplan applies. Phase-specific:
 - **P6-R2** 404 "popular shelves" = `DeweyCounts::rootsWithCounts(null)` sorted by `stories_count` desc, top 4, as `x-subject-tile`. The guest count keeps mature titles out. *Cost if wrong:* counts differ from a reader's own; low.
 - **P6-R3** Descriptions come from a route-name map (`bookflix.seo.descriptions`) plus a site default; story, series, shelf and collection pages build their own. *Cost:* two places to edit; low.
 - **P6-R4** Story author in the title is the first creator by `pivot.position`; no creator, no " by ". *Cost:* a multi-author book shows one name; low.
-- **P6-R5** Story, series and shelf pages are behind `auth` today, so search engines never see them; the meta, JSON-LD and og tags matter for shared links of signed-in readers. Done per the brief; public story pages are a **Needs decision**. *Cost:* little SEO value until pages are public.
+- **P6-R5** (owner decision) Story pages are PUBLIC. `stories.show` (GET `stories/{slug}`) moves out of the `auth,verified,reader` group to its own route keeping the name, with middleware `reader` (it passes guests, and sends a signed-in admin to `admin.index` on a page view exactly as today) and `throttle:story-guest` (`RateLimiter::for('story-guest', fn ($r) => $r->user() ? Limit::none() : Limit::perMinute(120)->by($r->ip()))`). Series, explore and shelf pages stay sign-in only: for a guest every link to them goes to sign-in (the login redirect). The story's Read button points to `reader.show`; Phase 7 opens that route to guests, until then it sends them to sign-in. Guest reading is Phase 7's job. Mature and restricted stories follow `MatureAccess`; `ProhibitedContent` is never shown. Because Livewire only re-runs middleware the route had, every action on the page's components authorises itself. *Cost if wrong:* a guest-exposed write action or leaked identity; this is why Task 6.0 runs first and why guest exposure is Review Focus 1.
 - **P6-R6** `srcset` and WebP apply to covers the proxy already serves (`cache` policy hosts, today MangaDex), not to hotlinked ones: resizing those would route every cover through our server. Proxying all covers is a **Needs decision**. GD WebP is present, so availability is not the blocker; AVIF is not supported by GD here and is not attempted. *Cost:* most covers stay full-size.
 - **P6-R7** Livewire form server errors are handled once, by a request hook that toasts, not per form. Plain POST forms end on the 500 page. *Cost:* the message is a toast, not beside the field; low.
 - **P6-R8** Server-error tests for Livewire forms are browser tests that make the action throw through `Livewire\on('call', ...)`. This assumes the Pest browser server runs in the test process (existing browser tests rely on `actingAs`, so it does); the baseline re-check confirms. *Cost:* if not, injection moves to an env flag.
@@ -75,6 +78,105 @@ Run first; record each result in the ledger.
 - [ ] Confirm the browser server is in-process: in a scratch browser test, set `config(['x' => 1])` before `visit()` and read it from a route; (P6-R8).
 
 ## Tasks
+
+### Task 6.0: Public story pages (runs first; the SEO tasks assume it)
+
+**Files:**
+- Modify: `routes/web.php` (line 29: take `stories/{slug}` out of the `auth,verified,reader` group, `->middleware(['reader', 'throttle:story-guest'])->name('stories.show')`), `app/Providers/AppServiceProvider.php` (the `story-guest` limiter next to the existing limiters), `pages/stories/⚡show.blade.php` (`recordVisit` already returns for guests; guest branches in the template), `components/⚡library-controls.blade.php`, `components/⚡story-reviews.blade.php`, `components/why-this.blade.php` call site, `public/robots.txt` (Task 6.2 owns the file: no `Disallow` covers `/stories/`, so add a test line only), `tests/Feature/Links/InternalLinksTest.php` (Phase 2's crawler: add `stories.show` with a seeded public story to its guest pages).
+- Test: `tests/Feature/Stories/PublicStoryPageTest.php`, following `tests/Feature/Discovery/StoryPageTest.php`, `tests/Feature/Access/MatureGateTest.php` (`matureStory()`), `tests/Feature/Security/*` from Phase 1 (Livewire replay helpers).
+
+**Interfaces:** Consumes `MatureAccess`, `Media::isGatedFor`, `ProhibitedContent`, `Gate use-reader-side`. Produces limiter `story-guest`; route `stories.show` public.
+
+- [ ] **Step 1: Write the failing tests**
+
+```php
+test('a guest gets a normal story page and a signed-in admin is still sent to admin', function () {
+    $media = fullMedia();
+    $this->get(route('stories.show', $media->slug))->assertOk()->assertSee('Dune');
+    $this->actingAs(User::factory()->admin()->create())->get(route('stories.show', $media->slug))->assertRedirect(route('admin.index'));
+});
+
+test('a mature story is gated for a guest and a prohibited one is a 404', function () {
+    $this->get(route('stories.show', matureStory()->slug))->assertForbidden()->assertDontSee('Erotic Tale');
+    // arrange a media row whose ProhibitedContent check matches, as MatureGateTest or the ProhibitedContent tests do:
+    $this->get(route('stories.show', prohibitedStory()->slug))->assertNotFound();
+});
+
+test('the guest page has no write controls, no "Why this?", and sign-in prompts instead', function () {
+    $html = $this->get(route('stories.show', fullMedia()->slug))->assertOk()->getContent();
+
+    expect($html)->not->toContain('livewire:library-controls')->not->toContain('wire:click="add"')->not->toContain('Why this')
+        ->and($html)->toContain('Sign in to add to your library')->and($html)->toContain(route('login'));
+    expect(htmlQuery($html, '//a[contains(@href, "'.route('series.show', 'x').'")]')->length)->toBe(0); // series links point to sign-in for guests
+});
+
+test('a guest view records no interaction and queues no AI work', function () {
+    Queue::fake(); Event::fake();
+    $this->get(route('stories.show', fullMedia()->slug))->assertOk();
+
+    expect(UserInteraction::count())->toBe(0);
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+});
+
+test('reviews are readable by a guest; a private profile shows a neutral name', function () {
+    $media = fullMedia();
+    $public = Review::factory()->for($media)->create();                 // reviewer with a public profile
+    $private = Review::factory()->for($media)->create();                // set the profile visibility field the baseline re-check names to private
+    $html = Livewire::test('story-reviews', ['mediaId' => $media->id])->html();
+    // guest: name of $public shown, name of $private absent, "A Bookflix reader" shown instead
+});
+
+test('every action on the story page components refuses a guest', function (string $component, string $method, array $params) {
+    $media = fullMedia();
+    // replay as a guest: Livewire::test($component, [...])->call($method, ...$params) with no actor must assertForbidden() (or assertRedirect(route('login'))) and change no row
+})->with([
+    ['library-controls', 'add', []], ['library-controls', 'setStatus', ['reading']], ['library-controls', 'toggleFavorite', []], ['library-controls', 'remove', []],
+    ['library-controls', 'logProgress', []], ['library-controls', 'saveRating', []], ['library-controls', 'clearRating', []],
+    ['library-controls', 'toggleCollection', [1]], ['library-controls', 'createCollection', []],
+    ['story-reviews', 'save', []], ['story-reviews', 'edit', []], ['story-reviews', 'delete', []], ['story-reviews', 'openReport', ['review', 1]], ['story-reviews', 'sendReport', []],
+    // any other action found on the story page's components by grepping `public function` in them
+]);
+
+test('titles, description, canonical, share tags and breadcrumb data render for a guest', function () {
+    $media = fullMedia();
+    $html = $this->get(route('stories.show', $media->slug))->getContent();
+
+    expect($html)->toContain('Dune by Frank Herbert | Bookflix')->toContain('<link rel="canonical" href="'.route('stories.show', $media->slug).'">')
+        ->toContain('<meta name="description"')->toContain('og:image')->toContain('twitter:card')->toContain('"@type":"BreadcrumbList"');
+});
+
+test('robots.txt allows the story pages', function () {
+    expect(file_get_contents(public_path('robots.txt')))->not->toContain('/stories');
+});
+
+test('guests are throttled to 120 story views a minute per IP, readers are not', function () {
+    $slug = fullMedia()->slug;
+    foreach (range(1, 120) as $i) { $this->get(route('stories.show', $slug))->assertOk(); }
+    $this->get(route('stories.show', $slug))->assertStatus(429);
+    $this->actingAs(User::factory()->create())->get(route('stories.show', $slug))->assertOk();
+});
+```
+
+- [ ] **Step 2: Run to verify they fail**
+
+Run: `vendor/bin/pest tests/Feature/Stories/PublicStoryPageTest.php`
+Expected: FAIL (guest redirected to login; limiter missing).
+
+- [ ] **Step 3: Implement**
+  - Route and limiter as in P6-R5.
+  - Story page template: for a guest (`auth()->guest()`), replace `<livewire:library-controls>` with an `x-cta` "Sign in to add to your library" (`route('login')`), hide `Why this?`, show series, shelf and similar-story links pointing to `route('login')` (they stay sign-in only), and the Read button to `route('reader.show', ...)`.
+  - Guest guard in every public action of `library-controls` and `story-reviews`: first line `abort_unless(auth()->check(), 403)` (or the existing `Gate::authorize('use-reader-side')`, which already refuses `null` users: verify, and add the explicit guard where it does not). `canWrite` stays false for guests.
+  - Review author for a guest: show the real name only when the reviewer's profile is public (field named in the baseline re-check), else `__('A Bookflix reader')` with no avatar photo. A signed-in reader's view is unchanged.
+  - `config('bookflix.ai.enabled')` branches already read stored summaries only; add no job dispatch to a guest view (the test proves it).
+  - Canonical link goes in the head partial (Task 6.1): `<link rel="canonical" href="{{ url()->current() }}">`.
+
+- [ ] **Step 4: Run to verify they pass**
+
+Run: `vendor/bin/pest tests/Feature/Stories tests/Feature/Discovery/StoryPageTest.php tests/Feature/Access tests/Feature/Social tests/Feature/Library tests/Feature/Links tests/Feature/Security`
+Expected: PASS. Existing tests that expect a guest redirect from `stories.show` are updated to the new behaviour.
+
+- [ ] **Step 5: Commit**: `git commit -m "feat: public story pages for guests with a per-IP throttle"`
 
 ### Task 6.1: Titles and meta descriptions on every page
 
@@ -762,7 +864,8 @@ Expected: PASS.
 | C1 403, 419, 429, 500, 503 pages | Fixed | `errors/*` |
 | C1 thank-you pages | Not applicable (Phase 9 builds `publish.thanks`) | none |
 | C1 breadcrumbs + BreadcrumbList (story, series, shelf, admin) | Fixed (settings: Not applicable, Phase 4 single page) | `components/breadcrumbs`, `AdminTrail`, layouts, pages |
-| C1 internal links | Fixed (author pages: Needs decision, open question 6) | series page, `InternalLinksTest` |
+| Owner decision: story pages public | Fixed | `routes/web.php`, `story-guest` limiter, story components, `PublicStoryPageTest` |
+| C1 internal links | Fixed (author pages: Needs decision, open question 6; for guests, series and shelf links go to sign-in) | series page, `InternalLinksTest` |
 | C1 privacy page | Phase 3 | none here |
 | C2 unique titles | Fixed | `partials/head`, pages |
 | C2 meta descriptions | Fixed | `MetaDescription`, `config/bookflix.php`, pages |
