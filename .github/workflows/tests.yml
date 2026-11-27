@@ -188,3 +188,35 @@ jobs:
 
       - name: Pytest
         run: uv run pytest
+
+  # Secret scan over the whole git history (not a required check, no `needs`). gitleaks is installed through the Go module proxy, pinned to a
+  # version and verified against its module checksum (Go's checksum database checks it again on install).
+  # `composer audit` and `npm audit` are left out until the advisories listed in docs/superpowers/plans/mp2-phase-1-ledger.md ("Task 1.5 findings")
+  # are resolved: the upgrades need the owner's approval, and a red job on known advisories would only be ignored.
+  security:
+    runs-on: ubuntu-latest
+
+    env:
+      GITLEAKS_VERSION: v8.30.1
+      GITLEAKS_MODULE_SUM: h1:PmEvCfVI7ti9dV3s5aMZUY7sS2GxRvG3yzih7E+cS3w=
+      # The runner's Go may be older than gitleaks' `go` directive; let it fetch the toolchain the module asks for.
+      GOTOOLCHAIN: auto
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          sum="$(go mod download -json "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}" | jq -r .Sum)"
+          if [ "$sum" != "$GITLEAKS_MODULE_SUM" ]; then
+            echo "gitleaks ${GITLEAKS_VERSION} module checksum mismatch: got ${sum}"
+            exit 1
+          fi
+          GOBIN="$RUNNER_TEMP/bin" go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
+
+      - name: Scan history for secrets
+        run: '"$RUNNER_TEMP/bin/gitleaks" git --no-banner --redact --exit-code 1 --log-opts="--all" .'

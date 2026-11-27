@@ -63,3 +63,24 @@ Session: cloud container, PHP 8.4.28, PostgreSQL 17.12 + pgvector (`bookflix_tes
 | 1.4 HSTS, private disk, SVG previews | pending | | |
 | 1.5 Secret scan, CI security job | pending | | |
 | 1.6 Input surface checks | pending | | |
+
+## Task 1.5 findings (2026-11-27)
+
+gitleaks v8.30.1, built with `go install github.com/zricethezav/gitleaks/v8@v8.30.1` (module checksum `h1:PmEvCfVI7ti9dV3s5aMZUY7sS2GxRvG3yzih7E+cS3w=`, verified by Go's checksum database). The release tarball could not be used: this session's egress proxy only serves GitHub repositories attached to the session, and attaching gitleaks was not allowed, so its `checksums.txt` could not be read to pin.
+
+| Scan | Scope | Result |
+|---|---|---|
+| `gitleaks git --redact --log-opts=--all .` | Full history after `git fetch --unshallow` plus every remote branch (6) and every PR head (41): 616 commits | No leaks |
+| `gitleaks dir --redact .` | Working tree, 1.08 GB including gitignored `vendor/` and `node_modules/` | 185 findings, all in gitignored third-party `vendor/` files (package test fixtures and docs). Tracked files: 0 |
+
+No real secret, so no rotation item. No `.gitleaks.toml` needed (no false positive in tracked files or history).
+
+Dependency audits (Step 3), not clean, so both stay out of the CI job (Needs decision; upgrading needs owner approval):
+
+`composer audit --locked`: 27 advisories in 9 packages.
+- laravel/framework 13.38.0 (low, CVE-2026-128083, Concurrency process output injection, fixed in 13.40.0).
+- phpunit/phpunit (medium, CVE-2026-119193, shared temp dir, dev only).
+- symfony/http-foundation (5), http-kernel (2), mailer (2), mime (1, medium), routing (3), serializer (5), yaml (1): fixed in Symfony 8.1.11/8.1.12.
+- web-auth/webauthn-lib 5.3.9 (6 advisories, no CVE, fixed in 5.3.13; passkeys use it).
+
+`npm audit --omit=dev --audit-level=high`: 7 (3 critical, 4 moderate), all through the build tool `vite-plus` (a direct dependency): tinypool (prototype pollution to RCE in worker options), oxfmt, vitest, @vitest/browser, @vitest/browser-preview, @vitest/mocker. The fix is a breaking `vite-plus` upgrade. Build-time tooling, not shipped to browsers.
