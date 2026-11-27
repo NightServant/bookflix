@@ -10,7 +10,7 @@
     Decorative: the covers have no alt text, and the titles are written out under the line. Large screens only (the layout hides it below lg).
 --}}
 <div {{ $attributes->class('flex h-full flex-col justify-between') }}>
-    <x-app-logo href="{{ route('landing') }}" wire:navigate />
+    <x-app-logo href="{{ route('landing') }}" wire:navigate data-test="logo" />
 
     <div class="my-10 flex flex-col items-center">
         @if (count($books))
