@@ -66,6 +66,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Failed sign-ins, lockouts, 429s and 403s (see App\Support\SecurityLog). Kept apart from the application log so it can be read, shipped or alerted on alone.
+        'security' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security.log'),
+            'level' => 'info',
+            'days' => (int) env('LOG_SECURITY_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

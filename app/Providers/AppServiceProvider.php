@@ -17,7 +17,10 @@ use App\Models\Theme;
 use App\Models\Trope;
 use App\Models\User;
 use App\Support\PreResolveHosts;
+use App\Support\SecurityLog;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Lockout;
 use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
@@ -81,6 +85,15 @@ class AppServiceProvider extends ServiceProvider
             EnsureOnboarded::class,
             RequirePassword::class,
         ]);
+
+        // The security log's two auth events; 429s and 403s are logged from the exception handler (bootstrap/app.php).
+        Event::listen(Failed::class, function (Failed $event): void {
+            $email = $event->credentials['email'] ?? null;
+
+            // Fortify's custom authenticator reports no user, so the account is looked up (a plain id, for the log only).
+            SecurityLog::failedSignIn(request(), $email, $event->user?->getAuthIdentifier() ?? (is_string($email) ? User::query()->where('email', mb_strtolower(trim($email)))->value('id') : null));
+        });
+        Event::listen(Lockout::class, fn (Lockout $event) => SecurityLog::lockout($event->request, $event->request->input('email')));
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
 
