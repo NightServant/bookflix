@@ -16,6 +16,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Number;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -30,8 +31,10 @@ new #[Title('Classification review')] class extends Component {
     /** Which action the class dialog is for: `change` swaps a row's class, `add` gives a story another class. */
     public string $mode = 'change';
 
+    #[Locked]
     public ?int $rowId = null;
 
+    #[Locked]
     public ?int $mediaId = null;
 
     public string $code = '';

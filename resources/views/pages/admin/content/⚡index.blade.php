@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -25,6 +26,7 @@ new #[Title('Reading files')] class extends Component {
     #[Url(as: 'show')]
     public string $show = 'all';
 
+    #[Locked]
     public ?int $verifying = null;
 
     public string $license = '';
