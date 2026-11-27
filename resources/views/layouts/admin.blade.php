@@ -22,7 +22,7 @@
         <flux:sidebar sticky collapsible="mobile" x-init="new MutationObserver(() => { if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $nextTick(() => $el.querySelector('nav a').focus()) } }).observe($el, { attributes: true, attributeFilter: ['data-flux-sidebar-collapsed-mobile'] })" class="border-e border-hairline bg-surface-deep lg:bg-canvas" :aria-label="__('Admin')" x-on:keydown.escape.window="if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $el.querySelector('[data-flux-sidebar-collapse] button').click(); $nextTick(() => document.querySelector('[data-flux-sidebar-toggle]').focus()) }">
             <flux:sidebar.header>
                 <span class="flex items-center gap-2">
-                    <x-app-logo :href="route('admin.index')" wire:navigate />
+                    <x-app-logo :href="route('admin.index')" wire:navigate data-test="logo" />
                     <flux:badge size="sm" color="zinc">{{ __('Admin') }}</flux:badge>
                 </span>
                 <flux:sidebar.collapse class="focus-ring min-h-11 min-w-11 lg:hidden" :aria-label="__('Close menu')" />
@@ -64,7 +64,7 @@
 
         <flux:header class="border-b border-hairline bg-canvas px-4! lg:hidden">
             <flux:sidebar.toggle class="focus-ring min-h-11 min-w-11 lg:hidden" icon="bars-2" inset="left" :aria-label="__('Open menu')" />
-            <x-app-logo :href="route('admin.index')" wire:navigate class="ms-2" />
+            <x-app-logo :href="route('admin.index')" wire:navigate class="ms-2" data-test="logo" />
             <flux:spacer />
             <a href="{{ route('profile.edit') }}" wire:navigate class="focus-ring inline-flex min-h-11 min-w-11 items-center justify-center rounded-control" aria-label="{{ __('Account') }}">
                 <flux:avatar size="sm" :name="$admin->name" :initials="$admin->initials()" :src="$admin->avatarUrl()" />

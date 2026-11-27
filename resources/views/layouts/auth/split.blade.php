@@ -11,7 +11,7 @@
             </aside>
 
             <main id="main" class="flex flex-col items-center justify-center gap-8 px-gutter py-10 lg:px-12">
-                <x-app-logo href="{{ route('landing') }}" wire:navigate class="lg:hidden" />
+                <x-app-logo href="{{ route('landing') }}" wire:navigate class="lg:hidden" data-test="logo" />
 
                 <div class="w-full max-w-md rounded-card bg-surface-card p-6 sm:p-8">
                     {{ $slot }}

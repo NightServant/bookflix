@@ -11,7 +11,7 @@
     :class="scrolled && 'border-hairline! bg-canvas/80 backdrop-blur-md'"
 >
     <div class="flex min-h-16 items-center justify-between gap-4 px-gutter">
-        <x-app-logo href="{{ route('landing') }}" />
+        <x-app-logo href="{{ route('landing') }}" data-test="logo" />
 
         <nav aria-label="{{ __('On this page') }}" class="max-md:hidden">
             <ul class="flex items-center gap-1">
