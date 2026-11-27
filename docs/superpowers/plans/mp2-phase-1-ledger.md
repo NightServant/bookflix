@@ -198,3 +198,13 @@ The owner asked to apply the security measures another session (Worktrack, a Sup
 | 19 | A security log for auth rejections and throttling, never tokens or bodies | Nothing dedicated | Fix: a `security` log channel and `SecurityLog` helper, fed by failed sign-ins, lockouts, 429s and 403s (task 1.7e) |
 | 20 | Auth-config push scripts refuse empty env vars | No such scripts in the repo | Not applicable |
 | docs | `docs/SECURITY.md` | None | Fix: applied, not applicable and why, owner-side controls (task 1.7f) |
+
+### Task 1.7 log
+
+Commits 1e8c8c6 (route auth coverage), 771f3d8 (72-byte password max), 272ed19 (8 KB body cap on the JSON beacon routes), e684ba4 (Permissions-Policy payment/usb, HSTS 2 years), aa68e3e (security log), ee50d3b (docs/SECURITY.md). Gate at ee50d3b: 3415 tests passed.
+
+Review: no blocking findings. Fix wave: the security log can never turn a response into a 500 (guarded write); wrong two-factor codes are logged (`failed_two_factor`); `Lockout` is never fired with Fortify's `login` limiter configured, so throttled sign-ins appear as `too_many_requests` on `login.store` (documented); SECURITY.md corrected (a failed leaked-password lookup lets sign-up and reset succeed without the check); the reader's progress sync drops a 413 instead of retrying; the route allow-list matches names against names and URIs against URIs.
+
+Rulings: P1-R11 the security log stores a 12-hex unsalted SHA-256 prefix of the email (enough to group attempts; someone holding the log could confirm a guessed address). P1-R12 the body cap answers 404 before 413 for a missing route model (binding runs first), harmless.
+
+Deferred to Phase 3 (privacy policy inventory): the security log keeps IP, user id and an email hash for 30 days (`LOG_SECURITY_DAYS`).

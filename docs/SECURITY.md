@@ -1,7 +1,7 @@
 # Security
 
 What Bookflix does to protect readers and the catalog, what does not apply to this app and why, and what the owner has to set up outside the code.
-Every measure below has a test; the pointer after it says where.
+Every measure below has a test or a pointer to the code that does it; the pointer after it says where.
 
 ## Applied
 
@@ -20,7 +20,7 @@ Every measure below has a test; the pointer after it says where.
 | Output | Blade escapes. The only unescaped output is the server-made two-factor QR code. User text in reviews goes through `Markdown::safe` | `resources/views/pages/settings/⚡two-factor-setup-modal.blade.php` |
 | Database | No raw SQL takes request input; every dynamic value is bound. Models list `$fillable`; none uses `$guarded = []` | checked in the Phase 1 inventory |
 | Secrets | Nothing secret in the repository or the JavaScript bundle (only `VITE_APP_NAME`). CI scans the full history with gitleaks | `.github/workflows/tests.yml` (job `security`) |
-| Security log | Failed sign-ins, lockouts, 429s and 403s (Livewire updates included) are written to `storage/logs/security.log`, one line each: event, route name, method, IP, status, and the user id when known. A failed sign-in carries a 12-character SHA-256 prefix of the lower-cased email, never the email. Never a password, token, code, header or request body. Kept 30 days (`LOG_SECURITY_DAYS`) | `app/Support/SecurityLog.php`, `config/logging.php`, `bootstrap/app.php`, `tests/Feature/Security/SecurityLogTest.php` |
+| Security log | Failed sign-ins, failed two-factor codes, 429s and 403s (Livewire updates included) are written to `storage/logs/security.log`, one line each: event, route name, method, IP, status, and the user id when known. A failed sign-in carries a 12-character SHA-256 prefix of the lower-cased email, never the email. Never a password, token, code, header or request body. Kept 30 days (`LOG_SECURITY_DAYS`). A throttled sign-in appears as `too_many_requests` on `login.store`: with the `login` limiter configured Fortify never fires its `Lockout` event, so the `lockout` line exists in the code but is not written in this setup. If the log cannot be written (permissions, full disk) the failure is reported on the default log and the request carries on unchanged, so a 403, a 429 or a wrong password is never turned into a 500 | `app/Support/SecurityLog.php`, `config/logging.php`, `bootstrap/app.php`, `tests/Feature/Security/SecurityLogTest.php` |
 
 ## Does not apply, and why
 
@@ -42,5 +42,5 @@ Every measure below has a test; the pointer after it says where.
 - **Database role.** Run the app as a role that owns only its own schema, with no superuser rights, and keep the connection string server-side. Development uses the local `postgres` user.
 - **Bucket privacy.** Keep reader files, comic pages and exports on a private disk or bucket and reach them only through the signed routes. Avatars and covers are public by design.
 - **Dependency upgrades.** `composer audit` and `npm audit` currently report advisories (listed in the Phase 1 ledger, "Task 1.5 findings"); they are not in CI until the upgrades are approved and done.
-- **Leaked-password check.** `uncompromised()` runs in production only, and sends a 5-character hash prefix of the password to the Have I Been Pwned range API (the password never leaves the server). The host must allow that outbound request; if it cannot, sign-up and reset fail.
+- **Leaked-password check.** `uncompromised()` runs in production only, and sends a 5-character hash prefix of the password to the Have I Been Pwned range API (the password never leaves the server). If the service cannot be reached the framework reports the error to the application log and treats the password as not leaked, so sign-up and reset still succeed without the check; watch the application log for those errors and allow the outbound request at the host.
 - **Log shipping.** `storage/logs/security.log` is a daily file kept 30 days. Ship it to wherever logs are watched if alerts on repeated 403s or 429s are wanted.

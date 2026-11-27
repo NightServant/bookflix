@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
 use Livewire\Component;
 use Livewire\Livewire;
 
@@ -86,7 +87,7 @@ class AppServiceProvider extends ServiceProvider
             RequirePassword::class,
         ]);
 
-        // The security log's two auth events; 429s and 403s are logged from the exception handler (bootstrap/app.php).
+        // The security log's auth events (the 2FA one carries no code); 429s and 403s are logged from the exception handler (bootstrap/app.php).
         Event::listen(Failed::class, function (Failed $event): void {
             $email = $event->credentials['email'] ?? null;
 
@@ -94,6 +95,7 @@ class AppServiceProvider extends ServiceProvider
             SecurityLog::failedSignIn(request(), $email, $event->user?->getAuthIdentifier() ?? (is_string($email) ? User::query()->where('email', mb_strtolower(trim($email)))->value('id') : null));
         });
         Event::listen(Lockout::class, fn (Lockout $event) => SecurityLog::lockout($event->request, $event->request->input('email')));
+        Event::listen(TwoFactorAuthenticationFailed::class, fn (TwoFactorAuthenticationFailed $event) => SecurityLog::failedTwoFactor(request(), $event->user->getAuthIdentifier()));
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);
 

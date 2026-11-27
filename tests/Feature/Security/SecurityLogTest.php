@@ -6,8 +6,18 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Log;
 use Livewire\Livewire;
+use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Handler\TestHandler;
 use Monolog\LogRecord;
+
+/** A log handler that cannot write, like a file owned by another user. */
+class ThrowingSecurityHandler extends AbstractProcessingHandler
+{
+    protected function write(LogRecord $record): void
+    {
+        throw new RuntimeException('The security log cannot be written.');
+    }
+}
 
 /*
  * The security log: one structured line per failed sign-in, lockout, 429 and 403, with the event, route name, method, IP and the user id when known.
@@ -122,4 +132,30 @@ test('pages that answer normally write nothing', function () {
     $this->get('/no-such-page')->assertNotFound();
 
     expect(securityRecords())->toBe([]);
+});
+
+test('a failed two-factor code logs the user id and never the code', function () {
+    $user = User::factory()->withTwoFactor()->create(['two_factor_secret' => encrypt('JBSWY3DPEHPK3PXP')]);
+
+    $this->withSession(['login.id' => $user->id])->post(route('two-factor.login.store'), ['code' => '987654'])->assertSessionHasErrors();
+
+    $records = securityRecords('security.failed_two_factor');
+
+    expect($records)->toHaveCount(1)->and($records[0]->context)->toMatchArray(['event' => 'failed_two_factor', 'route' => 'two-factor.login.store', 'method' => 'POST', 'user_id' => $user->id]);
+    expect(securityLogText())->not->toContain('987654');
+});
+
+test('a security log that cannot be written never turns a response into a 500', function () {
+    config(['logging.channels.security' => ['driver' => 'monolog', 'handler' => ThrowingSecurityHandler::class, 'level' => 'info']]);
+    Log::forgetChannel('security');
+
+    // A 403 page, a 429 and a wrong password all still answer as they would with a working log.
+    $this->actingAs(User::factory()->create())->get(route('admin.index'))->assertForbidden();
+    auth()->forgetGuards();
+
+    foreach (range(1, 5) as $ignored) {
+        $this->post(route('login.store'), ['email' => 'nobody@example.com', 'password' => 'wrong-guess'])->assertSessionHasErrors('email');
+    }
+
+    $this->post(route('login.store'), ['email' => 'nobody@example.com', 'password' => 'wrong-guess'])->assertTooManyRequests();
 });

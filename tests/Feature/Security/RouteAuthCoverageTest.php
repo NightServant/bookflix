@@ -9,37 +9,48 @@ use Illuminate\Support\Facades\Route;
  */
 
 /**
- * Routes that are public on purpose: [name or uri pattern (fnmatch), why].
+ * Routes that are public on purpose: [`name` or `uri`, what the pattern (fnmatch) is matched against, the pattern, why]. A `name` entry matches only a route's
+ * name and a `uri` entry only its URI, so an unnamed route that merely looks like a listed name (or the reverse) is still flagged.
  *
- * @return list<array{string, string}>
+ * @return list<array{string, string, string}>
  */
 function authCoveragePublic(): array
 {
     return [
-        ['landing', 'the public landing page'],
-        ['up', 'the framework health check'],
-        ['well-known.passkeys', 'the passkey discovery document; public by specification'],
-        ['covers.show', 'the cover proxy: allow-listed public images, rate limited, nothing user-specific'],
-        ['login', 'guest sign-in form'],
-        ['login.store', 'sign-in; throttled by the `login` limiter'],
-        ['register', 'guest sign-up form'],
-        ['register.store', 'sign-up; throttled by `auth-writes`'],
-        ['password.request', 'guest password reset request form'],
-        ['password.email', 'password reset link request; throttled by `auth-writes`'],
-        ['password.reset', 'guest reset form (the token is the credential)'],
-        ['password.update', 'password reset submission; throttled by `auth-writes`'],
-        ['two-factor.login', 'the two-factor challenge, reached mid sign-in'],
-        ['two-factor.login.store', 'the two-factor answer; throttled by `two-factor`'],
-        ['passkey.login', 'passkey sign-in; throttled by `passkeys`'],
-        ['passkey.login-options', 'passkey sign-in challenge; throttled by `passkeys`'],
-        ['default-livewire.update', "Livewire's update endpoint: the page's own middleware (auth, can, verified, reader...) is replayed on every update"],
-        ['livewire.upload-file', "Livewire's temporary upload: throttled; the component that receives it authorizes the action"],
-        ['livewire.preview-file', "Livewire's signed temporary preview of an upload"],
-        ['livewire-*', "Livewire's own JavaScript and CSS assets"],
-        ['flux/*', "Flux's own JavaScript and CSS assets"],
-        ['__flux.flag', "Flux's flag images"],
-        ['boost.browser-logs', "Boost's development-only browser log sink (registered only outside production)"],
+        ['name', 'landing', 'the public landing page'],
+        ['uri', 'up', 'the framework health check'],
+        ['name', 'well-known.passkeys', 'the passkey discovery document; public by specification'],
+        ['name', 'covers.show', 'the cover proxy: allow-listed public images, rate limited, nothing user-specific'],
+        ['name', 'login', 'guest sign-in form'],
+        ['name', 'login.store', 'sign-in; throttled by the `login` limiter'],
+        ['name', 'register', 'guest sign-up form'],
+        ['name', 'register.store', 'sign-up; throttled by `auth-writes`'],
+        ['name', 'password.request', 'guest password reset request form'],
+        ['name', 'password.email', 'password reset link request; throttled by `auth-writes`'],
+        ['name', 'password.reset', 'guest reset form (the token is the credential)'],
+        ['name', 'password.update', 'password reset submission; throttled by `auth-writes`'],
+        ['name', 'two-factor.login', 'the two-factor challenge, reached mid sign-in'],
+        ['name', 'two-factor.login.store', 'the two-factor answer; throttled by `two-factor`'],
+        ['name', 'passkey.login', 'passkey sign-in; throttled by `passkeys`'],
+        ['name', 'passkey.login-options', 'passkey sign-in challenge; throttled by `passkeys`'],
+        ['name', 'default-livewire.update', "Livewire's update endpoint: the page's own middleware (auth, can, verified, reader...) is replayed on every update"],
+        ['name', 'livewire.upload-file', "Livewire's temporary upload: throttled; the component that receives it authorizes the action"],
+        ['name', 'livewire.preview-file', "Livewire's signed temporary preview of an upload"],
+        ['uri', 'livewire-*', "Livewire's own JavaScript and CSS assets"],
+        ['uri', 'flux/*', "Flux's own JavaScript and CSS assets"],
+        ['name', '__flux.flag', "Flux's flag images"],
+        ['name', 'boost.browser-logs', "Boost's development-only browser log sink (registered only outside production)"],
     ];
+}
+
+/** Whether an allow-list entry matches a route: names against names, URIs against URIs. */
+function authCoverageMatches(array $entry, RouteDefinition $route): bool
+{
+    [$kind, $pattern] = $entry;
+
+    return $kind === 'name'
+        ? $route->getName() !== null && fnmatch($pattern, $route->getName())
+        : fnmatch($pattern, ltrim($route->uri(), '/'));
 }
 
 /** Whether a middleware list carries an authentication middleware. */
@@ -70,7 +81,7 @@ function authCoverageGaps(): array
             continue;
         }
 
-        $listed = collect($public)->contains(fn (array $entry) => fnmatch($entry[0], (string) $route->getName()) || fnmatch($entry[0], ltrim($route->uri(), '/')));
+        $listed = collect($public)->contains(fn (array $entry) => authCoverageMatches($entry, $route));
 
         if (! $listed) {
             $gaps[] = implode('|', $route->methods()).' /'.ltrim($route->uri(), '/').' ('.($route->getName() ?? 'unnamed').')';
@@ -87,12 +98,20 @@ test('every route is behind authentication or is on the public allow-list', func
 test('the allow-list holds no entry that matches nothing', function () {
     $routes = collect(Route::getRoutes()->getRoutes());
 
-    foreach (authCoveragePublic() as [$pattern, $reason]) {
-        $matches = $routes->contains(fn (RouteDefinition $route) => fnmatch($pattern, (string) $route->getName()) || fnmatch($pattern, ltrim($route->uri(), '/')));
+    foreach (authCoveragePublic() as $entry) {
+        [, $pattern, $reason] = $entry;
+        $matches = $routes->contains(fn (RouteDefinition $route) => authCoverageMatches($entry, $route));
 
         // Boost's route exists only where Boost is installed (development).
         expect($matches || $pattern === 'boost.browser-logs')->toBeTrue("`{$pattern}` ({$reason}) matches no route");
     }
+});
+
+test('an unnamed route that only looks like a listed name is flagged', function () {
+    Route::get('/landing', fn () => 'open');
+    Route::get('/well-known.passkeys', fn () => 'open');
+
+    expect(authCoverageGaps())->toHaveCount(2);
 });
 
 test('a new route without authentication is flagged', function () {
