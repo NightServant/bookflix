@@ -21,6 +21,12 @@ class SetSecurityHeaders
             'Permissions-Policy' => 'camera=(), microphone=(), geolocation=()',
         ]);
 
+        // Only over https: a browser ignores it on plain http, and a local http run should not pin the host. (No TrustProxies is configured, so behind
+        // a TLS-terminating proxy this stays off until the proxy list is set; see the Phase 1 ledger.)
+        if ($request->isSecure()) {
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+
         return $response;
     }
 }

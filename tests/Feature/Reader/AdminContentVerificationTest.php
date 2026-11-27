@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Reader\ContentAccessGate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 
 /*
@@ -109,7 +110,8 @@ test('a reader\'s own upload is never listed and its id answers 404 on every act
     $page = Livewire::test('pages::admin.content.index')->assertDontSee('Private Upload Title')->assertSee('No reading files yet');
 
     $page->call('edit', $owned->id)->assertNotFound();
-    Livewire::test('pages::admin.content.index')->set('verifying', $owned->id)->set('license', 'x')->call('save')->assertNotFound();
+    // The id cannot be forged into `verifying` any more (it is locked); `edit` above is the only way in, and it answers 404.
+    expect(fn () => Livewire::test('pages::admin.content.index')->set('verifying', $owned->id))->toThrow(CannotUpdateLockedPropertyException::class);
     Livewire::test('pages::admin.content.index')->call('unverify', $owned->id)->assertNotFound();
 
     expect($owned->fresh()->verified_by)->toBeNull();
