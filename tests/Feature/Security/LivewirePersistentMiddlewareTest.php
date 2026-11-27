@@ -1,8 +1,12 @@
 <?php
 
+use App\Enums\ReviewState;
 use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\EnsureReaderAccount;
 use App\Http\Middleware\RequirePassword;
+use App\Models\Collection as StoryCollection;
+use App\Models\Report;
+use App\Models\Review;
 use App\Models\User;
 use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Livewire\Livewire;
@@ -25,10 +29,11 @@ $snapshotOf = function (User $user, string $routeName, string $component, array 
 };
 
 /** What the browser posts to Livewire's update endpoint for a call on one snapshot; $headers shape the client (JSON or a browser). */
-$call = function (User $user, string $snapshot, string $method, array $headers, array $session = []) {
-    $payload = ['components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => [['method' => $method, 'params' => [], 'metadata' => []]]]]];
+$call = function (?User $user, string $snapshot, string $method, array $headers, array $session = [], array $params = []) {
+    $payload = ['components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => [['method' => $method, 'params' => $params, 'metadata' => []]]]]];
+    $browser = $user === null ? test() : test()->actingAs($user);
 
-    return test()->actingAs($user)->withSession($session)->call(
+    return $browser->withSession($session)->call(
         'POST',
         Livewire::getUpdateUri(),
         server: test()->transformHeadersToServerVars(['Content-Type' => 'application/json', 'X-Livewire' => '1', ...$headers]),
@@ -84,3 +89,22 @@ test('a reader who has not onboarded replaying a Home snapshot is sent to onboar
 
     $call($reader, $snapshot, '$refresh', ['Accept' => 'text/html'])->assertRedirect(route('onboarding'));
 });
+
+// Lock-ins (they hold on main too: Livewire's own persistent list has `auth` and `can:`). Each admin page snapshot is taken as an admin and replayed by someone who is not.
+test('a guest or a reader replaying an admin action is refused and nothing is written', function (string $component, string $routeName, string $method, Closure $setup, Closure $written) use ($snapshotOf, $call) {
+    $report = $setup();
+    $snapshot = $snapshotOf(User::factory()->admin()->create(), $routeName, $component);
+    $params = $method === 'hide' ? [$report->id] : [];
+
+    // The admin from the snapshot step stays signed in on the test's guard until it is forgotten.
+    auth()->forgetGuards();
+
+    $call(null, $snapshot, $method, ['Accept' => 'application/json'], params: $params)->assertUnauthorized();
+    expect($written())->toBeFalse();
+
+    $call(User::factory()->create(), $snapshot, $method, ['Accept' => 'application/json'], params: $params)->assertForbidden();
+    expect($written())->toBeFalse();
+})->with([
+    'staff pick editor' => ['pages::admin.staff-picks.index', 'admin.staff-picks', 'create', fn () => null, fn () => StoryCollection::query()->where('is_editorial', true)->exists()],
+    'hide a report' => ['pages::admin.moderation.index', 'admin.moderation', 'hide', fn () => Report::factory()->of(Review::factory()->create())->create(), fn () => Review::query()->where('status', ReviewState::Hidden)->exists()],
+]);
