@@ -92,3 +92,23 @@ All tasks run in sequence with one implementer, so no pair runs concurrently.
 | 2.5 | done | (this commit) | Phone flow passed first time; sweep clean |
 
 Phase fix wave (pending): 2.1 nits (guest bounce check, exact `/admin` prefix); 2.3 review (resize-past-768 test, aria-hidden count before/after, reduced-motion assertion, `aria-labelledby` on the drawer); plus the 2.4 review and the whole-branch review.
+
+## Whole-branch review and fix wave (Phase 2 exit)
+
+Review of 9132e22...eaf3eb8 (Phase 2's own commits 0f70523..a2178fb plus the merge of the Phase 1 branch): no blocking findings; every [B] item delivered. The merge had no conflicts and no interactions (Phase 2 adds no routes; beacon payloads stay under the 8 KB cap).
+
+One fix wave (parts from the 2.1, 2.3 and 2.4 reviews and the whole-branch review):
+- Link crawl: a guest sent to sign-in and a guest-only link shown to a signed-in visitor count as bounces; exact `/admin` prefix; a dataset test of the rule.
+- Landing menu: `aria-labelledby` on the dialog; tests for resizing the open drawer past 768, the `aria-hidden`/`inert` count before and after closing, reduced motion, and the section landing exactly under the header (reduced motion, ±2 px).
+- Account menu items are at least 44 px tall (were 32 px).
+- Admin drawer lock pads for a visible scrollbar like Flux's modal lock; tests for the lock clearing on resize to desktop and on leaving the admin pages.
+- Phone flow submits the Log progress form and checks the saved row.
+- The `security` log channel is a null handler under phpunit (test runs wrote hundreds of lines to the real log).
+- New browser tests wait on conditions (`browserUntil()` in `tests/Pest.php`) instead of fixed waits: the plugin's `assertScript` does not poll.
+
+Suggested report statuses (from the review): broken links Fixed; buttons Already OK; horizontal scroll Fixed; mobile menu Fixed (reader account menu Already OK); logo Already OK; phone/email Not applicable; real mobile check Already OK; placeholder text Already OK.
+
+## Deferred minors
+
+- Admin drawer: in one browser page, resizing to desktop and back to 375 left the menu toggle unreachable in the test (a fresh visit works). Not investigated; outside this phase's scope.
+- The account dropdown uses `shadow-overlay!` (DESIGN.md says no shadows); pre-existing, Phase 4/5 design work.

@@ -506,6 +506,15 @@ function assertComponentAcceptance(string $path, ?Closure $interact = null, arra
  *
  * @param  AwaitableWebpage|Webpage  $page
  */
+/**
+ * A script for `assertScript($script, true)` that waits (polling every 50ms, at most 8 seconds) until the JavaScript condition holds and answers whether it
+ * did: a condition wait in place of a fixed sleep, so a slow machine waits longer and a fast one does not wait at all.
+ */
+function browserUntil(string $condition): string
+{
+    return 'new Promise((resolve) => { const end = Date.now() + 8000; const check = () => { let ok = false; try { ok = !! ('.$condition.'); } catch (e) {} if (ok) { resolve(true); } else if (Date.now() > end) { resolve(false); } else { setTimeout(check, 50); } }; check(); })';
+}
+
 function scrolledThrough($page): void
 {
     for ($step = 1; $step <= 8; $step++) {

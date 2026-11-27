@@ -63,7 +63,7 @@
         x-transition:leave-end="opacity-0"
         role="dialog"
         aria-modal="true"
-        aria-label="{{ __('Menu') }}"
+        aria-labelledby="landing-menu-title"
         class="fixed inset-0 z-50 md:hidden"
     >
         <div data-test="landing-menu-backdrop" class="absolute inset-0 bg-canvas/80" @click="close()"></div>
@@ -77,7 +77,7 @@
             class="absolute inset-y-0 end-0 flex w-[min(20rem,100%)] flex-col gap-2 overflow-y-auto border-s border-hairline bg-surface-deep px-gutter pb-8"
         >
             <div class="flex min-h-16 items-center justify-between">
-                <span class="text-lead text-ink">{{ __('Menu') }}</span>
+                <span id="landing-menu-title" class="text-lead text-ink">{{ __('Menu') }}</span>
                 <button type="button" data-test="landing-menu-close" @click="close()" aria-label="{{ __('Close menu') }}" class="focus-ring -me-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink">
                     <flux:icon name="x-mark" variant="outline" class="size-6" />
                 </button>

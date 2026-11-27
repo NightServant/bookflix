@@ -2,6 +2,7 @@
 
 use App\Enums\ReadingStatus;
 use App\Models\LibraryEntry;
+use App\Models\ReadingProgress;
 use App\Models\User;
 use Database\Seeders\DeweySeeder;
 
@@ -38,49 +39,61 @@ beforeEach(function () {
 });
 
 test('search, story, library, reader and a dialog work on a phone without sideways scroll or script errors', function () {
-    $page = visit('/search', $this->phone)->wait(1.5);
-    $page->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
+    $ready = browserUntil('document.readyState === "complete" && !! window.Livewire');
+    $dialogOpen = browserUntil('document.querySelector("dialog[open]") !== null');
+    $dialogShut = browserUntil('document.querySelector("dialog[open]") === null');
+
+    $page = visit('/search', $this->phone);
+    $page->assertScript($ready, true)->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
 
     // Search for the title and open it.
-    $page->keys('search input[role=combobox]', str_split('open book'))->wait(2)
-        ->assertSee('The Open Book')
+    $page->keys('search input[role=combobox]', str_split('open book'))
+        ->waitForText('The Open Book')
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors()
-        ->click('The Open Book')->wait(1.5)
-        ->assertPathBeginsWith('/stories/')
-        ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
+        ->click('The Open Book')->assertScript(browserUntil('location.pathname.startsWith("/stories/")'), true)
+        ->assertScript($ready, true)->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
 
     // Add it to the library, then change its status.
-    $page->click('Add to Library')->wait(1.2)
+    $page->click('Add to Library')->assertScript(browserUntil('!! document.querySelector(\'[data-test="library-status"]\')'), true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
     expect(LibraryEntry::query()->where('user_id', $this->reader->id)->where('media_id', $this->story->id)->exists())->toBeTrue();
 
-    $page->click('[data-test="library-status"]')->wait(0.5)
-        ->click('ui-menu [role=menuitem]:has-text("Reading"), ui-menu button:has-text("Reading")')->wait(1.2)
+    $page->click('[data-test="library-status"]')->assertScript(browserUntil('Array.from(document.querySelectorAll("ui-menu [role=menuitem], ui-menu button")).some((el) => el.offsetParent !== null)'), true)
+        ->click('ui-menu [role=menuitem]:has-text("Reading"), ui-menu button:has-text("Reading")')
+        ->assertScript(browserUntil('document.querySelector(\'[data-test="library-status"]\').textContent.trim() === "Reading"'), true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
     expect(LibraryEntry::query()->where('user_id', $this->reader->id)->where('media_id', $this->story->id)->value('status'))->toBe(ReadingStatus::Reading);
 
     // A dialog on the story page, closed by tap and by Escape.
-    $page->click('[data-test="log-progress"]')->wait(0.8)
-        ->assertScript('document.querySelector("dialog[open]") !== null', true)
+    $page->click('[data-test="log-progress"]')->assertScript($dialogOpen, true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors()
-        ->click('dialog[open] button:has-text("Cancel")')->wait(0.8)
-        ->assertScript('document.querySelector("dialog[open]") === null', true)
+        ->click('dialog[open] button:has-text("Cancel")')->assertScript($dialogShut, true)
         ->assertScript($this->sound, 'ok')
-        ->click('[data-test="log-progress"]')->wait(0.8)
-        ->assertScript('document.querySelector("dialog[open]") !== null', true)
-        ->keys(':root', 'Escape')->wait(0.8)
-        ->assertScript('document.querySelector("dialog[open]") === null', true)
+        ->click('[data-test="log-progress"]')->assertScript($dialogOpen, true)
+        ->keys(':root', 'Escape')->assertScript($dialogShut, true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
 
+    // The same dialog, submitted: a percent and a page, saved and shown on the page.
+    $page->click('[data-test="log-progress"]')->assertScript($dialogOpen, true)
+        ->fill('dialog[open] input[type=number][min="0"][max="100"]', '42')
+        ->fill('dialog[open] input[type=number][min="1"]', '17')
+        ->assertScript($this->sound, 'ok')
+        ->click('dialog[open] button:has-text("Save progress")')->assertScript($dialogShut, true)
+        ->assertScript(browserUntil('document.querySelector(\'[data-test="log-progress"]\').textContent.includes("42% read")'), true)
+        ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
+
+    $progress = ReadingProgress::query()->where('user_id', $this->reader->id)->where('media_id', $this->story->id)->firstOrFail();
+    expect((float) $progress->percent)->toBe(42.0)->and($progress->page)->toBe(17);
+
     // Read it: open the reader, turn a page, then go back.
-    $page->click('[data-test="read-action"]')->wait(1)
-        ->waitForText('Chapter 1 of 2')->wait(0.6)
-        ->assertPathBeginsWith('/read/')
+    $page->click('[data-test="read-action"]')->waitForText('Chapter 1 of 2')
+        ->assertScript(browserUntil('location.pathname.startsWith("/read/")'), true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors()
-        ->keys(':root', 'ArrowRight')->wait(0.8)
+        ->keys(':root', 'ArrowRight')
+        ->assertScript(browserUntil('document.querySelector("[data-reader=percent]") !== null'), true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
 
     $page->script('history.back()');
-    $page->wait(1.5)->assertPathBeginsWith('/stories/')
+    $page->assertScript(browserUntil('location.pathname.startsWith("/stories/")'), true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
 });

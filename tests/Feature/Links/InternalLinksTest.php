@@ -185,20 +185,32 @@ function linksOpen(string $path): array
 function linksBounced(string $requested, string $final, string $role): bool
 {
     $finalPath = parse_url($final, PHP_URL_PATH);
+    $requestedPath = parse_url($requested, PHP_URL_PATH);
 
-    if ($finalPath === route('password.confirm', absolute: false) || $finalPath === parse_url($requested, PHP_URL_PATH)) {
+    if ($finalPath === route('password.confirm', absolute: false) || $finalPath === $requestedPath) {
         return false;
     }
 
+    $signIn = route('login', absolute: false);
+
+    // A guest shown a link that only works signed in is sent to sign in.
     if ($role === 'guest') {
-        return false;
+        return $finalPath === $signIn;
     }
 
-    if (in_array($finalPath, [route('login', absolute: false), route('verification.notice', absolute: false)], true)) {
+    // A signed-in visitor shown a guest-only link (sign in, sign up, reset) is sent to their home.
+    if (in_array($requestedPath, [$signIn, route('register', absolute: false), route('password.request', absolute: false)], true)) {
         return true;
     }
 
-    return $role === 'admin' && $finalPath === route('admin.index', absolute: false) && ! str_starts_with($requested, '/admin');
+    if (in_array($finalPath, [$signIn, route('verification.notice', absolute: false)], true)) {
+        return true;
+    }
+
+    // An admin sent back to the dashboard from a link that is not an admin page (`/admin` or `/admin/...`, not `/administer`).
+    $adminPage = $requestedPath === '/admin' || str_starts_with((string) $requestedPath, '/admin/');
+
+    return $role === 'admin' && $finalPath === route('admin.index', absolute: false) && ! $adminPage;
 }
 
 /**
@@ -325,3 +337,20 @@ test('every logo goes home for each kind of visitor', function () {
     $this->actingAs(User::factory()->admin()->create());
     expect($logos(route('admin.index')))->toHaveCount(2)->each->toBe(route('admin.index'));
 });
+
+test('the bounce rule catches what a role must never be shown', function (string $requested, string $final, string $role, bool $bounced) {
+    expect(linksBounced($requested, $final, $role))->toBe($bounced);
+})->with([
+    'a guest sent to sign in' => ['/library', '/login', 'guest', true],
+    'a guest on the sign-in page itself' => ['/login', '/login', 'guest', false],
+    'a guest page that opens' => ['/forgot-password', '/forgot-password', 'guest', false],
+    'a reader shown the sign-in link' => ['/login', '/home', 'reader', true],
+    'an admin shown the sign-up link' => ['/register', '/admin', 'admin', true],
+    'a reader sent to sign in' => ['/library', '/login', 'reader', true],
+    'a reader page that opens' => ['/library', '/library', 'reader', false],
+    'a reader link that bounces an admin' => ['/library', '/admin', 'admin', true],
+    'an admin page' => ['/admin/users', '/admin/users', 'admin', false],
+    'a path that only starts like /admin' => ['/administer', '/admin', 'admin', true],
+    'an admin page with a query' => ['/admin/classifications?status=all', '/admin', 'admin', false],
+    'the password confirmation step' => ['/settings/security', '/user/confirm-password', 'reader', false],
+]);

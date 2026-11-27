@@ -23,11 +23,11 @@
         </div>
         <flux:menu.separator />
         <flux:menu.radio.group>
-            <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
+            <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate class="min-h-11!">
                 {{ __('Settings') }}
             </flux:menu.item>
             @can('access-admin')
-                <flux:menu.item :href="route('admin.index')" icon="shield-check" wire:navigate>
+                <flux:menu.item :href="route('admin.index')" icon="shield-check" wire:navigate class="min-h-11!">
                     {{ __('Admin') }}
                 </flux:menu.item>
             @endcan
@@ -37,7 +37,7 @@
                     as="button"
                     type="submit"
                     icon="arrow-right-start-on-rectangle"
-                    class="w-full cursor-pointer"
+                    class="min-h-11! w-full cursor-pointer"
                     data-test="logout-button"
                 >
                     {{ __('Log out') }}
