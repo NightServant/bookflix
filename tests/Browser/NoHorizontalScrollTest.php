@@ -248,7 +248,22 @@ test('no page scrolls sideways', function (string $role, string $path) {
             ->fill('password', 'password')->click('[data-test="confirm-password-button"]')->wait(1.5);
     }
 
-    $page = visit($path, ['viewport' => ['width' => $width, 'height' => $height], 'reducedMotion' => 'reduce'])->wait(1.5);
+    $page = visit($path, ['viewport' => ['width' => $width, 'height' => $height], 'reducedMotion' => 'reduce']);
+
+    try {
+        $page->wait(1.5);
+    } catch (Throwable $stall) {
+        // Evidence for an intermittent browser-side stall (a first page load that times out while the server answers in milliseconds); see the Phase 2 ledger.
+        // It only adds to the failure message: nothing is retried, the timeout is untouched and the test still fails exactly as before.
+        try {
+            $evidence = (string) $page->script('JSON.stringify({ readyState: document.readyState, url: location.href, pending: performance.getEntriesByType("resource").filter((entry) => entry.responseEnd === 0).map((entry) => entry.name), slowest: performance.getEntriesByType("resource").sort((a, b) => b.duration - a.duration).slice(0, 5).map((entry) => entry.name.slice(-80) + " " + Math.round(entry.duration) + "ms") })');
+        } catch (Throwable $unreachable) {
+            $evidence = 'the page could not be read: '.$unreachable->getMessage();
+        }
+
+        throw new RuntimeException($stall->getMessage()." | stall evidence for {$path}: {$evidence}", 0, $stall);
+    }
+
     $failures = [];
 
     foreach (NHS_WIDTHS as [$width, $height]) {

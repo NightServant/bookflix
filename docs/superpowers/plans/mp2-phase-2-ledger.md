@@ -112,3 +112,11 @@ Suggested report statuses (from the review): broken links Fixed; buttons Already
 
 - Admin drawer: in one browser page, resizing to desktop and back to 375 left the menu toggle unreachable in the test (a fresh visit works). Not investigated; outside this phase's scope.
 - The account dropdown uses `shadow-overlay!` (DESIGN.md says no shadows); pre-existing, Phase 4/5 design work.
+
+## Known intermittent (deferred, Phase 2 exit)
+
+`tests/Browser/NoHorizontalScrollTest.php`, dataset "reader search" (`/search?q=<64-character word>` at 320): the first page load sometimes times out at 30 s in full-file runs (seen 4-5 times, including once on a quiet machine). Evidence so far:
+- 11 instrumented full runs and 2 of mine were green; while green, the server answered every request in 0.01-0.27 s, with no slow query, lock or outbound request.
+- On the real dev server, `/search?q=Supercalifragilisticexpialidocious` at 320 loaded 20/20 times in under 3 s.
+- A diagnostic added to the test caught one stall: the page could not be read at all (no execution context), so either the navigation never committed in the browser or the plugin's in-process server stalled before sending the document. The server-side request log never captured a failing run, so which side is unknown.
+Not retried and no timeout raised; the diagnostic stays so the next occurrence (in CI too) reports the browser's state. Next step if it recurs: log request start/end in the in-process server during a failing run, and listen for the page `crash` event.
