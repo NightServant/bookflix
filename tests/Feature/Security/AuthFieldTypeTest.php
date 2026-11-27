@@ -37,6 +37,38 @@ test('a list sent for a text field of an auth form is a validation error, never 
     'confirm password' => ['password.confirm.store', 'password', true],
 ]);
 
+// The browser follows the redirect back to the form, which re-renders with the flashed input: that page must not choke on a list either.
+test('the form page the browser lands on after a list was posted renders, with the error shown', function (string $page, string $route, string $field, string $message) {
+    $this->from(route($page))->followingRedirects()->post(route($route), [
+        'name' => 'Real Person',
+        'email' => 'real@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        $field => ['x'],
+    ])->assertOk()->assertSee($message);
+})->with([
+    'register email' => ['register', 'register.store', 'email', 'The email field must be a string.'],
+    'register name' => ['register', 'register.store', 'name', 'The name field must be a string.'],
+    'register password' => ['register', 'register.store', 'password', 'The password field must be a string.'],
+    'login email' => ['login', 'login.store', 'email', 'The email field must be a string.'],
+    'login password' => ['login', 'login.store', 'password', 'The password field must be a string.'],
+    'reset link email' => ['password.request', 'password.email', 'email', 'The email field must be a string.'],
+]);
+
+test('a list for remember on the sign-in form does not break the page it comes back to', function () {
+    $this->from(route('login'))->followingRedirects()->post(route('login.store'), [
+        'email' => ['x'],
+        'password' => 'password',
+        'remember' => ['x'],
+    ])->assertOk();
+
+    $this->from(route('login'))->followingRedirects()->post(route('login.store'), [
+        'email' => 'nobody@example.com',
+        'password' => 'password',
+        'remember' => ['x'],
+    ])->assertOk();
+});
+
 test('ordinary string posts are untouched by the type guard', function () {
     $this->post(route('register.store'), [
         'name' => 'Real Person',

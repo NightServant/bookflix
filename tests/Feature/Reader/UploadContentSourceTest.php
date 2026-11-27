@@ -181,7 +181,7 @@ test('an archive with too many entries is refused with the guard message', funct
 
     $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf(upZipOf($pages), 'x.cbz')));
 
-    expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
+    expect($e->errors()['file'][0])->toBe('This file is not a safe archive: it holds too many files.');
 });
 
 test('an archive whose pages unpack past the size cap is refused with the guard message', function () {
@@ -189,7 +189,7 @@ test('an archive whose pages unpack past the size cap is refused with the guard 
 
     $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf(upZipOf(['01.png' => random_bytes(1048577)]), 'x.cbz')));
 
-    expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
+    expect($e->errors()['file'][0])->toBe('This file is not a safe archive: it unpacks to too much data.');
 });
 
 test('an archive with a symlink entry is refused with the guard message', function () {
@@ -205,7 +205,7 @@ test('an archive with a symlink entry is refused with the guard message', functi
 
     $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf($bytes, 'x.cbz')));
 
-    expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
+    expect($e->errors()['file'][0])->toBe('This file is not a safe archive: it holds a link.');
 });
 
 test('an empty file is refused', function () {

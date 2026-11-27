@@ -42,6 +42,17 @@ test('secure error and redirect responses carry it too', function () {
     $this->get('https://localhost/home')->assertRedirect()->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 });
 
+test('a local environment never pins its host, even over https', function () {
+    $original = app()->environment();
+    app()->detectEnvironment(fn () => 'local');
+
+    try {
+        $this->get('https://localhost/up')->assertHeaderMissing('Strict-Transport-Security');
+    } finally {
+        app()->detectEnvironment(fn () => $original);
+    }
+});
+
 test('plain http responses carry no HSTS header', function () {
     $this->get('http://localhost/up')->assertHeaderMissing('Strict-Transport-Security');
     $this->get('http://localhost/no-such-page')->assertHeaderMissing('Strict-Transport-Security');
