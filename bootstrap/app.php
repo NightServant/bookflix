@@ -4,6 +4,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\EnsureReaderAccount;
+use App\Http\Middleware\RequirePassword;
 use App\Http\Middleware\SetContentSecurityPolicy;
 use App\Http\Middleware\SetSecurityHeaders;
 use Illuminate\Foundation\Application;
@@ -22,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(SetSecurityHeaders::class);
         $middleware->appendToGroup('web', EnsureAccountIsActive::class);
         $middleware->appendToGroup('web', SetContentSecurityPolicy::class);
-        $middleware->alias(['onboarded' => EnsureOnboarded::class, 'reader' => EnsureReaderAccount::class]);
+        $middleware->alias(['onboarded' => EnsureOnboarded::class, 'reader' => EnsureReaderAccount::class, 'password.confirm' => RequirePassword::class]);
         $middleware->redirectUsersTo(fn (Request $request) => $request->user()?->homePath());
     })
     ->withExceptions(function (Exceptions $exceptions): void {
