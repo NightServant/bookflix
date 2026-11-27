@@ -102,7 +102,40 @@ const NHS_PROBE = '(() => {
         }
     }
 
+    // A fixed or sticky bar never widens the document (it is out of the flow), so a control pushed off the screen there is invisible to scrollWidth: check the
+    // visible boxes in a fixed or sticky context against the window edges. Hidden boxes (a closed drawer) and anything an inner scroller clips are ignored.
+    const offscreen = [];
+    const fixedRoot = (el) => {
+        for (let node = el; node && node !== document.body; node = node.parentElement) {
+            const position = getComputedStyle(node).position;
+
+            if (position === "fixed" || position === "sticky") return node;
+
+            if (node !== el && /auto|scroll|hidden|clip/.test(getComputedStyle(node).overflowX)) return null;
+        }
+
+        return null;
+    };
+
+    for (const el of document.querySelectorAll("body *")) {
+        const box = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+
+        // (A box parked wholly off the left edge is a closed side drawer, e.g. the admin sidebar. The Flux toast region is an empty fixed box until a toast is shown, and Flux positions it itself.)
+        if (offscreen.length >= 4 || el.closest("ui-toast-group, ui-toast") || box.width < 1 || style.display === "none" || style.visibility === "hidden" || (box.right <= window.innerWidth + 0.5 && box.left >= -0.5) || box.right <= 0.5 || ! fixedRoot(el)) continue;
+
+        // A box a clipping ancestor inside the fixed root hides is not visible.
+        let clipped = false;
+
+        for (let node = el.parentElement; node && node !== fixedRoot(el).parentElement && node !== document.body; node = node.parentElement) {
+            if (/auto|scroll|hidden|clip/.test(getComputedStyle(node).overflowX)) clipped = true;
+        }
+
+        if (! clipped) offscreen.push(el.tagName.toLowerCase() + "." + String(el.className).slice(0, 60) + " [" + (el.getAttribute("data-test") || (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 25)) + "] left=" + Math.round(box.left) + " right=" + Math.round(box.right));
+    }
+
     return JSON.stringify({
+        offscreen,
         spill,
         over: document.documentElement.scrollWidth - window.innerWidth,
         free: sticking.some((el) => ! contained(el)),
@@ -222,8 +255,8 @@ test('no page scrolls sideways', function (string $role, string $path) {
         $page->resize($width, $height)->wait(0.4);
         $probe = json_decode((string) $page->script(NHS_PROBE), true);
 
-        if (($probe['over'] ?? 0) > 0 || ($probe['free'] ?? false) || ($probe['spill'] ?? []) !== []) {
-            $failures[] = "{$role} {$path} at {$width}: page is {$probe['over']}px too wide; widest element {$probe['el']}; text past its box: ".implode(' | ', $probe['spill'] ?? []);
+        if (($probe['over'] ?? 0) > 0 || ($probe['free'] ?? false) || ($probe['spill'] ?? []) !== [] || ($probe['offscreen'] ?? []) !== []) {
+            $failures[] = "{$role} {$path} at {$width}: page is {$probe['over']}px too wide; widest element {$probe['el']}; text past its box: ".implode(' | ', $probe['spill'] ?? []).'; fixed or sticky past the window edge: '.implode(' | ', $probe['offscreen'] ?? []);
         }
     }
 

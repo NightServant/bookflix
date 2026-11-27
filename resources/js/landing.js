@@ -57,6 +57,41 @@ export default function landing(Alpine) {
         },
     }));
 
+    /*
+     * The phone menu: a drawer below 768px. `x-trap.inert.noscroll` (in the header markup) holds focus, makes the page inert and locks scrolling while it
+     * is open. Escape, a backdrop tap and the close button return focus to the menu button; a link tap does not, because the link takes the reader to a section.
+     * Growing past the breakpoint closes it, so the lock never outlives the drawer.
+     */
+    Alpine.data('landingMenu', () => ({
+        open: false,
+
+        init() {
+            const query = window.matchMedia('(min-width: 48rem)');
+            const onChange = (event) => event.matches && this.close(false);
+
+            query.addEventListener('change', onChange);
+            this.off = () => query.removeEventListener('change', onChange);
+        },
+
+        destroy() {
+            this.off?.();
+        },
+
+        toggle() {
+            this.open ? this.close() : (this.open = true);
+        },
+
+        close(returnFocus = true) {
+            this.open = false;
+
+            if (returnFocus) {
+                // After the trap has let go: while it is active the rest of the page is inert and cannot take focus.
+                // (The button sits in the header's own x-data scope, so it is found from the menu's root, not through $refs.)
+                setTimeout(() => this.$root.querySelector('[data-test="landing-menu-button"]')?.focus(), 0);
+            }
+        },
+    }));
+
     // The FAQ: one answer open at a time, each a button (aria-expanded, aria-controls) over a region. Arrow keys, Home and End move between the questions.
     Alpine.data('landingFaq', () => ({
         open: null,

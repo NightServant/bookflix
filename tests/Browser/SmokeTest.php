@@ -89,8 +89,13 @@ beforeEach(function () {
 
 test('landing to login to home to search to a story works on desktop and on a phone', function (int $width, int $height) {
 
-    $page = visit(route('landing'), ['viewport' => ['width' => $width, 'height' => $height]])
-        ->click('header a[href$="/login"]')->assertPathIs('/login')
+    // On a phone the bar has no Sign in (it is in the menu), so the way in is the menu button, then the drawer's link.
+    $page = visit(route('landing'), ['viewport' => ['width' => $width, 'height' => $height]]);
+    $width < 640
+        ? $page->click('[data-test="landing-menu-button"]')->wait(0.5)->click('#landing-menu a[href$="/login"]')
+        : $page->click('header a[href$="/login"]');
+
+    $page->assertPathIs('/login')
         ->fill('email', $this->user->email)->fill('password', 'password')
         ->press('Log in')->wait(1.5)
         ->assertPathIs('/home')->assertSee('View story');
