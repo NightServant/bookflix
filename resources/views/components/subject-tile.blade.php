@@ -15,7 +15,7 @@
 >
     <span class="text-legal tabular-nums text-ink-subtle">[{{ $deweyClass->code }}]</span>
     <span class="block">
-        <span class="line-clamp-2 text-body font-medium leading-snug text-ink">{{ $deweyClass->name }}</span>
+        <span class="line-clamp-2 text-body font-medium leading-snug text-ink wrap-anywhere">{{ $deweyClass->name }}</span>
         <span class="block text-legal tabular-nums text-ink-subtle">{{ trans_choice(':count story|:count stories', $deweyClass->stories_count) }}</span>
     </span>
 </a>

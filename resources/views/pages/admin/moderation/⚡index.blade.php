@@ -204,7 +204,7 @@ new #[Title('Reports')] class extends Component {
                             @if ($removed)
                                 <span class="text-body text-ink-subtle">{{ __('Removed') }}</span>
                             @else
-                                <a href="{{ route('admin.media.edit', $target->media) }}" class="focus-ring rounded-control text-body font-medium text-ink hover:underline">{{ $target->media->title }}@if ($source) · {{ $source }}@endif</a>
+                                <a href="{{ route('admin.media.edit', $target->media) }}" class="focus-ring rounded-control text-body font-medium text-ink wrap-anywhere hover:underline">{{ $target->media->title }}@if ($source) · {{ $source }}@endif</a>
                             @endif
                         </p>
 

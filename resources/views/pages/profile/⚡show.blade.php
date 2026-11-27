@@ -555,7 +555,7 @@ new #[Title('Your profile')] class extends Component {
                             </a>
 
                             <div class="min-w-0 flex-1">
-                                <h3><a href="{{ route('stories.show', ['slug' => $media->slug, 'tab' => 'reviews']) }}" wire:navigate class="focus-ring rounded-control text-body font-medium text-ink hover:underline">{{ $media->title }}</a></h3>
+                                <h3><a href="{{ route('stories.show', ['slug' => $media->slug, 'tab' => 'reviews']) }}" wire:navigate class="focus-ring rounded-control text-body font-medium text-ink wrap-anywhere hover:underline">{{ $media->title }}</a></h3>
                                 <p class="text-legal text-ink-muted">{{ collect([$this->creatorsLine($media), $this->ago($review->created_at)])->filter()->implode(' · ') }}</p>
 
                                 @if ($review->status === App\Enums\ReviewState::Hidden)

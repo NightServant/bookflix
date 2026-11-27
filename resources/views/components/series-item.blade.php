@@ -41,7 +41,7 @@
         @endif
     </a>
 
-    <a href="{{ $story }}" wire:navigate class="focus-ring inline-flex min-h-11 min-w-0 items-center rounded-control text-body text-ink hover:underline">{{ $media->title }}</a>
+    <a href="{{ $story }}" wire:navigate class="focus-ring inline-flex min-h-11 min-w-0 items-center rounded-control text-body text-ink wrap-anywhere hover:underline">{{ $media->title }}</a>
 
     @if ($media->publication_year)
         <span data-year class="ms-auto shrink-0 text-meta tabular-nums text-ink-subtle">{{ $media->publication_year }}</span>
