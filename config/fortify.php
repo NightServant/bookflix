@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\RejectNonStringAuthFields;
 use Laravel\Fortify\Features;
 
 return [
@@ -101,7 +102,7 @@ return [
     |
     */
 
-    'middleware' => ['web', 'throttle:auth-writes'],
+    'middleware' => ['web', 'throttle:auth-writes', RejectNonStringAuthFields::class],
 
     /*
     |--------------------------------------------------------------------------

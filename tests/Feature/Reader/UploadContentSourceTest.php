@@ -175,6 +175,39 @@ test('an unsafe archive is refused with the guard message', function () {
     expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
 });
 
+test('an archive with too many entries is refused with the guard message', function () {
+    config(['bookflix.reader.archive.max_entries' => 5]);
+    $pages = collect(range(1, 6))->mapWithKeys(fn (int $n) => [sprintf('%02d.png', $n) => ContentSourceFactory::png($n)])->all();
+
+    $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf(upZipOf($pages), 'x.cbz')));
+
+    expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
+});
+
+test('an archive whose pages unpack past the size cap is refused with the guard message', function () {
+    config(['bookflix.reader.archive.max_uncompressed_mb' => 1]);
+
+    $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf(upZipOf(['01.png' => random_bytes(1048577)]), 'x.cbz')));
+
+    expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
+});
+
+test('an archive with a symlink entry is refused with the guard message', function () {
+    $temp = (string) tempnam(sys_get_temp_dir(), 'up');
+    $zip = new ZipArchive;
+    $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('01.png', ContentSourceFactory::png(1));
+    $zip->addFromString('02.png', '01.png');
+    $zip->setExternalAttributesName('02.png', ZipArchive::OPSYS_UNIX, 0120777 << 16);
+    $zip->close();
+    $bytes = (string) file_get_contents($temp);
+    unlink($temp);
+
+    $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf($bytes, 'x.cbz')));
+
+    expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
+});
+
 test('an empty file is refused', function () {
     $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf('', 'empty.pdf')));
 
