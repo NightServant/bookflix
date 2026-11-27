@@ -96,3 +96,65 @@ Dependency audits (Step 3), not clean, so both stay out of the CI job (Needs dec
 | P1-R8 | (1.2) All five admin id properties are locked; nothing in the browser writes them (grep of views and `resources/js`, confirmed by review), and every action still re-finds its row. | None. |
 | P1-R9 | (1.3) Each `auth-writes` limit has its own key prefix; GET/HEAD and every route with its own limiter get `Limit::none()` (Laravel's `ThrottleRequests` skips `Unlimited` entirely: no count, no headers). The reset broker's once-a-minute wait for existing accounts is a validation error, not a 429. | Low. |
 | P1-R10 | (1.3, flagged by review) Sign-up is 5 posts per minute per IP and counts failed validations, so a school, office or carrier NAT could see a 429 on the sixth sign-up post in a minute from anyone behind it. The limit is the plan's; kept. | Medium for shared networks; easy to raise in one line. |
+
+## Task 1.6 findings (2026-11-27)
+
+**Raw SQL.** `KeywordLeg::similar()` is private with two callers (lines 35-36) passing the class constants `TITLE` and `ALTERNATIVE_TITLES`; the query is always a bound `?`. Every other raw fragment in `app/` is a constant or literal (Deduplicator `sprintf(self::NORMALIZE, ...)` over constant columns; Media `TRENDING_BLEND`; `Genre::TREE_IDS_SQL`; Series `window()` interpolates a subquery's own `toSql()` with bound values). No `orderBy($var)` with a variable column; the library sort is a whitelisted `match`. **OK.**
+
+**Archives.** `ZipGuardTest` covers the guard itself; upload-level traversal was already tested. Added upload-level tests for too many entries, unpacking past `max_uncompressed_mb`, and a symlink entry: each is refused with "This file is not a safe archive". All passed at once: no ZipGuard bug.
+
+**Found and fixed:** a list posted for a text field of a Fortify form (`email[]=x`) answered 500 from Fortify's own controllers (`Str::lower` on an array, `lowercase_usernames` on). `App\Http\Middleware\RejectNonStringAuthFields` (Fortify middleware, after `throttle:auth-writes`) turns any present non-string `name, email, password, password_confirmation, current_password, token, code, recovery_code` on a POST into the normal `validation.string` error. Passkey routes post `credential` and are untouched.
+
+**`{!! !!}`**: still only the 2FA QR SVG (`R/pages/settings/⚡two-factor-setup-modal.blade.php:244`). **`$guarded`**: no model uses it.
+
+**Validation inventory** (Step 4). No action lacked validation; every one validates, takes a typed id it re-checks, or only touches the caller's own data.
+
+| Page or controller | Action | How it is validated |
+|---|---|---|
+| admin/classifications | accept, reject, remove, openChange, openAdd | typed ids, `findOrFail`, `Gate::authorize` |
+| admin/classifications | change, add, save | `$code` looked up in `dewey_classes` (no match is a no-op); `$type` via `ClassificationType::tryFrom` or 422 |
+| admin/content | save | `VerifyContentSource` runs `Validator::make`; `verifying` locked; row re-read from `listed()` |
+| admin/content | edit, unverify | typed id + `listed()->findOrFail` |
+| admin/duplicates | compare, dismiss | typed id, `pending()->findOrFail` |
+| admin/duplicates | merge | winner id must be one of the pair, else 422 |
+| admin/media/edit | save | `validate()` on title, description, age rating, status |
+| admin/media/edit | unlock | `$field` only removes a key from `locked_fields` |
+| admin/media/edit | regenerate/clear AI summary, remove | no input |
+| admin/models | runNow | key must exist in `RunMlJob::PIPELINES` |
+| admin/moderation | hide, dismiss, restore | typed id, `findOrFail`, Actions authorize |
+| admin/providers | toggleEnabled, syncNow | `syncNow` key must be an enabled provider |
+| admin/staff-picks | create, edit, toggle, delete | typed ids re-checked in a scoped query |
+| admin/staff-picks | save | `SaveStaffPick` runs `Validator::make`; `storyIds` locked |
+| admin/staff-picks | addStory / removeStory, moveStory | `findOrFail` through a visibility scope / typed ints on a locked list |
+| assistant | send, ask / rename / addPdfText | `validate()` max length / `Validator::make` / name cleaned, text scrubbed and capped |
+| assistant | archive, restore, delete | `ownChats()->findOrFail` |
+| collections index, show | create, save | `validate()` |
+| collections show | addItem, removeItem, reorder, delete | owner check + typed ids re-checked |
+| library-controls | logProgress, saveRating, createCollection | `validate()` |
+| library-controls | setStatus / toggleCollection | `ReadingStatus::tryFrom` or validation error / `$user->collections()->find` or 404 |
+| library-listener | add | int or digit string, then a visibility-scoped find |
+| story-reviews | save, sendReport | `validate()` (reason enum, details max); report target via `match` |
+| library/upload | save / delete | `validate()` + `UploadContentSource` (type from bytes, caps, quota) / owner-checked action |
+| onboarding | next, finish | `validate()` |
+| search | dismissIntent, addIntentFilter, toggleGenre | must match offered chips or genres |
+| library index | removeFilter | `match` over three keys |
+| settings/profile, preferences, privacy, security | every save | `validate()` |
+| settings/privacy | exportData | no input, cooldown limiter |
+| settings/security | disable, deletePasskey | Fortify action / typed id owned by the user |
+| settings/two-factor-setup | confirmTwoFactor | `#[Validate('required\|string\|size:6')]` |
+| settings/deactivate | deactivateAccount | `validate()` current password |
+| LibraryController | store | `$request->validate` |
+| RecommendationFeedbackController | click, impressions / dismiss, undo | `$request->validate` / route-constrained id + `owned($user, id)` |
+| ProgressController | `__invoke` | access gate, then `ProgressWriter` runs `Validator::make` |
+| Fortify routes | all | `RejectNonStringAuthFields` + Fortify's own rules |
+
+## Task log (updates)
+
+| Task | Status | Commits | Notes |
+|---|---|---|---|
+| 1.1 | done, reviewed twice | e0fc43c, fix 189f2fb | Review found the JSON RequirePassword bypass (P1-R6) |
+| 1.2 | done, reviewed | 13184dd, nits db69c85, test fix in dd73fcb | 1.2 left `AdminContentVerificationTest` red (forged locked id); fixed in dd73fcb. Lesson: run the full suite per task |
+| 1.3 | done, reviewed | b2419b3, fixes db69c85 | Array-email 500 in both limiters fixed |
+| 1.4 | done, reviewed | dd73fcb | No HSTS `preload` (owner's call) |
+| 1.5 | done | 75d70d3 | Job not required; audits left out (Needs decision) |
+| 1.6 | done | 0a24304 | Fortify array-field 500 fixed; inventory above |
