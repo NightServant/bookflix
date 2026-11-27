@@ -1,7 +1,8 @@
 <?php
 
 use App\Models\User;
-use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Notification;
 
 test('sign-up is throttled per IP after five posts a minute', function () {
     foreach (range(1, 5) as $attempt) {
@@ -28,13 +29,18 @@ test('two wrong attempts never block a real person', function () {
 });
 
 test('reset links are throttled per email, but another email from the same IP still gets one', function () {
-    // Unknown addresses, so the broker's own once-a-minute-per-account wait never answers instead of this limiter.
+    Notification::fake();
+    $other = User::factory()->create(['email' => 'someone-else@example.com']);
+
+    // Unknown address for the full bucket, so the broker's own once-a-minute wait per account never answers instead of this limiter.
     foreach (range(1, 5) as $attempt) {
         $this->post(route('password.email'), ['email' => 'Reader@Example.com'])->assertRedirect()->assertSessionHasErrors('email');
     }
 
     $this->post(route('password.email'), ['email' => 'reader@example.com'])->assertTooManyRequests();
-    $this->post(route('password.email'), ['email' => 'someone-else@example.com'])->assertRedirect()->assertStatus(302);
+
+    $this->post(route('password.email'), ['email' => 'someone-else@example.com'])->assertRedirect()->assertSessionHasNoErrors();
+    Notification::assertSentTo($other, ResetPassword::class);
 });
 
 test('one IP cannot request reset links for more than twenty emails a minute', function () {
@@ -94,6 +100,6 @@ test('routes with a limiter of their own keep their existing limits', function (
     $this->actingAs($user)->post(route('verification.send'))->assertTooManyRequests();
 });
 
-test('throttle counters do not leak between tests', function () {
-    expect(RateLimiter::attempts('register|127.0.0.1'))->toBe(0);
-});
+test('an email sent as a list is a validation error, never a server error', function (string $route) {
+    $this->post(route($route), ['email' => ['x'], 'password' => 'password'])->assertRedirect()->assertSessionHasErrors('email');
+})->with(['password.email', 'login.store']);

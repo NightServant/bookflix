@@ -98,7 +98,7 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('login', function (Request $request) {
-            $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+            $throttleKey = $this->throttleEmail($request).'|'.$request->ip();
 
             return Limit::perMinute(5)->by($throttleKey);
         });
@@ -110,7 +110,7 @@ class FortifyServiceProvider extends ServiceProvider
                 return Limit::none();
             }
 
-            $email = Str::transliterate(Str::lower((string) $request->input(Fortify::username())));
+            $email = $this->throttleEmail($request);
 
             return match (true) {
                 $request->routeIs('register.store') => Limit::perMinute(5)->by('register|'.$request->ip()),
@@ -131,5 +131,15 @@ class FortifyServiceProvider extends ServiceProvider
                 ($credentialId ?: $request->session()->getId()).'|'.$request->ip(),
             );
         });
+    }
+
+    /**
+     * The submitted email as a throttle key part: lower-cased and transliterated, or empty when it is not a string (a list is a validation error, not a crash).
+     */
+    private function throttleEmail(Request $request): string
+    {
+        $email = $request->input(Fortify::username());
+
+        return is_string($email) ? Str::transliterate(Str::lower($email)) : '';
     }
 }
