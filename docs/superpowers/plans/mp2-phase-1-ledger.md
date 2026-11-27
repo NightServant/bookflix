@@ -170,3 +170,41 @@ No blocking findings. Checked: middleware order on Fortify routes (`web` → `th
 Fix wave (one, per Part G): admin actions replayed over HTTP as a guest and as a reader (lock-in tests: Livewire's default persistent list already has `auth` and `can:`); PR report wording corrected (open-endpoint table: preview-file has no throttle, passkey login and static asset rows added; the demoted-admin bullet names the actions it covers).
 
 Gate note: the first full run stalled because two `composer test` processes ended up on the same database (an earlier run survived a `pkill`); both were killed and the gate re-run in a separate worktree at 666473d. Not a code problem.
+
+## Task 1.7: Worktrack security measures (added by the owner, 2026-11-27)
+
+The owner asked to apply the security measures another session (Worktrack, a Supabase/Next.js app) listed, where they fit Bookflix (Laravel 13, Fortify, Postgres, Livewire). Audit first, against 9132e22:
+
+| # | Measure | Bookflix today | Decision |
+|---|---|---|---|
+| 1 | Row-level security on user-owned tables | One app database role; every user-owned read and write is scoped in code (policies for Collection, ContentSource, Review; `ownChats()`, `$user->collections()`, `visibleTo()`), checked in the Phase 1 inventory | Not applicable as written (RLS needs a per-request Postgres role or session variable on every pooled connection). Needs decision if the owner wants database-level enforcement too |
+| 2 | Server-side route guard that verifies the session | `auth` middleware checks the session against the server-side session store; `EnsureAccountIsActive` in the `web` group; signed-out users go to `login` | Already OK |
+| 3 | One shared authenticate() on every API route, plus a source-reading test | No API routes (no `routes/api.php`); the ML service checks a bearer token | Mapped: a route-enumeration test that fails when any route outside an explicit public allow-list lacks `auth` (task 1.7a) |
+| 4 | Open-redirect protection on `?next=` / return URLs | No request parameter feeds a redirect anywhere (grep); Laravel's intended URL is stored server-side in the session | Already OK |
+| 5 | Credential rules in one module, enforced on the server | Fortify `lowercase_usernames` + the global `TrimStrings` middleware normalise email; `PasswordValidationRules` is the one module; production requires min 12, mixed case, letters, numbers, symbols and `uncompromised()`. No maximum: bcrypt (the default hasher, no `limit`) silently ignores everything past 72 bytes | Fix: a 72-byte maximum in the shared rules (task 1.7b). The composition rules already exceed the Worktrack list in production |
+| 6 | Email confirmation on sign-up with a server-side resend limit | Fortify email verification; `verified` on reader routes; `verification.send` throttled 6/min | Already OK |
+| 7 | Client-side login throttle (UX only) | Server-side `login` limiter (5/min per email + IP) with the "try again in N seconds" message | Not applied: the server limit already gives the message; a client-only layer adds JS and no protection |
+| 8 | SECURITY DEFINER functions pinned and revoked | The only database function is `immutable_unaccent` (plain `language sql immutable`, not SECURITY DEFINER); account deactivation runs through an app action | Not applicable |
+| 9 | No public buckets; signed URLs | Phase 1: reader files, comic pages and exports are signed and user-bound; the `local` disk is no longer served; avatars and covers are public by design | Already OK (buckets: Needs decision, Phase 1) |
+| 10 | SSRF guard on user-supplied URLs | No user-supplied URL is ever fetched. The cover proxy and `FetchContentFile` only fetch `https` URLs on configured provider hosts, never follow redirects, and cap size and type; the AI and ML clients use URLs from config | Already OK (a host allow-list is stricter than IP filtering) |
+| 11 | Per-user rate limits and size caps on external-fetch and AI routes | Ask: `ai-assistant` limiter; covers: `throttle:600,1` + `MAX_BYTES` + image check; outside-review refresh is debounced; Laravel's 429 carries `Retry-After` | Already OK |
+| 12 | Upload size limits and magic-byte checks | Reader uploads: type from bytes, per-format caps, quota; avatars: `image` + `mimes` (content-sniffed) + `avatar_max_kb` | Already OK |
+| 13 | Request-body cap (413) on JSON/text routes | `ValidatePostSize` (global) answers 413 past `post_max_size`; Livewire caps its payload at 1 MB, 50 calls, depth 10. The JSON beacon routes (reader progress, recommendation feedback) have no cap of their own | Fix: a small body cap on those routes (task 1.7c) |
+| 14 | CSV formula-injection guard | No CSV export (the data export is JSON in a zip; the only CSV files are seed data read by the app) | Not applicable |
+| 15 | Escape user text in generated formats | Blade escapes; reviews go through `Markdown::safe`; exports are JSON | Already OK |
+| 16 | Security headers, with a test | nosniff, X-Frame-Options DENY, nonce CSP, Permissions-Policy (camera, microphone, geolocation), HSTS 1 year on https (Phase 1); `tests/Feature/Http/SecurityHeadersTest.php`. Referrer-Policy is `same-origin`, stricter than `strict-origin-when-cross-origin` and needed for hotlink-protected cover hosts | Fix: Permissions-Policy also denies `payment` and `usb`; HSTS `max-age` two years. Preload stays the owner's call (task 1.7d) |
+| 17 | No raw HTML sinks with user content | `{!! !!}` only for the server-made 2FA QR SVG; the one `x-html` renders a server-escaped `<template>` (search filters) | Already OK |
+| 18 | No secrets in client bundles; history scan | Phase 1 (gitleaks over 616 commits; only `VITE_APP_NAME`) | Already OK |
+| 19 | A security log for auth rejections and throttling, never tokens or bodies | Nothing dedicated | Fix: a `security` log channel and `SecurityLog` helper, fed by failed sign-ins, lockouts, 429s and 403s (task 1.7e) |
+| 20 | Auth-config push scripts refuse empty env vars | No such scripts in the repo | Not applicable |
+| docs | `docs/SECURITY.md` | None | Fix: applied, not applicable and why, owner-side controls (task 1.7f) |
+
+### Task 1.7 log
+
+Commits 1e8c8c6 (route auth coverage), 771f3d8 (72-byte password max), 272ed19 (8 KB body cap on the JSON beacon routes), e684ba4 (Permissions-Policy payment/usb, HSTS 2 years), aa68e3e (security log), ee50d3b (docs/SECURITY.md). Gate at ee50d3b: 3415 tests passed.
+
+Review: no blocking findings. Fix wave: the security log can never turn a response into a 500 (guarded write); wrong two-factor codes are logged (`failed_two_factor`); `Lockout` is never fired with Fortify's `login` limiter configured, so throttled sign-ins appear as `too_many_requests` on `login.store` (documented); SECURITY.md corrected (a failed leaked-password lookup lets sign-up and reset succeed without the check); the reader's progress sync drops a 413 instead of retrying; the route allow-list matches names against names and URIs against URIs.
+
+Rulings: P1-R11 the security log stores a 12-hex unsalted SHA-256 prefix of the email (enough to group attempts; someone holding the log could confirm a guessed address). P1-R12 the body cap answers 404 before 413 for a missing route model (binding runs first), harmless.
+
+Deferred to Phase 3 (privacy policy inventory): the security log keeps IP, user id and an email hash for 30 days (`LOG_SECURITY_DAYS`).

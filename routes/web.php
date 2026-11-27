@@ -5,6 +5,7 @@ use App\Http\Controllers\ExportDownloadController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\LibraryController;
 use App\Http\Controllers\RecommendationFeedbackController;
+use App\Http\Middleware\LimitRequestBody;
 use App\Library\ExportStorage;
 use Illuminate\Support\Facades\Route;
 
@@ -36,10 +37,10 @@ Route::middleware(['auth', 'verified', 'reader'])->group(function () {
     Route::livewire('profile', 'pages::profile.show')->name('profile.show');
 
     // The no-JS way to add a story; the pages add through the `library-add` browser event (see <livewire:library-listener>). Own throttle bucket, so it shares nothing with the other numeric throttles.
-    Route::post('library', [LibraryController::class, 'store'])->middleware('throttle:60,1,library')->name('library.store');
+    Route::post('library', [LibraryController::class, 'store'])->middleware(['throttle:60,1,library', LimitRequestBody::class.':8'])->name('library.store');
 
     // What Home reports about its tiles (a click, tiles in view, "Not interested" and its undo), sent in the background; they answer 204 and ignore ids that are not the reader's.
-    Route::prefix('recommendations')->middleware('throttle:120,1,recommendations')->controller(RecommendationFeedbackController::class)->group(function () {
+    Route::prefix('recommendations')->middleware(['throttle:120,1,recommendations', LimitRequestBody::class.':8'])->controller(RecommendationFeedbackController::class)->group(function () {
         Route::post('click', 'click')->name('recommendations.click');
         Route::post('impressions', 'impressions')->name('recommendations.impressions');
         Route::post('{recommendation}/dismiss', 'dismiss')->where('recommendation', '[0-9]{1,18}')->name('recommendations.dismiss');

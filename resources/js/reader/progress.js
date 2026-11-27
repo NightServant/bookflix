@@ -92,8 +92,8 @@ export default function startProgress({ url }) {
                 return unavailable();
             }
 
-            // A payload the server won't take (422) is dropped; a server or session failure is tried again.
-            if (!response.ok && response.status !== 422) {
+            // A payload the server won't take (422), or one over the size cap (413), is dropped: sending it again cannot succeed. A server or session failure is tried again.
+            if (!response.ok && response.status !== 422 && response.status !== 413) {
                 throw new Error(String(response.status));
             }
 
