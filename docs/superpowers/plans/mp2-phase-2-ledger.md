@@ -57,3 +57,38 @@ All tasks run in sequence with one implementer, so no pair runs concurrently.
 | 2.3 Landing phone menu | pending | | |
 | 2.4 Phone settings/sign-out, drawers | pending | | |
 | 2.5 Phone flows and sweep | pending | | |
+
+## Rulings (continued, 2026-11-27)
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| P2-R3 | (2.1) Admin report titles link to the story's admin page (`admin.media.edit`), not the reader story page, which bounces admins to `/admin`. | Low. |
+| P2-R4 | (2.1) The link crawl follows up to 3 redirects and fails on a final status >= 400 or a bounce to the role's bounce target; the `/settings/security` → confirm-password redirect is allowed. | Low. |
+| P2-R5 | (2.1b) The landing "Top 10" links (bar, phone menu, footer) render only when the Top 10 section does (same `$topTen` data). | None. |
+| P2-R6 | (2.2) Long user strings wrap (`wrap-anywhere`); wide admin tables scroll inside `x-admin-table`; no page-level `overflow-x: hidden` anywhere. The CTA component does not wrap globally (reverted after review: it wrapped buttons that fit); the forgot-password label is "Send reset link". | Low. |
+| P2-R7 | (2.2) The overflow test also fails on text that spills past its box and on fixed/sticky boxes past the right edge (a fixed header never widens the page). Its 30 s page-load timeout applies only to that file: in full runs the search page sometimes stalls only while other test processes load the machine. | Low; a real hang still fails after 30 s. |
+| P2-R8 | (2.2) Profile stats use 4 columns only from `xl`; admin "At a glance" text wraps to its own line on phones. | Low; visual. |
+| P2-R9 | (2.3) Below `sm` the landing bar is logo + "Get started" + menu; "Sign in" moves into the drawer (it pushed the menu button off-screen at 320/375). | Low. |
+| P2-R10 | (2.4) The reader's account menu (top bar on phones) already gives Settings and Log out in two taps; no second menu added. The admin drawer now locks the page while open and clears the lock on close, on resize and on the next page after `wire:navigate`. | Low. |
+
+## Task 2.5 sweep
+
+| Check | Result |
+|---|---|
+| `<button>` without `type` inside a `<form>` (multi-line tags included) | 0 (`x-cta` and `flux:button` default to `type="button"`) |
+| `href` empty, `#` or `javascript:` | 0 |
+| Placeholder text ("lorem", "coming soon", "your text here", "TBD", "xxx") | 0 |
+| `TODO` / `FIXME` in views, seeders, lang, app | 0; no `TODO(owner)` comments exist |
+| Contact details (`tel:`, `mailto:`, phone numbers, addresses, emails) | 0 (only `email@example.com` form placeholders) → [B] phone/email: Not applicable |
+
+## Task log (updates)
+
+| Task | Status | Commits | Notes |
+|---|---|---|---|
+| 2.1 | done, reviewed twice | 0dbf0fa, 49d349a (2.1b), 7608d8c (fixes) | Found: admin report titles bounced admins; landing Top 10 links dead on an empty catalogue |
+| 2.2 | done, reviewed twice | 24a6523, fc6c6a2 (fixes) | 10 pages overflowed; review caught a global CTA regression and text spills |
+| 2.3 | done, reviewed | b905ae5 | Menu button was off-screen at 320/375 before commit (fixed) |
+| 2.4 | done | 2cfe7f9 | Admin drawer scroll lock |
+| 2.5 | done | (this commit) | Phone flow passed first time; sweep clean |
+
+Phase fix wave (pending): 2.1 nits (guest bounce check, exact `/admin` prefix); 2.3 review (resize-past-768 test, aria-hidden count before/after, reduced-motion assertion, `aria-labelledby` on the drawer); plus the 2.4 review and the whole-branch review.
