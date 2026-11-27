@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Discovery\Search\FallbackQueryParser;
 use App\Discovery\Search\QueryParser;
+use App\Http\Middleware\EnsureOnboarded;
+use App\Http\Middleware\EnsureReaderAccount;
 use App\Models\Creator;
 use App\Models\Demographic;
 use App\Models\ExternalReview;
@@ -15,6 +17,8 @@ use App\Models\Trope;
 use App\Models\User;
 use App\Support\PreResolveHosts;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
+use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -28,6 +32,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Component;
+use Livewire\Livewire;
 
 use function Livewire\on;
 
@@ -67,6 +72,14 @@ class AppServiceProvider extends ServiceProvider
             // What a report points at (reports.reportable_type).
             'review' => Review::class,
             'external_review' => ExternalReview::class,
+        ]);
+
+        // Livewire re-runs only auth and can: on /livewire/update; these four are replayed too, so an update is refused as the page was.
+        Livewire::addPersistentMiddleware([
+            EnsureEmailIsVerified::class,
+            EnsureReaderAccount::class,
+            EnsureOnboarded::class,
+            RequirePassword::class,
         ]);
 
         Gate::define('access-admin', fn (User $user): bool => $user->is_admin);

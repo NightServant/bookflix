@@ -22,7 +22,8 @@ class EnsureReaderAccount
             return $next($request);
         }
 
-        abort_unless($request->isMethodSafe(), 403);
+        // A Livewire update replays the page's GET (persistent middleware) but still changes data, so it is refused, never redirected.
+        abort_unless($request->isMethodSafe() && ! $request->hasHeader('X-Livewire'), 403);
 
         return redirect()->route('admin.index');
     }
