@@ -1,3 +1,5 @@
+@props(['hasTopTen' => false])
+
 {{--
     The landing footer: a statement and the link columns, the data attribution, the legal line, and a wordmark as wide as the page,
     cropped by the bottom edge. The wordmark is an SVG whose text is stretched to the exact width (`textLength`), so it fits any
@@ -6,7 +8,7 @@
 @php
     $columns = [
         __('Explore') => [
-            ['#top-10', __('Top 10')],
+            ...($hasTopTen ? [['#top-10', __('Top 10')]] : []),
             ['#together', __('Why Bookflix')],
             ['#faq', __('Questions')],
         ],

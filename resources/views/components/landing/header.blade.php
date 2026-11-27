@@ -1,3 +1,5 @@
+@props(['hasTopTen' => false])
+
 {{--
     The landing page's top bar: the logo, a few in-page links on a wide screen, and the two ways in. Transparent over the hero, and a
     blurred canvas with a hairline once the page has scrolled. The hero has no buttons of its own, so a phone keeps both here: "Sign in" as plain text
@@ -15,7 +17,7 @@
 
         <nav aria-label="{{ __('On this page') }}" class="max-md:hidden">
             <ul class="flex items-center gap-1">
-                @foreach ([['#top-10', __('Top 10')], ['#together', __('Why Bookflix')], ['#faq', __('FAQ')]] as [$href, $label])
+                @foreach ([...($hasTopTen ? [['#top-10', __('Top 10')]] : []), ['#together', __('Why Bookflix')], ['#faq', __('FAQ')]] as [$href, $label])
                     <li><a href="{{ $href }}" class="focus-ring inline-flex min-h-11 items-center rounded-control px-3 text-meta text-ink-subtle transition-colors hover:text-ink">{{ $label }}</a></li>
                 @endforeach
             </ul>

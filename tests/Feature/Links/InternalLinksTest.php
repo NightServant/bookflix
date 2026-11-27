@@ -200,6 +200,20 @@ test('every internal link a guest can see opens for a guest', function () {
     linksAssertWork(linksPagesFor('guest'));
 });
 
+test('on a catalogue without covers the landing page links to no section that is not there', function () {
+    linksAssertWork(['/']);
+
+    $this->get('/')->assertDontSee('href="#top-10"', false);
+});
+
+test('with covers the landing header and footer link to the Top 10 band', function () {
+    popularStories(12);
+
+    $html = $this->get('/')->getContent();
+
+    expect(substr_count($html, 'href="#top-10"'))->toBe(2)->and(linksHasId($html, 'top-10'))->toBeTrue();
+});
+
 test('every internal link a reader can see opens for that reader', function () {
     $pages = linksPagesFor('reader');
     $this->actingAs(User::factory()->create());
