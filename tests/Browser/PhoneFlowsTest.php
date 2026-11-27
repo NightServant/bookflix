@@ -89,8 +89,14 @@ test('search, story, library, reader and a dialog work on a phone without sidewa
     $page->click('[data-test="read-action"]')->waitForText('Chapter 1 of 2')
         ->assertScript(browserUntil('location.pathname.startsWith("/read/")'), true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors()
-        ->keys(':root', 'ArrowRight')
-        ->assertScript(browserUntil('document.querySelector("[data-reader=percent]") !== null'), true)
+        ->assertScript(browserUntil('document.querySelector("[data-reader=percent]") !== null'), true);
+
+    // The page turned: the position shown (the percent and the line under it) is not what it was before the key.
+    $position = 'document.querySelector("[data-reader=percent]").textContent.trim() + "|" + (document.querySelector("[data-reader=meta]")?.textContent.trim() ?? "")';
+    $before = $page->script($position);
+
+    $page->keys(':root', 'ArrowRight')
+        ->assertScript(browserUntil($position.' !== '.json_encode($before)), true)
         ->assertScript($this->sound, 'ok')->assertNoJavaScriptErrors();
 
     $page->script('history.back()');

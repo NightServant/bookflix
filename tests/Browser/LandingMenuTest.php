@@ -125,9 +125,9 @@ test('under reduced motion the drawer is shown at once and a link lands its sect
     $page = visit($this->landing, $this->phone + ['reducedMotion' => 'reduce']);
     $page->assertScript(browserUntil($this->ready), true);
 
-    // No waiting after the tap: the wrapper and the panel are fully shown in the very next frame.
+    // No sleep after the tap: two animation frames (Alpine keeps its enter-start class for one frame even at 0ms), then the wrapper must be fully shown and the panel in place.
     $page->click($this->button)
-        ->assertScript('(() => { const drawer = document.getElementById("landing-menu"); const panel = drawer.querySelector(":scope > div:last-child"); return getComputedStyle(drawer).opacity === "1" && panel.getBoundingClientRect().right <= window.innerWidth + 0.5 && panel.getBoundingClientRect().left >= 0 && getComputedStyle(panel).transitionDuration === "0s"; })()', true)
+        ->assertScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => { const drawer = document.getElementById("landing-menu"); const panel = drawer.querySelector(":scope > div:last-child"); const box = panel.getBoundingClientRect(); resolve(getComputedStyle(drawer).opacity === "1" && box.right <= window.innerWidth + 0.5 && box.left >= 0); })))', true)
         ->assertScript('getComputedStyle(document.documentElement).scrollBehavior', 'auto')
         ->click('#landing-menu a[href="#faq"]')->assertScript(browserUntil('window.scrollY > 0'), true)
         ->assertScript('window.scrollY > 0 && document.getElementById("faq").getBoundingClientRect().top >= document.querySelector("header").getBoundingClientRect().height - 1', true)
