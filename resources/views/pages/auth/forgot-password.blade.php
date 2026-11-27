@@ -19,7 +19,7 @@
             />
 
             <x-cta type="submit" icon="paper-airplane" icon:variant="outline" class="w-full" data-test="email-password-reset-link-button">
-                {{ __('Email password reset link') }}
+                {{ __('Send reset link') }}
             </x-cta>
         </form>
 

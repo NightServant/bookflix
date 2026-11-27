@@ -20,7 +20,7 @@
     gap-2.5 away; the padding on the icon's side shrinks so label plus icon read as centred. With no label the button is a
     44px square and must carry an aria-label.
     One size everywhere: a 16px label and a 44px floor reached through padding, not type. Flux's own 40px height, small text
-    and inset highlight are overridden. A label too long for its card wraps inside the button (Flux buttons never wrap) instead of widening the page. The primary button glows red (`--shadow-glow-brand`) on hover only.
+    and inset highlight are overridden. The primary button glows red (`--shadow-glow-brand`) on hover only.
 --}}
 <flux:button
     :variant="match ($variant) { 'secondary', 'light' => 'filled', 'danger' => 'outline', default => 'primary' }"
@@ -35,7 +35,6 @@
         'bg-ink! text-canvas! hover:bg-zinc-300!' => $variant === 'light',
         'border-red-400/60! text-red-400! hover:bg-red-400/10!' => $variant === 'danger',
         'focus-ring h-auto! min-h-11 py-2! text-body! font-medium! shadow-none! gap-2.5!',
-        'max-w-full whitespace-normal! text-center',
         'px-5!' => ! $icon && ! $trailing,
         'ps-4! pe-5!' => $icon && ! $trailing && ! $iconOnly,
         'ps-5! pe-4!' => ! $icon && $trailing,

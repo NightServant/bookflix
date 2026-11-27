@@ -53,7 +53,57 @@ const NHS_PROBE = '(() => {
     const out = sticking.find((el) => ! contained(el)) || sticking[0];
     const others = sticking.filter((el) => el !== out).slice(0, 3).map(describe);
 
+    // Text that runs past the box it sits in without widening the page (an overlap, not a scroll): the right edge of each visible text node against the content
+    // edge of its nearest block-level ancestor (3px of slack for sub-pixel rounding and letter spacing). Skipped: text in a horizontally scrollable or clipping box, an ellipsis box, and screen-reader-only text.
+    const spill = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+
+    for (let node = walker.nextNode(); node && spill.length < 4; node = walker.nextNode()) {
+        if (! node.textContent.trim()) continue;
+
+        let block = node.parentElement;
+
+        // An inline box (a link, an inline-flex button) sizes itself to its text, so the box that limits the text is the nearest block-level ancestor.
+        while (block && getComputedStyle(block).display.startsWith("inline")) {
+            block = block.parentElement;
+        }
+
+        if (! block || node.parentElement.closest("svg")) continue;
+
+        const style = getComputedStyle(block);
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const text = range.getBoundingClientRect();
+
+        if (text.width < 1 || style.visibility === "hidden" || style.position === "fixed") continue;
+
+        let skip = false;
+
+        // Only what sits between the text and its own box counts: a box that clips or scrolls its text, an ellipsis, a screen-reader-only span. A scrolling
+        // region further out does not excuse text that runs past its own cell and over its neighbours.
+        for (let el = node.parentElement; el; el = el.parentElement) {
+            const s = getComputedStyle(el);
+
+            if (/auto|scroll|hidden|clip/.test(s.overflowX) || s.textOverflow === "ellipsis" || s.position === "fixed" || (s.position === "absolute" && el.getBoundingClientRect().width <= 1)) {
+                skip = true;
+                break;
+            }
+
+            if (el === block) {
+                break;
+            }
+        }
+
+        const box = block.getBoundingClientRect();
+        const edge = box.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+
+        if (! skip && text.right > edge + 3) {
+            spill.push(block.tagName.toLowerCase() + "." + String(block.className).slice(0, 70) + " [" + node.textContent.trim().slice(0, 30) + "] text right=" + Math.round(text.right) + " box right=" + Math.round(edge));
+        }
+    }
+
     return JSON.stringify({
+        spill,
         over: document.documentElement.scrollWidth - window.innerWidth,
         free: sticking.some((el) => ! contained(el)),
         el: out ? describe(out) + (others.length ? " | next: " + others.join(" | ") : "") : null,
@@ -93,7 +143,7 @@ function nhsSeed(): array
         libraryEntry($reader, $item, 'reading');
     }
 
-    collectionOf($reader, [$story, $catalog->first()], ['name' => 'Collection of the unbroken title', 'slug' => 'long-collection']);
+    collectionOf($reader, [$story, $catalog->first()], ['name' => NHS_LONG_TITLE, 'slug' => 'long-collection']);
     collectionOf(User::factory()->admin()->create(), [$story], ['name' => 'Staff pick with the unbroken title', 'is_editorial' => true]);
     DuplicateCandidate::factory()->create(['media_id' => $story->id]);
     ContentSource::factory()->for($story)->publicDomain()->ready()->create();
@@ -172,8 +222,8 @@ test('no page scrolls sideways', function (string $role, string $path) {
         $page->resize($width, $height)->wait(0.4);
         $probe = json_decode((string) $page->script(NHS_PROBE), true);
 
-        if (($probe['over'] ?? 0) > 0 || ($probe['free'] ?? false)) {
-            $failures[] = "{$role} {$path} at {$width}: page is {$probe['over']}px too wide; widest element {$probe['el']}";
+        if (($probe['over'] ?? 0) > 0 || ($probe['free'] ?? false) || ($probe['spill'] ?? []) !== []) {
+            $failures[] = "{$role} {$path} at {$width}: page is {$probe['over']}px too wide; widest element {$probe['el']}; text past its box: ".implode(' | ', $probe['spill'] ?? []);
         }
     }
 

@@ -150,7 +150,7 @@ new #[Title('Duplicates')] class extends Component {
                         @foreach ([$candidate->media, $candidate->duplicateMedia] as $side)
                             <flux:table.cell wire:key="candidate-{{ $candidate->id }}-{{ $side->id }}" data-label="{{ $loop->first ? __('First record') : __('Second record') }}" class="{{ $cell }} md:max-w-56 md:whitespace-normal!">
                                 <span class="block min-w-0">
-                                <span class="block text-body text-ink">{{ $side->title }}</span>
+                                <span class="block text-body text-ink wrap-anywhere">{{ $side->title }}</span>
                                 <span class="block text-meta text-ink-subtle">
                                     {{ $side->mediaType->name }}@if ($side->publication_year) · {{ $side->publication_year }}@endif
                                     @if ($side->creators->isNotEmpty()) · {{ $side->creators->pluck('name')->join(', ') }}@endif

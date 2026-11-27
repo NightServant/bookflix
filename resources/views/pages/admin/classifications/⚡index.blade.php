@@ -277,7 +277,7 @@ new #[Title('Classification review')] class extends Component {
                     @php($cell = 'max-md:flex! max-md:gap-4 max-md:py-1 max-md:before:w-24 max-md:before:shrink-0 max-md:before:text-ink-subtle max-md:before:content-[attr(data-label)]')
                     <flux:table.row wire:key="row-{{ $row->id }}" class="max-md:mb-4 max-md:rounded-card max-md:bg-surface-card max-md:p-4">
                         <flux:table.cell class="md:max-w-60 md:whitespace-normal!">
-                            <a href="{{ route('admin.media.edit', $row->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control text-body text-ink hover:underline md:min-h-0">{{ $row->media->title }}</a>
+                            <a href="{{ route('admin.media.edit', $row->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control text-body text-ink wrap-anywhere hover:underline md:min-h-0">{{ $row->media->title }}</a>
                             <span class="block text-meta text-ink-subtle">
                                 {{ $row->media->mediaType->name }}@if ($row->media->publication_year) · {{ $row->media->publication_year }}@endif
                                 @if ($row->media->creators->isNotEmpty()) · {{ $row->media->creators->pluck('name')->join(', ') }}@endif

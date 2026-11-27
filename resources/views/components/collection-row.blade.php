@@ -23,7 +23,7 @@
     </span>
 
     <span class="min-w-0 flex-1">
-        <span class="block text-lead text-ink group-hover:underline">{{ $collection->name }}</span>
+        <span class="block text-lead text-ink wrap-anywhere group-hover:underline">{{ $collection->name }}</span>
 
         <span class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-meta text-ink-subtle">
             @if ($preview['count'] > 0)

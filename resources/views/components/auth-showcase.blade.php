@@ -27,7 +27,7 @@
     <div class="max-w-md">
         <p class="text-section tracking-tight text-balance text-ink">{{ __('Every story you mean to read, on one calm shelf.') }}</p>
         @if (count($books))
-            <p class="mt-3 text-meta text-ink/80">{{ __('Popular right now: :titles', ['titles' => collect($books)->pluck('title')->join(', ', __(' and '))]) }}</p>
+            <p class="mt-3 text-meta text-ink/80 wrap-anywhere">{{ __('Popular right now: :titles', ['titles' => collect($books)->pluck('title')->join(', ', __(' and '))]) }}</p>
         @endif
     </div>
 </div>

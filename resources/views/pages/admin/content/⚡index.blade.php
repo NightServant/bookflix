@@ -174,9 +174,9 @@ new #[Title('Reading files')] class extends Component {
                         <flux:table.row wire:key="source-{{ $source->id }}" class="max-md:mb-4 max-md:rounded-card max-md:bg-surface-card max-md:p-4">
                             <flux:table.cell class="md:max-w-72 md:whitespace-normal!">
                                 @if ($source->media && ! $source->media->trashed())
-                                    <a href="{{ route('admin.media.edit', $source->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control text-body text-ink underline-offset-4 hover:underline">{{ $title }}</a>
+                                    <a href="{{ route('admin.media.edit', $source->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control text-body text-ink underline-offset-4 wrap-anywhere hover:underline">{{ $title }}</a>
                                 @else
-                                    <span class="block text-body text-ink-subtle">{{ $title }}</span>
+                                    <span class="block text-body text-ink-subtle wrap-anywhere">{{ $title }}</span>
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell data-label="{{ __('Access') }}" class="{{ $cell }}">{{ $source->access_type->label() }}</flux:table.cell>
