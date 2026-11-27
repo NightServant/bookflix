@@ -158,3 +158,7 @@ Dependency audits (Step 3), not clean, so both stay out of the CI job (Needs dec
 | 1.4 | done, reviewed | dd73fcb | No HSTS `preload` (owner's call) |
 | 1.5 | done | 75d70d3 | Job not required; audits left out (Needs decision) |
 | 1.6 | done | 0a24304 | Fortify array-field 500 fixed; inventory above |
+
+**Correction (Task 1.6 review):** in the inventory, admin/classifications `change`/`add` with an unknown code is not a silent no-op: `classWithCode()` adds a `code` error ("Choose a class from the list."), nothing is written, and the dialog stays open. Also `admin/providers toggleEnabled` takes a typed id through `providers()->findOrFail`.
+
+**Security review (Phase 1 exit), done inline by the coordinator** (the built-in `/security-review` was not used because it may start its own agents and this session is limited to two). Scope: the branch's code diff (15 files, 162 lines). No exploitable findings: limiter keys are prefixed and include the IP for email buckets, so nobody can lock someone else out of reset; reset tokens make email rotation pointless on `password.update`; the auth-field guard runs only on POST and only on Fortify routes; the `RequirePassword` subclass keeps browser behaviour; HSTS only on secure requests; the CI job has a read-only token, exposes no secrets to fork PRs, and pins the gitleaks module checksum.
