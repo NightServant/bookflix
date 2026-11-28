@@ -60,6 +60,9 @@ function upZipOf(array $entries, bool $mimetypeStored = true): string
 
     foreach ($entries as $name => $body) {
         $zip->addFromString($name, $body);
+        // A fixed entry time keeps the bytes identical across calls: tests compare a stored checksum against a second build of the same archive, and
+        // the current time (2-second resolution in zip headers) made those differ whenever a boundary fell between the two builds.
+        $zip->setMtimeName($name, 946684800);
 
         if ($name === 'mimetype' && $mimetypeStored) {
             $zip->setCompressionName($name, ZipArchive::CM_STORE);
