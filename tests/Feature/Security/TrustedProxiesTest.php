@@ -1,6 +1,10 @@
 <?php
 
+use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -9,7 +13,7 @@ use Illuminate\Support\Facades\Route;
  */
 
 beforeEach(function () {
-    Route::middleware('web')->get('/_proxy-probe', fn (Request $request) => response()->json(['ip' => $request->ip(), 'secure' => $request->isSecure()]));
+    Route::middleware('web')->get('/_proxy-probe', fn (Request $request) => response()->json(['ip' => $request->ip(), 'secure' => $request->isSecure(), 'host' => $request->getHost()]));
 });
 
 // Symfony keeps the trusted proxies in a static, so each test starts and ends with none.
@@ -61,6 +65,50 @@ test('the per-IP throttles count the forwarded client address when proxies are t
     // The same client is throttled; a different client behind the same proxy is not.
     $signUp('203.0.113.7')->assertTooManyRequests();
     $signUp('198.51.100.9')->assertRedirect();
+});
+
+// X-Forwarded-Host is deliberately not trusted: the reset and verification mails build their links from the request's host, so a client-supplied one would
+// put an attacker's address in a real Bookflix email that carries the victim's token.
+test('with every proxy trusted, X-Forwarded-Host still does not change the host', function () {
+    config(['trustedproxy.proxies' => '*']);
+
+    $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.1'])
+        ->withHeaders(['X-Forwarded-Host' => 'evil.example', 'X-Forwarded-For' => '203.0.113.7'])
+        ->get('/_proxy-probe')->assertOk()->assertJson(['host' => 'localhost', 'ip' => '203.0.113.7']);
+});
+
+test('a password reset mail sent through a trusted proxy never links to a client-supplied host', function () {
+    config(['trustedproxy.proxies' => '*']);
+    Notification::fake();
+    $user = User::factory()->create();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.1'])
+        ->withHeaders(['X-Forwarded-Host' => 'evil.example', 'X-Forwarded-Proto' => 'https'])
+        ->post(route('password.email'), ['email' => $user->email]);
+
+    Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use ($user) {
+        $link = $notification->toMail($user)->actionUrl;
+
+        return parse_url($link, PHP_URL_HOST) === 'localhost' && ! str_contains($link, 'evil.example');
+    });
+});
+
+test('a verification mail sent through a trusted proxy never links to a client-supplied host', function () {
+    config(['trustedproxy.proxies' => '*']);
+    Notification::fake();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.1'])
+        ->withHeaders(['X-Forwarded-Host' => 'evil.example', 'X-Forwarded-Proto' => 'https'])
+        ->post(route('register.store'), ['name' => 'New Reader', 'email' => 'new@example.com', 'password' => 'password', 'password_confirmation' => 'password'])
+        ->assertSessionHasNoErrors();
+
+    $user = User::query()->where('email', 'new@example.com')->firstOrFail();
+
+    Notification::assertSentTo($user, VerifyEmail::class, function (VerifyEmail $notification) use ($user) {
+        $link = $notification->toMail($user)->actionUrl;
+
+        return parse_url($link, PHP_URL_HOST) === 'localhost' && ! str_contains($link, 'evil.example');
+    });
 });
 
 test('TRUSTED_PROXIES is read as unset, a star, or a trimmed comma list', function (mixed $env, mixed $expected) {
