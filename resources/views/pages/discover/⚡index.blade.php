@@ -280,7 +280,7 @@ new #[Title('Discover')] class extends Component {
                 </nav>
             @endif
 
-            <ul x-data x-motion-reveal data-stagger="30" class="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
+            <ul x-data x-motion-reveal data-stagger="30" class="mt-6 grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
                 @foreach ($this->tiles as $tile)
                     <li wire:key="format-{{ $tile->id }}">
                         <a
@@ -290,7 +290,7 @@ new #[Title('Discover')] class extends Component {
                             class="group focus-ring flex h-full min-h-44 flex-col justify-between gap-6 rounded-card p-4 sm:p-5 bg-surface-deep hover:bg-surface-card"
                         >
                             <span class="block">
-                                <span class="block text-section tracking-tight text-ink">{{ $tile->name }}</span>
+                                <span class="block text-section tracking-tight text-ink wrap-anywhere">{{ $tile->name }}</span>
                                 <span class="mt-1 block text-meta tabular-nums text-ink-subtle">{{ trans_choice(':count story|:count stories', $tile->stories_count) }}</span>
                             </span>
 
@@ -324,7 +324,7 @@ new #[Title('Discover')] class extends Component {
         </div>
 
         @if ($this->subjects->isNotEmpty())
-            <ul x-data x-motion-reveal data-stagger="30" class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fill,minmax(13rem,16rem))]">
+            <ul x-data x-motion-reveal data-stagger="30" class="mt-4 grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:gap-4 md:grid-cols-[repeat(auto-fill,minmax(13rem,16rem))]">
                 @foreach ($this->subjects as $subject)
                     <li wire:key="subject-{{ $subject->id }}">
                         <x-subject-tile :dewey-class="$subject" fluid />

@@ -18,11 +18,11 @@
             class="focus-ring fixed start-gutter top-2 z-50 flex -translate-y-20 opacity-0 focus:translate-y-0 focus:opacity-100 min-h-11 items-center rounded-control border border-hairline bg-surface-card px-4 text-meta text-ink shadow-lg"
         >{{ __('Skip to content') }}</a>
 
-        {{-- Escape closes the drawer (Flux closes it only from its buttons) and gives focus back to the menu button that opened it; opening moves focus to the first link. --}}
-        <flux:sidebar sticky collapsible="mobile" x-init="new MutationObserver(() => { if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $nextTick(() => $el.querySelector('nav a').focus()) } }).observe($el, { attributes: true, attributeFilter: ['data-flux-sidebar-collapsed-mobile'] })" class="border-e border-hairline bg-surface-deep lg:bg-canvas" :aria-label="__('Admin')" x-on:keydown.escape.window="if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $el.querySelector('[data-flux-sidebar-collapse] button').click(); $nextTick(() => document.querySelector('[data-flux-sidebar-toggle]').focus()) }">
+        {{-- Escape closes the drawer (Flux closes it only from its buttons) and gives focus back to the menu button that opened it; opening moves focus to the first link and locks the page behind it (the lock keeps the page from jumping when the scrollbar disappears, and is lifted whenever the drawer closes, the window grows past the drawer breakpoint, or a link in the drawer navigates to a new page: the new layout clears it when it starts). --}}
+        <flux:sidebar sticky collapsible="mobile" x-init="document.documentElement.style.overflow = ''; document.documentElement.style.paddingRight = ''; new MutationObserver(() => { if (! $el.isConnected) { return } const open = $el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile'); const root = document.documentElement; const gap = open ? window.innerWidth - root.clientWidth : 0; root.style.paddingRight = gap > 0 ? gap + 'px' : ''; root.style.overflow = open ? 'hidden' : ''; if (open) { $nextTick(() => $el.querySelector('nav a').focus()) } }).observe($el, { attributes: true, attributeFilter: ['data-flux-sidebar-collapsed-mobile', 'data-flux-sidebar-on-mobile'] })" class="border-e border-hairline bg-surface-deep lg:bg-canvas" :aria-label="__('Admin')" x-on:keydown.escape.window="if ($el.hasAttribute('data-flux-sidebar-on-mobile') && ! $el.hasAttribute('data-flux-sidebar-collapsed-mobile')) { $el.querySelector('[data-flux-sidebar-collapse] button').click(); $nextTick(() => document.querySelector('[data-flux-sidebar-toggle]').focus()) }">
             <flux:sidebar.header>
                 <span class="flex items-center gap-2">
-                    <x-app-logo :href="route('admin.index')" wire:navigate />
+                    <x-app-logo :href="route('admin.index')" wire:navigate data-test="logo" />
                     <flux:badge size="sm" color="zinc">{{ __('Admin') }}</flux:badge>
                 </span>
                 <flux:sidebar.collapse class="focus-ring min-h-11 min-w-11 lg:hidden" :aria-label="__('Close menu')" />
@@ -64,7 +64,7 @@
 
         <flux:header class="border-b border-hairline bg-canvas px-4! lg:hidden">
             <flux:sidebar.toggle class="focus-ring min-h-11 min-w-11 lg:hidden" icon="bars-2" inset="left" :aria-label="__('Open menu')" />
-            <x-app-logo :href="route('admin.index')" wire:navigate class="ms-2" />
+            <x-app-logo :href="route('admin.index')" wire:navigate class="ms-2" data-test="logo" />
             <flux:spacer />
             <a href="{{ route('profile.edit') }}" wire:navigate class="focus-ring inline-flex min-h-11 min-w-11 items-center justify-center rounded-control" aria-label="{{ __('Account') }}">
                 <flux:avatar size="sm" :name="$admin->name" :initials="$admin->initials()" :src="$admin->avatarUrl()" />

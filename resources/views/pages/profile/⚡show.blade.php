@@ -392,10 +392,10 @@ new #[Title('Your profile')] class extends Component {
                 ];
             @endphp
 
-            <dl class="grid grid-cols-2 gap-y-6 px-5 py-6 sm:px-6 lg:grid-cols-4 lg:gap-y-0 lg:divide-x lg:divide-hairline">
+            <dl class="grid grid-cols-2 gap-y-6 px-5 py-6 sm:px-6 xl:grid-cols-4 xl:gap-y-0 xl:divide-x xl:divide-hairline">
                 @foreach ($stats as $key => $stat)
                     {{-- Each stat is a dt and its dds (the icon sits in the figure's dd); the figure shows first, the term under it. --}}
-                    <div data-stat="{{ $key }}" class="flex min-w-0 flex-col pe-3 lg:px-5 lg:first:ps-0 lg:last:pe-0">
+                    <div data-stat="{{ $key }}" class="flex min-w-0 flex-col pe-3 xl:px-5 xl:first:ps-0 xl:last:pe-0">
                         <dt class="order-2 ps-8 text-meta text-ink-subtle">{{ $stat['label'] }}</dt>
                         <dd class="order-1 flex items-center gap-3 text-section tabular-nums text-ink">
                             <flux:icon :name="$stat['icon']" class="size-5 shrink-0 text-ink-subtle" />{{ $stat['value'] }}
@@ -555,7 +555,7 @@ new #[Title('Your profile')] class extends Component {
                             </a>
 
                             <div class="min-w-0 flex-1">
-                                <h3><a href="{{ route('stories.show', ['slug' => $media->slug, 'tab' => 'reviews']) }}" wire:navigate class="focus-ring rounded-control text-body font-medium text-ink hover:underline">{{ $media->title }}</a></h3>
+                                <h3><a href="{{ route('stories.show', ['slug' => $media->slug, 'tab' => 'reviews']) }}" wire:navigate class="focus-ring rounded-control text-body font-medium text-ink wrap-anywhere hover:underline">{{ $media->title }}</a></h3>
                                 <p class="text-legal text-ink-muted">{{ collect([$this->creatorsLine($media), $this->ago($review->created_at)])->filter()->implode(' · ') }}</p>
 
                                 @if ($review->status === App\Enums\ReviewState::Hidden)

@@ -108,14 +108,20 @@ test('with motion allowed the hero books drift, and are all there', function () 
         ->assertNoJavaScriptErrors();
 });
 
-test('the hero has no call to action of its own: no links, no buttons, nothing to tab to; the header keeps Sign in and Get started', function (array $options) {
+test('the hero has no call to action of its own: no links, no buttons, nothing to tab to; the header keeps Get started, and Sign in in the bar or the phone menu', function (array $options, bool $signInInBar) {
     $page = visit($this->landing, $options)->wait(1);
 
     $page->assertScript('document.querySelectorAll("[data-section=hero] a, [data-section=hero] button, [data-section=hero] [href], [data-section=hero] [tabindex]").length', 0)
         ->assertScript('document.querySelectorAll("header a[href$=\"/login\"]").length', 1)
         ->assertScript('document.querySelectorAll("header a[href$=\"/register\"]").length', 1)
-        ->assertScript('Array.from(document.querySelectorAll("header a[href$=\"/login\"], header a[href$=\"/register\"]")).every((el) => el.getBoundingClientRect().height >= 44 && getComputedStyle(el).visibility === "visible")', true);
-})->with(['desktop' => fn () => [['viewport' => ['width' => 1440, 'height' => 900]]][0], 'phone' => fn () => [['viewport' => ['width' => 390, 'height' => 844]]][0]]);
+        ->assertScript('(() => { const el = document.querySelector("header a[href$=\"/register\"]"); return el.getBoundingClientRect().height >= 44 && getComputedStyle(el).visibility === "visible"; })()', true)
+        ->assertScript('(() => { const el = document.querySelector("header a[href$=\"/login\"]"); return getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height >= 44; })()', $signInInBar)
+        // Below 640px Sign in is in the phone menu instead (see LandingMenuTest).
+        ->assertScript('document.querySelectorAll("#landing-menu a[href$=\"/login\"]").length', 1);
+})->with([
+    'desktop' => [['viewport' => ['width' => 1440, 'height' => 900]], true],
+    'phone' => [['viewport' => ['width' => 390, 'height' => 844]], false],
+]);
 
 test('on the narrowest screens the header keeps Get started, the way in the hero used to offer', function () {
     visit($this->landing, ['viewport' => ['width' => 320, 'height' => 640]])->wait(1)

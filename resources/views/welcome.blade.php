@@ -2,6 +2,7 @@
 
 <x-layouts::landing
     :title="__('Your Library. Every Story.')"
+    :has-top-ten="count($topTen) > 0"
     :description="__('Bookflix keeps every comic, manga, novel and webcomic you own, read and love on one calm shelf, filed the way a library would.')"
 >
     <x-landing.hero :books="$books" />

@@ -1,4 +1,4 @@
-@props(['title' => null, 'description' => null])
+@props(['title' => null, 'description' => null, 'hasTopTen' => false])
 
 {{--
     The public landing page's own layout: no app header or bottom nav, a skip link, one `main` landmark and the landing footer.
@@ -23,13 +23,13 @@
             class="focus-ring fixed start-gutter top-2 z-50 flex -translate-y-20 opacity-0 focus:translate-y-0 focus:opacity-100 min-h-11 items-center rounded-control border border-hairline bg-surface-card px-4 text-meta text-ink"
         >{{ __('Skip to content') }}</a>
 
-        <x-landing.header />
+        <x-landing.header :has-top-ten="$hasTopTen" />
 
         <main id="main" tabindex="-1" class="outline-hidden">
             {{ $slot }}
         </main>
 
-        <x-landing.footer />
+        <x-landing.footer :has-top-ten="$hasTopTen" />
 
         @livewireScriptConfig
     </body>

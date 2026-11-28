@@ -67,8 +67,10 @@ return [
         ],
 
         // Failed sign-ins, lockouts, 429s and 403s (see App\Support\SecurityLog). Kept apart from the application log so it can be read, shipped or alerted on alone.
+        // The driver is a setting only so the test suite can swap it for a null handler (phpunit.xml): a suite run would otherwise write hundreds of lines to the real file.
         'security' => [
-            'driver' => 'daily',
+            'driver' => env('LOG_SECURITY_CHANNEL_DRIVER', 'daily'),
+            'handler' => NullHandler::class,
             'path' => storage_path('logs/security.log'),
             'level' => 'info',
             'days' => (int) env('LOG_SECURITY_DAYS', 30),

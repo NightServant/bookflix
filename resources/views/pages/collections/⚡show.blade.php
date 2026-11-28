@@ -346,7 +346,7 @@ new class extends Component {
                             </a>
 
                             <div class="min-w-0">
-                                <p class="text-lead text-ink"><a href="{{ route('stories.show', $story->slug) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control hover:underline">{{ $story->title }}</a></p>
+                                <p class="text-lead text-ink"><a href="{{ route('stories.show', $story->slug) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control wrap-anywhere hover:underline">{{ $story->title }}</a></p>
                                 <p class="text-meta text-ink-subtle">
                                     <span class="tabular-nums">{{ $loop->iteration }}</span>
                                     <span aria-hidden="true">·</span>

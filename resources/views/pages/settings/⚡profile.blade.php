@@ -201,7 +201,7 @@ new #[Title('Profile settings')] class extends Component {
                     :src="$avatar?->isPreviewable() ? $avatar->temporaryUrl() : auth()->user()->avatarUrl()"
                 />
 
-                <div class="flex-1">
+                <div class="min-w-0 flex-1 [&_ui-field>*]:min-w-0">
                     <flux:input wire:model="avatar" :label="__('Avatar')" type="file" accept="image/jpeg,image/png,image/webp" />
                 </div>
             </div>

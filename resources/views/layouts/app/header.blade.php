@@ -12,7 +12,7 @@
 
         {{-- Over a band the header is translucent (the band runs under it); otherwise it is the solid canvas. --}}
         <flux:header @class(['border-b border-hairline px-gutter!', 'relative z-20 -mb-14 bg-canvas/70 backdrop-blur-md' => $band ?? false, 'bg-canvas' => ! ($band ?? false)])>
-            <x-app-logo href="{{ route('home') }}" wire:navigate />
+            <x-app-logo href="{{ route('home') }}" wire:navigate data-test="logo" />
 
             <flux:navbar class="-mb-px ms-6 max-lg:hidden">
                 @foreach (App\Support\PrimaryNavigation::items()->where('desktop', '!==', false) as $item)

@@ -259,7 +259,8 @@ new #[Title('Classification review')] class extends Component {
         <x-admin-empty class="mt-6 rounded-card bg-surface-card" icon="check-circle" :title="__('Nothing to review here')" :description="__('Classes the sync suggests will queue up under Pending.')" />
     @else
         {{-- A table from md up; below it each row is a card (the table's parts become blocks, each cell labelled by its data-label). --}}
-        <flux:table class="mt-6 table-auto! max-md:block max-md:whitespace-normal! max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tr]:block max-md:[&_td]:block max-md:[&_td]:border-0 max-md:[&_td]:px-0">
+        <x-admin-table :label="__('Classifications')" class="mt-6">
+        <flux:table class="table-auto! max-md:block max-md:whitespace-normal! max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tr]:block max-md:[&_td]:block max-md:[&_td]:border-0 max-md:[&_td]:px-0">
             <flux:table.columns>
                 <flux:table.column>{{ __('Story') }}</flux:table.column>
                 <flux:table.column>{{ __('Class') }}</flux:table.column>
@@ -276,7 +277,7 @@ new #[Title('Classification review')] class extends Component {
                     @php($cell = 'max-md:flex! max-md:gap-4 max-md:py-1 max-md:before:w-24 max-md:before:shrink-0 max-md:before:text-ink-subtle max-md:before:content-[attr(data-label)]')
                     <flux:table.row wire:key="row-{{ $row->id }}" class="max-md:mb-4 max-md:rounded-card max-md:bg-surface-card max-md:p-4">
                         <flux:table.cell class="md:max-w-60 md:whitespace-normal!">
-                            <a href="{{ route('admin.media.edit', $row->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control text-body text-ink hover:underline md:min-h-0">{{ $row->media->title }}</a>
+                            <a href="{{ route('admin.media.edit', $row->media) }}" wire:navigate class="focus-ring inline-flex min-h-11 items-center rounded-control text-body text-ink wrap-anywhere hover:underline md:min-h-0">{{ $row->media->title }}</a>
                             <span class="block text-meta text-ink-subtle">
                                 {{ $row->media->mediaType->name }}@if ($row->media->publication_year) · {{ $row->media->publication_year }}@endif
                                 @if ($row->media->creators->isNotEmpty()) · {{ $row->media->creators->pluck('name')->join(', ') }}@endif
@@ -322,6 +323,7 @@ new #[Title('Classification review')] class extends Component {
                 @endforeach
             </flux:table.rows>
         </flux:table>
+        </x-admin-table>
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p class="text-meta text-ink-subtle">{{ trans_choice(':count class|:count classes', $this->rows->total(), ['count' => Number::format($this->rows->total())]) }} · {{ __('lowest confidence first') }}</p>

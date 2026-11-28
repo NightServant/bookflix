@@ -89,7 +89,7 @@ new #[Title('Overview')] class extends Component {
         ] as [$label, $line, $href, $action])
             <li wire:key="glance-{{ $label }}" class="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
                 <span class="w-40 shrink-0 text-body text-ink">{{ $label }}</span>
-                <span class="min-w-0 flex-1 text-body text-ink-subtle">{{ $line }}</span>
+                <span class="min-w-0 flex-1 basis-48 text-body text-ink-subtle">{{ $line }}</span>
                 <flux:button size="sm" variant="filled" class="min-h-11" :href="$href" wire:navigate>{{ $action }}</flux:button>
             </li>
         @endforeach

@@ -410,7 +410,7 @@ new #[Title('Search')] class extends FilteredPage {
                     @endif
                 </p>
 
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                     <x-filter-sheet>
                         <x-slot:badge>
                             <span x-show="activeCount > 0" style="display: none" class="tabular-nums text-ink-subtle" wire:ignore><span aria-hidden="true" class="mx-1.5">·</span><span x-text="activeCount"></span><span class="sr-only"> {{ __('applied') }}</span></span>

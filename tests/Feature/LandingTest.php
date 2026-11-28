@@ -28,7 +28,7 @@ test('a guest sees the six sections in order, between a header and a footer, und
 
     expect(landingTexts($html, '//section[@data-section]/@data-section'))->toBe(['hero', 'top-ten', 'scattered', 'together', 'faq', 'closing'])
         ->and(htmlQuery($html, '//main[@id="main"]')->length)->toBe(1)
-        ->and(htmlQuery($html, '//body/header')->length)->toBe(1)
+        ->and(htmlQuery($html, '//body//header[not(ancestor::main)]')->length)->toBe(1)
         ->and(htmlQuery($html, '//body/footer')->length)->toBe(1)
         ->and(htmlQuery($html, '//h1')->length)->toBe(1)
         ->and(htmlQuery($html, '//body/a[@href="#main"]')->length)->toBe(1)
