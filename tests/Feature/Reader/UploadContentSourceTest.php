@@ -60,6 +60,9 @@ function upZipOf(array $entries, bool $mimetypeStored = true): string
 
     foreach ($entries as $name => $body) {
         $zip->addFromString($name, $body);
+        // A fixed entry time keeps the bytes identical across calls: tests compare a stored checksum against a second build of the same archive, and
+        // the current time (2-second resolution in zip headers) made those differ whenever a boundary fell between the two builds.
+        $zip->setMtimeName($name, 946684800);
 
         if ($name === 'mimetype' && $mimetypeStored) {
             $zip->setCompressionName($name, ZipArchive::CM_STORE);
@@ -173,6 +176,39 @@ test('an unsafe archive is refused with the guard message', function () {
     $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf(upZipOf(['../evil.png' => ContentSourceFactory::png(1)]), 'x.cbz')));
 
     expect($e->errors()['file'][0])->toStartWith('This file is not a safe archive');
+});
+
+test('an archive with too many entries is refused with the guard message', function () {
+    config(['bookflix.reader.archive.max_entries' => 5]);
+    $pages = collect(range(1, 6))->mapWithKeys(fn (int $n) => [sprintf('%02d.png', $n) => ContentSourceFactory::png($n)])->all();
+
+    $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf(upZipOf($pages), 'x.cbz')));
+
+    expect($e->errors()['file'][0])->toBe('This file is not a safe archive: it holds too many files.');
+});
+
+test('an archive whose pages unpack past the size cap is refused with the guard message', function () {
+    config(['bookflix.reader.archive.max_uncompressed_mb' => 1]);
+
+    $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf(upZipOf(['01.png' => random_bytes(1048577)]), 'x.cbz')));
+
+    expect($e->errors()['file'][0])->toBe('This file is not a safe archive: it unpacks to too much data.');
+});
+
+test('an archive with a symlink entry is refused with the guard message', function () {
+    $temp = (string) tempnam(sys_get_temp_dir(), 'up');
+    $zip = new ZipArchive;
+    $zip->open($temp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('01.png', ContentSourceFactory::png(1));
+    $zip->addFromString('02.png', '01.png');
+    $zip->setExternalAttributesName('02.png', ZipArchive::OPSYS_UNIX, 0120777 << 16);
+    $zip->close();
+    $bytes = (string) file_get_contents($temp);
+    unlink($temp);
+
+    $e = upRefusal(fn () => uploadBook($this->user, $this->media, upFileOf($bytes, 'x.cbz')));
+
+    expect($e->errors()['file'][0])->toBe('This file is not a safe archive: it holds a link.');
 });
 
 test('an empty file is refused', function () {

@@ -19,12 +19,11 @@
         "pdfjs-dist": "6.5.438",
         "tailwindcss": "^4.0.7",
         "three": "0.186.1",
-        "vite": "^8.0.0",
-        "vite-plus": "0.3.0"
+        "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8001",
+        "vite-plus": "1.8.0"
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.1",
-        "@rollup/rollup-linux-x64-gnu": "4.9.5",
         "@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
         "lightningcss-linux-x64-gnu": "^1.29.1"
     },

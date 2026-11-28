@@ -99,6 +99,25 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        // The same database as `pgsql`, connected as its OWNER: for migrations only (`php artisan migrate --force --database=pgsql_owner`), because the web app's
+        // own role (`pgsql`) cannot change the schema (database/sql/app-role.sql, docs/SECURITY.md). Every DB_OWNER_* setting falls back to its `pgsql` value, so
+        // local development and CI, which use one role for everything, change nothing. In production DB_OWNER_HOST is Neon's direct (unpooled) host.
+        // A URL overrides the separate host and user settings, so when DB_URL is set, set DB_OWNER_URL too (or the owner connection inherits the app's URL).
+        'pgsql_owner' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_OWNER_URL', env('DB_URL')),
+            'host' => env('DB_OWNER_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('DB_OWNER_PORT', env('DB_PORT', '5432')),
+            'database' => env('DB_DATABASE', 'laravel'),
+            'username' => env('DB_OWNER_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('DB_OWNER_PASSWORD', env('DB_PASSWORD', '')),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

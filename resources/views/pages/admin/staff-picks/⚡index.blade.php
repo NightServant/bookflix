@@ -40,6 +40,7 @@ new #[Title('Staff picks')] class extends Component {
     public bool $shown = false;
 
     /** @var list<int> */
+    #[Locked]
     public array $storyIds = [];
 
     public string $search = '';

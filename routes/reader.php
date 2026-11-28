@@ -3,6 +3,7 @@
 use App\Http\Controllers\Reader\PageController;
 use App\Http\Controllers\Reader\ProgressController;
 use App\Http\Controllers\Reader\StreamContentController;
+use App\Http\Middleware\LimitRequestBody;
 use Illuminate\Support\Facades\Route;
 
 // The file itself, for the reader's own browser: signed (10 minutes) and bound to the signed-in reader. pdf.js asks for many ranges, hence the roomy limiter.
@@ -19,7 +20,7 @@ Route::get('reader/{source}/page/{page}', PageController::class)
 
 // The reader's place, saved while they read (and by a beacon as the tab closes): their own bucket, per person.
 Route::post('reader/{source}/progress', ProgressController::class)
-    ->middleware(['auth', 'verified', 'reader', 'throttle:reader-progress'])
+    ->middleware(['auth', 'verified', 'reader', 'throttle:reader-progress', LimitRequestBody::class.':8'])
     ->whereNumber('source')
     ->name('reader.progress');
 

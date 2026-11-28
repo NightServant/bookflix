@@ -98,9 +98,30 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('login', function (Request $request) {
-            $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+            $throttleKey = $this->throttleEmail($request).'|'.$request->ip();
 
             return Limit::perMinute(5)->by($throttleKey);
+        });
+
+        // The auth forms that post and have no limiter of their own (login, two-factor, passkeys and verification resend keep theirs). Every key
+        // has its own prefix, so the per-IP and per-email buckets never share a counter. Pages (GET) and every other route are never limited.
+        RateLimiter::for('auth-writes', function (Request $request): Limit|array {
+            if ($request->isMethod('GET') || $request->isMethod('HEAD')) {
+                return Limit::none();
+            }
+
+            $email = $this->throttleEmail($request);
+
+            return match (true) {
+                $request->routeIs('register.store') => Limit::perMinute(5)->by('register|'.$request->ip()),
+                $request->routeIs('password.email') => [
+                    Limit::perMinute(5)->by('reset-link-email|'.$email.'|'.$request->ip()),
+                    Limit::perMinute(20)->by('reset-link-ip|'.$request->ip()),
+                ],
+                $request->routeIs('password.update') => Limit::perMinute(5)->by('reset-submit|'.$email.'|'.$request->ip()),
+                $request->routeIs('password.confirm.store') => Limit::perMinute(5)->by('confirm-password|'.$request->user()?->getAuthIdentifier()),
+                default => Limit::none(),
+            };
         });
 
         RateLimiter::for('passkeys', function (Request $request) {
@@ -110,5 +131,15 @@ class FortifyServiceProvider extends ServiceProvider
                 ($credentialId ?: $request->session()->getId()).'|'.$request->ip(),
             );
         });
+    }
+
+    /**
+     * The submitted email as a throttle key part: lower-cased and transliterated, or empty when it is not a string (a list is a validation error, not a crash).
+     */
+    private function throttleEmail(Request $request): string
+    {
+        $email = $request->input(Fortify::username());
+
+        return is_string($email) ? Str::transliterate(Str::lower($email)) : '';
     }
 }

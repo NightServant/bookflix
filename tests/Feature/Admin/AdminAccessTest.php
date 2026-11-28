@@ -1,10 +1,15 @@
 <?php
 
+use App\Models\Collection as StoryCollection;
 use App\Models\DuplicateCandidate;
 use App\Models\Media;
+use App\Models\Report;
+use App\Models\Review;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 
 test('guests are redirected away from admin', function () {
@@ -32,6 +37,38 @@ test('a demoted admin is refused on the next livewire request', function (string
 
     $page->call('$refresh')->assertForbidden();
 })->with(['pages::admin.providers.index', 'pages::admin.media.index', 'pages::admin.media.edit', 'pages::admin.duplicates.index']);
+
+test('a demoted admin cannot run admin actions', function (string $component, string $method, Closure $params) {
+    Http::fake(['*/health' => Http::response(['status' => 'ok'])]);
+    $admin = User::factory()->admin()->create();
+    $page = Livewire::actingAs($admin)->test($component);
+    $arguments = $params();
+    $admin->forceFill(['is_admin' => false])->save();
+
+    $page->call($method, ...$arguments)->assertForbidden();
+})->with([
+    'hide' => ['pages::admin.moderation.index', 'hide', fn () => [Report::factory()->of(Review::factory()->create())->create()->id]],
+    'dismiss' => ['pages::admin.moderation.index', 'dismiss', fn () => [Report::factory()->of(Review::factory()->create())->create()->id]],
+    'restore' => ['pages::admin.moderation.index', 'restore', fn () => [Report::factory()->of(Review::factory()->create())->create()->id]],
+    'run now' => ['pages::admin.models.index', 'runNow', fn () => ['popularity']],
+    'create a pick' => ['pages::admin.staff-picks.index', 'create', fn () => []],
+    'edit a pick' => ['pages::admin.staff-picks.index', 'edit', fn () => [StoryCollection::factory()->editorial()->create()->id]],
+    'add a story' => ['pages::admin.staff-picks.index', 'addStory', fn () => [Media::factory()->create()->id]],
+    'remove a story' => ['pages::admin.staff-picks.index', 'removeStory', fn () => [Media::factory()->create()->id]],
+    'move a story' => ['pages::admin.staff-picks.index', 'moveStory', fn () => [0, 1]],
+    'save a pick' => ['pages::admin.staff-picks.index', 'save', fn () => []],
+]);
+
+test('admin id properties cannot be set from the browser', function (string $component, string $property) {
+    expect(fn () => Livewire::actingAs(User::factory()->admin()->create())->test($component)->set($property, 1))
+        ->toThrow(CannotUpdateLockedPropertyException::class);
+})->with([
+    ['pages::admin.classifications.index', 'rowId'],
+    ['pages::admin.classifications.index', 'mediaId'],
+    ['pages::admin.content.index', 'verifying'],
+    ['pages::admin.duplicates.index', 'comparing'],
+    ['pages::admin.staff-picks.index', 'storyIds'],
+]);
 
 test('the admin dashboard shows live counts within a small query budget and caches them', function () {
     Cache::forget('admin.dashboard-counts');

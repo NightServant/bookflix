@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -16,6 +17,7 @@ new #[Title('Duplicates')] class extends Component {
     use WithPagination;
 
     /** The pair open in the Compare dialog. */
+    #[Locked]
     public ?int $comparing = null;
 
     public function boot(): void
