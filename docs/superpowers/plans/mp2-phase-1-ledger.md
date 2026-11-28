@@ -208,3 +208,34 @@ Review: no blocking findings. Fix wave: the security log can never turn a respon
 Rulings: P1-R11 the security log stores a 12-hex unsalted SHA-256 prefix of the email (enough to group attempts; someone holding the log could confirm a guessed address). P1-R12 the body cap answers 404 before 413 for a missing route model (binding runs first), harmless.
 
 Deferred to Phase 3 (privacy policy inventory): the security log keeps IP, user id and an email hash for 30 days (`LOG_SECURITY_DAYS`).
+
+## Owner decisions on the Needs decision list (2026-11-28)
+
+The owner answered the eight items from #42. Hosting target: **Vercel** (with Neon Postgres, per the brief).
+
+| # | Item | Owner's answer | Action |
+|---|---|---|---|
+| 1 | Least-privilege Postgres role | Asked for the recommendation | Answered; no code until the owner says go. Note: row-level security (item 7) never applies to a superuser, and applies to a table's owner only with `FORCE ROW LEVEL SECURITY` |
+| 2 | TrustProxies, secure session cookie | "Needed for Vercel" | Task 1.8 |
+| 3 | Dependency upgrades, then audits in CI | Go | Task 1.9 |
+| 4 | Private buckets, signed URLs | Asked for free, open-source options | Options given; waits on the owner's pick and on approval of `league/flysystem-aws-s3-v3` |
+| 5 | HSTS `preload` | Do it | Task 1.8 |
+| 6 | Sign-up limit 5/min per IP | "Agree, this is for rate limiting" | Kept as is. On Vercel the limit sees each visitor's own IP only once Task 1.8 trusts Vercel's proxy (without it every visitor shares Vercel's address) |
+| 7 | Database-level row-level security | Go | Task 1.10: a design first (tables, policies, how the user id reaches Postgres through Neon's transaction-mode pooler, which paths bypass), reviewed before any code |
+| 8 | Security log destination and retention | Asked for options | Options given. On Vercel only `/tmp` is writable and it does not survive the invocation, so the daily file cannot be the production destination |
+
+### Rulings (owner decisions)
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| P1-R13 | (1.8) Trusted proxies come from `TRUSTED_PROXIES` (a comma list, or `*`); unset trusts none, which is today's behaviour. On Vercel it is `*`: a function is reachable only through Vercel's proxy, which overwrites `X-Forwarded-For` with the client's address. | On a host the app can be reached on directly, `*` would let a client fake its IP (rate limits, security log) and the https flag. |
+| P1-R14 | (1.8) The session cookie is `Secure` by default when `APP_ENV=production`; `SESSION_SECURE_COOKIE` still overrides it. | A production site served over plain http would lose sessions; Vercel serves https only. |
+| P1-R15 | (1.8) HSTS adds `preload` (owner, 2026-11-28). Submitting the domain at hstspreload.org stays the owner's step; it needs the apex and every subdomain on https. | Hard to undo: removal from browser lists takes months. |
+
+### Task log (owner decisions)
+
+| Task | Status | Commits | Notes |
+|---|---|---|---|
+| 1.8 Trusted proxies (Vercel), secure cookie by default, HSTS preload | pending | | |
+| 1.9 Dependency upgrades; `composer audit` and `npm audit` in CI | pending | | |
+| 1.10 Database row-level security | pending (design first) | | |
