@@ -208,3 +208,71 @@ Review: no blocking findings. Fix wave: the security log can never turn a respon
 Rulings: P1-R11 the security log stores a 12-hex unsalted SHA-256 prefix of the email (enough to group attempts; someone holding the log could confirm a guessed address). P1-R12 the body cap answers 404 before 413 for a missing route model (binding runs first), harmless.
 
 Deferred to Phase 3 (privacy policy inventory): the security log keeps IP, user id and an email hash for 30 days (`LOG_SECURITY_DAYS`).
+
+## Owner decisions on the Needs decision list (2026-11-28)
+
+The owner answered the eight items from #42. Hosting target: **Vercel** (with Neon Postgres, per the brief).
+
+| # | Item | Owner's answer | Action |
+|---|---|---|---|
+| 1 | Least-privilege Postgres role | Asked for the recommendation | Answered; no code until the owner says go. Note: row-level security (item 7) never applies to a superuser, and applies to a table's owner only with `FORCE ROW LEVEL SECURITY` |
+| 2 | TrustProxies, secure session cookie | "Needed for Vercel" | Task 1.8 |
+| 3 | Dependency upgrades, then audits in CI | Go | Task 1.9 |
+| 4 | Private buckets, signed URLs | Asked for free, open-source options | Options given; waits on the owner's pick and on approval of `league/flysystem-aws-s3-v3` |
+| 5 | HSTS `preload` | Do it | Task 1.8 |
+| 6 | Sign-up limit 5/min per IP | "Agree, this is for rate limiting" | Kept as is. On Vercel the limit sees each visitor's own IP only once Task 1.8 trusts Vercel's proxy (without it every visitor shares Vercel's address) |
+| 7 | Database-level row-level security | Go | Task 1.10: a design first (tables, policies, how the user id reaches Postgres through Neon's transaction-mode pooler, which paths bypass), reviewed before any code |
+| 8 | Security log destination and retention | Asked for options | Options given. On Vercel only `/tmp` is writable and it does not survive the invocation, so the daily file cannot be the production destination |
+
+### Rulings (owner decisions)
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| P1-R13 | (1.8) Trusted proxies come from `TRUSTED_PROXIES` (a comma list, or `*`); unset trusts none, which is today's behaviour. On Vercel it is `*`: a function is reachable only through Vercel's proxy, which overwrites `X-Forwarded-For` with the client's address. | On a host the app can be reached on directly, `*` would let a client fake its IP (rate limits, security log) and the https flag. |
+| P1-R14 | (1.8) The session cookie is `Secure` by default when `APP_ENV=production`; `SESSION_SECURE_COOKIE` still overrides it. | A production site served over plain http would lose sessions; Vercel serves https only. |
+| P1-R15 | (1.8) HSTS adds `preload` (owner, 2026-11-28). Submitting the domain at hstspreload.org stays the owner's step; it needs the apex and every subdomain on https. | Hard to undo: removal from browser lists takes months. |
+
+### Task log (owner decisions)
+
+| Task | Status | Commits | Notes |
+|---|---|---|---|
+| 1.8 Trusted proxies (Vercel), secure cookie by default, HSTS preload | pending | | |
+| 1.9 Dependency upgrades; `composer audit` and `npm audit` in CI | pending | | |
+| 1.10 Database row-level security | pending (design first) | | |
+
+### Task 1.10 design audit (2026-11-28, read-only, at 3cde115)
+
+The reviewer audited every per-user table and every path that reads across users. Findings that shape the design:
+- **Tables RLS cannot scope:** `users`, `sessions`, `passkeys` and `password_reset_tokens` are read before anyone is signed in. `ratings` and published `reviews` (with their authors' `users`/`profiles` rows) are read across users on every story page. Here RLS could protect writes only.
+- **Cross-user paths that need a role that bypasses RLS:**
+  - admin pages (users, moderation, staff picks, duplicates merge);
+  - the scheduler and commands (purge, outside reviews, LTR readiness);
+  - jobs (`RecalculateMediaRating`, `SummarizeReviews`, `ExportLtrCandidates`, `Deduplicator::merge` across every user's rows);
+  - the ML service, which reads interactions and recommendations and refreshes `media_popularity` concurrently;
+  - the `media_popularity` refresh itself.
+- **Neon's transaction pooler:** the user id can only be set inside a transaction. The choices are:
+  - one transaction per request: it pins a pooled connection for the whole assistant or AI call (up to 20 s per LLM call), leaves streamed responses outside it, and keeps `LogProgress`'s row lock until the response ends;
+  - re-applying `set_config(..., true)` on every transaction from a custom connection: about two extra round trips per statement outside a transaction.
+- **Jobs that run `sync` inside a request** (likely on Vercel, which has no long-running worker) would run with the reader's context: aggregates see one user's rows, or writes fail.
+- **Failure mode:** a missed context fails closed into silent empty results (Trending, averages, exports), not errors.
+- **Tests:** the suite connects as a superuser, so RLS is invisible to it. Tests must run app queries as a restricted role.
+- **Benefit:** defence in depth against a missing `where user_id` or SQL injection. The Phase 1 inventory found every per-user query already scoped in code.
+
+Reviewer's recommendation: if done, do it only for the owner-only tables, with three roles (owner for migrations; app without BYPASSRLS; service with BYPASSRLS for admin, jobs, console and ML), the user id applied per transaction, and an isolation suite. Leave the auth tables, `ratings` reads and the catalog out, and say so in SECURITY.md.
+
+Status: paused before any code. Scope and the roles (item 1) are back with the owner, because the audit changes the cost and benefit the owner approved against.
+
+### Owner decisions, second round (2026-11-28)
+
+- Item 1 (least-privilege role): **go**.
+- Item 4 (private bucket): **add `league/flysystem-aws-s3-v3`** (owner-approved dependency). The provider is the recommended one, Supabase Storage (open source, free plan, S3 API).
+- Item 8 (security log): **a centralized repository off the host**.
+- Item 7 (row-level security): the owner has not picked between narrow RLS now and RLS later. It stays paused, read as "app login now, RLS later" until the owner says otherwise.
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| P1-R16 | (1.11) A committed SQL script creates the app role `bookflix_app` with plain SQL. Neon adds roles made in its Console or API to `neon_superuser`, so the Console is not used for this role. The role gets: `CONNECT`; `USAGE` on schema `public`; `SELECT, INSERT, UPDATE, DELETE` on every table; `USAGE, SELECT` on sequences; default privileges for tables the owner creates later; and `MAINTAIN` on `media_popularity`, so the refresh works without ownership (Postgres 17+). No DDL. The password is set by the owner in Neon's SQL editor and never written to the repo. Migrations run as the owner on Neon's direct (unpooled) host through a `pgsql_owner` connection: `php artisan migrate --database=pgsql_owner`. | A migration that needs a new right, e.g. an extension, fails loudly under the app role, not silently. |
+| P1-R17 | (1.12) Supabase Storage through its S3 API (custom endpoint, path-style). Reader files, comic pages and exports live on a configurable disk: `local` by default, the private bucket in production. After the existing authorization check, the signed route redirects to a short-lived presigned URL when the disk can issue one. Vercel caps a function's non-streamed response at 4.5 MB, so large files cannot be passed through the app. The CSP allows the bucket's origin only when a bucket is configured. Uploads over 4.5 MB on Vercel need direct-to-bucket uploads; that is configured and documented, but it cannot be checked against a live Supabase project from here. | A presigned link works for its whole lifetime once issued: keep it short (5 minutes). |
+| P1-R18 | (1.13) Security events go off the host to a Loki push endpoint: Grafana Cloud's free plan (Loki is open source; 50 GB/month, 14-day retention), or a self-hosted Loki later with the same settings. Delivery is batched per request, has a short timeout, and is never fatal. A copy goes to stderr, which shows in Vercel's runtime logs. The daily file stays for local development. Credentials live in env only. No new package: a small Monolog handler uses Laravel's HTTP client. | 14-day retention on the free plan; longer retention means a paid plan or a self-hosted Loki. |
+
+Queue: 1.9 (running) → 1.11 database role → 1.12 private bucket → 1.13 off-host security log. Each gets a review, and the phase-exit gates run again before #42 is marked ready.

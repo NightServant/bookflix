@@ -27,6 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', EnsureAccountIsActive::class);
         $middleware->appendToGroup('web', SetContentSecurityPolicy::class);
         $middleware->alias(['onboarded' => EnsureOnboarded::class, 'reader' => EnsureReaderAccount::class, 'password.confirm' => RequirePassword::class]);
+        // The proxies come from TRUSTED_PROXIES (config/trustedproxy.php). Only the client address, scheme and port are believed from a trusted proxy: X-Forwarded-Host is
+        // not, because the reset and verification mails build their links from the request's host, so a client-supplied one would poison them.
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_PORT);
         $middleware->redirectUsersTo(fn (Request $request) => $request->user()?->homePath());
     })
     ->withExceptions(function (Exceptions $exceptions): void {

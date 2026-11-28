@@ -191,8 +191,9 @@ jobs:
 
   # Secret scan over the whole git history (not a required check, no `needs`). gitleaks is installed through the Go module proxy, pinned to a
   # version and verified against its module checksum (Go's checksum database checks it again on install).
-  # `composer audit` and `npm audit` are left out until the advisories listed in docs/superpowers/plans/mp2-phase-1-ledger.md ("Task 1.5 findings")
-  # are resolved: the upgrades need the owner's approval, and a red job on known advisories would only be ignored.
+  # Dependency advisories: `composer audit` over composer.lock and `npm audit` over package-lock.json (production dependencies; neither needs the
+  # dependencies installed). Any advisory fails the job. Both lock files were upgraded to clear the advisories listed in
+  # docs/superpowers/plans/mp2-phase-1-ledger.md ("Task 1.5 findings"), so a red run here means a new one.
   security:
     runs-on: ubuntu-latest
 
@@ -208,6 +209,24 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Audit PHP dependencies
+        run: composer audit --locked --no-interaction
+
+      - name: Audit JavaScript dependencies
+        run: npm audit --omit=dev
 
       - name: Install gitleaks
         run: |
