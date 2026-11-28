@@ -33,24 +33,24 @@ test('headers and request id cover guest redirects and 404s', function () {
         ->assertHeader('X-Content-Type-Options', 'nosniff');
 });
 
-test('every header carries its exact value, and HSTS has no preload', function () {
+test('every header carries its exact value, and HSTS asks for preload', function () {
     $headers = $this->get('https://localhost/up')->headers;
 
     expect($headers->get('X-Content-Type-Options'))->toBe('nosniff')
         ->and($headers->get('Referrer-Policy'))->toBe('same-origin')
         ->and($headers->get('X-Frame-Options'))->toBe('DENY')
         ->and($headers->get('Permissions-Policy'))->toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=()')
-        ->and($headers->get('Strict-Transport-Security'))->toBe('max-age=63072000; includeSubDomains')
-        ->and($headers->get('Strict-Transport-Security'))->not->toContain('preload');
+        ->and($headers->get('Strict-Transport-Security'))->toBe('max-age=63072000; includeSubDomains; preload')
+        ->and($headers->get('Strict-Transport-Security'))->toContain('preload');
 });
 
 test('secure responses tell browsers to stay on https', function () {
-    $this->get('https://localhost/up')->assertHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+    $this->get('https://localhost/up')->assertHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 });
 
 test('secure error and redirect responses carry it too', function () {
-    $this->get('https://localhost/no-such-page')->assertNotFound()->assertHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
-    $this->get('https://localhost/home')->assertRedirect()->assertHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+    $this->get('https://localhost/no-such-page')->assertNotFound()->assertHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    $this->get('https://localhost/home')->assertRedirect()->assertHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 });
 
 test('a local environment never pins its host, even over https', function () {

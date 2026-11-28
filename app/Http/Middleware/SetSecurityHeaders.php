@@ -21,11 +21,11 @@ class SetSecurityHeaders
             'Permissions-Policy' => 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
         ]);
 
-        // Two years (63072000 s), includeSubDomains, no `preload`: preload is the owner's call (it is hard to undo). Only over https, and never in the local environment: a browser ignores it on plain http, and a two-year includeSubDomains pin would stick to a
-        // local secured site (the Herd .test host). No TrustProxies is configured, so behind a TLS-terminating proxy this stays off until the proxy
-        // list is set; see the Phase 1 ledger.
+        // Two years (63072000 s), includeSubDomains and preload (the owner's decision; submitting the domain at hstspreload.org is their step). Only over https, and never
+        // in the local environment: a browser ignores it on plain http, and a two-year includeSubDomains pin would stick to a local secured site (the Herd .test host).
+        // Behind a TLS-terminating proxy `isSecure()` is true only when that proxy is trusted (TRUSTED_PROXIES, config/trustedproxy.php).
         if ($request->isSecure() && ! app()->isLocal()) {
-            $response->headers->set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+            $response->headers->set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
         }
 
         return $response;
