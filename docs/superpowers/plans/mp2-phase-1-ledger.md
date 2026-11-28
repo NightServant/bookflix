@@ -239,3 +239,25 @@ The owner answered the eight items from #42. Hosting target: **Vercel** (with Ne
 | 1.8 Trusted proxies (Vercel), secure cookie by default, HSTS preload | pending | | |
 | 1.9 Dependency upgrades; `composer audit` and `npm audit` in CI | pending | | |
 | 1.10 Database row-level security | pending (design first) | | |
+
+### Task 1.10 design audit (2026-11-28, read-only, at 3cde115)
+
+The reviewer audited every per-user table and every path that reads across users. Findings that shape the design:
+- **Tables RLS cannot scope:** `users`, `sessions`, `passkeys` and `password_reset_tokens` are read before anyone is signed in. `ratings` and published `reviews` (with their authors' `users`/`profiles` rows) are read across users on every story page. Here RLS could protect writes only.
+- **Cross-user paths that need a role that bypasses RLS:**
+  - admin pages (users, moderation, staff picks, duplicates merge);
+  - the scheduler and commands (purge, outside reviews, LTR readiness);
+  - jobs (`RecalculateMediaRating`, `SummarizeReviews`, `ExportLtrCandidates`, `Deduplicator::merge` across every user's rows);
+  - the ML service, which reads interactions and recommendations and refreshes `media_popularity` concurrently;
+  - the `media_popularity` refresh itself.
+- **Neon's transaction pooler:** the user id can only be set inside a transaction. The choices are:
+  - one transaction per request: it pins a pooled connection for the whole assistant or AI call (up to 20 s per LLM call), leaves streamed responses outside it, and keeps `LogProgress`'s row lock until the response ends;
+  - re-applying `set_config(..., true)` on every transaction from a custom connection: about two extra round trips per statement outside a transaction.
+- **Jobs that run `sync` inside a request** (likely on Vercel, which has no long-running worker) would run with the reader's context: aggregates see one user's rows, or writes fail.
+- **Failure mode:** a missed context fails closed into silent empty results (Trending, averages, exports), not errors.
+- **Tests:** the suite connects as a superuser, so RLS is invisible to it. Tests must run app queries as a restricted role.
+- **Benefit:** defence in depth against a missing `where user_id` or SQL injection. The Phase 1 inventory found every per-user query already scoped in code.
+
+Reviewer's recommendation: if done, do it only for the owner-only tables, with three roles (owner for migrations; app without BYPASSRLS; service with BYPASSRLS for admin, jobs, console and ML), the user id applied per transaction, and an isolation suite. Leave the auth tables, `ratings` reads and the catalog out, and say so in SECURITY.md.
+
+Status: paused before any code. Scope and the roles (item 1) are back with the owner, because the audit changes the cost and benefit the owner approved against.
